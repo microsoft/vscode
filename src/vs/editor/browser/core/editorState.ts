@@ -9,6 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ITextModel } from 'vs/editor/common/model';
 
 export const enum CodeEditorStateFlag {
 	Value = 1,
@@ -98,6 +99,21 @@ export class EditorStateCancellationTokenSource extends CancellationTokenSource 
 
 	dispose() {
 		dispose(this._listener);
+		super.dispose();
+	}
+}
+
+export class TextModelCancellationTokenSource extends CancellationTokenSource {
+
+	private _listener: IDisposable;
+
+	constructor(model: ITextModel) {
+		super();
+		this._listener = model.onDidChangeContent(() => this.cancel());
+	}
+
+	dispose() {
+		this._listener.dispose();
 		super.dispose();
 	}
 }
