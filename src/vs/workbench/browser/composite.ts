@@ -257,7 +257,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 
 	protected deregisterComposite(id: string): void {
 		const descriptor = this.compositeById(id);
-		if (descriptor === null) {
+		if (!descriptor) {
 			return;
 		}
 
