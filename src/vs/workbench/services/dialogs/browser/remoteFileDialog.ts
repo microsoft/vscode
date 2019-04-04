@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { IWindowService, FileFilter } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -40,7 +40,6 @@ export class RemoteFileDialog {
 	private options: IOpenDialogOptions;
 	private currentFolder: URI;
 	private filePickBox: IQuickPick<FileQuickPickItem>;
-	private filters: FileFilter[] | undefined;
 	private hidden: boolean;
 	private allowFileSelection: boolean;
 	private allowFolderSelection: boolean;
@@ -188,7 +187,7 @@ export class RemoteFileDialog {
 			this.filePickBox.buttons = [this.acceptButton];
 			this.filePickBox.onDidTriggerButton(_ => {
 				// accept button
-				const resolveValue = this.remoteUriFrom(this.filePickBox.value);
+				const resolveValue = this.addPostfix(this.remoteUriFrom(this.filePickBox.value));
 				this.validate(resolveValue).then(validated => {
 					if (validated) {
 						isResolving = true;
@@ -316,6 +315,7 @@ export class RemoteFileDialog {
 		}
 
 		if (resolveValue) {
+			resolveValue = this.addPostfix(resolveValue);
 			if (await this.validate(resolveValue)) {
 				return Promise.resolve(resolveValue);
 			}
@@ -378,6 +378,32 @@ export class RemoteFileDialog {
 				this.filePickBox.activeItems = [];
 			}
 		}
+	}
+
+	private addPostfix(uri: URI): URI {
+		let result = uri;
+		if (this.requiresTrailing && this.options.filters && this.options.filters.length > 0) {
+			// Make sure that the suffix is added. If the user deleted it, we automatically add it here
+			let hasExt: boolean = false;
+			const currentExt = resources.extname(uri).substr(1);
+			if (currentExt !== '') {
+				for (let i = 0; i < this.options.filters.length; i++) {
+					for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
+						if ((this.options.filters[i].extensions[j] === '*') || (this.options.filters[i].extensions[j] === currentExt)) {
+							hasExt = true;
+							break;
+						}
+					}
+					if (hasExt) {
+						break;
+					}
+				}
+			}
+			if (!hasExt) {
+				result = resources.joinPath(resources.dirname(uri), resources.basename(uri) + '.' + this.options.filters[0].extensions[0]);
+			}
+		}
+		return result;
 	}
 
 	private async validate(uri: URI): Promise<boolean> {
@@ -538,11 +564,11 @@ export class RemoteFileDialog {
 	}
 
 	private filterFile(file: URI): boolean {
-		if (this.filters) {
+		if (this.options.filters) {
 			const ext = resources.extname(file);
-			for (let i = 0; i < this.filters.length; i++) {
-				for (let j = 0; j < this.filters[i].extensions.length; j++) {
-					if (ext === ('.' + this.filters[i].extensions[j])) {
+			for (let i = 0; i < this.options.filters.length; i++) {
+				for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
+					if (ext === ('.' + this.options.filters[i].extensions[j])) {
 						return true;
 					}
 				}
