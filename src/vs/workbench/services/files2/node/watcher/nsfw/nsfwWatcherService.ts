@@ -7,7 +7,7 @@ import * as glob from 'vs/base/common/glob';
 import * as extpath from 'vs/base/common/extpath';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/watcher';
 import * as nsfw from 'vscode-nsfw';
 import { IWatcherService, IWatcherRequest, IWatcherOptions, IWatchError } from 'vs/workbench/services/files2/node/watcher/nsfw/watcher';
 import { ThrottledDelayer } from 'vs/base/common/async';

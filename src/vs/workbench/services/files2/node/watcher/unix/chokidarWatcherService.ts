@@ -14,7 +14,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { realcaseSync } from 'vs/base/node/extpath';
 import { isMacintosh } from 'vs/base/common/platform';
-import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/watcher';
 import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from 'vs/workbench/services/files2/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 

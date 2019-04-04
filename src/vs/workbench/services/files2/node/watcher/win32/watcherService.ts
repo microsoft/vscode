@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/watcher';
 import { OutOfProcessWin32FolderWatcher } from 'vs/workbench/services/files2/node/watcher/win32/csharpWatcherService';
 import { posix } from 'vs/base/common/path';
 import { rtrim, endsWith } from 'vs/base/common/strings';

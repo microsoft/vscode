@@ -17,7 +17,7 @@ import { isEqual } from 'vs/base/common/extpath';
 import { retry, ThrottledDelayer } from 'vs/base/common/async';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
-import { IDiskFileChange, toFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange, toFileChanges } from 'vs/workbench/services/files2/node/watcher/watcher';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files2/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files2/node/watcher/win32/watcherService';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files2/node/watcher/nsfw/watcherService';

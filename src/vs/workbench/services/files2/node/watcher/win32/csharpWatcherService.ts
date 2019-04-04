@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import * as decoder from 'vs/base/node/decoder';
 import * as glob from 'vs/base/common/glob';
-import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/watcher';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class OutOfProcessWin32FolderWatcher {

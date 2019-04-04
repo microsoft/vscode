@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/workbench/services/files2/node/watcher/watcher';
 import { Event, Emitter } from 'vs/base/common/event';
 
 function toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {

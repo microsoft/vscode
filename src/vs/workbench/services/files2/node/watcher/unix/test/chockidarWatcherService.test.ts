@@ -11,7 +11,7 @@ import { normalizeRoots, ChokidarWatcherService } from '../chokidarWatcherServic
 import { IWatcherRequest } from '../watcher';
 import * as platform from 'vs/base/common/platform';
 import { Delayer } from 'vs/base/common/async';
-import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange } from 'vs/workbench/services/files2/node/watcher/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
 
 function newRequest(basePath: string, ignored: string[] = []): IWatcherRequest {

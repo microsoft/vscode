@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/normalizer';
+import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files2/node/watcher/watcher';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { statLink, readlink } from 'vs/base/node/pfs';
 import { watchFolder, watchFile, CHANGE_BUFFER_DELAY } from 'vs/base/node/watcher';
