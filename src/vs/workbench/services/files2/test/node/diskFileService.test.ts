@@ -829,7 +829,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => renameSync(toWatch.fsPath, toWatchRenamed.fsPath), 50);
 	});
 
-	test('watch - file - rename file (same case)', done => {
+	test('watch - file - rename file (different case)', done => {
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		const toWatchRenamed = URI.file(join(testDir, 'INDEX-watch1.html'));
 		writeFileSync(toWatch.fsPath, 'Init');
@@ -947,7 +947,7 @@ suite('Disk File Service', () => {
 		setTimeout(() => renameSync(file.fsPath, fileRenamed.fsPath), 50);
 	});
 
-	test('watch - folder (non recursive) - rename file (different casing)', done => {
+	test('watch - folder (non recursive) - rename file (different case)', done => {
 		const watchDir = URI.file(join(testDir, 'watch8'));
 		mkdirSync(watchDir.fsPath);
 
@@ -956,7 +956,11 @@ suite('Disk File Service', () => {
 
 		const fileRenamed = URI.file(join(watchDir.fsPath, 'INDEX.html'));
 
-		assertWatch(watchDir, [[FileChangeType.DELETED, file], [FileChangeType.ADDED, fileRenamed]], done);
+		if (isLinux) {
+			assertWatch(watchDir, [[FileChangeType.DELETED, file], [FileChangeType.ADDED, fileRenamed]], done);
+		} else {
+			assertWatch(watchDir, [[FileChangeType.UPDATED, file]], done); // case insensitive file system treat this as change
+		}
 
 		setTimeout(() => renameSync(file.fsPath, fileRenamed.fsPath), 50);
 	});
