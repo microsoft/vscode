@@ -102,12 +102,12 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._toDispose.push(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
 		this._toDispose.push(this._extensionHostDebugService.onClose(resource => {
-			if (this._isExtensionDevHost && isEqual(resource, this._environmentService.extensionDevelopmentLocationURI)) {
+			if (this._isExtensionDevHost && this.matchesExtDevLocations(resource)) {
 				this._windowService.closeWindow();
 			}
 		}));
 		this._toDispose.push(this._extensionHostDebugService.onReload(resource => {
-			if (this._isExtensionDevHost && isEqual(resource, this._environmentService.extensionDevelopmentLocationURI)) {
+			if (this._isExtensionDevHost && this.matchesExtDevLocations(resource)) {
 				this._windowService.reloadWindow();
 			}
 		}));
@@ -117,6 +117,18 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._toDispose.push(toDisposable(() => {
 			process.removeListener('exit', globalExitListener);
 		}));
+	}
+
+	// returns true if the given resource url matches one of the extension development paths passed to VS Code
+	private matchesExtDevLocations(resource: URI): boolean {
+
+		const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
+		if (Array.isArray(extDevLocs)) {
+			return extDevLocs.some(extDevLoc => isEqual(extDevLoc, resource));
+		} else if (extDevLocs) {
+			return isEqual(extDevLocs, resource);
+		}
+		return false;
 	}
 
 	public dispose(): void {

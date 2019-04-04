@@ -645,6 +645,23 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
 	}
 
+	private isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
+		if (this._environmentService.isExtensionDevelopment) {
+			const extDevLoc = this._environmentService.extensionDevelopmentLocationURI;
+			const extLocation = extension.extensionLocation;
+			if (Array.isArray(extDevLoc)) {
+				for (let p of extDevLoc) {
+					if (isEqualOrParent(extLocation, p)) {
+						return true;
+					}
+				}
+			} else if (extDevLoc) {
+				return isEqualOrParent(extLocation, extDevLoc);
+			}
+		}
+		return false;
+	}
+
 	private _getRuntimeExtensions(allExtensions: IExtensionDescription[]): Promise<IExtensionDescription[]> {
 		return this._extensionEnablementService.getDisabledExtensions()
 			.then(disabledExtensions => {
@@ -676,14 +693,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 					(!!this._environmentService.extensionDevelopmentLocationURI && product.nameLong !== 'Visual Studio Code') ||
 					(enableProposedApiFor.length === 0 && 'enable-proposed-api' in this._environmentService.args);
 
+
 				for (const extension of allExtensions) {
-					const isExtensionUnderDevelopment = (
-						this._environmentService.isExtensionDevelopment
-						&& this._environmentService.extensionDevelopmentLocationURI
-						&& isEqualOrParent(extension.extensionLocation, this._environmentService.extensionDevelopmentLocationURI)
-					);
+
 					// Do not disable extensions under development
-					if (!isExtensionUnderDevelopment) {
+					if (!this.isExtensionUnderDevelopment(extension)) {
 						if (disabledExtensions.some(disabled => areSameExtensions(disabled, { id: extension.identifier.value }))) {
 							continue;
 						}

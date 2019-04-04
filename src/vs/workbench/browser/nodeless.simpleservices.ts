@@ -251,7 +251,7 @@ export class SimpleEnvironmentService implements IEnvironmentService {
 	disableExtensions: boolean | string[];
 	builtinExtensionsPath: string;
 	extensionsPath: string;
-	extensionDevelopmentLocationURI?: URI;
+	extensionDevelopmentLocationURI?: URI | URI[];
 	extensionTestsPath?: string;
 	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch: IDebugParams;

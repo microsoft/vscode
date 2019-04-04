@@ -249,9 +249,20 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		let iconThemeSetting = this.configurationService.getValue<string | null>(ICON_THEME_SETTING);
 
+		const extDevLoc = this.environmentService.extensionDevelopmentLocationURI;
+		let uri: URI | undefined;
+		if (Array.isArray(extDevLoc)) {
+			// if there are more than one ext dev paths, use first
+			if (extDevLoc.length > 0) {
+				uri = extDevLoc[0];
+			}
+		} else {
+			uri = extDevLoc;
+		}
+
 		return Promise.all([
 			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, DEFAULT_THEME_ID).then(theme => {
-				return this.colorThemeStore.findThemeDataByParentLocation(this.environmentService.extensionDevelopmentLocationURI).then(devThemes => {
+				return this.colorThemeStore.findThemeDataByParentLocation(uri).then(devThemes => {
 					if (devThemes.length) {
 						return this.setColorTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 					} else {
@@ -260,7 +271,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				});
 			}),
 			this.iconThemeStore.findThemeBySettingsId(iconThemeSetting).then(theme => {
-				return this.iconThemeStore.findThemeDataByParentLocation(this.environmentService.extensionDevelopmentLocationURI).then(devThemes => {
+				return this.iconThemeStore.findThemeDataByParentLocation(uri).then(devThemes => {
 					if (devThemes.length) {
 						return this.setFileIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 					} else {

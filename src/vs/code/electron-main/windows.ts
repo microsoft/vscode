@@ -1153,7 +1153,7 @@ export class WindowsManager implements IWindowsMainService {
 		return { openFolderInNewWindow: !!openFolderInNewWindow, openFilesInNewWindow };
 	}
 
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string, openConfig: IOpenConfiguration): void {
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string | string[], openConfig: IOpenConfiguration): void {
 
 		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
@@ -1207,9 +1207,30 @@ export class WindowsManager implements IWindowsMainService {
 		openConfig.cli['folder-uri'] = folderUris;
 		openConfig.cli['file-uri'] = fileUris;
 
-		const match = extensionDevelopmentPath.match(/^vscode-remote:\/\/([^\/]+)/);
-		if (match) {
-			openConfig.cli['remote'] = URI.parse(extensionDevelopmentPath).authority;
+		if (Array.isArray(extensionDevelopmentPath)) {
+			let authority: string | undefined = undefined;
+			for (let p of extensionDevelopmentPath) {
+				const match = p.match(/^vscode-remote:\/\/([^\/]+)/);
+				if (match) {
+					const auth = URI.parse(p).authority;
+					if (authority) {
+						if (auth !== authority) {
+							console.log('more than one authority');
+						}
+					} else {
+						authority = auth;
+					}
+				}
+			}
+			if (authority) {
+				openConfig.cli['remote'] = authority;
+			}
+
+		} else {
+			const match = extensionDevelopmentPath.match(/^vscode-remote:\/\/([^\/]+)/);
+			if (match) {
+				openConfig.cli['remote'] = URI.parse(extensionDevelopmentPath).authority;
+			}
 		}
 
 		// Open it

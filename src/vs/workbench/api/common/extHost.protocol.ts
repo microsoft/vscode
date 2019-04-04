@@ -51,7 +51,7 @@ export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
 	appRoot?: URI;
 	appSettingsHome?: URI;
-	extensionDevelopmentLocationURI?: URI;
+	extensionDevelopmentLocationURI?: URI | URI[];
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 	userHome: URI;
