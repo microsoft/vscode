@@ -36,7 +36,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHostDebugService } from 'vs/workbench/services/extensionHostDebug/common/extensionHostDebug';
+import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string | null]>;

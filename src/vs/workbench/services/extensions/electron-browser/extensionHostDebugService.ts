@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionHostDebugService } from 'vs/workbench/services/extensionHostDebug/common/extensionHostDebug';
+import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { ipcRenderer as ipc } from 'electron';

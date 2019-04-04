@@ -239,7 +239,7 @@ import 'vs/workbench/contrib/scm/browser/scmViewlet';
 // import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 // import 'vs/workbench/contrib/debug/browser/repl';
 // import 'vs/workbench/contrib/debug/browser/debugViewlet';
-// import 'vs/workbench/services/extensionHostDebug/electron-browser/extensionHostDebugService';
+// import 'vs/workbench/services/extensions/electron-browser/extensionHostDebugService';
 
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
