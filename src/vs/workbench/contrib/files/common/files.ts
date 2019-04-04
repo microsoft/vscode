@@ -43,7 +43,7 @@ export interface IExplorerService {
 	readonly roots: ExplorerItem[];
 	readonly sortOrder: SortOrder;
 	readonly onDidChangeRoots: Event<void>;
-	readonly onDidChangeItem: Event<ExplorerItem | undefined>;
+	readonly onDidChangeItem: Event<{ item?: ExplorerItem, recursive: boolean }>;
 	readonly onDidChangeEditable: Event<ExplorerItem>;
 	readonly onDidSelectResource: Event<{ resource?: URI, reveal?: boolean }>;
 	readonly onDidCopyItems: Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>;
