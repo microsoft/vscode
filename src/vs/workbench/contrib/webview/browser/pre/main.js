@@ -112,16 +112,18 @@ module.exports = function createWebviewManager(host) {
 	};
 
 	/**
-	 * @param {HTMLDocument} document
-	 * @param {HTMLElement} body
+	 * @param {HTMLDocument?} document
+	 * @param {HTMLElement?} body
 	 */
 	const applyStyles = (document, body) => {
-		if (!body) {
+		if (!document) {
 			return;
 		}
 
-		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
-		body.classList.add(initData.activeTheme);
+		if (body) {
+			body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
+			body.classList.add(initData.activeTheme);
+		}
 
 		if (initData.styles) {
 			for (const variable of Object.keys(initData.styles)) {
@@ -323,7 +325,16 @@ module.exports = function createWebviewManager(host) {
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
+
 			newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+
+			newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
+				const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
+				if (contentDocument) {
+					applyStyles(contentDocument, contentDocument.body);
+				}
+			});
+
 			newFrame.contentWindow.onbeforeunload = () => {
 				if (isInDevelopmentMode) { // Allow reloads while developing a webview
 					host.postMessage('do-reload');
