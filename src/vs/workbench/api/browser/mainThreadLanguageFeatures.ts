@@ -377,7 +377,6 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			command: data.m,
 			// not-standard
 			_id: data.x,
-			_pid: data.y
 		};
 	}
 
@@ -392,14 +391,14 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return {
 						suggestions: result.b.map(d => MainThreadLanguageFeatures._inflateSuggestDto(result.a, d)),
 						incomplete: result.c,
-						dispose: () => this._proxy.$releaseCompletionItems(handle, result.x)
+						dispose: () => typeof result.x === 'number' && this._proxy.$releaseCompletionItems(handle, result.x)
 					};
 				});
 			}
 		};
 		if (supportsResolveDetails) {
 			provider.resolveCompletionItem = (model, position, suggestion, token) => {
-				return this._proxy.$resolveCompletionItem(handle, model.uri, position, suggestion._id, suggestion._pid, token).then(result => {
+				return this._proxy.$resolveCompletionItem(handle, model.uri, position, suggestion._id, token).then(result => {
 					if (!result) {
 						return suggestion;
 					}
@@ -447,7 +446,11 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		};
 		if (supportsResolve) {
 			provider.resolveLink = (link, token) => {
-				return this._proxy.$resolveDocumentLink(handle, link as LinkDto, token).then(obj => {
+				const dto: LinkDto = link;
+				if (!dto.cacheId) {
+					return link;
+				}
+				return this._proxy.$resolveDocumentLink(handle, dto.cacheId, token).then(obj => {
 					return obj && MainThreadLanguageFeatures._reviveLinkDTO(obj);
 				});
 			};

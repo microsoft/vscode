@@ -15,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape, CodeInsetDto, SuggestDataDto, LinksListDto } from '../common/extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape, CodeInsetDto, SuggestDataDto, LinksListDto, ChainedCacheId } from '../common/extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -623,8 +623,7 @@ class SuggestAdapter {
 	private _commands: CommandsConverter;
 	private _provider: vscode.CompletionItemProvider;
 
-	private _cache = new Map<number, vscode.CompletionItem[]>();
-	private _idPool = 0;
+	private _cache = new Cache<vscode.CompletionItem>();
 
 	constructor(documents: ExtHostDocuments, commands: CommandsConverter, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
@@ -639,33 +638,32 @@ class SuggestAdapter {
 
 		return asPromise(() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))).then(value => {
 
-			const _id = this._idPool++;
+			if (!value) {
+				// undefined and null are valid results
+				return undefined;
+			}
+
+			let list = Array.isArray(value) ? new CompletionList(value) : value;
+			let pid: number | undefined;
+
+			// keep result for providers that support resolving
+			if (SuggestAdapter.supportsResolving(this._provider)) {
+				pid = this._cache.add(list.items);
+			}
 
 			// the default text edit range
 			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos))
 				.with({ end: pos });
 
 			const result: SuggestResultDto = {
-				x: _id,
+				x: pid,
 				b: [],
 				a: typeConvert.Range.from(wordRangeBeforePos),
+				c: list.isIncomplete || undefined
 			};
 
-			let list: CompletionList;
-			if (!value) {
-				// undefined and null are valid results
-				return undefined;
-
-			} else if (Array.isArray(value)) {
-				list = new CompletionList(value);
-
-			} else {
-				list = value;
-				result.c = list.isIncomplete;
-			}
-
 			for (let i = 0; i < list.items.length; i++) {
-				const suggestion = this._convertCompletionItem2(list.items[i], pos, i, _id);
+				const suggestion = this._convertCompletionItem(list.items[i], pos, pid && [pid, i] || undefined);
 				// check for bad completion item
 				// for the converter did warn
 				if (suggestion) {
@@ -673,21 +671,17 @@ class SuggestAdapter {
 				}
 			}
 
-			if (SuggestAdapter.supportsResolving(this._provider)) {
-				this._cache.set(_id, list.items);
-			}
-
 			return result;
 		});
 	}
 
-	resolveCompletionItem(_resource: URI, position: IPosition, id: number, pid: number, token: CancellationToken): Promise<SuggestDataDto | undefined> {
+	resolveCompletionItem(_resource: URI, position: IPosition, id: ChainedCacheId, token: CancellationToken): Promise<SuggestDataDto | undefined> {
 
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return Promise.resolve(undefined);
 		}
 
-		const item = this._cache.has(pid) ? this._cache.get(pid)![id] : undefined;
+		const item = this._cache.get(...id);
 		if (!item) {
 			return Promise.resolve(undefined);
 		}
@@ -699,7 +693,7 @@ class SuggestAdapter {
 			}
 
 			const pos = typeConvert.Position.to(position);
-			return this._convertCompletionItem2(resolvedItem, pos, id, pid);
+			return this._convertCompletionItem(resolvedItem, pos, id);
 		});
 	}
 
@@ -707,7 +701,7 @@ class SuggestAdapter {
 		this._cache.delete(id);
 	}
 
-	private _convertCompletionItem2(item: vscode.CompletionItem, position: vscode.Position, id: number, pid: number): SuggestDataDto | undefined {
+	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: ChainedCacheId | undefined): SuggestDataDto | undefined {
 		if (typeof item.label !== 'string' || item.label.length === 0) {
 			console.warn('INVALID text edit -> must have at least a label');
 			return undefined;
@@ -716,7 +710,6 @@ class SuggestAdapter {
 		const result: SuggestDataDto = {
 			//
 			x: id,
-			y: pid,
 			//
 			a: item.label,
 			b: typeConvert.CompletionItemKind.from(item.kind),
@@ -803,7 +796,7 @@ class SignatureHelpAdapter {
 class Cache<T> {
 
 	private _data = new Map<number, T[]>();
-	private _idPool = 0;
+	private _idPool = 1;
 
 	add(item: T[]): number {
 		const id = this._idPool++;
@@ -856,11 +849,11 @@ class LinkProviderAdapter {
 		});
 	}
 
-	resolveLink(link: LinkDto, token: CancellationToken): Promise<LinkDto | undefined> {
-		if (!link.cacheId || typeof this._provider.resolveDocumentLink !== 'function') {
+	resolveLink(id: ChainedCacheId, token: CancellationToken): Promise<LinkDto | undefined> {
+		if (typeof this._provider.resolveDocumentLink !== 'function') {
 			return Promise.resolve(undefined);
 		}
-		const item = this._cache.get(...link.cacheId);
+		const item = this._cache.get(...id);
 		if (!item) {
 			return Promise.resolve(undefined);
 		}
@@ -1402,8 +1395,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context, token), undefined);
 	}
 
-	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: number, pid: number, token: CancellationToken): Promise<SuggestDataDto | undefined> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(URI.revive(resource), position, id, pid, token), undefined);
+	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: ChainedCacheId, token: CancellationToken): Promise<SuggestDataDto | undefined> {
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(URI.revive(resource), position, id, token), undefined);
 	}
 
 	$releaseCompletionItems(handle: number, id: number): void {
@@ -1438,8 +1431,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.provideLinks(URI.revive(resource), token), undefined);
 	}
 
-	$resolveDocumentLink(handle: number, link: LinkDto, token: CancellationToken): Promise<LinkDto | undefined> {
-		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(link, token), undefined);
+	$resolveDocumentLink(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<LinkDto | undefined> {
+		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(id, token), undefined);
 	}
 
 	$releaseDocumentLinks(handle: number, id: number): void {
