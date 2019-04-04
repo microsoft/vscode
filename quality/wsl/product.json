@@ -671,7 +671,12 @@
 		"ms-vsliveshare.vsliveshare",
 		"GitHub.vscode-pull-request-github",
 		"GitHub.vscode-pull-request-github-insiders",
-		"Microsoft.vscode-nmake-tools"
+		"Microsoft.vscode-nmake-tools",
+		"ms-vscode.open-in-docker",
+		"ms-vscode.open-ssh-remote",
+		"ms-vscode.open-ssh-remote-edit",
+		"ms-vscode.open-ssh-remote-explorer",
+		"ms-vscode.wsl"
 	],
 	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
 	"uiExtensions": [
