@@ -58,12 +58,14 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		this._workerManager = this._register(new WorkerManager(this._modelService));
 
 		// todo@joh make sure this happens only once
-		this._register(modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
+		this._register(modes.LinkProviderRegistry.register('*', {
 			provideLinks: (model, token) => {
 				if (!canSyncModel(this._modelService, model.uri)) {
-					return Promise.resolve([]); // File too large
+					return Promise.resolve({ links: [] }); // File too large
 				}
-				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri));
+				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri)).then(links => {
+					return links && { links };
+				});
 			}
 		}));
 		this._register(modes.CompletionProviderRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));

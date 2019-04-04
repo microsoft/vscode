@@ -1001,11 +1001,16 @@ export interface ILink {
 	range: IRange;
 	url?: URI | string;
 }
+
+export interface ILinksList {
+	links: ILink[];
+	dispose?(): void;
+}
 /**
  * A provider of links.
  */
 export interface LinkProvider {
-	provideLinks(model: model.ITextModel, token: CancellationToken): ProviderResult<ILink[]>;
+	provideLinks(model: model.ITextModel, token: CancellationToken): ProviderResult<ILinksList>;
 	resolveLink?: (link: ILink, token: CancellationToken) => ProviderResult<ILink>;
 }
 
