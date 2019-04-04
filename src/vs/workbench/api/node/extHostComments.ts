@@ -149,12 +149,25 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): Promise<void> {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
-		if (!commentController || !commentController.emptyCommentThreadFactory) {
+		if (!commentController) {
+			return Promise.resolve();
+		}
+
+		if (!(commentController as any).emptyCommentThreadFactory && !(commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread)) {
 			return Promise.resolve();
 		}
 
 		const document = this._documents.getDocument(URI.revive(uriComponents));
-		return asPromise(() => commentController.emptyCommentThreadFactory!.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range))).then(() => Promise.resolve());
+		return asPromise(() => {
+			// TODO, remove this once GH PR stable deprecates `emptyCommentThreadFactory`.
+			if ((commentController as any).emptyCommentThreadFactory) {
+				return (commentController as any).emptyCommentThreadFactory!.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
+			}
+
+			if (commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread) {
+				return commentController.commentingRangeProvider.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
+			}
+		}).then(() => Promise.resolve());
 	}
 
 	registerWorkspaceCommentProvider(
@@ -558,8 +571,6 @@ class ExtHostCommentController implements vscode.CommentController {
 
 	private _threads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
 	commentingRangeProvider?: vscode.CommentingRangeProvider;
-	emptyCommentThreadFactory?: vscode.EmptyCommentThreadFactory;
-
 
 	private _commentReactionProvider?: vscode.CommentReactionProvider;
 
