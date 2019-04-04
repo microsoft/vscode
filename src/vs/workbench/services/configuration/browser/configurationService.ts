@@ -29,7 +29,6 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { mark } from 'vs/base/common/performance';
-import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class WorkspaceService extends Disposable implements IConfigurationService, IWorkspaceContextService {
@@ -60,7 +59,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	protected readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = this._register(new Emitter<WorkbenchState>());
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
-	private fileService: IFileService;
 	private configurationEditingService: ConfigurationEditingService;
 	private jsonEditingService: JSONEditingService;
 
@@ -229,9 +227,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	// Workspace Configuration Service Impl
 
 	getConfigurationData(): IConfigurationData {
-		const configurationData = this._configuration.toData();
-		configurationData.isComplete = this.cachedFolderConfigs.values().every(c => c.loaded);
-		return configurationData;
+		return this._configuration.toData();
 	}
 
 	getValue<T>(): T;
@@ -295,26 +291,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	acquireFileService(fileService: IFileService): void {
-		this.fileService = fileService;
 		this.configurationFileService.fileService = fileService;
-		const changedWorkspaceFolders: IWorkspaceFolder[] = [];
-		Promise.all([this.workspaceConfiguration.adopt(fileService), ...this.cachedFolderConfigs.values()
-			.map(folderConfiguration => folderConfiguration.adopt(fileService)
-				.then(result => {
-					if (result) {
-						changedWorkspaceFolders.push(folderConfiguration.workspaceFolder);
-					}
-					return result;
-				}))])
-			.then(([workspaceChanged]) => {
-				if (workspaceChanged) {
-					this.onWorkspaceConfigurationChanged();
-				}
-				for (const workspaceFolder of changedWorkspaceFolders) {
-					this.onWorkspaceFolderConfigurationChanged(workspaceFolder);
-				}
-				this.releaseWorkspaceBarrier();
-			});
 	}
 
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
@@ -341,8 +318,8 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), dirname(workspaceConfigPath));
 				const workspaceId = workspaceIdentifier.id;
 				const workspace = new Workspace(workspaceId, workspaceFolders, workspaceConfigPath);
-				if (workspace.configuration!.scheme === Schemas.file) {
-					this.releaseWorkspaceBarrier(); // Release barrier as workspace is complete because it is from disk.
+				if (this.workspaceConfiguration.loaded) {
+					this.releaseWorkspaceBarrier();
 				}
 				return workspace;
 			});
@@ -567,6 +544,9 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				this.triggerConfigurationChange(workspaceConfigurationChangeEvent, ConfigurationTarget.WORKSPACE);
 			}
 		}
+		if (this.workspaceConfiguration.loaded) {
+			this.releaseWorkspaceBarrier();
+		}
 		return Promise.resolve(undefined);
 	}
 
@@ -613,7 +593,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		return Promise.all([...folders.map(folder => {
 			let folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 			if (!folderConfiguration) {
-				folderConfiguration = new FolderConfiguration(folder, FOLDER_CONFIG_FOLDER_NAME, this.getWorkbenchState(), this.configurationFileService, this.configurationCache, this.fileService);
+				folderConfiguration = new FolderConfiguration(folder, FOLDER_CONFIG_FOLDER_NAME, this.getWorkbenchState(), this.configurationFileService, this.configurationCache);
 				this._register(folderConfiguration.onDidChange(() => this.onWorkspaceFolderConfigurationChanged(folder)));
 				this.cachedFolderConfigs.set(folder.uri, this._register(folderConfiguration));
 			}

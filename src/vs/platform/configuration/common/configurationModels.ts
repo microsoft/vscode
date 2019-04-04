@@ -512,8 +512,7 @@ export class Configuration {
 				const { contents, overrides, keys } = this._folderConfigurations.get(folder)!;
 				result[folder.toString()] = { contents, overrides, keys };
 				return result;
-			}, Object.create({})),
-			isComplete: true
+			}, Object.create({}))
 		};
 	}
 
