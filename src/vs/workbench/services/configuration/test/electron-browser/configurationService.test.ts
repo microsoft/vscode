@@ -19,7 +19,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ISingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
@@ -31,7 +31,6 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { createHash } from 'crypto';
-import { Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { originalFSPath } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
@@ -209,7 +208,7 @@ suite('WorkspaceContextService - Workspace', () => {
 
 suite('WorkspaceContextService - Workspace Editing', () => {
 
-	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService, fileChangeEvent: Emitter<FileChangesEvent> = new Emitter<FileChangesEvent>();
+	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService;
 
 	setup(() => {
 		return setUpWorkspace(['a', 'b'])
@@ -353,25 +352,21 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 			});
 	});
 
-	test('remove folders and add them back by writing into the file', done => {
+	test('remove folders and add them back by writing into the file', async done => {
 		const folders = testObject.getWorkspace().folders;
-		testObject.removeFolders([folders[0].uri])
-			.then(() => {
-				testObject.onDidChangeWorkspaceFolders(actual => {
-					assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
-					done();
-				});
-				const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
-				instantiationService.get(IFileService).updateContent(testObject.getWorkspace().configuration!, JSON.stringify(workspace, null, '\t'))
-					.then(() => {
-						fileChangeEvent.fire(new FileChangesEvent([
-							{
-								resource: testObject.getWorkspace().configuration!,
-								type: FileChangeType.UPDATED
-							}
-						]));
-					}, done);
-			}, done);
+		await testObject.removeFolders([folders[0].uri]);
+
+		testObject.onDidChangeWorkspaceFolders(actual => {
+			try {
+				assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
+				done();
+			} catch (error) {
+				done(error);
+			}
+		});
+
+		const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
+		await instantiationService.get(IFileService).updateContent(testObject.getWorkspace().configuration!, JSON.stringify(workspace, null, '\t'));
 	});
 
 	test('update folders (remove last and add to end)', () => {
