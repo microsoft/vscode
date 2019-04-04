@@ -336,7 +336,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportsResolveInitialValues: boolean): void;
 	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean): void;
 	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], metadata: ISerializedSignatureHelpProviderMetadata): void;
-	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[], supportsResolve: boolean): void;
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerSelectionRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
@@ -953,7 +953,16 @@ export interface CodeActionDto {
 	isPreferred?: boolean;
 }
 
-export interface LinkDto extends ObjectIdentifier {
+export type CacheId = number;
+export type ChainedCacheId = [CacheId, CacheId];
+
+export interface LinksListDto {
+	id?: CacheId;
+	links: LinkDto[];
+}
+
+export interface LinkDto {
+	cacheId?: ChainedCacheId;
 	range: IRange;
 	url?: string | UriComponents;
 }
@@ -1002,8 +1011,9 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: number, pid: number, token: CancellationToken): Promise<SuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp | undefined>;
-	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinkDto[] | undefined>;
+	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinksListDto | undefined>;
 	$resolveDocumentLink(handle: number, link: LinkDto, token: CancellationToken): Promise<LinkDto | undefined>;
+	$releaseDocumentLinks(handle: number, id: number): void;
 	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Promise<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined>;

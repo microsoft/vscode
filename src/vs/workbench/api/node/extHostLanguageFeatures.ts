@@ -15,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape, CodeInsetDto, SuggestDataDto } from '../common/extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape, CodeInsetDto, SuggestDataDto, LinksListDto } from '../common/extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -800,48 +800,77 @@ class SignatureHelpAdapter {
 	}
 }
 
+class Cache<T> {
+
+	private _data = new Map<number, T[]>();
+	private _idPool = 0;
+
+	add(item: T[]): number {
+		const id = this._idPool++;
+		this._data.set(id, item);
+		return id;
+	}
+
+	get(pid: number, id: number): T | undefined {
+		return this._data.has(pid) ? this._data.get(pid)![id] : undefined;
+	}
+
+	delete(id: number) {
+		this._data.delete(id);
+	}
+}
+
 class LinkProviderAdapter {
+
+	private _cache = new Cache<vscode.DocumentLink>();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _heapService: ExtHostHeapService,
 		private readonly _provider: vscode.DocumentLinkProvider
 	) { }
 
-	provideLinks(resource: URI, token: CancellationToken): Promise<LinkDto[] | undefined> {
+	provideLinks(resource: URI, token: CancellationToken): Promise<LinksListDto | undefined> {
 		const doc = this._documents.getDocument(resource);
 
 		return asPromise(() => this._provider.provideDocumentLinks(doc, token)).then(links => {
-			if (!Array.isArray(links)) {
+			if (!Array.isArray(links) || links.length === 0) {
+				// bad result
 				return undefined;
 			}
-			const result: LinkDto[] = [];
-			for (const link of links) {
-				const data = typeConvert.DocumentLink.from(link);
-				const id = this._heapService.keep(link);
-				result.push(ObjectIdentifier.mixin(data, id));
+
+			if (typeof this._provider.resolveDocumentLink !== 'function') {
+				// no resolve -> no caching
+				return { links: links.map(typeConvert.DocumentLink.from) };
+
+			} else {
+				// cache links for future resolving
+				const pid = this._cache.add(links);
+				const result: LinksListDto = { links: [], id: pid };
+				for (let i = 0; i < links.length; i++) {
+					const dto: LinkDto = typeConvert.DocumentLink.from(links[i]);
+					dto.cacheId = [pid, i];
+					result.links.push(dto);
+				}
+				return result;
 			}
-			return result;
 		});
 	}
 
 	resolveLink(link: LinkDto, token: CancellationToken): Promise<LinkDto | undefined> {
-		if (typeof this._provider.resolveDocumentLink !== 'function') {
+		if (!link.cacheId || typeof this._provider.resolveDocumentLink !== 'function') {
 			return Promise.resolve(undefined);
 		}
-
-		const id = ObjectIdentifier.of(link);
-		const item = this._heapService.get<vscode.DocumentLink>(id);
+		const item = this._cache.get(...link.cacheId);
 		if (!item) {
 			return Promise.resolve(undefined);
 		}
-
 		return asPromise(() => this._provider.resolveDocumentLink!(item, token)).then(value => {
-			if (value) {
-				return typeConvert.DocumentLink.from(value);
-			}
-			return undefined;
+			return value && typeConvert.DocumentLink.from(value) || undefined;
 		});
+	}
+
+	releaseLinks(id: number): any {
+		this._cache.delete(id);
 	}
 }
 
@@ -1400,17 +1429,21 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	// --- links
 
 	registerDocumentLinkProvider(extension: IExtensionDescription | undefined, selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new LinkProviderAdapter(this._documents, this._heapService, provider), extension);
-		this._proxy.$registerDocumentLinkProvider(handle, this._transformDocumentSelector(selector));
+		const handle = this._addNewAdapter(new LinkProviderAdapter(this._documents, provider), extension);
+		this._proxy.$registerDocumentLinkProvider(handle, this._transformDocumentSelector(selector), typeof provider.resolveDocumentLink === 'function');
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinkDto[] | undefined> {
+	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinksListDto | undefined> {
 		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.provideLinks(URI.revive(resource), token), undefined);
 	}
 
-	$resolveDocumentLink(handle: number, link: modes.ILink, token: CancellationToken): Promise<LinkDto | undefined> {
+	$resolveDocumentLink(handle: number, link: LinkDto, token: CancellationToken): Promise<LinkDto | undefined> {
 		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(link, token), undefined);
+	}
+
+	$releaseDocumentLinks(handle: number, id: number): void {
+		this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.releaseLinks(id), undefined);
 	}
 
 	registerColorProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {

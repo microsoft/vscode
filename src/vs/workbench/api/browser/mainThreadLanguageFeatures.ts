@@ -427,29 +427,32 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- links
 
-	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
-		this._registrations[handle] = modes.LinkProviderRegistry.register(selector, {
+	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[], supportsResolve: boolean): void {
+		const provider: modes.LinkProvider = {
 			provideLinks: (model, token) => {
 				return this._proxy.$provideDocumentLinks(handle, model.uri, token).then(dto => {
-					if (dto) {
-						dto.forEach(obj => {
-							MainThreadLanguageFeatures._reviveLinkDTO(obj);
-							this._heapService.trackObject(obj);
-						});
+					if (!dto) {
+						return undefined;
 					}
-					return { links: dto as modes.ILink[] };
-				});
-			},
-			resolveLink: (link, token) => {
-				return this._proxy.$resolveDocumentLink(handle, link, token).then(obj => {
-					if (obj) {
-						MainThreadLanguageFeatures._reviveLinkDTO(obj);
-						this._heapService.trackObject(obj);
-					}
-					return obj as modes.ILink;
+					return {
+						links: dto.links.map(MainThreadLanguageFeatures._reviveLinkDTO),
+						dispose: () => {
+							if (typeof dto.id === 'number') {
+								this._proxy.$releaseDocumentLinks(handle, dto.id);
+							}
+						}
+					};
 				});
 			}
-		});
+		};
+		if (supportsResolve) {
+			provider.resolveLink = (link, token) => {
+				return this._proxy.$resolveDocumentLink(handle, link as LinkDto, token).then(obj => {
+					return obj && MainThreadLanguageFeatures._reviveLinkDTO(obj);
+				});
+			};
+		}
+		this._registrations[handle] = modes.LinkProviderRegistry.register(selector, provider);
 	}
 
 	// --- colors
