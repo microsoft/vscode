@@ -25,7 +25,6 @@ import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/we
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
@@ -61,7 +60,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -136,7 +134,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		// 4) continue to forward messages to the webview
 		const webview = this._instantiationService.createInstance(
 			WebviewElement,
-			this._layoutService.getContainer(Parts.EDITOR_PART),
 			{
 				extension: {
 					location: URI.revive(extensionLocation),

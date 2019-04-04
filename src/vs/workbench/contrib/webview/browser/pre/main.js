@@ -41,9 +41,9 @@ const defaultCssRules = `
 	body {
 		background-color: var(--vscode-editor-background);
 		color: var(--vscode-editor-foreground);
-		font-family: var(--vscode-editor-font-family);
-		font-weight: var(--vscode-editor-font-weight);
-		font-size: var(--vscode-editor-font-size);
+		font-family: var(--vscode-font-family);
+		font-weight: var(--vscode-font-weight);
+		font-size: var(--vscode-font-size);
 		margin: 0;
 		padding: 0 20px;
 	}

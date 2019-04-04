@@ -22,6 +22,8 @@ import { WebviewFindWidget } from '../browser/webviewFindWidget';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { WebviewContentOptions, WebviewPortMapping, WebviewOptions, Webview } from 'vs/workbench/contrib/webview/common/webview';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 
 interface IKeydownEvent {
@@ -306,7 +308,6 @@ export class WebviewElement extends Disposable implements Webview {
 	public get onDidFocus(): Event<void> { return this._onDidFocus.event; }
 
 	constructor(
-		private readonly _styleElement: Element,
 		private readonly _options: WebviewOptions,
 		private _contentOptions: WebviewContentOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -314,6 +315,7 @@ export class WebviewElement extends Disposable implements Webview {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._webview = document.createElement('webview');
@@ -541,7 +543,10 @@ export class WebviewElement extends Disposable implements Webview {
 	}
 
 	private style(theme: ITheme): void {
-		const { fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement); // TODO@theme avoid styleElement
+		const configuration = this._configurationService.getValue<IEditorOptions>('editor');
+		const editorFontFamily = configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+		const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
+		const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
 
 		const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
 			const color = theme.getColor(entry.id);
@@ -553,9 +558,12 @@ export class WebviewElement extends Disposable implements Webview {
 
 
 		const styles = {
-			'vscode-editor-font-family': fontFamily,
-			'vscode-editor-font-weight': fontWeight,
-			'vscode-editor-font-size': fontSize,
+			'vscode-font-family': '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+			'vscode-font-weight': 'normal',
+			'vscode-font-size': '13px',
+			'vscode-editor-font-family': editorFontFamily,
+			'vscode-editor-font-weight': editorFontWeight,
+			'vscode-editor-font-size': editorFontSize,
 			...exportedColors
 		};
 

@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWebviewService, Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWebviewService, WebviewOptions, WebviewContentOptions, Webview } from 'vs/workbench/contrib/webview/common/webview';
 
 export class WebviewService implements IWebviewService {
 	_serviceBrand: any;
 
 	constructor(
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
 
@@ -21,7 +19,6 @@ export class WebviewService implements IWebviewService {
 		contentOptions: WebviewContentOptions
 	): Webview {
 		const element = this._instantiationService.createInstance(WebviewElement,
-			this._layoutService.getContainer(Parts.EDITOR_PART),
 			options,
 			contentOptions);
 
