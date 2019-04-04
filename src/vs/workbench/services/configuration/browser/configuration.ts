@@ -21,7 +21,7 @@ import { extname, join } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationModel, compare } from 'vs/platform/configuration/common/configuration';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { createSHA1 } from 'vs/base/browser/hash';
 
 export class LocalUserConfiguration extends Disposable {
 
@@ -789,11 +789,10 @@ class CachedFolderConfiguration extends Disposable implements IFolderConfigurati
 	constructor(
 		folder: URI,
 		configFolderRelativePath: string,
-		hashService: IHashService,
 		private readonly configurationCache: IConfigurationCache
 	) {
 		super();
-		this.key = hashService.createSHA1(join(folder.path, configFolderRelativePath)).then(key => (<ConfigurationKey>{ type: 'folder', key }));
+		this.key = createSHA1(join(folder.path, configFolderRelativePath)).then(key => (<ConfigurationKey>{ type: 'folder', key }));
 		this.configurationModel = new ConfigurationModel();
 	}
 
@@ -841,7 +840,6 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		readonly workspaceFolder: IWorkspaceFolder,
 		configFolderRelativePath: string,
 		private readonly workbenchState: WorkbenchState,
-		hashService: IHashService,
 		configurationFileService: IConfigurationFileService,
 		configurationCache: IConfigurationCache,
 		fileService?: IFileService
@@ -849,7 +847,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		super();
 
 		this.configurationFolder = resources.joinPath(workspaceFolder.uri, configFolderRelativePath);
-		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, hashService, configurationCache);
+		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, configurationCache);
 		this.folderConfiguration = this.cachedFolderConfiguration;
 		if (fileService) {
 			this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.configurationFolder, this.workbenchState, fileService);
