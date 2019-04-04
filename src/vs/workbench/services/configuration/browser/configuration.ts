@@ -363,12 +363,12 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable implements IWork
 			this.workspaceConfigWatcher = this._register(this.watchWorkspaceConfigurationFile());
 		}
 		let contents = '';
-		const exists = await this.configurationFileService.exists(this._workspaceIdentifier.configPath);
-		if (exists) {
-			try {
-				contents = await this.configurationFileService.resolveContent(this._workspaceIdentifier.configPath);
-			} catch (e) {
-				errors.onUnexpectedError(e);
+		try {
+			contents = await this.configurationFileService.resolveContent(this._workspaceIdentifier.configPath);
+		} catch (error) {
+			const exists = await this.configurationFileService.exists(this._workspaceIdentifier.configPath);
+			if (exists) {
+				errors.onUnexpectedError(error);
 			}
 		}
 		this.workspaceConfigurationModelParser.parse(contents);
@@ -530,13 +530,17 @@ class FileServiceBasedFolderConfiguration extends Disposable implements IFolderC
 	}
 
 	async loadConfiguration(): Promise<ConfigurationModel> {
-		const configurationContents = await Promise.all(this.configurationResources.map(resource =>
-			this.loadConfigurationResourceContents(resource)
-				.then(undefined, error => {
-					/* never fail */
+		const configurationContents = await Promise.all(this.configurationResources.map(async resource => {
+			try {
+				return await this.configurationFileService.resolveContent(resource);
+			} catch (error) {
+				const exists = await this.configurationFileService.exists(resource);
+				if (exists) {
 					errors.onUnexpectedError(error);
-					return undefined;
-				})));
+				}
+			}
+			return undefined;
+		}));
 
 		// reset
 		this._standAloneConfigurations = [];
@@ -581,14 +585,6 @@ class FileServiceBasedFolderConfiguration extends Disposable implements IFolderC
 		if (added.length || removed.length || updated.length) {
 			this._onDidChange.fire();
 		}
-	}
-
-	private async loadConfigurationResourceContents(configurationResource: URI): Promise<string | undefined> {
-		const exists = await this.configurationFileService.exists(configurationResource);
-		if (exists) {
-			return await this.configurationFileService.resolveContent(configurationResource);
-		}
-		return undefined;
 	}
 
 	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
