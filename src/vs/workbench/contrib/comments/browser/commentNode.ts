@@ -71,7 +71,7 @@ export class CommentNode extends Disposable {
 	public isEditing: boolean;
 
 	constructor(
-		private commentThread: modes.CommentThread | modes.CommentThread2,
+		private commentThread: modes.CommentThread,
 		public comment: modes.Comment,
 		private owner: string,
 		private resource: URI,
@@ -128,8 +128,6 @@ export class CommentNode extends Disposable {
 
 		if (this.comment.label) {
 			this._isPendingLabel.innerText = this.comment.label;
-		} else if (this.comment.isDraft) {
-			this._isPendingLabel.innerText = 'Pending';
 		} else {
 			this._isPendingLabel.innerText = '';
 		}
@@ -143,22 +141,16 @@ export class CommentNode extends Disposable {
 
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
 		if (reactionGroup && reactionGroup.length) {
-			let commentThread = this.commentThread as modes.CommentThread2;
-			if (commentThread.commentThreadHandle !== undefined) {
-				let toggleReactionAction = this.createReactionPicker2();
-				actions.push(toggleReactionAction);
-			} else {
-				let toggleReactionAction = this.createReactionPicker();
-				actions.push(toggleReactionAction);
-			}
+			let toggleReactionAction = this.createReactionPicker();
+			actions.push(toggleReactionAction);
 		}
 
-		if (this.comment.canEdit || this.comment.editCommand) {
+		if (this.comment.editCommand) {
 			this._editAction = this.createEditAction(this._commentDetailsContainer);
 			actions.push(this._editAction);
 		}
 
-		if (this.comment.canDelete || this.comment.deleteCommand) {
+		if (this.comment.deleteCommand) {
 			this._deleteAction = this.createDeleteAction();
 			actions.push(this._deleteAction);
 		}
@@ -208,7 +200,7 @@ export class CommentNode extends Disposable {
 		}
 	}
 
-	private createReactionPicker2(): ToggleReactionsAction {
+	private createReactionPicker(): ToggleReactionsAction {
 		let toggleReactionActionItem: DropdownMenuActionItem;
 		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionItem) {
@@ -222,57 +214,11 @@ export class CommentNode extends Disposable {
 			reactionMenuActions = reactionGroup.map((reaction) => {
 				return new Action(`reaction.command.${reaction.label}`, `${reaction.label}`, '', true, async () => {
 					try {
-						await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread as modes.CommentThread2, this.comment, reaction);
+						await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread as modes.CommentThread, this.comment, reaction);
 					} catch (e) {
 						const error = e.message
 							? nls.localize('commentToggleReactionError', "Toggling the comment reaction failed: {0}.", e.message)
 							: nls.localize('commentToggleReactionDefaultError', "Toggling the comment reaction failed");
-						this.notificationService.error(error);
-					}
-				});
-			});
-		}
-
-		toggleReactionAction.menuActions = reactionMenuActions;
-
-		toggleReactionActionItem = new DropdownMenuActionItem(
-			toggleReactionAction,
-			(<ToggleReactionsAction>toggleReactionAction).menuActions,
-			this.contextMenuService,
-			action => {
-				if (action.id === ToggleReactionsAction.ID) {
-					return toggleReactionActionItem;
-				}
-				return this.actionItemProvider(action as Action);
-			},
-			this.actionRunner!,
-			undefined,
-			'toolbar-toggle-pickReactions',
-			() => { return AnchorAlignment.RIGHT; }
-		);
-
-		return toggleReactionAction;
-	}
-
-	private createReactionPicker(): ToggleReactionsAction {
-		let toggleReactionActionItem: DropdownMenuActionItem;
-		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
-			if (toggleReactionActionItem) {
-				toggleReactionActionItem.show();
-			}
-		}, nls.localize('commentAddReaction', "Add Reaction")));
-
-		let reactionMenuActions: Action[] = [];
-		let reactionGroup = this.commentService.getReactionGroup(this.owner);
-		if (reactionGroup && reactionGroup.length) {
-			reactionMenuActions = reactionGroup.map((reaction) => {
-				return new Action(`reaction.command.${reaction.label}`, `${reaction.label}`, '', true, async () => {
-					try {
-						await this.commentService.addReaction(this.owner, this.resource, this.comment, reaction);
-					} catch (e) {
-						const error = e.message
-							? nls.localize('commentAddReactionError', "Deleting the comment reaction failed: {0}.", e.message)
-							: nls.localize('commentAddReactionDefaultError', "Deleting the comment reaction failed");
 						this.notificationService.error(error);
 					}
 				});
@@ -326,16 +272,7 @@ export class CommentNode extends Disposable {
 		this.comment.commentReactions!.map(reaction => {
 			let action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && reaction.canEdit ? 'active' : '', reaction.canEdit, async () => {
 				try {
-					let commentThread = this.commentThread as modes.CommentThread2;
-					if (commentThread.commentThreadHandle !== undefined) {
-						await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread as modes.CommentThread2, this.comment, reaction);
-					} else {
-						if (reaction.hasReacted) {
-							await this.commentService.deleteReaction(this.owner, this.resource, this.comment, reaction);
-						} else {
-							await this.commentService.addReaction(this.owner, this.resource, this.comment, reaction);
-						}
-					}
+					await this.commentService.toggleReaction(this.owner, this.resource, this.commentThread as modes.CommentThread, this.comment, reaction);
 				} catch (e) {
 					let error: string;
 
@@ -359,14 +296,8 @@ export class CommentNode extends Disposable {
 
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
 		if (reactionGroup && reactionGroup.length) {
-			let commentThread = this.commentThread as modes.CommentThread2;
-			if (commentThread.commentThreadHandle !== undefined) {
-				let toggleReactionAction = this.createReactionPicker2();
-				this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
-			} else {
-				let toggleReactionAction = this.createReactionPicker();
-				this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
-			}
+			let toggleReactionAction = this.createReactionPicker();
+			this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
 		}
 	}
 
@@ -385,33 +316,31 @@ export class CommentNode extends Disposable {
 		const lastColumn = this._commentEditorModel.getLineContent(lastLine).length + 1;
 		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
 
-		let commentThread = this.commentThread as modes.CommentThread2;
-		if (commentThread.commentThreadHandle !== undefined) {
+		let commentThread = this.commentThread as modes.CommentThread;
+		commentThread.input = {
+			uri: this._commentEditor.getModel()!.uri,
+			value: this.comment.body.value
+		};
+		this.commentService.setActiveCommentThread(commentThread);
+
+		this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 			commentThread.input = {
-				uri: this._commentEditor.getModel()!.uri,
+				uri: this._commentEditor!.getModel()!.uri,
 				value: this.comment.body.value
 			};
 			this.commentService.setActiveCommentThread(commentThread);
+		}));
 
-			this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
-				commentThread.input = {
-					uri: this._commentEditor!.getModel()!.uri,
-					value: this.comment.body.value
-				};
-				this.commentService.setActiveCommentThread(commentThread);
-			}));
-
-			this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
-				if (commentThread.input && this._commentEditor && this._commentEditor.getModel()!.uri === commentThread.input.uri) {
-					let newVal = this._commentEditor.getValue();
-					if (newVal !== commentThread.input.value) {
-						let input = commentThread.input;
-						input.value = newVal;
-						commentThread.input = input;
-					}
+		this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
+			if (commentThread.input && this._commentEditor && this._commentEditor.getModel()!.uri === commentThread.input.uri) {
+				let newVal = this._commentEditor.getValue();
+				if (newVal !== commentThread.input.value) {
+					let input = commentThread.input;
+					input.value = newVal;
+					commentThread.input = input;
 				}
-			}));
-		}
+			}
+		}));
 
 		this._toDispose.push(this._commentEditor);
 		this._toDispose.push(this._commentEditorModel);
@@ -444,20 +373,16 @@ export class CommentNode extends Disposable {
 		try {
 			const newBody = this._commentEditor.getValue();
 
-			if (this.comment.editCommand) {
-				let commentThread = this.commentThread as modes.CommentThread2;
-				commentThread.input = {
-					uri: this._commentEditor.getModel()!.uri,
-					value: newBody
-				};
-				this.commentService.setActiveCommentThread(commentThread);
-				let commandId = this.comment.editCommand.id;
-				let args = this.comment.editCommand.arguments || [];
+			let commentThread = this.commentThread;
+			commentThread.input = {
+				uri: this._commentEditor.getModel()!.uri,
+				value: newBody
+			};
+			this.commentService.setActiveCommentThread(commentThread);
+			let commandId = this.comment.editCommand!.id;
+			let args = this.comment.editCommand!.arguments || [];
 
-				await this.commandService.executeCommand(commandId, ...args);
-			} else {
-				await this.commentService.editComment(this.owner, this.resource, this.comment, newBody);
-			}
+			await this.commandService.executeCommand(commandId, ...args);
 
 			this._updateCommentButton.enabled = true;
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
@@ -487,20 +412,11 @@ export class CommentNode extends Disposable {
 			}).then(async result => {
 				if (result.confirmed) {
 					try {
-						if (this.comment.deleteCommand) {
-							this.commentService.setActiveCommentThread(this.commentThread as modes.CommentThread2);
-							let commandId = this.comment.deleteCommand.id;
-							let args = this.comment.deleteCommand.arguments || [];
+						this.commentService.setActiveCommentThread(this.commentThread);
+						let commandId = this.comment.deleteCommand!.id;
+						let args = this.comment.deleteCommand!.arguments || [];
 
-							await this.commandService.executeCommand(commandId, ...args);
-						} else {
-							const didDelete = await this.commentService.deleteComment(this.owner, this.resource, this.comment);
-							if (didDelete) {
-								this._onDidDelete.fire(this);
-							} else {
-								throw Error();
-							}
-						}
+						await this.commandService.executeCommand(commandId, ...args);
 					} catch (e) {
 						const error = e.message
 							? nls.localize('commentDeletionError', "Deleting the comment failed: {0}.", e.message)
@@ -588,15 +504,7 @@ export class CommentNode extends Disposable {
 			dom.clearNode(this._actionsToolbarContainer);
 			this.createActionsToolbar();
 		}
-
-
-		if (newComment.label) {
-			this._isPendingLabel.innerText = newComment.label;
-		} else if (newComment.isDraft) {
-			this._isPendingLabel.innerText = 'Pending';
-		} else {
-			this._isPendingLabel.innerText = '';
-		}
+		this._isPendingLabel.innerText = newComment.label || '';
 
 		// update comment reactions
 		if (this._reactionActionsContainer) {

@@ -18,12 +18,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 
-interface HandlerData<T> {
-
-	extensionId: ExtensionIdentifier;
-	provider: T;
-}
-
 type ProviderHandle = number;
 
 export class ExtHostComments implements ExtHostCommentsShape {
@@ -34,9 +28,6 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	private _commentControllers: Map<ProviderHandle, ExtHostCommentController> = new Map<ProviderHandle, ExtHostCommentController>();
 
 	private _commentControllersByExtension: Map<string, ExtHostCommentController[]> = new Map<string, ExtHostCommentController[]>();
-
-	private _documentProviders = new Map<number, HandlerData<vscode.DocumentCommentProvider>>();
-	private _workspaceProviders = new Map<number, HandlerData<vscode.WorkspaceCommentProvider>>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -121,7 +112,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 		return asPromise(() => {
 			return commentController!.reactionProvider!.availableReactions;
-		}).then(reactions => reactions.map(reaction => convertToReaction2(commentController.reactionProvider, reaction)));
+		}).then(reactions => reactions.map(reaction => convertToReaction(commentController.reactionProvider, reaction)));
 	}
 
 	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void> {
@@ -168,198 +159,6 @@ export class ExtHostComments implements ExtHostCommentsShape {
 				return commentController.commentingRangeProvider.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
 			}
 		}).then(() => Promise.resolve());
-	}
-
-	registerWorkspaceCommentProvider(
-		extensionId: ExtensionIdentifier,
-		provider: vscode.WorkspaceCommentProvider
-	): vscode.Disposable {
-		const handle = ExtHostComments.handlePool++;
-		this._workspaceProviders.set(handle, {
-			extensionId,
-			provider
-		});
-		this._proxy.$registerWorkspaceCommentProvider(handle, extensionId);
-		this.registerListeners(handle, extensionId, provider);
-
-		return {
-			dispose: () => {
-				this._proxy.$unregisterWorkspaceCommentProvider(handle);
-				this._workspaceProviders.delete(handle);
-			}
-		};
-	}
-
-	registerDocumentCommentProvider(
-		extensionId: ExtensionIdentifier,
-		provider: vscode.DocumentCommentProvider
-	): vscode.Disposable {
-		const handle = ExtHostComments.handlePool++;
-		this._documentProviders.set(handle, {
-			extensionId,
-			provider
-		});
-		this._proxy.$registerDocumentCommentProvider(handle, {
-			startDraftLabel: provider.startDraftLabel,
-			deleteDraftLabel: provider.deleteDraftLabel,
-			finishDraftLabel: provider.finishDraftLabel,
-			reactionGroup: provider.reactionGroup ? provider.reactionGroup.map(reaction => convertToReaction(provider, reaction)) : undefined
-		});
-		this.registerListeners(handle, extensionId, provider);
-
-		return {
-			dispose: () => {
-				this._proxy.$unregisterDocumentCommentProvider(handle);
-				this._documentProviders.delete(handle);
-			}
-		};
-	}
-
-	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Promise<modes.CommentThread | null> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
-
-		if (!data || !data.document) {
-			return Promise.resolve(null);
-		}
-
-		const handlerData = this.getDocumentProvider(handle);
-		return asPromise(() => {
-			return handlerData.provider.createNewCommentThread(data.document, ran, text, CancellationToken.None);
-		}).then(commentThread => commentThread ? convertToCommentThread(handlerData.extensionId, handlerData.provider, commentThread, this._commands.converter) : null);
-	}
-
-	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Promise<modes.CommentThread | null> {
-		const data = this._documents.getDocumentData(URI.revive(uri));
-		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
-
-		if (!data || !data.document) {
-			return Promise.resolve(null);
-		}
-
-		const handlerData = this.getDocumentProvider(handle);
-		return asPromise(() => {
-			return handlerData.provider.replyToCommentThread(data.document, ran, convertFromCommentThread(thread), text, CancellationToken.None);
-		}).then(commentThread => commentThread ? convertToCommentThread(handlerData.extensionId, handlerData.provider, commentThread, this._commands.converter) : null);
-	}
-
-	$editComment(handle: number, uri: UriComponents, comment: modes.Comment, text: string): Promise<void> {
-		const document = this._documents.getDocument(URI.revive(uri));
-		const handlerData = this.getDocumentProvider(handle);
-		if (!handlerData.provider.editComment) {
-			return Promise.reject(new Error('not implemented'));
-		}
-		return asPromise(() => {
-			return handlerData.provider.editComment!(document, convertFromComment(comment), text, CancellationToken.None);
-		});
-	}
-
-	$deleteComment(handle: number, uri: UriComponents, comment: modes.Comment): Promise<void> {
-		const document = this._documents.getDocument(URI.revive(uri));
-		const handlerData = this.getDocumentProvider(handle);
-		if (!handlerData.provider.deleteComment) {
-			return Promise.reject(new Error('not implemented'));
-		}
-		return asPromise(() => {
-			return handlerData.provider.deleteComment!(document, convertFromComment(comment), CancellationToken.None);
-		});
-	}
-
-	$startDraft(handle: number, uri: UriComponents): Promise<void> {
-		const document = this._documents.getDocument(URI.revive(uri));
-
-		const handlerData = this.getDocumentProvider(handle);
-		if (!handlerData.provider.startDraft) {
-			return Promise.reject(new Error('not implemented'));
-		}
-		return asPromise(() => {
-			return handlerData.provider.startDraft!(document, CancellationToken.None);
-		});
-	}
-
-	$deleteDraft(handle: number, uri: UriComponents): Promise<void> {
-		const document = this._documents.getDocument(URI.revive(uri));
-		const handlerData = this.getDocumentProvider(handle);
-		if (!handlerData.provider.deleteDraft) {
-			return Promise.reject(new Error('not implemented'));
-		}
-		return asPromise(() => {
-			return handlerData.provider.deleteDraft!(document, CancellationToken.None);
-		});
-	}
-
-	$finishDraft(handle: number, uri: UriComponents): Promise<void> {
-		const document = this._documents.getDocument(URI.revive(uri));
-		const handlerData = this.getDocumentProvider(handle);
-		if (!handlerData.provider.finishDraft) {
-			return Promise.reject(new Error('not implemented'));
-		}
-		return asPromise(() => {
-			return handlerData.provider.finishDraft!(document, CancellationToken.None);
-		});
-	}
-
-	$addReaction(handle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void> {
-		const document = this._documents.getDocument(URI.revive(uri));
-		const handlerData = this.getDocumentProvider(handle);
-		if (!handlerData.provider.addReaction) {
-			return Promise.reject(new Error('not implemented'));
-		}
-		return asPromise(() => {
-			return handlerData.provider.addReaction!(document, convertFromComment(comment), convertFromReaction(reaction));
-		});
-	}
-
-	$deleteReaction(handle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void> {
-		const document = this._documents.getDocument(URI.revive(uri));
-		const handlerData = this.getDocumentProvider(handle);
-		if (!handlerData.provider.deleteReaction) {
-			return Promise.reject(new Error('not implemented'));
-		}
-		return asPromise(() => {
-			return handlerData.provider.deleteReaction!(document, convertFromComment(comment), convertFromReaction(reaction));
-		});
-	}
-
-	$provideDocumentComments(handle: number, uri: UriComponents): Promise<modes.CommentInfo | null> {
-		const document = this._documents.getDocument(URI.revive(uri));
-		const handlerData = this.getDocumentProvider(handle);
-		return asPromise(() => {
-			return handlerData.provider.provideDocumentComments(document, CancellationToken.None);
-		}).then(commentInfo => commentInfo ? convertCommentInfo(handle, handlerData.extensionId, handlerData.provider, commentInfo, this._commands.converter) : null);
-	}
-
-	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[] | null> {
-		const handlerData = this._workspaceProviders.get(handle);
-		if (!handlerData) {
-			return Promise.resolve(null);
-		}
-
-		return asPromise(() => {
-			return handlerData.provider.provideWorkspaceComments(CancellationToken.None);
-		}).then(comments =>
-			comments.map(comment => convertToCommentThread(handlerData.extensionId, handlerData.provider, comment, this._commands.converter)
-			));
-	}
-
-	private registerListeners(handle: number, extensionId: ExtensionIdentifier, provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider) {
-		provider.onDidChangeCommentThreads(event => {
-
-			this._proxy.$onDidCommentThreadsChange(handle, {
-				changed: event.changed.map(thread => convertToCommentThread(extensionId, provider, thread, this._commands.converter)),
-				added: event.added.map(thread => convertToCommentThread(extensionId, provider, thread, this._commands.converter)),
-				removed: event.removed.map(thread => convertToCommentThread(extensionId, provider, thread, this._commands.converter)),
-				draftMode: !!(provider as vscode.DocumentCommentProvider).startDraft && !!(provider as vscode.DocumentCommentProvider).finishDraft ? (event.inDraftMode ? modes.DraftMode.InDraft : modes.DraftMode.NotInDraft) : modes.DraftMode.NotSupported
-			});
-		});
-	}
-
-	private getDocumentProvider(handle: number): HandlerData<vscode.DocumentCommentProvider> {
-		const provider = this._documentProviders.get(handle);
-		if (!provider) {
-			throw new Error('unknown provider');
-		}
-		return provider;
 	}
 }
 
@@ -581,7 +380,7 @@ class ExtHostCommentController implements vscode.CommentController {
 	set reactionProvider(provider: vscode.CommentReactionProvider | undefined) {
 		this._commentReactionProvider = provider;
 		if (provider) {
-			this._proxy.$updateCommentControllerFeatures(this.handle, { reactionGroup: provider.availableReactions.map(reaction => convertToReaction2(provider, reaction)) });
+			this._proxy.$updateCommentControllerFeatures(this.handle, { reactionGroup: provider.availableReactions.map(reaction => convertToReaction(provider, reaction)) });
 		}
 	}
 
@@ -623,113 +422,23 @@ class ExtHostCommentController implements vscode.CommentController {
 	}
 }
 
-function convertCommentInfo(owner: number, extensionId: ExtensionIdentifier, provider: vscode.DocumentCommentProvider, vscodeCommentInfo: vscode.CommentInfo, commandsConverter: CommandsConverter): modes.CommentInfo {
-	return {
-		extensionId: extensionId.value,
-		threads: vscodeCommentInfo.threads.map(x => convertToCommentThread(extensionId, provider, x, commandsConverter)),
-		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.Range.from(range)) : [],
-		draftMode: provider.startDraft && provider.finishDraft ? (vscodeCommentInfo.inDraftMode ? modes.DraftMode.InDraft : modes.DraftMode.NotInDraft) : modes.DraftMode.NotSupported
-	};
-}
-
-function convertToCommentThread(extensionId: ExtensionIdentifier, provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, vscodeCommentThread: vscode.CommentThread, commandsConverter: CommandsConverter): modes.CommentThread {
-	return {
-		extensionId: extensionId.value,
-		threadId: vscodeCommentThread.threadId,
-		resource: vscodeCommentThread.resource.toString(),
-		range: extHostTypeConverter.Range.from(vscodeCommentThread.range),
-		comments: vscodeCommentThread.comments.map(comment => convertToComment(provider, comment, commandsConverter)),
-		collapsibleState: vscodeCommentThread.collapsibleState
-	};
-}
-
-function convertFromCommentThread(commentThread: modes.CommentThread): vscode.CommentThread {
-	return {
-		threadId: commentThread.threadId!,
-		resource: URI.parse(commentThread.resource!),
-		range: extHostTypeConverter.Range.to(commentThread.range),
-		comments: commentThread.comments ? commentThread.comments.map(convertFromComment) : [],
-		collapsibleState: commentThread.collapsibleState
-	};
-}
-
-function convertFromComment(comment: modes.Comment): vscode.Comment {
-	let userIconPath: URI | undefined;
-	if (comment.userIconPath) {
-		try {
-			userIconPath = URI.parse(comment.userIconPath);
-		} catch (e) {
-			// Ignore
-		}
-	}
-
-	return {
-		commentId: comment.commentId,
-		body: extHostTypeConverter.MarkdownString.to(comment.body),
-		userName: comment.userName,
-		userIconPath: userIconPath,
-		canEdit: comment.canEdit,
-		canDelete: comment.canDelete,
-		isDraft: comment.isDraft,
-		commentReactions: comment.commentReactions ? comment.commentReactions.map(reaction => {
-			return {
-				label: reaction.label,
-				count: reaction.count,
-				hasReacted: reaction.hasReacted
-			};
-		}) : undefined
-	};
-}
-
 function convertToModeComment(commentController: ExtHostCommentController, vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
-	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
+	const iconPath = vscodeComment.userIconPath.toString();
 
 	return {
 		commentId: vscodeComment.commentId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 		userName: vscodeComment.userName,
 		userIconPath: iconPath,
-		isDraft: vscodeComment.isDraft,
 		selectCommand: vscodeComment.selectCommand ? commandsConverter.toInternal(vscodeComment.selectCommand) : undefined,
 		editCommand: vscodeComment.editCommand ? commandsConverter.toInternal(vscodeComment.editCommand) : undefined,
 		deleteCommand: vscodeComment.deleteCommand ? commandsConverter.toInternal(vscodeComment.deleteCommand) : undefined,
 		label: vscodeComment.label,
-		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => convertToReaction2(commentController.reactionProvider, reaction)) : undefined
+		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => convertToReaction(commentController.reactionProvider, reaction)) : undefined
 	};
 }
 
-function convertToComment(provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
-	const canEdit = !!(provider as vscode.DocumentCommentProvider).editComment && vscodeComment.canEdit;
-	const canDelete = !!(provider as vscode.DocumentCommentProvider).deleteComment && vscodeComment.canDelete;
-	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
-
-	return {
-		commentId: vscodeComment.commentId,
-		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
-		userName: vscodeComment.userName,
-		userIconPath: iconPath,
-		canEdit: canEdit,
-		canDelete: canDelete,
-		selectCommand: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : undefined,
-		isDraft: vscodeComment.isDraft,
-		commentReactions: vscodeComment.commentReactions ? vscodeComment.commentReactions.map(reaction => convertToReaction(provider, reaction)) : undefined
-	};
-}
-
-function convertToReaction(provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, reaction: vscode.CommentReaction): modes.CommentReaction {
-	const providerCanDeleteReaction = !!(provider as vscode.DocumentCommentProvider).deleteReaction;
-	const providerCanAddReaction = !!(provider as vscode.DocumentCommentProvider).addReaction;
-
-	return {
-		label: reaction.label,
-		iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,
-		count: reaction.count,
-		hasReacted: reaction.hasReacted,
-		canEdit: (reaction.hasReacted && providerCanDeleteReaction) || (!reaction.hasReacted && providerCanAddReaction)
-	};
-}
-
-function convertToReaction2(provider: vscode.CommentReactionProvider | undefined, reaction: vscode.CommentReaction): modes.CommentReaction {
+function convertToReaction(provider: vscode.CommentReactionProvider | undefined, reaction: vscode.CommentReaction): modes.CommentReaction {
 	return {
 		label: reaction.label,
 		iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,

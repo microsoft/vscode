@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { Comment, CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
+import { Comment, CommentThreadChangedEvent, CommentThread } from 'vs/editor/common/modes';
 import { groupBy, firstIndex, flatten } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { values } from 'vs/base/common/map';

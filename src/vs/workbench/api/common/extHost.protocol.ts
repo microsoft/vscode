@@ -123,15 +123,10 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$registerCommentController(handle: number, id: string, label: string): void;
 	$unregisterCommentController(handle: number): void;
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange): modes.CommentThread2 | undefined;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange): modes.CommentThread | undefined;
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, label: string, comments: modes.Comment[], acceptInputCommand: modes.Command | undefined, additionalCommands: modes.Command[], deleteCommand: modes.Command | undefined, collapseState: modes.CommentThreadCollapsibleState): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$setInputValue(handle: number, input: string): void;
-	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
-	$unregisterDocumentCommentProvider(handle: number): void;
-	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void;
-	$unregisterWorkspaceCommentProvider(handle: number): void;
-	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {
@@ -1174,22 +1169,11 @@ export interface ExtHostProgressShape {
 }
 
 export interface ExtHostCommentsShape {
-	$provideDocumentComments(handle: number, document: UriComponents): Promise<modes.CommentInfo | null>;
-	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Promise<modes.CommentThread | null>;
 	$onCommentWidgetInputChange(commentControllerHandle: number, input: string | undefined): Promise<number | undefined>;
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined>;
 	$provideReactionGroup(commentControllerHandle: number): Promise<modes.CommentReaction[] | undefined>;
 	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
 	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): Promise<void>;
-	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Promise<modes.CommentThread | null>;
-	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Promise<void>;
-	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Promise<void>;
-	$startDraft(handle: number, document: UriComponents): Promise<void>;
-	$deleteDraft(handle: number, document: UriComponents): Promise<void>;
-	$finishDraft(handle: number, document: UriComponents): Promise<void>;
-	$addReaction(handle: number, document: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
-	$deleteReaction(handle: number, document: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
-	$provideWorkspaceComments(handle: number): Promise<modes.CommentThread[] | null>;
 }
 
 export interface ExtHostStorageShape {

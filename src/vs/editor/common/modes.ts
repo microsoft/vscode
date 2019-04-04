@@ -1217,9 +1217,7 @@ export interface Command {
 export interface CommentInfo {
 	extensionId?: string;
 	threads: CommentThread[];
-	commentingRanges?: (IRange[] | CommentingRanges);
-	reply?: Command;
-	draftMode?: DraftMode;
+	commentingRanges: CommentingRanges;
 }
 
 /**
@@ -1245,18 +1243,6 @@ export enum CommentThreadCollapsibleState {
 	Expanded = 1
 }
 
-
-
-/**
- * @internal
- */
-export interface CommentWidget {
-	commentThread: CommentThread;
-	comment?: Comment;
-	input: string;
-	onDidChangeInput: Event<string>;
-}
-
 /**
  * @internal
  */
@@ -1268,7 +1254,7 @@ export interface CommentInput {
 /**
  * @internal
  */
-export interface CommentThread2 {
+export interface CommentThread {
 	commentThreadHandle: number;
 	extensionId?: string;
 	threadId: string | null;
@@ -1297,29 +1283,7 @@ export interface CommentThread2 {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
-	newCommentThreadCommand?: Command;
 	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => Promise<void>;
-}
-
-/**
- * @internal
- */
-export interface CommentThread {
-	extensionId?: string;
-	threadId: string | null;
-	resource: string | null;
-	range: IRange;
-	comments: Comment[] | undefined;
-	collapsibleState?: CommentThreadCollapsibleState;
-	reply?: Command;
-}
-
-/**
- * @internal
- */
-export interface NewCommentAction {
-	ranges: IRange[];
-	actions: Command[];
 }
 
 /**
@@ -1341,12 +1305,9 @@ export interface Comment {
 	readonly body: IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;
-	readonly canEdit?: boolean;
-	readonly canDelete?: boolean;
 	readonly selectCommand?: Command;
 	readonly editCommand?: Command;
 	readonly deleteCommand?: Command;
-	readonly isDraft?: boolean;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 }
@@ -1358,54 +1319,17 @@ export interface CommentThreadChangedEvent {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: (CommentThread | CommentThread2)[];
+	readonly added: CommentThread[];
 
 	/**
 	 * Removed comment threads.
 	 */
-	readonly removed: (CommentThread | CommentThread2)[];
+	readonly removed: CommentThread[];
 
 	/**
 	 * Changed comment threads.
 	 */
-	readonly changed: (CommentThread | CommentThread2)[];
-
-	/**
-	 * changed draft mode.
-	 */
-	readonly draftMode?: DraftMode;
-}
-
-/**
- * @internal
- */
-export interface DocumentCommentProvider {
-	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo | null>;
-	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread | null>;
-	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread | null>;
-	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
-	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
-	startDraft?(resource: URI, token: CancellationToken): Promise<void>;
-	deleteDraft?(resource: URI, token: CancellationToken): Promise<void>;
-	finishDraft?(resource: URI, token: CancellationToken): Promise<void>;
-
-	startDraftLabel?: string;
-	deleteDraftLabel?: string;
-	finishDraftLabel?: string;
-
-	addReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
-	deleteReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
-	reactionGroup?: CommentReaction[];
-
-	onDidChangeCommentThreads?(): Event<CommentThreadChangedEvent>;
-}
-
-/**
- * @internal
- */
-export interface WorkspaceCommentProvider {
-	provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
+	readonly changed: CommentThread[];
 }
 
 /**
