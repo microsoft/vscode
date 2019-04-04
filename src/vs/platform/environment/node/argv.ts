@@ -7,7 +7,7 @@ import * as minimist from 'minimist';
 import * as os from 'os';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { writeFileSync } from 'fs';
 
 /**

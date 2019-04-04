@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { asText } from 'vs/base/node/request';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
