@@ -13,7 +13,6 @@ import { Queue, Barrier } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { isLinux } from 'vs/base/common/platform';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Configuration, WorkspaceConfigurationChangeEvent, AllKeysConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
@@ -288,10 +287,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace)).then(() => {
 				mark('didInitWorkspaceService');
 			});
-	}
-
-	acquireFileService(fileService: IFileService): void {
-		this.configurationFileService.fileService = fileService;
 	}
 
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
