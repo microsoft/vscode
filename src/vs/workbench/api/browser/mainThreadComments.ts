@@ -357,6 +357,7 @@ export class MainThreadCommentController {
 
 		return <ICommentInfo>{
 			owner: this._uniqueId,
+			label: this.label,
 			threads: ret,
 			commentingRanges: commentingRanges ?
 				{

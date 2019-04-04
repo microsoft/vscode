@@ -24,6 +24,7 @@ export interface IResourceCommentThreadEvent {
 
 export interface ICommentInfo extends CommentInfo {
 	owner: string;
+	label?: string;
 }
 
 export interface IWorkspaceCommentThreadsEvent {
