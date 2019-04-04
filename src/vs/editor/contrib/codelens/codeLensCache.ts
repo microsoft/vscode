@@ -18,12 +18,15 @@ export interface ICodeLensCache {
 	get(model: ITextModel): ICodeLensData[] | undefined;
 }
 
+class CacheData {
+	constructor(readonly version: number, readonly data: ICodeLensData[]) { }
+}
 
 registerSingleton(ICodeLensCache, class implements ICodeLensCache {
 
 	_serviceBrand: any;
 
-	private readonly _cache = new LRUCache<string, ICodeLensData[]>(15, 0.75);
+	private readonly _cache = new LRUCache<string, CacheData>(20, 0.75);
 
 	private readonly _fakeProvider = new class implements CodeLensProvider {
 		provideCodeLenses(): ICodeLensSymbol[] {
@@ -32,19 +35,18 @@ registerSingleton(ICodeLensCache, class implements ICodeLensCache {
 	};
 
 	put(model: ITextModel, data: ICodeLensData[]): void {
-		this._cache.set(this._makeKey(model), data.map(item => {
+		const item = new CacheData(model.getVersionId(), data.map(item => {
 			return {
 				symbol: item.symbol,
 				provider: this._fakeProvider
 			};
 		}));
+		this._cache.set(model.id, item);
 	}
 
 	get(model: ITextModel) {
-		return this._cache.get(this._makeKey(model));
+		const item = this._cache.get(model.id);
+		return item && item.version === model.getVersionId() ? item.data : undefined;
 	}
 
-	private _makeKey(model: ITextModel): string {
-		return model.id + model.getVersionId;
-	}
 }, true);
