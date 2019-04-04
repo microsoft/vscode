@@ -14,7 +14,7 @@ import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnima
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
@@ -53,6 +53,7 @@ import { DefaultConfigurationExportHelper } from 'vs/workbench/services/configur
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
+import { ConfigurationFileService } from 'vs/workbench/services/configuration/node/configurationFileService';
 
 class CodeRendererMain extends Disposable {
 
@@ -302,7 +303,7 @@ class CodeRendererMain extends Disposable {
 	}
 
 	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, hashService: IHashService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ userSettingsPath: environmentService.appSettingsPath, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, hashService, remoteAgentService);
+		const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), hashService, remoteAgentService);
 
 		return workspaceService.initialize(payload).then(() => workspaceService, error => {
 			onUnexpectedError(error);

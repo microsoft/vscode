@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
+
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
 export const FOLDER_SETTINGS_PATH = `${FOLDER_CONFIG_FOLDER_NAME}/${FOLDER_SETTINGS_NAME}.json`;
@@ -29,4 +31,9 @@ export interface IConfigurationCache {
 	write(key: ConfigurationKey, content: string): Promise<void>;
 	remove(key: ConfigurationKey): Promise<void>;
 
+}
+
+export interface IConfigurationFileService {
+	exists(resource: URI): Promise<boolean>;
+	resolveContent(resource: URI): Promise<string>;
 }

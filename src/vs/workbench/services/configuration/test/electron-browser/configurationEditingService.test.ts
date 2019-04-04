@@ -17,7 +17,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
@@ -41,6 +41,7 @@ import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFi
 import { IFileService } from 'vs/platform/files/common/files';
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
+import { ConfigurationFileService } from 'vs/workbench/services/configuration/node/configurationFileService';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -106,7 +107,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		const workspaceService = new WorkspaceService({ userSettingsPath: environmentService.appSettingsPath, configurationCache: new ConfigurationCache(environmentService) }, new HashService(), remoteAgentService);
+		const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), new HashService(), remoteAgentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);

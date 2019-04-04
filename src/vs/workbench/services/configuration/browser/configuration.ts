@@ -6,15 +6,14 @@
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
-import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, IConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
+import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -22,7 +21,6 @@ import { extname, join } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationModel, compare } from 'vs/platform/configuration/common/configuration';
-import { NodeBasedUserConfiguration } from 'vs/platform/configuration/node/configuration';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 export class LocalUserConfiguration extends Disposable {
@@ -35,11 +33,12 @@ export class LocalUserConfiguration extends Disposable {
 	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
 	constructor(
-		userSettingsPath: string
+		userConfigurationResource: URI,
+		configurationFileService: IConfigurationFileService
 	) {
 		super();
-		this.userConfigurationResource = URI.file(userSettingsPath);
-		this.userConfiguration = this._register(new NodeBasedUserConfiguration(userSettingsPath));
+		this.userConfigurationResource = userConfigurationResource;
+		this.userConfiguration = this._register(new NodeBasedUserConfiguration(this.userConfigurationResource, configurationFileService));
 	}
 
 	initialize(): Promise<ConfigurationModel> {
@@ -120,6 +119,50 @@ export class RemoteUserConfiguration extends Disposable {
 	private updateCache(configurationModel: ConfigurationModel): Promise<void> {
 		return this._cachedConfiguration.updateConfiguration(configurationModel);
 	}
+}
+
+class NodeBasedUserConfiguration extends Disposable {
+
+	private configuraitonModel: ConfigurationModel = new ConfigurationModel();
+
+	constructor(
+		private readonly userConfigurationResource: URI,
+		private readonly configurationFileService: IConfigurationFileService
+	) {
+		super();
+	}
+
+	initialize(): Promise<ConfigurationModel> {
+		return this._load();
+	}
+
+	reload(): Promise<ConfigurationModel> {
+		return this._load();
+	}
+
+	getConfigurationModel(): ConfigurationModel {
+		return this.configuraitonModel;
+	}
+
+	async _load(): Promise<ConfigurationModel> {
+		const exists = await this.configurationFileService.exists(this.userConfigurationResource);
+		if (exists) {
+			try {
+				const content = await this.configurationFileService.resolveContent(this.userConfigurationResource);
+				const parser = new ConfigurationModelParser(this.userConfigurationResource.toString());
+				parser.parse(content);
+				this.configuraitonModel = parser.configurationModel;
+			} catch (e) {
+				// ignore error
+				errors.onUnexpectedError(e);
+				this.configuraitonModel = new ConfigurationModel();
+			}
+		} else {
+			this.configuraitonModel = new ConfigurationModel();
+		}
+		return this.configuraitonModel;
+	}
+
 }
 
 export class FileServiceBasedUserConfiguration extends Disposable {
@@ -259,14 +302,10 @@ class CachedUserConfiguration extends Disposable {
 	}
 }
 
-export interface IWorkspaceIdentifier {
-	id: string;
-	configPath: URI;
-}
-
 export class WorkspaceConfiguration extends Disposable {
 
 	private readonly _cachedConfiguration: CachedWorkspaceConfiguration;
+	private readonly _configurationFileService: IConfigurationFileService;
 	private _workspaceConfiguration: IWorkspaceConfiguration;
 	private _workspaceIdentifier: IWorkspaceIdentifier | null = null;
 	private _fileService: IFileService | null = null;
@@ -275,10 +314,12 @@ export class WorkspaceConfiguration extends Disposable {
 	public readonly onDidUpdateConfiguration: Event<void> = this._onDidUpdateConfiguration.event;
 
 	constructor(
-		configurationCache: IConfigurationCache
+		configurationCache: IConfigurationCache,
+		configurationFileService: IConfigurationFileService
 	) {
 		super();
 		this._cachedConfiguration = new CachedWorkspaceConfiguration(configurationCache);
+		this._configurationFileService = configurationFileService;
 		this._workspaceConfiguration = this._cachedConfiguration;
 	}
 
@@ -345,7 +386,7 @@ export class WorkspaceConfiguration extends Disposable {
 			if (this._workspaceIdentifier.configPath.scheme === Schemas.file) {
 				if (!(this._workspaceConfiguration instanceof NodeBasedWorkspaceConfiguration)) {
 					dispose(this._workspaceConfiguration);
-					this._workspaceConfiguration = new NodeBasedWorkspaceConfiguration();
+					this._workspaceConfiguration = new NodeBasedWorkspaceConfiguration(this._configurationFileService);
 					return true;
 				}
 				return false;
@@ -440,16 +481,16 @@ abstract class AbstractWorkspaceConfiguration extends Disposable implements IWor
 
 class NodeBasedWorkspaceConfiguration extends AbstractWorkspaceConfiguration {
 
+	constructor(private readonly configurationFileService: IConfigurationFileService) {
+		super();
+	}
+
 	protected async loadWorkspaceConfigurationContents(workspaceConfigurationResource: URI): Promise<string | undefined> {
-		try {
-			const contents = await pfs.readFile(workspaceConfigurationResource.fsPath);
-			return contents.toString();
-		} catch (e) {
-			if (e.code === 'ENOENT') {
-				return undefined;
-			}
-			throw e;
+		const exists = await this.configurationFileService.exists(workspaceConfigurationResource);
+		if (exists) {
+			return this.configurationFileService.resolveContent(workspaceConfigurationResource);
 		}
+		return undefined;
 	}
 
 }
@@ -658,16 +699,16 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 
 export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
 
+	constructor(private readonly configurationFileService: IConfigurationFileService, configurationFolder: URI, workbenchState: WorkbenchState) {
+		super(configurationFolder, workbenchState);
+	}
+
 	protected async loadConfigurationResourceContents(configurationResource: URI): Promise<string | undefined> {
-		try {
-			const contents = await pfs.readFile(configurationResource.fsPath);
-			return contents.toString();
-		} catch (e) {
-			if (e.code === 'ENOENT') {
-				return undefined;
-			}
-			throw e;
+		const exists = await this.configurationFileService.exists(configurationResource);
+		if (exists) {
+			return this.configurationFileService.resolveContent(configurationResource);
 		}
+		return undefined;
 	}
 }
 
@@ -801,6 +842,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		configFolderRelativePath: string,
 		private readonly workbenchState: WorkbenchState,
 		hashService: IHashService,
+		configurationFileService: IConfigurationFileService,
 		configurationCache: IConfigurationCache,
 		fileService?: IFileService
 	) {
@@ -812,7 +854,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		if (fileService) {
 			this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.configurationFolder, this.workbenchState, fileService);
 		} else if (workspaceFolder.uri.scheme === Schemas.file) {
-			this.folderConfiguration = new NodeBasedFolderConfiguration(this.configurationFolder, this.workbenchState);
+			this.folderConfiguration = new NodeBasedFolderConfiguration(configurationFileService, this.configurationFolder, this.workbenchState);
 		}
 		this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 	}

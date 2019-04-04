@@ -106,7 +106,7 @@ import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/hash/common/hashService';
 // import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-// import 'vs/workbench/services/workspace/node/workspaceEditingService';
+// import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
 // import 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/decorations/browser/decorationsService';
 // import 'vs/workbench/services/search/node/searchService';

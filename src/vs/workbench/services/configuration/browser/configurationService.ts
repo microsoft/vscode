@@ -17,13 +17,13 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Configuration, WorkspaceConfigurationChangeEvent, AllKeysConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, IConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, LocalUserConfiguration } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, LocalUserConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
@@ -66,7 +66,8 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private jsonEditingService: JSONEditingService;
 
 	constructor(
-		{ userSettingsPath, remoteAuthority, configurationCache }: { userSettingsPath?: string, remoteAuthority?: string, configurationCache: IConfigurationCache },
+		{ userSettingsResource, remoteAuthority, configurationCache }: { userSettingsResource?: URI, remoteAuthority?: string, configurationCache: IConfigurationCache },
+		private readonly configurationFileService: IConfigurationFileService,
 		private readonly hashService: IHashService,
 		private readonly remoteAgentService: IRemoteAgentService,
 	) {
@@ -75,15 +76,15 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		this.completeWorkspaceBarrier = new Barrier();
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.configurationCache = configurationCache;
-		if (userSettingsPath) {
-			this.localUserConfiguration = this._register(new LocalUserConfiguration(userSettingsPath));
+		if (userSettingsResource) {
+			this.localUserConfiguration = this._register(new LocalUserConfiguration(userSettingsResource, configurationFileService));
 			this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
 		}
 		if (remoteAuthority) {
 			this.remoteUserConfiguration = this._register(new RemoteUserConfiguration(remoteAuthority, configurationCache));
 			this._register(this.remoteUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onRemoteUserConfigurationChanged(userConfiguration)));
 		}
-		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(configurationCache));
+		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(configurationCache, this.configurationFileService));
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidSchemaChange(e => this.registerConfigurationSchemas()));
@@ -630,7 +631,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		return Promise.all([...folders.map(folder => {
 			let folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 			if (!folderConfiguration) {
-				folderConfiguration = new FolderConfiguration(folder, FOLDER_CONFIG_FOLDER_NAME, this.getWorkbenchState(), this.hashService, this.configurationCache, this.fileService);
+				folderConfiguration = new FolderConfiguration(folder, FOLDER_CONFIG_FOLDER_NAME, this.getWorkbenchState(), this.hashService, this.configurationFileService, this.configurationCache, this.fileService);
 				this._register(folderConfiguration.onDidChange(() => this.onWorkspaceFolderConfigurationChanged(folder)));
 				this.cachedFolderConfigs.set(folder.uri, this._register(folderConfiguration));
 			}
