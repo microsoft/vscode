@@ -23,7 +23,7 @@ import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resour
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, LocalUserConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
+import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { localize } from 'vs/nls';
@@ -41,7 +41,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private readonly configurationCache: IConfigurationCache;
 	private _configuration: Configuration;
 	private defaultConfiguration: DefaultConfigurationModel;
-	private localUserConfiguration: LocalUserConfiguration | null = null;
+	private localUserConfiguration: UserConfiguration | null = null;
 	private remoteUserConfiguration: RemoteUserConfiguration | null = null;
 	private workspaceConfiguration: WorkspaceConfiguration;
 	private cachedFolderConfigs: ResourceMap<FolderConfiguration>;
@@ -67,7 +67,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	constructor(
 		{ userSettingsResource, remoteAuthority, configurationCache }: { userSettingsResource?: URI, remoteAuthority?: string, configurationCache: IConfigurationCache },
 		private readonly configurationFileService: IConfigurationFileService,
-		private readonly remoteAgentService: IRemoteAgentService,
+		remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 
@@ -75,11 +75,11 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.configurationCache = configurationCache;
 		if (userSettingsResource) {
-			this.localUserConfiguration = this._register(new LocalUserConfiguration(userSettingsResource, configurationFileService));
+			this.localUserConfiguration = this._register(new UserConfiguration(userSettingsResource, configurationFileService));
 			this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
 		}
 		if (remoteAuthority) {
-			this.remoteUserConfiguration = this._register(new RemoteUserConfiguration(remoteAuthority, configurationCache));
+			this.remoteUserConfiguration = this._register(new RemoteUserConfiguration(remoteAuthority, configurationCache, configurationFileService, remoteAgentService));
 			this._register(this.remoteUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onRemoteUserConfigurationChanged(userConfiguration)));
 		}
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(configurationCache, this.configurationFileService));
@@ -296,15 +296,8 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 	acquireFileService(fileService: IFileService): void {
 		this.fileService = fileService;
+		this.configurationFileService.fileService = fileService;
 		const changedWorkspaceFolders: IWorkspaceFolder[] = [];
-		if (this.localUserConfiguration) {
-			this.localUserConfiguration.adopt(fileService)
-				.then(changedModel => {
-					if (changedModel) {
-						this.onLocalUserConfigurationChanged(changedModel);
-					}
-				});
-		}
 		Promise.all([this.workspaceConfiguration.adopt(fileService), ...this.cachedFolderConfigs.values()
 			.map(folderConfiguration => folderConfiguration.adopt(fileService)
 				.then(result => {
@@ -322,15 +315,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				}
 				this.releaseWorkspaceBarrier();
 			});
-		if (this.remoteUserConfiguration) {
-			this.remoteAgentService.getEnvironment()
-				.then(environment => this.remoteUserConfiguration!.adopt(environment ? environment.appSettingsPath : null, fileService)
-					.then(changedModel => {
-						if (changedModel) {
-							this.onRemoteUserConfigurationChanged(changedModel);
-						}
-					}));
-		}
 	}
 
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
