@@ -959,7 +959,7 @@ suite('Disk File Service', () => {
 		if (isLinux) {
 			assertWatch(watchDir, [[FileChangeType.DELETED, file], [FileChangeType.ADDED, fileRenamed]], done);
 		} else {
-			assertWatch(watchDir, [[FileChangeType.UPDATED, file]], done); // case insensitive file system treat this as change
+			assertWatch(watchDir, [[FileChangeType.UPDATED, file], [FileChangeType.ADDED, fileRenamed]], done); // case insensitive file system treat this as change
 		}
 
 		setTimeout(() => renameSync(file.fsPath, fileRenamed.fsPath), 50);
