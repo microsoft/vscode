@@ -897,7 +897,7 @@ class ActionsColumn extends Column {
 	}
 
 	dispose(): void {
-		this.actionBar = dispose(this.actionBar);
+		dispose(this.actionBar);
 	}
 }
 

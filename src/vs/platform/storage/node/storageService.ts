@@ -105,8 +105,8 @@ export class StorageService extends Disposable implements IStorageService {
 		};
 
 		// Dispose old (if any)
-		this.workspaceStorage = dispose(this.workspaceStorage);
-		this.workspaceStorageListener = dispose(this.workspaceStorageListener);
+		dispose(this.workspaceStorage);
+		dispose(this.workspaceStorageListener);
 
 		// Create new
 		this.workspaceStoragePath = workspaceStoragePath;

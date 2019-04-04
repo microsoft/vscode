@@ -479,7 +479,7 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 
 	protected loadWorkspaceConfigurationContents(workspaceConfigurationResource: URI): Promise<string> {
 		if (!(this.workspaceConfig && resources.isEqual(this.workspaceConfig, workspaceConfigurationResource))) {
-			this.workspaceConfigWatcher = dispose(this.workspaceConfigWatcher);
+			dispose(this.workspaceConfigWatcher);
 			this.workspaceConfig = workspaceConfigurationResource;
 			this.workspaceConfigWatcher = this.watchWorkspaceConfigurationFile();
 		}
@@ -505,7 +505,7 @@ class FileServiceBasedWorkspaceConfiguration extends AbstractWorkspaceConfigurat
 	dispose(): void {
 		super.dispose();
 
-		this.workspaceConfigWatcher = dispose(this.workspaceConfigWatcher);
+		dispose(this.workspaceConfigWatcher);
 	}
 }
 

@@ -314,7 +314,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	private _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
 	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }
 
-	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService;
+	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | undefined;
 	private recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
 	private recursiveWatchRequestDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(0));
 
@@ -367,7 +367,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		else {
 
 			// Dispose old
-			this.recursiveWatcher = dispose(this.recursiveWatcher);
+			dispose(this.recursiveWatcher);
 
 			let watcherImpl: {
 				new(
@@ -452,6 +452,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	dispose(): void {
 		super.dispose();
 
-		this.recursiveWatcher = dispose(this.recursiveWatcher);
+		dispose(this.recursiveWatcher);
+		this.recursiveWatcher = undefined;
 	}
 }

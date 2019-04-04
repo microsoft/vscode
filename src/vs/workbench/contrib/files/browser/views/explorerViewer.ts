@@ -334,7 +334,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 
 	public dispose(): void {
-		this.workspaceFolderChangeListener = dispose(this.workspaceFolderChangeListener);
+		dispose(this.workspaceFolderChangeListener);
 	}
 }
 

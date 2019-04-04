@@ -70,7 +70,7 @@ export class ExplorerModel implements IDisposable {
 	}
 
 	dispose(): void {
-		this._listener = dispose(this._listener);
+		dispose(this._listener);
 	}
 }
 

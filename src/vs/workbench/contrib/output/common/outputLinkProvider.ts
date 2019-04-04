@@ -19,7 +19,7 @@ export class OutputLinkProvider {
 
 	private worker?: MonacoWebWorker<OutputLinkComputer>;
 	private disposeWorkerScheduler: RunOnceScheduler;
-	private linkProviderRegistration: IDisposable;
+	private linkProviderRegistration: IDisposable | undefined;
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -48,7 +48,8 @@ export class OutputLinkProvider {
 				});
 			}
 		} else {
-			this.linkProviderRegistration = dispose(this.linkProviderRegistration);
+			dispose(this.linkProviderRegistration);
+			this.linkProviderRegistration = undefined;
 		}
 
 		// Dispose worker to recreate with folders on next provideLinks request

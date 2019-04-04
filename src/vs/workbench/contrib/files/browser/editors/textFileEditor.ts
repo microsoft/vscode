@@ -99,7 +99,7 @@ export class TextFileEditor extends BaseTextEditor {
 		// React to editors closing to preserve or clear view state. This needs to happen
 		// in the onWillCloseEditor because at that time the editor has not yet
 		// been disposed and we can safely persist the view state still as needed.
-		this.groupListener = dispose(this.groupListener);
+		dispose(this.groupListener);
 		this.groupListener = ((group as IEditorGroupView).onWillCloseEditor(e => this.onWillCloseEditorInGroup(e)));
 	}
 
@@ -296,7 +296,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	dispose(): void {
-		this.groupListener = dispose(this.groupListener);
+		dispose(this.groupListener);
 
 		super.dispose();
 	}

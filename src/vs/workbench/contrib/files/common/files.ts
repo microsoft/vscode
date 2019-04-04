@@ -22,6 +22,7 @@ import { Schemas } from 'vs/base/common/network';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
+import { once } from 'vs/base/common/functional';
 
 /**
  * Explorer viewlet id.
@@ -131,7 +132,7 @@ export const SortOrderConfiguration = {
 export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';
 
 export class FileOnDiskContentProvider implements ITextModelContentProvider {
-	private fileWatcher: IDisposable;
+	private fileWatcherDisposable: IDisposable | undefined;
 
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -148,17 +149,17 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 		return this.resolveEditorModel(resource).then(codeEditorModel => {
 
 			// Make sure to keep contents on disk up to date when it changes
-			if (!this.fileWatcher) {
-				this.fileWatcher = this.fileService.onFileChanges(changes => {
+			if (!this.fileWatcherDisposable) {
+				this.fileWatcherDisposable = this.fileService.onFileChanges(changes => {
 					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) {
 						this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
 					}
 				});
 
 				if (codeEditorModel) {
-					const disposeListener = codeEditorModel.onWillDispose(() => {
-						disposeListener.dispose();
-						this.fileWatcher = dispose(this.fileWatcher);
+					once(codeEditorModel.onWillDispose)(() => {
+						dispose(this.fileWatcherDisposable);
+						this.fileWatcherDisposable = undefined;
 					});
 				}
 			}
@@ -194,7 +195,8 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	}
 
 	dispose(): void {
-		this.fileWatcher = dispose(this.fileWatcher);
+		dispose(this.fileWatcherDisposable);
+		this.fileWatcherDisposable = undefined;
 	}
 }
 

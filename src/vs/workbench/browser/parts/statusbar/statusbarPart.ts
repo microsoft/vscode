@@ -329,11 +329,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 		el.appendChild(textContainer);
 
-		return {
-			dispose: () => {
-				toDispose = dispose(toDispose);
-			}
-		};
+		return toDisposable(() => toDispose = dispose(toDispose));
 	}
 
 	private applyColor(container: HTMLElement, color: string | ThemeColor | undefined, isBackground?: boolean): IDisposable {

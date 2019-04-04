@@ -199,7 +199,7 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	close(): Promise<void> {
 
 		// when we are about to close, we start to ignore main-side changes since we close anyway
-		this.onDidChangeItemsOnMainListener = dispose(this.onDidChangeItemsOnMainListener);
+		dispose(this.onDidChangeItemsOnMainListener);
 
 		return Promise.resolve(); // global storage is closed on the main side
 	}
@@ -207,6 +207,6 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	dispose(): void {
 		super.dispose();
 
-		this.onDidChangeItemsOnMainListener = dispose(this.onDidChangeItemsOnMainListener);
+		dispose(this.onDidChangeItemsOnMainListener);
 	}
 }
