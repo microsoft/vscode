@@ -151,8 +151,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return dto;
 				});
 			},
-			resolveCodeLens: (model: ITextModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> => {
-				return this._proxy.$resolveCodeLens(handle, model.uri, codeLens, token).then(obj => {
+			resolveCodeLens: (_model: ITextModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> => {
+				return this._proxy.$resolveCodeLens(handle, codeLens, token).then(obj => {
 					if (obj) {
 						this._heapService.trackObject(obj);
 						this._heapService.trackObject(obj.command);

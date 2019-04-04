@@ -129,7 +129,7 @@ class CodeLensAdapter {
 		});
 	}
 
-	resolveCodeLens(resource: URI, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined> {
+	resolveCodeLens(symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined> {
 
 		const lens = this._heapService.get<vscode.CodeLens>(ObjectIdentifier.of(symbol));
 		if (!lens) {
@@ -1167,8 +1167,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.provideCodeLenses(URI.revive(resource), token), []);
 	}
 
-	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> {
-		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(URI.revive(resource), symbol, token), undefined);
+	$resolveCodeLens(handle: number, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> {
+		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(symbol, token), undefined);
 	}
 
 	// --- code insets

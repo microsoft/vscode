@@ -979,7 +979,7 @@ export interface CallHierarchyDto {
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeLensDto[]>;
-	$resolveCodeLens(handle: number, resource: UriComponents, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined>;
+	$resolveCodeLens(handle: number, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined>;
 	$provideCodeInsets(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeInsetDto[] | undefined>;
 	$resolveCodeInset(handle: number, resource: UriComponents, symbol: CodeInsetDto, token: CancellationToken): Promise<CodeInsetDto>;
 	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
