@@ -350,6 +350,9 @@ export class NotificationTemplateRenderer {
 				case NotificationViewItemLabelKind.PROGRESS:
 					this.renderProgress(notification);
 					break;
+				case NotificationViewItemLabelKind.MESSAGE:
+					this.renderMessage(notification);
+					break;
 			}
 		}));
 	}
