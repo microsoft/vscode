@@ -39,7 +39,9 @@ export interface IConfigurationCache {
 export interface IConfigurationFileService {
 	fileService: IFileService | null;
 	readonly onFileChanges: Event<FileChangesEvent>;
+	readonly isWatching: boolean;
 	readonly whenWatchingStarted: Promise<void>;
+	whenProviderRegistered(scheme: string): Promise<void>;
 	watch(resource: URI): IDisposable;
 	exists(resource: URI): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string>;
@@ -51,8 +53,32 @@ export class ConfigurationFileService implements IConfigurationFileService {
 
 	get onFileChanges() { return this.fileService.onFileChanges; }
 	readonly whenWatchingStarted: Promise<void> = Promise.resolve();
-	watch(resource: URI): IDisposable { return this.fileService.watch(resource); }
-	exists(resource: URI): Promise<boolean> { return this.fileService.exists(resource); }
-	resolveContent(resource: URI): Promise<string> { return this.fileService.resolveContent(resource, { encoding: 'utf8' }).then(content => content.value); }
+	readonly isWatching: boolean = true;
+
+	whenProviderRegistered(scheme: string): Promise<void> {
+		if (this.fileService.canHandleResource(URI.from({ scheme }))) {
+			return Promise.resolve();
+		}
+		return new Promise((c, e) => {
+			const disposable = this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+				if (e.scheme === scheme && e.added) {
+					disposable.dispose();
+					c();
+				}
+			});
+		});
+	}
+
+	watch(resource: URI): IDisposable {
+		return this.fileService.watch(resource);
+	}
+
+	exists(resource: URI): Promise<boolean> {
+		return this.fileService.exists(resource);
+	}
+
+	resolveContent(resource: URI): Promise<string> {
+		return this.fileService.resolveContent(resource, { encoding: 'utf8' }).then(content => content.value);
+	}
 
 }

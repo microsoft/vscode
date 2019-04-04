@@ -118,7 +118,9 @@ export class UserConfiguration extends Disposable {
 		const exists = await this.configurationFileService.exists(this.configurationResource);
 		this.onResourceExists(exists);
 		const configuraitonModel = await this.reload();
-		this.configurationFileService.whenWatchingStarted.then(() => this.onWatchStarted(configuraitonModel));
+		if (!this.configurationFileService.isWatching) {
+			this.configurationFileService.whenWatchingStarted.then(() => this.onWatchStarted(configuraitonModel));
+		}
 		return configuraitonModel;
 	}
 

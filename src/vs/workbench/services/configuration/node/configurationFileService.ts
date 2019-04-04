@@ -9,19 +9,22 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Barrier } from 'vs/base/common/async';
+import { Schemas } from 'vs/base/common/network';
 
 export class ConfigurationFileService extends Disposable implements IConfigurationFileService {
 
 	private _fileServiceBasedConfigurationFileService: FileServiceBasedConfigurationFileService | null = null;
+	private _fileServiceBasedConfigurationFileServiceCallback: (fileServiceBasedConfigurationFileService: FileServiceBasedConfigurationFileService) => void;
+	private _whenFileServiceBasedConfigurationFileServiceAvailable: Promise<FileServiceBasedConfigurationFileService> = new Promise((c) => this._fileServiceBasedConfigurationFileServiceCallback = c);
+	private _watchResources: { resource: URI, disposable: { disposable: IDisposable | null } }[] = [];
+	readonly whenWatchingStarted: Promise<void> = this._whenFileServiceBasedConfigurationFileServiceAvailable.then(() => undefined);
 
 	private readonly _onFileChanges: Emitter<FileChangesEvent> = this._register(new Emitter<FileChangesEvent>());
 	readonly onFileChanges: Event<FileChangesEvent> = this._onFileChanges.event;
 
-	private readonly _watchReadyBarrier = new Barrier();
-	readonly whenWatchingStarted: Promise<void> = this._watchReadyBarrier.wait().then(() => undefined);
-
-	private _watchResources: { resource: URI, disposable: { disposable: IDisposable | null } }[] = [];
+	get isWatching(): boolean {
+		return this._fileServiceBasedConfigurationFileService ? this._fileServiceBasedConfigurationFileService.isWatching : false;
+	}
 
 	watch(resource: URI): IDisposable {
 		if (this._fileServiceBasedConfigurationFileService) {
@@ -34,6 +37,14 @@ export class ConfigurationFileService extends Disposable implements IConfigurati
 				disposable.disposable.dispose();
 			}
 		});
+	}
+
+	whenProviderRegistered(scheme: string): Promise<void> {
+		if (scheme === Schemas.file) {
+			return Promise.resolve();
+		}
+		return this._whenFileServiceBasedConfigurationFileServiceAvailable
+			.then(fileServiceBasedConfigurationFileService => fileServiceBasedConfigurationFileService.whenProviderRegistered(scheme));
 	}
 
 	exists(resource: URI): Promise<boolean> {
@@ -56,13 +67,13 @@ export class ConfigurationFileService extends Disposable implements IConfigurati
 
 	set fileService(fileService: IFileService | null) {
 		if (fileService && !this._fileServiceBasedConfigurationFileService) {
-			this._fileService = fileService;
-			this._watchReadyBarrier.open();
 			this._fileServiceBasedConfigurationFileService = new FileServiceBasedConfigurationFileService(fileService);
+			this._fileService = fileService;
 			this._register(this._fileServiceBasedConfigurationFileService.onFileChanges(e => this._onFileChanges.fire(e)));
 			for (const { resource, disposable } of this._watchResources) {
 				disposable.disposable = this._fileServiceBasedConfigurationFileService.watch(resource);
 			}
+			this._fileServiceBasedConfigurationFileServiceCallback(this._fileServiceBasedConfigurationFileService);
 		}
 	}
 }
