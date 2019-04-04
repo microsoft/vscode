@@ -18,6 +18,7 @@ export interface ICodeLensCache {
 	_serviceBrand: any;
 	put(model: ITextModel, data: ICodeLensData[]): void;
 	get(model: ITextModel): ICodeLensData[] | undefined;
+	delete(model: ITextModel): void;
 }
 
 interface ISerializedCacheData {
@@ -73,6 +74,10 @@ class CodeLensCache implements ICodeLensCache {
 	get(model: ITextModel) {
 		const item = this._cache.get(model.uri.toString());
 		return item && item.lineCount === model.getLineCount() ? item.data : undefined;
+	}
+
+	delete(model: ITextModel): void {
+		this._cache.delete(model.uri.toString());
 	}
 
 	// --- persistence

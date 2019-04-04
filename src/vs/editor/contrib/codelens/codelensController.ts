@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, RunOnceScheduler, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, RunOnceScheduler, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
@@ -95,7 +95,23 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
+		const cachedLenses = this._codeLensCache.get(model);
+		if (cachedLenses) {
+			this._renderCodeLensSymbols(cachedLenses);
+		}
+
 		if (!CodeLensProviderRegistry.has(model)) {
+			// no provider -> return but check with
+			// cached lenses. they expire after 30 seconds
+			if (cachedLenses) {
+				this._localToDispose.push(disposableTimeout(() => {
+					const cachedLensesNow = this._codeLensCache.get(model);
+					if (cachedLenses === cachedLensesNow) {
+						this._codeLensCache.delete(model);
+						this._onModelChange();
+					}
+				}, 30 * 1000));
+			}
 			return;
 		}
 
@@ -104,11 +120,6 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				let registration = provider.onDidChange(() => scheduler.schedule());
 				this._localToDispose.push(registration);
 			}
-		}
-
-		const cachedLenses = this._codeLensCache.get(model);
-		if (cachedLenses) {
-			this._renderCodeLensSymbols(cachedLenses);
 		}
 
 		this._detectVisibleLenses = new RunOnceScheduler(() => {
