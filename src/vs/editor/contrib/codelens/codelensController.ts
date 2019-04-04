@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, RunOnceScheduler, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -331,7 +331,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 					if (!request.symbol.command && typeof request.provider.resolveCodeLens === 'function') {
 						return Promise.resolve(request.provider.resolveCodeLens(model, request.symbol, token)).then(symbol => {
 							resolvedSymbols[i] = symbol;
-						});
+						}, onUnexpectedExternalError);
 					} else {
 						resolvedSymbols[i] = request.symbol;
 						return Promise.resolve(undefined);
