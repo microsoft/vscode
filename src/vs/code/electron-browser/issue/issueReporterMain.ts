@@ -915,6 +915,18 @@ export class IssueReporter extends Disposable {
 				<tr><td>VM</td><td>${systemInfo.vmHint}</td></tr>
 			</table>`;
 
+			systemInfo.remoteData.forEach(remote => {
+				renderedData += `
+				<hr>
+				<table>
+					<tr><td>Remote</td><td>${remote.hostName}</td></tr>
+					<tr><td>OS</td><td>${remote.machineInfo.os}</td></tr>
+					<tr><td>CPUs</td><td>${remote.machineInfo.cpus}</td></tr>
+					<tr><td>Memory (System)</td><td>${remote.machineInfo.memory}</td></tr>
+					<tr><td>VM</td><td>${remote.machineInfo.vmHint}</td></tr>
+				</table>`;
+			});
+
 			target.innerHTML = renderedData;
 		}
 	}

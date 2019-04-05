@@ -22,7 +22,12 @@ export interface SystemInfo extends IMachineInfo {
 	processArgs: string;
 	gpuStatus: any;
 	screenReader: string;
+	remoteData: IRemoteDiagnosticInfo[];
 	load?: string;
+}
+
+export interface IRemoteDiagnosticInfo extends IDiagnosticInfo {
+	hostName: string;
 }
 
 export interface IDiagnosticInfoOptions {
