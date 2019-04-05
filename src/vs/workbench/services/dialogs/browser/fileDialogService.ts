@@ -210,7 +210,7 @@ export class FileDialogService implements IFileDialogService {
 
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		const schema = this.getFileSystemSchema(options);
-		if (schema !== Schemas.file) {
+		if (this.shouldUseSimplified(schema)) {
 			if (!options.availableFileSystems) {
 				options.availableFileSystems = [schema]; // by default only allow loading in the own file system
 			}
