@@ -106,7 +106,7 @@ export class FileDialogService implements IFileDialogService {
 			return this.pickRemoteResource({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems }).then(uri => {
 				if (uri) {
 					return (this.fileService.resolve(uri)).then(stat => {
-						const toOpen: IURIToOpen = stat.isDirectory ? { fileUri: uri } : { folderUri: uri };
+						const toOpen: IURIToOpen = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
 						return this.windowService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
 					});
 				}
