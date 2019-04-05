@@ -58,12 +58,11 @@ async function doConnectRemoteAgentManagement(options: ISimpleConnectionOptions)
 	});
 }
 
-export interface IRemoteExtensionHostStartParams {
+interface IRemoteExtensionHostStartParams {
 	language: string;
 	debugId?: string;
 	break?: boolean;
 	port?: number | null;
-	updatePort?: boolean;
 }
 
 interface IExtensionHostConnectionResult {
