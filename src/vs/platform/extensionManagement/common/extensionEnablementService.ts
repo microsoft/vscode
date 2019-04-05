@@ -47,36 +47,6 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		return this.environmentService.disableExtensions === true;
 	}
 
-	async getDisabledExtensions(): Promise<IExtensionIdentifier[]> {
-
-		let result = this._getDisabledExtensions(StorageScope.GLOBAL);
-
-		if (this.hasWorkspace) {
-			for (const e of this._getDisabledExtensions(StorageScope.WORKSPACE)) {
-				if (!result.some(r => areSameExtensions(r, e))) {
-					result.push(e);
-				}
-			}
-			const workspaceEnabledExtensions = this._getEnabledExtensions(StorageScope.WORKSPACE);
-			if (workspaceEnabledExtensions.length) {
-				result = result.filter(r => !workspaceEnabledExtensions.some(e => areSameExtensions(e, r)));
-			}
-		}
-
-		if (this.environmentService.disableExtensions) {
-			const allInstalledExtensions = await this.extensionManagementService.getInstalled();
-			for (const installedExtension of allInstalledExtensions) {
-				if (this._isExtensionDisabledInEnvironment(installedExtension)) {
-					if (!result.some(r => areSameExtensions(r, installedExtension.identifier))) {
-						result.push(installedExtension.identifier);
-					}
-				}
-			}
-		}
-
-		return result;
-	}
-
 	getEnablementState(extension: IExtension): EnablementState {
 		if (this._isExtensionDisabledInEnvironment(extension)) {
 			return EnablementState.Disabled;
@@ -260,7 +230,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		return false;
 	}
 
-	private _getEnabledExtensions(scope: StorageScope): IExtensionIdentifier[] {
+	protected _getEnabledExtensions(scope: StorageScope): IExtensionIdentifier[] {
 		return this._getExtensions(ENABLED_EXTENSIONS_STORAGE_PATH, scope);
 	}
 
@@ -268,7 +238,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		this._setExtensions(ENABLED_EXTENSIONS_STORAGE_PATH, enabledExtensions, scope);
 	}
 
-	private _getDisabledExtensions(scope: StorageScope): IExtensionIdentifier[] {
+	protected _getDisabledExtensions(scope: StorageScope): IExtensionIdentifier[] {
 		return this._getExtensions(DISABLED_EXTENSIONS_STORAGE_PATH, scope);
 	}
 
