@@ -192,7 +192,7 @@ export class RemoteFileDialog {
 					if (validated) {
 						isResolving = true;
 						this.filePickBox.hide();
-						resolve(resolveValue);
+						doResolve(this, resolveValue);
 					}
 				});
 			});
@@ -200,6 +200,13 @@ export class RemoteFileDialog {
 			this.filePickBox.title = this.options.title;
 			this.filePickBox.value = this.pathFromUri(this.currentFolder);
 			this.filePickBox.items = [];
+
+			function doResolve(dialog: RemoteFileDialog, uri: URI | undefined) {
+				resolve(uri);
+				dialog.contextKey.set(false);
+				dialog.filePickBox.dispose();
+			}
+
 			this.filePickBox.onDidAccept(_ => {
 				if (isAcceptHandled || this.filePickBox.busy) {
 					return;
@@ -210,9 +217,9 @@ export class RemoteFileDialog {
 				this.onDidAccept().then(resolveValue => {
 					if (resolveValue) {
 						this.filePickBox.hide();
-						resolve(resolveValue);
+						doResolve(this, resolveValue);
 					} else if (this.hidden) {
-						resolve(undefined);
+						doResolve(this, undefined);
 					} else {
 						isResolving = false;
 						isAcceptHandled = false;
@@ -246,10 +253,8 @@ export class RemoteFileDialog {
 			this.filePickBox.onDidHide(() => {
 				this.hidden = true;
 				if (!isResolving) {
-					resolve(undefined);
+					doResolve(this, undefined);
 				}
-				this.contextKey.set(false);
-				this.filePickBox.dispose();
 			});
 
 			this.filePickBox.show();
@@ -443,6 +448,35 @@ export class RemoteFileDialog {
 		return ((path.length > 1) && this.endsWithSlash(path)) ? path.substr(0, path.length - 1) : path;
 	}
 
+	private yesNoPrompt(message: string): Promise<boolean> {
+		interface YesNoItem extends IQuickPickItem {
+			value: boolean;
+		}
+		const prompt = this.quickInputService.createQuickPick<YesNoItem>();
+		const no = nls.localize('remoteFileDialog.no', 'No');
+		prompt.items = [{ label: no, value: false }, { label: nls.localize('remoteFileDialog.yes', 'Yes'), value: true }];
+		prompt.title = message;
+		prompt.placeholder = no;
+		let isResolving = false;
+		return new Promise<boolean>(resolve => {
+			prompt.onDidAccept(() => {
+				isResolving = true;
+				prompt.hide();
+				resolve(prompt.selectedItems ? prompt.selectedItems[0].value : false);
+			});
+			prompt.onDidHide(() => {
+				if (!isResolving) {
+					resolve(false);
+				}
+				this.filePickBox.show();
+				this.hidden = false;
+				this.filePickBox.items = this.filePickBox.items;
+				prompt.dispose();
+			});
+			prompt.show();
+		});
+	}
+
 	private async validate(uri: URI): Promise<boolean> {
 		let stat: IFileStat | undefined;
 		let statDirname: IFileStat | undefined;
@@ -461,8 +495,9 @@ export class RemoteFileDialog {
 			} else if (stat && !this.shouldOverwriteFile) {
 				// Replacing a file.
 				this.shouldOverwriteFile = true;
-				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri));
-				return Promise.resolve(false);
+				// Show a yes/no prompt
+				const message = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri));
+				return this.yesNoPrompt(message);
 			} else if (!this.isValidBaseName(resources.basename(uri))) {
 				// Filename not allowed
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
