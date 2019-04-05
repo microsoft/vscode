@@ -101,21 +101,19 @@ export class MarkdownContentProvider {
 			return href;
 		}
 
-		// Use href if it is already an URL
-		const hrefUri = vscode.Uri.parse(href);
-		if (['http', 'https'].indexOf(hrefUri.scheme) >= 0) {
-			return hrefUri.toString(true);
+		if (href.startsWith('http:') || href.startsWith('https:') || href.startsWith('file:')) {
+			return href;
 		}
 
-		// Use href as file URI if it is absolute
-		if (path.isAbsolute(href) || hrefUri.scheme === 'file') {
+		// Assume it must be a local file
+		if (path.isAbsolute(href)) {
 			return vscode.Uri.file(href)
 				.with({ scheme: 'vscode-resource' })
 				.toString();
 		}
 
 		// Use a workspace relative path if there is a workspace
-		let root = vscode.workspace.getWorkspaceFolder(resource);
+		const root = vscode.workspace.getWorkspaceFolder(resource);
 		if (root) {
 			return vscode.Uri.file(path.join(root.uri.fsPath, href))
 				.with({ scheme: 'vscode-resource' })
