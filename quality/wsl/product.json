@@ -676,7 +676,7 @@
 		"ms-vscode.open-ssh-remote",
 		"ms-vscode.open-ssh-remote-edit",
 		"ms-vscode.open-ssh-remote-explorer",
-		"ms-vscode.wsl"
+		"ms-vscode.remote-wsl"
 	],
 	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
 	"uiExtensions": [
