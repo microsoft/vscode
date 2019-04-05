@@ -7,7 +7,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
-import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration, SideBySideEditor as SideBySideEditorChoice } from 'vs/workbench/common/editor';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -91,7 +91,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 			distinct(
 				coalesce(this.editorService.visibleEditors
 					.map(editorInput => {
-						const resource = toResource(editorInput, { supportSideBySide: true });
+						const resource = toResource(editorInput, { supportSideBySide: SideBySideEditorChoice.MASTER });
 						return resource ? this.textFileService.models.get(resource) : undefined;
 					}))
 					.filter(model => !model.isDirty()),
@@ -317,7 +317,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
 		const editors = this.editorService.visibleControls;
 		editors.forEach(editor => {
-			const resource = editor.input ? toResource(editor.input, { supportSideBySide: true }) : undefined;
+			const resource = editor.input ? toResource(editor.input, { supportSideBySide: SideBySideEditorChoice.MASTER }) : undefined;
 
 			// Support side-by-side binary editors too
 			let isBinaryEditor = false;
@@ -338,7 +338,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private handleOutOfWorkspaceWatchers(): void {
 		const visibleOutOfWorkspacePaths = new ResourceMap<URI>();
 		coalesce(this.editorService.visibleEditors.map(editorInput => {
-			return toResource(editorInput, { supportSideBySide: true });
+			return toResource(editorInput, { supportSideBySide: SideBySideEditorChoice.MASTER });
 		})).filter(resource => {
 			return this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource);
 		}).forEach(resource => {

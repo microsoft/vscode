@@ -979,8 +979,13 @@ export interface IEditorPartOptions extends IEditorPartConfiguration {
 	iconTheme?: string;
 }
 
+export enum SideBySideEditor {
+	MASTER = 1,
+	DETAILS = 2
+}
+
 export interface IResourceOptions {
-	supportSideBySide?: boolean;
+	supportSideBySide?: SideBySideEditor;
 	filter?: string | string[];
 }
 
@@ -991,7 +996,7 @@ export function toResource(editor: IEditorInput | null | undefined, options?: IR
 
 	// Check for side by side if we are asked to
 	if (options && options.supportSideBySide && editor instanceof SideBySideEditorInput) {
-		editor = editor.master;
+		editor = options.supportSideBySide === SideBySideEditor.MASTER ? editor.master : editor.details;
 	}
 
 	const resource = editor.getResource();

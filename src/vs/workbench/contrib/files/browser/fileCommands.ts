@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { toResource, IEditorCommandsContext, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IWindowsService, IWindowService, IURIToOpen, IOpenSettings, INewWindowOptions } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -126,7 +126,7 @@ function save(
 			let viewStateOfSource: IEditorViewState | null;
 			const activeTextEditorWidget = getCodeEditor(editorService.activeTextEditorWidget);
 			if (activeTextEditorWidget) {
-				const activeResource = toResource(editorService.activeEditor, { supportSideBySide: true });
+				const activeResource = toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 				if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && activeResource.toString() === resource.toString()) {
 					viewStateOfSource = activeTextEditorWidget.saveViewState();
 				}
@@ -550,7 +550,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: accessor => {
 		const editorService = accessor.get(IEditorService);
 
-		const resource = toResource(editorService.activeEditor, { supportSideBySide: true });
+		const resource = toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource) {
 			return save(resource, false, { skipSaveParticipants: true }, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
 		}
@@ -581,7 +581,7 @@ CommandsRegistry.registerCommand({
 				const editorGroup = editorGroupService.getGroup(context.groupId);
 				if (editorGroup) {
 					editorGroup.editors.forEach(editor => {
-						const resource = toResource(editor, { supportSideBySide: true });
+						const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 						if (resource && (resource.scheme === Schemas.untitled || fileService.canHandleResource(resource))) {
 							saveAllArg.push(resource);
 						}

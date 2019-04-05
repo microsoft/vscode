@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, toResource } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -231,7 +231,7 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	public isUntitled(): boolean {
-		return !!toResource(this.editor, { supportSideBySide: true, filter: Schemas.untitled });
+		return !!toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER, filter: Schemas.untitled });
 	}
 
 	public isDirty(): boolean {
@@ -239,6 +239,6 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	public getResource(): URI | null {
-		return toResource(this.editor, { supportSideBySide: true });
+		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
 	}
 }

@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { toResource, IEditorInput } from 'vs/workbench/common/editor';
+import { toResource, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -332,7 +332,7 @@ class ResourceLabelWidget extends IconLabel {
 
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
 		this.setResource({
-			resource: withNullAsUndefined(toResource(editor, { supportSideBySide: true })),
+			resource: withNullAsUndefined(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER })),
 			name: withNullAsUndefined(editor.getName()),
 			description: withNullAsUndefined(editor.getDescription())
 		}, options);

@@ -21,6 +21,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 export class SideBySideEditor extends BaseEditor {
 
 	static readonly ID: string = 'workbench.editor.sidebysideEditor';
+	static MASTER: SideBySideEditor | undefined;
 
 	get minimumMasterWidth() { return this.masterEditor ? this.masterEditor.minimumWidth : 0; }
 	get maximumMasterWidth() { return this.masterEditor ? this.masterEditor.maximumWidth : Number.POSITIVE_INFINITY; }
