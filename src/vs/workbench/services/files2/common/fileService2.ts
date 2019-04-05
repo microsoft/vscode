@@ -24,6 +24,8 @@ export class FileService2 extends Disposable implements IFileService {
 	private joinOnLegacy: Promise<ILegacyFileService>;
 	private joinOnImplResolve: (service: ILegacyFileService) => void;
 
+	get whenReady(): Promise<void> { return this.joinOnLegacy.then(() => undefined); }
+
 	setLegacyService(legacy: ILegacyFileService): void {
 		this._legacy = this._register(legacy);
 

@@ -198,8 +198,7 @@ export class Workbench extends Layout {
 
 			// TODO@Sandeep debt around cyclic dependencies
 			const configurationService = accessor.get(IConfigurationService) as any;
-			if (typeof configurationService.acquireFileService === 'function') {
-				configurationService.acquireFileService(fileService);
+			if (typeof configurationService.acquireInstantiationService === 'function') {
 				configurationService.acquireInstantiationService(instantiationService);
 			}
 
