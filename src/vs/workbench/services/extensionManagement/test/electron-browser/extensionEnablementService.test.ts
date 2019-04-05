@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { IExtensionManagementService, IExtensionEnablementService, DidUninstallExtensionEvent, EnablementState, ILocalExtension, DidInstallExtensionEvent, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { IExtensionManagementService, IExtensionEnablementService, DidUninstallExtensionEvent, EnablementState, ILocalExtension, DidInstallExtensionEvent, InstallOperation, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/node/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -14,6 +14,9 @@ import { IStorageService, InMemoryStorageService, StorageScope } from 'vs/platfo
 import { IExtensionContributions, ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 
 function storageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -34,7 +37,8 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 		super(storageService(instantiationService), instantiationService.get(IWorkspaceContextService),
 			instantiationService.get(IEnvironmentService) || instantiationService.stub(IEnvironmentService, {} as IEnvironmentService),
 			instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService,
-				{ onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event, onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService));
+				{ onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event, onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService),
+			instantiationService.stub(IWindowService, new TestWindowService()), instantiationService.get(IConfigurationService), instantiationService.get(IExtensionManagementServerService));
 	}
 
 	public reset(): void {
@@ -451,11 +455,11 @@ suite('ExtensionEnablementService Test', () => {
 		assert.equal(testObject.canChangeEnablement(extension), true);
 	});
 
-	test('test canChangeEnablement return false for system extensions when extension is disabled in environment', () => {
+	test('test canChangeEnablement return false for system extension when extension is disabled in environment', () => {
 		instantiationService.stub(IEnvironmentService, { disableExtensions: ['pub.a'] } as IEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 		const extension = aLocalExtension('pub.a', undefined, ExtensionType.System);
-		assert.equal(testObject.canChangeEnablement(extension), true);
+		assert.ok(!testObject.canChangeEnablement(extension));
 	});
 
 	test('test extension is disabled when disabled in enviroment', async () => {

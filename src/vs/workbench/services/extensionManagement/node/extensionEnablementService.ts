@@ -6,13 +6,17 @@
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, DidInstallExtensionEvent, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, DidInstallExtensionEvent, InstallOperation, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
 const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
@@ -30,7 +34,10 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
@@ -48,7 +55,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 	}
 
 	getEnablementState(extension: IExtension): EnablementState {
-		if (this._isExtensionDisabledInEnvironment(extension)) {
+		if (this._isSystemDisabled(extension)) {
 			return EnablementState.Disabled;
 		}
 		const identifier = extension.identifier;
@@ -71,7 +78,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		if (extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
 			return false;
 		}
-		if (extension.type === ExtensionType.User && this.environmentService.disableExtensions) {
+		if (this._isSystemDisabled(extension)) {
 			return false;
 		}
 		return true;
@@ -123,13 +130,17 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		return enablementState === EnablementState.WorkspaceEnabled || enablementState === EnablementState.Enabled;
 	}
 
-	private _isExtensionDisabledInEnvironment(extension: IExtension): boolean {
+	private _isSystemDisabled(extension: IExtension): boolean {
 		if (this.allUserExtensionsDisabled) {
 			return extension.type === ExtensionType.User;
 		}
 		const disabledExtensions = this.environmentService.disableExtensions;
 		if (Array.isArray(disabledExtensions)) {
 			return disabledExtensions.some(id => areSameExtensions({ id }, extension.identifier));
+		}
+		if (this.windowService.getConfiguration().remoteAuthority) {
+			const server = isUIExtension(extension.manifest, this.configurationService) ? this.extensionManagementServerService.localExtensionManagementServer : this.extensionManagementServerService.remoteExtensionManagementServer;
+			return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
 		}
 		return false;
 	}
@@ -356,3 +367,5 @@ class StorageManager extends Disposable {
 		}
 	}
 }
+
+registerSingleton(IExtensionEnablementService, ExtensionEnablementService, true);

@@ -18,9 +18,9 @@ import { SimpleConfigurationService as StandaloneEditorConfigurationService, Sta
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEnvironmentService, IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment/common/environment';
-import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation, IExtensionEnablementService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IPager } from 'vs/base/common/paging';
-import { IExtensionManifest, ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 import { NullExtensionService, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -353,6 +353,38 @@ registerSingleton(IExtensionGalleryService, SimpleExtensionGalleryService, true)
 //#endregion
 
 //#region Extension Management
+
+//#region Extension Enablement
+
+export class SimpleExtensionEnablementService implements IExtensionEnablementService {
+
+	_serviceBrand: any;
+
+	readonly onEnablementChanged = Event.None;
+
+	readonly allUserExtensionsDisabled = true;
+
+	getEnablementState(extension: IExtension): EnablementState {
+		return EnablementState.Disabled;
+	}
+
+	canChangeEnablement(extension: IExtension): boolean {
+		return false;
+	}
+
+	setEnablement(extensions: IExtension[], newState: EnablementState): Promise<boolean[]> {
+		throw new Error('not implemented');
+	}
+
+	isEnabled(extension: IExtension): boolean {
+		return false;
+	}
+
+}
+
+registerSingleton(IExtensionEnablementService, SimpleExtensionEnablementService, true);
+
+//#endregion
 
 //#region Extension Tips
 
