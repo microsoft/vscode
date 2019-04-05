@@ -9,7 +9,6 @@ import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
@@ -17,8 +16,6 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import pkg from 'vs/platform/product/node/package';
-import product from 'vs/platform/product/node/product';
 import { ExtHostContext, IInitData, IMainContext, MainContext, MainThreadKeytarShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/node/extHostClipboard';
@@ -232,10 +229,10 @@ export function createApiFactory(
 		const env: typeof vscode.env = Object.freeze({
 			get machineId() { return initData.telemetryInfo.machineId; },
 			get sessionId() { return initData.telemetryInfo.sessionId; },
-			get language() { return platform.language!; },
-			get appName() { return product.nameLong; },
+			get language() { return initData.environment.appLanguage; },
+			get appName() { return initData.environment.appName; },
 			get appRoot() { return initData.environment.appRoot!.fsPath; },
-			get uriScheme() { return product.urlProtocol; },
+			get uriScheme() { return initData.environment.appUriScheme; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
 				return typeConverters.LogLevel.to(extHostLogService.getLevel());
@@ -740,7 +737,7 @@ export function createApiFactory(
 		};
 
 		return <typeof vscode>{
-			version: pkg.version,
+			version: initData.version,
 			// namespaces
 			commands,
 			debug,

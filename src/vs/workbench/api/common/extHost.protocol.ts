@@ -49,7 +49,10 @@ import { IRemoteConsoleLog } from 'vs/base/common/console';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
+	appName: string;
 	appRoot?: URI;
+	appLanguage: string;
+	appUriScheme: string;
 	appSettingsHome?: URI;
 	extensionDevelopmentLocationURI?: URI | URI[];
 	extensionTestsLocationURI?: URI;
@@ -68,6 +71,7 @@ export interface IWorkspaceData extends IStaticWorkspaceData {
 }
 
 export interface IInitData {
+	version: string;
 	commit?: string;
 	parentPid: number;
 	environment: IEnvironment;
