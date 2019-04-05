@@ -899,7 +899,7 @@ export class WindowsManager implements IWindowsMainService {
 		for (let f of fileUris) {
 			const fileUri = this.argToUri(f);
 			if (fileUri) {
-				const path = this.parseUri(hasWorkspaceFileExtension(f) ? { workspaceUri } : { fileUri }, parseOptions);
+				const path = this.parseUri(hasWorkspaceFileExtension(f) ? { workspaceUri: fileUri } : { fileUri }, parseOptions);
 				if (path) {
 					pathsToOpen.push(path);
 				}
