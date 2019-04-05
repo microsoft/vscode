@@ -672,7 +672,7 @@
 		"GitHub.vscode-pull-request-github",
 		"GitHub.vscode-pull-request-github-insiders",
 		"Microsoft.vscode-nmake-tools",
-		"ms-vscode.open-in-docker",
+		"ms-vscode.remote-containers",
 		"ms-vscode.open-ssh-remote",
 		"ms-vscode.open-ssh-remote-edit",
 		"ms-vscode.open-ssh-remote-explorer",
