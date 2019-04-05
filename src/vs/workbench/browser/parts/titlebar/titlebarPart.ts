@@ -179,7 +179,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private updateRepresentedFilename(): void {
-		const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filter: 'file' });
+		const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: 'file' });
 		const path = file ? file.fsPath : '';
 
 		// Apply to window

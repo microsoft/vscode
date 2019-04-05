@@ -56,7 +56,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				if (activeEditor instanceof DiffEditorInput) {
 					activeEditor = activeEditor.modifiedInput;
 				}
-				const fileResource = toResource(activeEditor, { filter: Schemas.file });
+				const fileResource = toResource(activeEditor, { filterByScheme: Schemas.file });
 				if (!fileResource) {
 					return undefined;
 				}

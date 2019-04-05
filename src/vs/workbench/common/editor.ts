@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import * as objects from 'vs/base/common/objects';
-import * as types from 'vs/base/common/types';
+import { assign } from 'vs/base/common/objects';
+import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
@@ -14,7 +14,6 @@ import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
-import { Schemas } from 'vs/base/common/network';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
@@ -571,7 +570,7 @@ export class SideBySideEditorInput extends EditorInput {
 	getTelemetryDescriptor(): object {
 		const descriptor = this.master.getTelemetryDescriptor();
 
-		return objects.assign(descriptor, super.getTelemetryDescriptor());
+		return assign(descriptor, super.getTelemetryDescriptor());
 	}
 
 	private registerListeners(): void {
@@ -827,7 +826,7 @@ export class TextEditorOptions extends EditorOptions {
 	 * Returns if this options object has objects defined for the editor.
 	 */
 	hasOptionsDefined(): boolean {
-		return !!this.editorViewState || (!types.isUndefinedOrNull(this.startLineNumber) && !types.isUndefinedOrNull(this.startColumn));
+		return !!this.editorViewState || (!isUndefinedOrNull(this.startLineNumber) && !isUndefinedOrNull(this.startColumn));
 	}
 
 	/**
@@ -875,10 +874,10 @@ export class TextEditorOptions extends EditorOptions {
 		}
 
 		// Otherwise check for selection
-		else if (!types.isUndefinedOrNull(this.startLineNumber) && !types.isUndefinedOrNull(this.startColumn)) {
+		else if (!isUndefinedOrNull(this.startLineNumber) && !isUndefinedOrNull(this.startColumn)) {
 
 			// Select
-			if (!types.isUndefinedOrNull(this.endLineNumber) && !types.isUndefinedOrNull(this.endColumn)) {
+			if (!isUndefinedOrNull(this.endLineNumber) && !isUndefinedOrNull(this.endColumn)) {
 				const range = {
 					startLineNumber: this.startLineNumber,
 					startColumn: this.startColumn,
@@ -986,7 +985,7 @@ export enum SideBySideEditor {
 
 export interface IResourceOptions {
 	supportSideBySide?: SideBySideEditor;
-	filter?: string | string[];
+	filterByScheme?: string | string[];
 }
 
 export function toResource(editor: IEditorInput | null | undefined, options?: IResourceOptions): URI | null {
@@ -994,35 +993,20 @@ export function toResource(editor: IEditorInput | null | undefined, options?: IR
 		return null;
 	}
 
-	// Check for side by side if we are asked to
 	if (options && options.supportSideBySide && editor instanceof SideBySideEditorInput) {
 		editor = options.supportSideBySide === SideBySideEditor.MASTER ? editor.master : editor.details;
 	}
 
 	const resource = editor.getResource();
-	if (!options || !options.filter) {
-		return types.withUndefinedAsNull(resource); // return early if no filter is specified
+	if (!resource || !options || !options.filterByScheme) {
+		return withUndefinedAsNull(resource);
 	}
 
-	if (!resource) {
-		return null;
-	}
-
-	let includeFiles: boolean;
-	let includeUntitled: boolean;
-	if (Array.isArray(options.filter)) {
-		includeFiles = (options.filter.indexOf(Schemas.file) >= 0);
-		includeUntitled = (options.filter.indexOf(Schemas.untitled) >= 0);
-	} else {
-		includeFiles = (options.filter === Schemas.file);
-		includeUntitled = (options.filter === Schemas.untitled);
-	}
-
-	if (includeFiles && resource.scheme === Schemas.file) {
+	if (Array.isArray(options.filterByScheme) && options.filterByScheme.some(scheme => resource.scheme === scheme)) {
 		return resource;
 	}
 
-	if (includeUntitled && resource.scheme === Schemas.untitled) {
+	if (options.filterByScheme === resource.scheme) {
 		return resource;
 	}
 

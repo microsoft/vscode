@@ -231,7 +231,7 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	public isUntitled(): boolean {
-		return !!toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER, filter: Schemas.untitled });
+		return !!toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.untitled });
 	}
 
 	public isDirty(): boolean {
