@@ -5,11 +5,10 @@
 
 import 'vs/css!./media/review';
 import * as nls from 'vs/nls';
-import { $ } from 'vs/base/browser/dom';
 import { findFirstInSorted, coalesce } from 'vs/base/common/arrays';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, IViewZone, MouseTargetType, isDiffEditor, isCodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType, isDiffEditor, isCodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
@@ -40,21 +39,11 @@ import { IQuickInputService, QuickPickInput, IQuickPickItem } from 'vs/platform/
 
 export const ID = 'editor.contrib.review';
 
-export class ReviewViewZone implements IViewZone {
-	public readonly afterLineNumber: number;
-	public readonly domNode: HTMLElement;
-	private callback: (top: number) => void;
-
-	constructor(afterLineNumber: number, onDomNodeTop: (top: number) => void) {
-		this.afterLineNumber = afterLineNumber;
-		this.callback = onDomNodeTop;
-
-		this.domNode = $('.review-viewzone');
-	}
-
-	onDomNodeTop(top: number): void {
-		this.callback(top);
-	}
+interface CommentActionShape {
+	ownerId: string;
+	extensionId: string | undefined;
+	label: string | undefined;
+	commentingRangesInfo: modes.CommentingRanges;
 }
 
 class CommentingRangeDecoration {
@@ -64,7 +53,7 @@ class CommentingRangeDecoration {
 		return this._decorationId;
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, commentingOptions: ModelDecorationOptions, private commentingRangesInfo: modes.CommentingRanges) {
+	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, _range: IRange, commentingOptions: ModelDecorationOptions, private commentingRangesInfo: modes.CommentingRanges) {
 		const startLineNumber = _range.startLineNumber;
 		const endLineNumber = _range.endLineNumber;
 		let commentingRangeDecorations = [{
@@ -81,7 +70,7 @@ class CommentingRangeDecoration {
 		}
 	}
 
-	public getCommentAction(): { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges } {
+	public getCommentAction(): CommentActionShape {
 		return {
 			extensionId: this._extensionId,
 			label: this._label,
@@ -90,14 +79,11 @@ class CommentingRangeDecoration {
 		};
 	}
 
-	public getOriginalRange() {
-		return this._range;
-	}
-
 	public getActiveRange() {
 		return this._editor.getModel()!.getDecorationRange(this._decorationId);
 	}
 }
+
 class CommentingRangeDecorator {
 
 	private decorationOptions: ModelDecorationOptions;
@@ -473,50 +459,50 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	public addCommentAtLine(lineNumber: number, e: IEditorMouseEvent | undefined): Promise<void> {
-		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
-		if (!newCommentInfos.length || !this.editor.hasModel()) {
+		const newCommentActions = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
+		if (!newCommentActions.length || !this.editor.hasModel()) {
 			return Promise.resolve();
 		}
 
-		if (newCommentInfos.length > 1) {
+		if (newCommentActions.length > 1) {
 			if (e) {
 				const anchor = { x: e.event.posx, y: e.event.posy };
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
-					getActions: () => this.getContextMenuActions(newCommentInfos, lineNumber),
-					getActionsContext: () => newCommentInfos.length ? newCommentInfos[0] : undefined,
+					getActions: () => this.getContextMenuActions(newCommentActions, lineNumber),
+					getActionsContext: () => newCommentActions.length ? newCommentActions[0] : undefined,
 					onHide: () => { this._addInProgress = false; }
 				});
 
 				return Promise.resolve();
 			} else {
-				const picks = this.getCommentProvidersQuickPicks(newCommentInfos);
+				const picks = this.getCommentProvidersQuickPicks(newCommentActions);
 				return this.quickInputService.pick(picks, { placeHolder: nls.localize('pickCommentService', "Select Comment Provider"), matchOnDescription: true }).then(pick => {
 					if (!pick) {
 						return;
 					}
 
-					const commentInfos = newCommentInfos.filter(info => info.ownerId === pick.id);
+					const commentInfos = newCommentActions.filter(info => info.ownerId === pick.id);
 
 					if (commentInfos.length) {
-						const { ownerId, extensionId, commentingRangesInfo } = commentInfos[0];
-						this.addCommentAtLine2(lineNumber, ownerId, extensionId, commentingRangesInfo);
+						const { commentingRangesInfo } = commentInfos[0];
+						this.addCommentAtLine2(lineNumber, commentingRangesInfo);
 					}
 				}).then(() => {
 					this._addInProgress = false;
 				});
 			}
 		} else {
-			const { ownerId, extensionId, commentingRangesInfo } = newCommentInfos[0]!;
-			this.addCommentAtLine2(lineNumber, ownerId, extensionId, commentingRangesInfo);
+			const { commentingRangesInfo } = newCommentActions[0]!;
+			this.addCommentAtLine2(lineNumber, commentingRangesInfo);
 		}
 
 		return Promise.resolve();
 	}
 
-	private getCommentProvidersQuickPicks(commentInfos: { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined }[]) {
-		const picks: QuickPickInput[] = commentInfos.map((commentInfo) => {
+	private getCommentProvidersQuickPicks(commentActions: CommentActionShape[]) {
+		const picks: QuickPickInput[] = commentActions.map((commentInfo) => {
 			const { ownerId, extensionId, label } = commentInfo;
 
 			return <IQuickPickItem>{
@@ -528,11 +514,11 @@ export class ReviewController implements IEditorContribution {
 		return picks;
 	}
 
-	private getContextMenuActions(commentInfos: { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges }[], lineNumber: number): (IAction | ContextSubMenu)[] {
+	private getContextMenuActions(commentActions: CommentActionShape[], lineNumber: number): (IAction | ContextSubMenu)[] {
 		const actions: (IAction | ContextSubMenu)[] = [];
 
-		commentInfos.forEach(commentInfo => {
-			const { ownerId, extensionId, label, commentingRangesInfo } = commentInfo;
+		commentActions.forEach(commentInfo => {
+			const { extensionId, label, commentingRangesInfo } = commentInfo;
 
 			actions.push(new Action(
 				'addCommentThread',
@@ -540,7 +526,7 @@ export class ReviewController implements IEditorContribution {
 				undefined,
 				true,
 				() => {
-					this.addCommentAtLine2(lineNumber, ownerId, extensionId, commentingRangesInfo);
+					this.addCommentAtLine2(lineNumber, commentingRangesInfo);
 					return Promise.resolve();
 				}
 			));
@@ -548,7 +534,7 @@ export class ReviewController implements IEditorContribution {
 		return actions;
 	}
 
-	public addCommentAtLine2(lineNumber: number, ownerId: string, extensionId: string | undefined, commentingRangesInfo: modes.CommentingRanges) {
+	public addCommentAtLine2(lineNumber: number, commentingRangesInfo: modes.CommentingRanges) {
 		let range = new Range(lineNumber, 1, lineNumber, 1);
 		if (commentingRangesInfo.newCommentThreadCallback) {
 			return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel()!.uri, range)
@@ -572,7 +558,7 @@ export class ReviewController implements IEditorContribution {
 		this._commentInfos = commentInfos;
 		let lineDecorationsWidth: number = this.editor.getConfiguration().layoutInfo.decorationsWidth;
 
-		if (this._commentInfos.some(info => Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length))) {
+		if (this._commentInfos.some(info => info.commentingRanges.ranges.length > 0)) {
 			if (!this._commentingRangeSpaceReserved) {
 				this._commentingRangeSpaceReserved = true;
 				let extraEditorClassName: string[] = [];
