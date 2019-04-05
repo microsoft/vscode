@@ -221,6 +221,10 @@ export class RemoteFileDialog {
 			});
 			this.filePickBox.onDidChangeActive(i => {
 				isAcceptHandled = false;
+				// update input box to match the first selected item
+				if (i.length === 1) {
+					this.setAutoComplete(this.userValue, resources.basename(this.remoteUriFrom(this.userValue)), i[0], true);
+				}
 			});
 
 			this.filePickBox.onDidChangeValue(async value => {
@@ -229,13 +233,11 @@ export class RemoteFileDialog {
 					if (value !== this.userValue) {
 						this.filePickBox.validationMessage = undefined;
 						this.shouldOverwriteFile = false;
-						const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
-						const valueUri = this.remoteUriFrom(trimmedPickBoxValue);
-						if (!resources.isEqual(this.currentFolder, valueUri, true)) {
+						const valueUri = this.remoteUriFrom(this.trimTrailingSlash(this.filePickBox.value));
+						if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), valueUri, true)) {
 							await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
 						}
 						this.setActiveItems(value);
-						this.userValue = value;
 					} else {
 						this.filePickBox.activeItems = [];
 					}
@@ -361,15 +363,8 @@ export class RemoteFileDialog {
 			let hasMatch = false;
 			for (let i = 0; i < this.filePickBox.items.length; i++) {
 				const item = <FileQuickPickItem>this.filePickBox.items[i];
-				const itemBasename = (item.label === '..') ? item.label : resources.basename(item.uri);
-				if ((itemBasename.length >= inputBasename.length) && (itemBasename.substr(0, inputBasename.length).toLowerCase() === inputBasename.toLowerCase())) {
+				if (this.setAutoComplete(value, inputBasename, item)) {
 					this.filePickBox.activeItems = [item];
-					const insertValue = itemBasename.substr(inputBasename.length);
-					this.autoComplete = value + insertValue;
-					if (this.filePickBox.inputHasFocus()) {
-						document.execCommand('insertText', false, insertValue);
-						this.filePickBox.valueSelection = [value.length, this.filePickBox.value.length];
-					}
 					hasMatch = true;
 					break;
 				}
@@ -377,6 +372,44 @@ export class RemoteFileDialog {
 			if (!hasMatch) {
 				this.filePickBox.activeItems = [];
 			}
+		} else {
+			this.userValue = value;
+			this.autoComplete = '';
+		}
+	}
+
+	private setAutoComplete(startingValue: string, startingBasename: string, quickPickItem: FileQuickPickItem, force: boolean = false): boolean {
+		const itemBasename = (quickPickItem.label === '..') ? quickPickItem.label : resources.basename(quickPickItem.uri);
+		const itemPathLabel = (itemBasename === '..') ? this.pathAppend(this.currentFolder, itemBasename) : this.pathFromUri(quickPickItem.uri);
+		if (this.trimTrailingSlash(this.filePickBox.value) !== itemPathLabel) {
+			// Either foce the autocomplete, or the old value should be one smaller than the new value and match the new value.
+			if (!force && (itemBasename.length >= startingBasename.length) && (itemBasename.substr(0, startingBasename.length).toLowerCase() === startingBasename.toLowerCase())) {
+				this.userValue = startingValue;
+				const autoCompleteValue = itemBasename.substr(startingBasename.length);
+				this.autoComplete = startingValue + autoCompleteValue;
+				this.insertText(this.autoComplete, autoCompleteValue);
+				this.filePickBox.valueSelection = [startingValue.length, this.filePickBox.value.length];
+				return true;
+			} else if (force) {
+				this.userValue = this.pathFromUri(this.currentFolder, true);
+				this.autoComplete = this.pathAppend(this.currentFolder, itemBasename);
+				this.filePickBox.valueSelection = [this.userValue.length, this.filePickBox.value.length];
+				// use insert text to preserve undo buffer
+				this.insertText(this.autoComplete, itemBasename);
+				this.filePickBox.valueSelection = [this.filePickBox.value.length - itemBasename.length, this.filePickBox.value.length];
+				return true;
+			}
+		}
+		this.userValue = startingValue;
+		this.autoComplete = '';
+		return false;
+	}
+
+	private insertText(wholeValue: string, insertText: string) {
+		if (this.filePickBox.inputHasFocus()) {
+			document.execCommand('insertText', false, insertText);
+		} else {
+			this.filePickBox.value = wholeValue;
 		}
 	}
 
@@ -404,6 +437,10 @@ export class RemoteFileDialog {
 			}
 		}
 		return result;
+	}
+
+	private trimTrailingSlash(path: string): string {
+		return ((path.length > 1) && this.endsWithSlash(path)) ? path.substr(0, path.length - 1) : path;
 	}
 
 	private async validate(uri: URI): Promise<boolean> {
@@ -455,7 +492,11 @@ export class RemoteFileDialog {
 
 	private updateItems(newFolder: URI, trailing?: string) {
 		this.currentFolder = newFolder;
-		this.filePickBox.value = trailing ? this.pathFromUri(resources.joinPath(newFolder, trailing)) : this.pathFromUri(newFolder, true);
+		this.userValue = this.pathFromUri(newFolder);
+		this.autoComplete = '';
+		this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
+		const newValue = trailing ? this.pathFromUri(resources.joinPath(newFolder, trailing)) : this.pathFromUri(newFolder, true);
+		this.insertText(newValue, newValue);
 		this.filePickBox.busy = true;
 		this.createItems(this.currentFolder).then(items => {
 			this.filePickBox.items = items;
@@ -478,6 +519,14 @@ export class RemoteFileDialog {
 			result = result + sep;
 		}
 		return result;
+	}
+
+	private pathAppend(uri: URI, additional: string): string {
+		if (additional === '..') {
+			return this.pathFromUri(uri) + this.labelService.getSeparator(uri.scheme, uri.authority) + additional;
+		} else {
+			return this.pathFromUri(resources.joinPath(uri, additional));
+		}
 	}
 
 	private isValidBaseName(name: string): boolean {
