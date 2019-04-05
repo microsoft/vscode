@@ -39,6 +39,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ILabelService } from 'vs/platform/label/common/label';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { basename } from 'vs/base/common/resources';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 // Commands
 
@@ -284,28 +286,54 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 const COMPARE_WITH_SAVED_SCHEMA = 'showModifications';
-let provider: FileOnDiskContentProvider;
+let providerDisposables: IDisposable[] = [];
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COMPARE_WITH_SAVED_COMMAND_ID,
 	when: undefined,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_D),
 	handler: (accessor, resource: URI | object) => {
-		if (!provider) {
-			const instantiationService = accessor.get(IInstantiationService);
-			const textModelService = accessor.get(ITextModelService);
-			provider = instantiationService.createInstance(FileOnDiskContentProvider);
-			textModelService.registerTextModelContentProvider(COMPARE_WITH_SAVED_SCHEMA, provider);
+		const instantiationService = accessor.get(IInstantiationService);
+		const textModelService = accessor.get(ITextModelService);
+		const editorService = accessor.get(IEditorService);
+
+		// Register provider at first as needed
+		let registerEditorListener = false;
+		if (providerDisposables.length === 0) {
+			registerEditorListener = true;
+
+			const provider = instantiationService.createInstance(FileOnDiskContentProvider);
+			providerDisposables.push(provider);
+			providerDisposables.push(textModelService.registerTextModelContentProvider(COMPARE_WITH_SAVED_SCHEMA, provider));
 		}
 
-		const editorService = accessor.get(IEditorService);
+		// Open editor (only files supported)
 		const uri = getResourceForCommand(resource, accessor.get(IListService), editorService);
-
 		if (uri && uri.scheme === Schemas.file /* only files on disk supported for now */) {
 			const name = basename(uri);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			return editorService.openEditor({ leftResource: uri.with({ scheme: COMPARE_WITH_SAVED_SCHEMA }), rightResource: uri, label: editorLabel }).then(() => undefined);
+			editorService.openEditor({ leftResource: uri.with({ scheme: COMPARE_WITH_SAVED_SCHEMA }), rightResource: uri, label: editorLabel }).then(() => {
+
+				// Dispose once no more diff editor is opened with the scheme
+				if (registerEditorListener) {
+					providerDisposables.push(editorService.onDidVisibleEditorsChange(() => {
+						if (!editorService.editors.some(editor => {
+							if (editor instanceof DiffEditorInput) {
+								const originalResource = toResource(editor.originalInput);
+
+								return !!(originalResource && originalResource.scheme === COMPARE_WITH_SAVED_SCHEMA);
+							}
+
+							return false;
+						})) {
+							providerDisposables = dispose(providerDisposables);
+						}
+					}));
+				}
+			}, error => {
+				providerDisposables = dispose(providerDisposables);
+			});
 		}
 
 		return Promise.resolve(true);
