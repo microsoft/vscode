@@ -26,7 +26,7 @@ import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService, IRecent } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
@@ -899,7 +899,7 @@ export class WindowsManager implements IWindowsMainService {
 		for (let f of fileUris) {
 			const fileUri = this.argToUri(f);
 			if (fileUri) {
-				const path = this.parseUri({ fileUri }, parseOptions);
+				const path = this.parseUri(hasWorkspaceFileExtension(f) ? { workspaceUri } : { fileUri }, parseOptions);
 				if (path) {
 					pathsToOpen.push(path);
 				}
