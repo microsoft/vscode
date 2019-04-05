@@ -621,10 +621,6 @@ export function createApiFactory(
 			registerFileSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.FileSearchProvider) => {
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
 			}),
-			registerSearchProvider: proposedApiFunction(extension, () => {
-				// Temp for live share in Insiders
-				return { dispose: () => { } };
-			}),
 			registerTextSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.TextSearchProvider) => {
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
 			}),

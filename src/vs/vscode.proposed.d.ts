@@ -472,11 +472,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * DEPRECATED
-		 */
-		export function registerSearchProvider(): Disposable;
-
-		/**
 		 * Register a search provider.
 		 *
 		 * Only one provider can be registered per scheme.
