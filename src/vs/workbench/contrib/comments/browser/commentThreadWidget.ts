@@ -10,7 +10,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -37,7 +37,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
@@ -59,7 +58,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _reviewThreadReplyButton: HTMLElement;
 	private _resizeObserver: any;
 	private _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
-	private _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isExpanded?: boolean;
 	private _collapseAction: Action;
 	private _commentGlyph?: CommentGlyphWidget;
@@ -70,14 +68,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _formActions: HTMLElement | null;
 	private _error: HTMLElement;
 
-	public get owner(): string {
+	get owner(): string {
 		return this._owner;
 	}
-	public get commentThread(): modes.CommentThread {
+	get commentThread(): modes.CommentThread {
 		return this._commentThread;
 	}
 
-	public get extensionId(): string | undefined {
+	get extensionId(): string | undefined {
 		return this._commentThread.extensionId;
 	}
 
@@ -115,30 +113,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._parentEditor = editor;
 	}
 
-	public get onDidClose(): Event<ReviewZoneWidget | undefined> {
-		return this._onDidClose.event;
-	}
-
-	public get onDidCreateThread(): Event<ReviewZoneWidget> {
-		return this._onDidCreateThread.event;
-	}
-
-	public getPosition(): IPosition | undefined {
-		if (this.position) {
-			return this.position;
-		}
-
-		if (this._commentGlyph) {
-			return withNullAsUndefined(this._commentGlyph.getPosition().position);
-		}
-		return undefined;
-	}
-
 	protected revealLine(lineNumber: number) {
 		// we don't do anything here as we always do the reveal ourselves.
 	}
 
-	public reveal(commentId?: string) {
+	reveal(commentId?: string) {
 		if (!this._isExpanded) {
 			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 		}
@@ -158,7 +137,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.editor.revealRangeInCenter(this._commentThread.range);
 	}
 
-	public getPendingComment(): string | null {
+	getPendingComment(): string | null {
 		if (this._commentEditor) {
 			let model = this._commentEditor.getModel();
 
@@ -199,7 +178,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._actionbarWidget.push(this._collapseAction, { label: false, icon: true });
 	}
 
-	public collapse(): Promise<void> {
+	collapse(): Promise<void> {
 		if (this._commentThread.comments && this._commentThread.comments.length === 0) {
 			if (this._commentThread.commentThreadHandle === undefined) {
 				this.dispose();
@@ -216,7 +195,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return Promise.resolve();
 	}
 
-	public getGlyphPosition(): number {
+	getGlyphPosition(): number {
 		if (this._commentGlyph) {
 			return this._commentGlyph.getPosition().position!.lineNumber;
 		}
