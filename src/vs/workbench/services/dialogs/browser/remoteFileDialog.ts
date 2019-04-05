@@ -110,10 +110,13 @@ export class RemoteFileDialog {
 		let defaultUri = options.defaultUri;
 		const filename = (defaultUri && isSave && (resources.dirname(defaultUri).path === '/')) ? resources.basename(defaultUri) : undefined;
 		if (!defaultUri || filename) {
-			const env = await this.remoteAgentService.getEnvironment();
-			if (env) {
-				defaultUri = env.userHome;
-			} else {
+			if (this.scheme !== Schemas.file) {
+				const env = await this.remoteAgentService.getEnvironment();
+				if (env) {
+					defaultUri = env.userHome;
+				}
+			}
+			if (!defaultUri) {
 				defaultUri = URI.from({ scheme: this.scheme, path: this.environmentService.userHome });
 			}
 			if (filename) {
