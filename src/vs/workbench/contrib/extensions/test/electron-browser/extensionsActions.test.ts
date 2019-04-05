@@ -1199,7 +1199,7 @@ suite('ExtensionsActions Test', () => {
 
 						const gallery = aGalleryExtension('a', { identifier: local.identifier, version: '1.0.2' });
 						installEvent.fire({ identifier: gallery.identifier, gallery });
-						didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
+						didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Update, local: aLocalExtension('a', gallery, gallery) });
 
 						assert.ok(!testObject.enabled);
 					});
