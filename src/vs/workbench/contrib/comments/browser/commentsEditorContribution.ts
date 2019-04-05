@@ -85,6 +85,7 @@ class CommentingRangeDecoration {
 }
 
 class CommentingRangeDecorator implements IDisposable {
+
 	private decorationOptions: ModelDecorationOptions;
 	private commentingRangeDecorations: CommentingRangeDecoration[] = [];
 	private disposables: IDisposable[] = [];

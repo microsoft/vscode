@@ -1262,17 +1262,12 @@ export interface CommentThread {
 	range: IRange;
 	label: string;
 	comments: Comment[] | undefined;
-	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	acceptInputCommand?: Command;
 	additionalCommands?: Command[];
 	deleteCommand?: Command;
-	onDidChangeAcceptInputCommand: Event<Command | undefined>;
-	onDidChangeAdditionalCommands: Event<Command[] | undefined>;
-	onDidChangeRange: Event<IRange>;
-	onDidChangeLabel: Event<string>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
 }
 

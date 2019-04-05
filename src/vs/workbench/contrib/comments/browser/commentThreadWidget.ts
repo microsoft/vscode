@@ -188,7 +188,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		let titleElement = dom.append(this._headElement, dom.$('.review-title'));
 
 		this._headingLabel = dom.append(titleElement, dom.$('span.filename'));
-		this.createThreadLabel();
+		this.createThreadLabel(this._commentThread);
 
 		const actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
 		this._actionbarWidget = new ActionBar(actionsContainer, {});
@@ -235,6 +235,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	async update(commentThread: modes.CommentThread) {
+		// update comment thread comments
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
 
@@ -281,15 +282,22 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}
 
+		// update comment thread label
+		if (this._commentThread.label !== commentThread.label) {
+			this.createThreadLabel(commentThread);
+		}
+
+		// update comment thread commands.
+		if (!commentThreadCommandsEquals(this._commentThread, commentThread)) {
+			if (this._formActions && this._commentEditor.hasModel()) {
+				dom.clearNode(this._formActions);
+				const model = this._commentEditor.getModel();
+				this.createCommentWidgetActions(this._formActions, model, commentThread);
+			}
+		}
+
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
-		this.createThreadLabel();
-
-		if (this._formActions && this._commentEditor.hasModel()) {
-			dom.clearNode(this._formActions);
-			const model = this._commentEditor.getModel();
-			this.createCommentWidgetActions(this._formActions, model);
-		}
 
 		// Move comment glyph widget and show position if the line has changed.
 		const lineNumber = this._commentThread.range.startLineNumber;
@@ -413,14 +421,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}));
 
-		this._disposables.push(this._commentThread.onDidChangeComments(async _ => {
-			await this.update(this._commentThread);
-		}));
-
-		this._disposables.push(this._commentThread.onDidChangeLabel(_ => {
-			this.createThreadLabel();
-		}));
-
 		this.setCommentEditorDecorations();
 
 		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
@@ -435,52 +435,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._error = dom.append(this._commentForm, dom.$('.validation-error.hidden'));
 
 		this._formActions = dom.append(this._commentForm, dom.$('.form-actions'));
-		this.createCommentWidgetActions(this._formActions, model);
-
-		this._disposables.push(this._commentThread.onDidChangeAcceptInputCommand(_ => {
-			if (this._formActions) {
-				dom.clearNode(this._formActions);
-				this.createCommentWidgetActions(this._formActions, model);
-			}
-		}));
-
-		this._disposables.push(this._commentThread.onDidChangeAdditionalCommands(_ => {
-			if (this._formActions) {
-				dom.clearNode(this._formActions);
-				this.createCommentWidgetActions(this._formActions, model);
-			}
-		}));
-
-		this._disposables.push(this._commentThread.onDidChangeRange(range => {
-			// Move comment glyph widget and show position if the line has changed.
-			const lineNumber = this._commentThread.range.startLineNumber;
-			let shouldMoveWidget = false;
-			if (this._commentGlyph) {
-				if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
-					shouldMoveWidget = true;
-					this._commentGlyph.setLineNumber(lineNumber);
-				}
-			}
-
-			if (shouldMoveWidget && this._isExpanded) {
-				this.show({ lineNumber, column: 1 }, 2);
-			}
-		}));
-
-		this._disposables.push(this._commentThread.onDidChangeCollasibleState(state => {
-			if (state === modes.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
-				const lineNumber = this._commentThread.range.startLineNumber;
-
-				this.show({ lineNumber, column: 1 }, 2);
-				return;
-			}
-
-			if (state === modes.CommentThreadCollapsibleState.Collapsed && this._isExpanded) {
-				this.hide();
-				return;
-			}
-		}));
-
+		this.createCommentWidgetActions(this._formActions, model, this._commentThread);
 
 		this._resizeObserver = new MutationObserver(this._refresh.bind(this));
 
@@ -511,8 +466,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	/**
 	 * Command based actions.
 	 */
-	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
-		let commentThread = this._commentThread;
+	private createCommentWidgetActions(container: HTMLElement, model: ITextModel, commentThread: modes.CommentThread) {
 		const { acceptInputCommand, additionalCommands } = commentThread;
 
 		if (acceptInputCommand) {
@@ -525,7 +479,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					uri: this._commentEditor.getModel()!.uri,
 					value: this._commentEditor.getValue()
 				};
-				this.commentService.setActiveCommentThread(this._commentThread);
+				this.commentService.setActiveCommentThread(commentThread);
 				await this.commandService.executeCommand(acceptInputCommand.id, ...(acceptInputCommand.arguments || []));
 			}));
 
@@ -550,7 +504,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 						uri: this._commentEditor.getModel()!.uri,
 						value: this._commentEditor.getValue()
 					};
-					this.commentService.setActiveCommentThread(this._commentThread);
+					this.commentService.setActiveCommentThread(commentThread);
 					await this.commandService.executeCommand(command.id, ...(command.arguments || []));
 				}));
 			});
@@ -615,12 +569,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	private createThreadLabel() {
-		let label = this._commentThread.label;
+	private createThreadLabel(commentThread: modes.CommentThread) {
+		let label = commentThread.label;
 
 		if (label === undefined) {
-			if (this._commentThread.comments && this._commentThread.comments.length) {
-				const participantsList = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
+			if (commentThread.comments && commentThread.comments.length) {
+				const participantsList = commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
 				label = nls.localize('commentThreadParticipants', "Participants: {0}", participantsList);
 			} else {
 				label = nls.localize('startThread', "Start discussion");
@@ -857,4 +811,61 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._submitActionsDisposables.forEach(local => local.dispose());
 		this._onDidClose.fire(undefined);
 	}
+}
+
+function compareArgs(a: any[], b: any[]): boolean {
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] !== b[i]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function commandEquals(a: modes.Command, b: modes.Command): boolean {
+	return a.id === b.id
+		&& a.title === b.title
+		&& a.tooltip === b.tooltip
+		&& (a.arguments && b.arguments ? compareArgs(a.arguments, b.arguments) : a.arguments === b.arguments);
+}
+
+function commandListEquals(a: modes.Command[], b: modes.Command[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	for (let i = 0; i < a.length; i++) {
+		if (!commandEquals(a[i], b[i])) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function commentThreadCommandsEquals(a: modes.CommentThread, b: modes.CommentThread): boolean {
+	let result = false;
+
+	if (a.acceptInputCommand && b.acceptInputCommand) {
+		result = commandEquals(a.acceptInputCommand, b.acceptInputCommand);
+	} else if (a.acceptInputCommand) {
+		return false;
+	} else if (b.acceptInputCommand) {
+		return false;
+	}
+
+	if (!result) {
+		return false;
+	}
+
+	if (a.additionalCommands && b.additionalCommands) {
+		result = commandListEquals(a.additionalCommands, b.additionalCommands);
+	} else if (a.additionalCommands) {
+		return false;
+	} else if (b.additionalCommands) {
+		return false;
+	}
+
+	return result;
 }

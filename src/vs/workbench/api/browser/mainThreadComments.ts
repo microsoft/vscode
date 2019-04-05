@@ -33,81 +33,16 @@ export class MainThreadCommentThread implements modes.CommentThread {
 	private _onDidChangeInput = new Emitter<modes.CommentInput | undefined>();
 	get onDidChangeInput(): Event<modes.CommentInput | undefined> { return this._onDidChangeInput.event; }
 
-	private _label: string;
+	public label: string;
 
-	get label(): string {
-		return this._label;
-	}
+	public comments: modes.Comment[];
 
-	set label(label: string) {
-		this._label = label;
-		this._onDidChangeLabel.fire(this._label);
-	}
+	public acceptInputCommand: modes.Command | undefined;
 
-	private _onDidChangeLabel = new Emitter<string>();
-	get onDidChangeLabel(): Event<string> { return this._onDidChangeLabel.event; }
+	public additionalCommands: modes.Command[] | undefined;
 
-	private _comments: modes.Comment[] | undefined;
+	public deleteCommand: modes.Command | undefined;
 
-	public get comments(): modes.Comment[] | undefined {
-		return this._comments;
-	}
-
-	public set comments(newComments: modes.Comment[] | undefined) {
-		this._comments = newComments;
-		this._onDidChangeComments.fire(this._comments);
-	}
-
-	private _onDidChangeComments = new Emitter<modes.Comment[] | undefined>();
-	get onDidChangeComments(): Event<modes.Comment[] | undefined> { return this._onDidChangeComments.event; }
-
-	private _acceptInputCommand: modes.Command | undefined;
-	set acceptInputCommand(newCommand: modes.Command | undefined) {
-		this._acceptInputCommand = newCommand;
-		this._onDidChangeAcceptInputCommand.fire(this._acceptInputCommand);
-	}
-
-	get acceptInputCommand(): modes.Command | undefined {
-		return this._acceptInputCommand!;
-	}
-
-	private _onDidChangeAcceptInputCommand = new Emitter<modes.Command | undefined>();
-	get onDidChangeAcceptInputCommand(): Event<modes.Command | undefined> { return this._onDidChangeAcceptInputCommand.event; }
-
-	private _additionalCommands: modes.Command[] | undefined;
-	set additionalCommands(newCommands: modes.Command[] | undefined) {
-		this._additionalCommands = newCommands;
-		this._onDidChangeAdditionalCommands.fire(this._additionalCommands);
-	}
-
-	get additionalCommands(): modes.Command[] | undefined {
-		return this._additionalCommands;
-	}
-
-	private _onDidChangeAdditionalCommands = new Emitter<modes.Command[] | undefined>();
-	get onDidChangeAdditionalCommands(): Event<modes.Command[] | undefined> { return this._onDidChangeAdditionalCommands.event; }
-
-	private _deleteCommand: modes.Command | undefined;
-
-	set deleteCommand(newCommand: modes.Command | undefined) {
-		this._deleteCommand = newCommand;
-	}
-
-	get deleteCommand(): modes.Command | undefined {
-		return this._deleteCommand;
-	}
-
-	set range(range: IRange) {
-		this._range = range;
-		this._onDidChangeRange.fire(this._range);
-	}
-
-	get range(): IRange {
-		return this._range;
-	}
-
-	private _onDidChangeRange = new Emitter<IRange>();
-	public onDidChangeRange = this._onDidChangeRange.event;
 
 	private _collapsibleState: modes.CommentThreadCollapsibleState | undefined;
 	get collapsibleState() {
@@ -128,7 +63,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		public extensionId: string,
 		public threadId: string,
 		public resource: string,
-		private _range: IRange
+		public range: IRange
 	) { }
 
 	batchUpdate(
@@ -139,12 +74,12 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		additionalCommands: modes.Command[],
 		deleteCommand: modes.Command | undefined,
 		collapsibleState: modes.CommentThreadCollapsibleState) {
-		this._range = range;
-		this._label = label;
-		this._comments = comments;
-		this._acceptInputCommand = acceptInputCommand;
-		this._additionalCommands = additionalCommands;
-		this._deleteCommand = deleteCommand;
+		this.range = range;
+		this.label = label;
+		this.comments = comments;
+		this.acceptInputCommand = acceptInputCommand;
+		this.additionalCommands = additionalCommands;
+		this.deleteCommand = deleteCommand;
 		this._collapsibleState = collapsibleState;
 	}
 
