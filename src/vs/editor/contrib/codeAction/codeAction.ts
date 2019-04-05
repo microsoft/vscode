@@ -32,7 +32,7 @@ export class CodeActionSet {
 		}
 	}
 
-	public readonly actions: ReadonlyArray<CodeAction>;
+	public readonly actions: readonly CodeAction[];
 
 	public constructor(actions: CodeAction[]) {
 		this.actions = mergeSort(actions, CodeActionSet.codeActionsComparator);

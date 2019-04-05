@@ -315,8 +315,8 @@ export interface ISerializedDocumentFilter {
 }
 
 export interface ISerializedSignatureHelpProviderMetadata {
-	readonly triggerCharacters: ReadonlyArray<string>;
-	readonly retriggerCharacters: ReadonlyArray<string>;
+	readonly triggerCharacters: readonly string[];
+	readonly retriggerCharacters: readonly string[];
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
