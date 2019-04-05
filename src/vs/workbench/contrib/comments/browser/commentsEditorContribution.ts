@@ -84,8 +84,7 @@ class CommentingRangeDecoration {
 	}
 }
 
-class CommentingRangeDecorator {
-
+class CommentingRangeDecorator implements IDisposable {
 	private decorationOptions: ModelDecorationOptions;
 	private commentingRangeDecorations: CommentingRangeDecoration[] = [];
 	private disposables: IDisposable[] = [];
@@ -170,7 +169,7 @@ export class ReviewController implements IEditorContribution {
 		this._computePromise = null;
 
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
-
+		this.globalToDispose.push(this._commentingRangeDecorator);
 		this.globalToDispose.push(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 			if (editorURI && editorURI.toString() === e.resource.toString()) {
