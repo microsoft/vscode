@@ -146,12 +146,10 @@ class ExecCommandCopyAction extends ExecCommandAction {
 		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
 		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
-			return;
-		}
-		// Prevent copying an empty line by accident
-		if (editor.getSelections().length === 1 && editor.getSelection().isEmpty()) {
-			if (editor.getModel().getLineFirstNonWhitespaceColumn(editor.getSelection().positionLineNumber) === 0) {
-				return;
+			if (editor.getSelections().length === 1 && editor.getSelection().isEmpty()) {
+				if (editor.getModel().getLineFirstNonWhitespaceColumn(editor.getSelection().positionLineNumber) === 0) {
+					return;
+				}
 			}
 		}
 
