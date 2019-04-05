@@ -30,7 +30,7 @@ export class ExecuteCommandAction extends Action {
 		label: string,
 		private commandId: string,
 		private commandService: ICommandService,
-		private commandArgs?: any
+		private commandArgs?: unknown
 	) {
 		super(id, label);
 	}
@@ -429,14 +429,16 @@ export class OpenToSideFromQuickOpenAction extends Action {
 		const entry = toEditorQuickOpenEntry(context);
 		if (entry) {
 			const input = entry.getInput();
-			if (input instanceof EditorInput) {
-				return this.editorService.openEditor(input, entry.getOptions() || undefined, SIDE_GROUP);
+			if (input) {
+				if (input instanceof EditorInput) {
+					return this.editorService.openEditor(input, entry.getOptions() || undefined, SIDE_GROUP);
+				}
+
+				const resourceInput = input as IResourceInput;
+				resourceInput.options = mixin(resourceInput.options, entry.getOptions());
+
+				return this.editorService.openEditor(resourceInput, SIDE_GROUP);
 			}
-
-			const resourceInput = input as IResourceInput;
-			resourceInput.options = mixin(resourceInput.options, entry.getOptions());
-
-			return this.editorService.openEditor(resourceInput, SIDE_GROUP);
 		}
 
 		return Promise.resolve(false);

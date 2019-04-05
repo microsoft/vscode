@@ -10,34 +10,54 @@ grade: stable
 confinement: classic
 
 parts:
+  gnome:
+    plugin: nil
+    build-packages:
+      - software-properties-common
+    override-pull: |
+      add-apt-repository -y ppa:ubuntu-desktop/gnome-3-26
+      apt -y update
+
   code:
+    after:
+      - gnome
     plugin: dump
     source: .
     stage-packages:
+      - fcitx-frontend-gtk3
+      - gvfs-libs
       - libasound2
-      - libc++1
+      - libgconf-2-4
+      - libglib2.0-bin
+      - libgnome-keyring0
+      - libgtk-3-0
       - libnotify4
       - libnspr4
       - libnss3
       - libpcre3
       - libpulse0
+      - libsecret-1-0
       - libxss1
       - libxtst6
-      - libxkbcommon0
-      - libgtk-3-0
-      - libgdk-pixbuf2.0-0
-      - libglib2.0-bin
-      - unity-gtk2-module
-      - libappindicator1
-      - xdg-user-dirs
-      - libsecret-1-0
-      # TODO@joao @Tyriar check these deps
-      # - libatomic1
-      # - libgtk2.0-bin
+      - zlib1g
     prime:
-      - -usr/share/dh-python
+      - -usr/share/doc
+      - -usr/share/fonts
+      - -usr/share/icons
+      - -usr/share/lintian
+      - -usr/share/man
 
 apps:
   @@NAME@@:
-    command: electron-launch ${SNAP}/usr/share/@@NAME@@/bin/@@NAME@@
+    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@
     desktop: usr/share/applications/@@NAME@@.desktop
+    environment:
+      DISABLE_WAYLAND: 1
+      GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas
+
+  url-handler:
+    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url
+    desktop: usr/share/applications/@@NAME@@-url-handler.desktop
+    environment:
+      DISABLE_WAYLAND: 1
+      GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas

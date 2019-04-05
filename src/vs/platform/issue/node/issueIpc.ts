@@ -11,16 +11,18 @@ export class IssueChannel implements IServerChannel {
 
 	constructor(private service: IIssueService) { }
 
-	listen<T>(_, event: string): Event<T> {
+	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'openIssueReporter':
 				return this.service.openReporter(arg);
 			case 'openProcessExplorer':
 				return this.service.openProcessExplorer(arg);
+			case 'getSystemStatus':
+				return this.service.getSystemStatus();
 		}
 
 		throw new Error(`Call not found: ${command}`);

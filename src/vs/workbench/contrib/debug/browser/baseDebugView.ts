@@ -126,7 +126,7 @@ export interface IExpressionTemplateData {
 	name: HTMLSpanElement;
 	value: HTMLSpanElement;
 	inputBoxContainer: HTMLElement;
-	enableInputBox(expression: IExpression, options: IInputBoxOptions);
+	enableInputBox(expression: IExpression, options: IInputBoxOptions): void;
 	toDispose: IDisposable[];
 	label: HighlightedLabel;
 }

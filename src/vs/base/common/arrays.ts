@@ -364,6 +364,18 @@ export function distinct<T>(array: ReadonlyArray<T>, keyFn?: (t: T) => string): 
 	});
 }
 
+export function distinctES6<T>(array: ReadonlyArray<T>): T[] {
+	const seen = new Set<T>();
+	return array.filter(element => {
+		if (seen.has(element)) {
+			return false;
+		}
+
+		seen.add(element);
+		return true;
+	});
+}
+
 export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	const seen: { [key: string]: boolean; } = Object.create(null);
 
@@ -379,6 +391,18 @@ export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	};
 }
 
+export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
+	for (let i = array.length - 1; i >= 0; i--) {
+		const element = array[i];
+
+		if (fn(element)) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
 	for (let i = 0; i < array.length; i++) {
 		const element = array[i];
@@ -392,9 +416,8 @@ export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean)
 }
 
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): T | null;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | null): T | null;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | null = null): T | null {
+export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): T | undefined;
+export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | undefined = undefined): T | undefined {
 	const index = firstIndex(array, fn);
 	return index < 0 ? notFoundValue : array[index];
 }
@@ -548,4 +571,8 @@ export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 	return Array.isArray(items) ?
 		items.map(fn) :
 		fn(items);
+}
+
+export function asArray<T>(x: T | T[]): T[] {
+	return Array.isArray(x) ? x : [x];
 }

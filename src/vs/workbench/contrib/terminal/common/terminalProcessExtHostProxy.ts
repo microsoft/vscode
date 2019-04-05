@@ -31,9 +31,12 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	public get onRequestInitialCwd(): Event<void> { return this._onRequestInitialCwd.event; }
 	private readonly _onRequestCwd = new Emitter<void>();
 	public get onRequestCwd(): Event<void> { return this._onRequestCwd.event; }
+	private readonly _onRequestLatency = new Emitter<void>();
+	public get onRequestLatency(): Event<void> { return this._onRequestLatency.event; }
 
 	private _pendingInitialCwdRequests: ((value?: string | Thenable<string>) => void)[] = [];
 	private _pendingCwdRequests: ((value?: string | Thenable<string>) => void)[] = [];
+	private _pendingLatencyRequests: ((value?: number | Thenable<number>) => void)[] = [];
 
 	constructor(
 		public terminalId: number,
@@ -86,6 +89,12 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 		}
 	}
 
+	public emitLatency(latency: number): void {
+		while (this._pendingLatencyRequests.length > 0) {
+			this._pendingLatencyRequests.pop()!(latency);
+		}
+	}
+
 	public shutdown(immediate: boolean): void {
 		this._onShutdown.fire(immediate);
 	}
@@ -109,6 +118,13 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 		return new Promise<string>(resolve => {
 			this._onRequestCwd.fire();
 			this._pendingCwdRequests.push(resolve);
+		});
+	}
+
+	public getLatency(): Promise<number> {
+		return new Promise<number>(resolve => {
+			this._onRequestLatency.fire();
+			this._pendingLatencyRequests.push(resolve);
 		});
 	}
 }

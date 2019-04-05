@@ -8,11 +8,13 @@ import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IDownloadService } from 'vs/platform/download/common/download';
+import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { IRecent } from 'vs/platform/history/common/history';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -34,7 +36,6 @@ function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) =>
 interface IOpenFolderAPICommandOptions {
 	forceNewWindow?: boolean;
 	noRecentEntry?: boolean;
-	recentEntryLabel?: string;
 }
 
 export class OpenFolderAPICommand {
@@ -48,12 +49,10 @@ export class OpenFolderAPICommand {
 		if (!uri) {
 			return executor.executeCommand('_files.pickFolderAndOpen', arg.forceNewWindow);
 		}
-		const options: IOpenSettings = { forceNewWindow: arg.forceNewWindow };
-		if (arg.noRecentEntry) {
-			options.args = { _: [], 'skip-add-to-recently-opened': true };
-		}
+		const options: IOpenSettings = { forceNewWindow: arg.forceNewWindow, noRecentEntry: arg.noRecentEntry };
 		uri = URI.revive(uri);
-		return executor.executeCommand('_files.windowOpen', [{ uri, label: arg.recentEntryLabel }], options);
+		const uriToOpen: IURIToOpen = hasWorkspaceFileExtension(uri.path) ? { workspaceUri: uri } : { folderUri: uri };
+		return executor.executeCommand('_files.windowOpen', [uriToOpen], options);
 	}
 }
 CommandsRegistry.registerCommand({
@@ -63,7 +62,27 @@ CommandsRegistry.registerCommand({
 		description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
 		args: [
 			{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === undefined || value instanceof URI },
-			{ name: 'options', description: '(optional) Options. Object with the following properties: `forceNewWindow `: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. `noRecentEntry`: Wheter the opened URI will appear in the \'Open Recent\' list. Defaults to true. `recentEntryLabel`: The label used for \'Open Recent\' list. Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.', constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean' }
+			{ name: 'options', description: '(optional) Options. Object with the following properties: `forceNewWindow `: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. `noRecentEntry`: Wheter the opened URI will appear in the \'Open Recent\' list. Defaults to true.  Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.', constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean' }
+		]
+	}
+});
+
+interface INewWindowAPICommandOptions {
+	reuseWindow?: boolean;
+}
+
+export class NewWindowAPICommand {
+	public static ID = 'vscode.newWindow';
+	public static execute(executor: ICommandsExecutor, options?: INewWindowAPICommandOptions): Promise<any> {
+		return executor.executeCommand('_files.newWindow', options);
+	}
+}
+CommandsRegistry.registerCommand({
+	id: NewWindowAPICommand.ID,
+	handler: adjustHandler(NewWindowAPICommand.execute),
+	description: {
+		description: 'Opens an new window',
+		args: [
 		]
 	}
 });
@@ -124,6 +143,29 @@ export class RemoveFromRecentlyOpenedAPICommand {
 	}
 }
 CommandsRegistry.registerCommand(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute));
+
+interface RecentEntry {
+	uri: URI;
+	type: 'workspace' | 'folder' | 'file';
+	label?: string;
+}
+
+CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async function (accessor: ServicesAccessor, recentEntry: RecentEntry) {
+	const windowsService = accessor.get(IWindowsService);
+	const workspacesService = accessor.get(IWorkspacesService);
+	let recent: IRecent | undefined = undefined;
+	const uri = recentEntry.uri;
+	const label = recentEntry.label;
+	if (recentEntry.type === 'workspace') {
+		const workspace = await workspacesService.getWorkspaceIdentifier(uri);
+		recent = { workspace, label };
+	} else if (recentEntry.type === 'folder') {
+		recent = { folderUri: uri, label };
+	} else {
+		recent = { fileUri: uri, label };
+	}
+	return windowsService.addRecentlyOpened([recent]);
+});
 
 export class SetEditorLayoutAPICommand {
 	public static ID = 'vscode.setEditorLayout';

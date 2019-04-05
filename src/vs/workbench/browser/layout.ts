@@ -76,8 +76,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private _container: HTMLElement = document.createElement('div');
 	get container(): HTMLElement { return this._container; }
 
-	get hasWorkbench(): boolean { return true; }
-
 	private parts: Map<string, Part> = new Map<string, Part>();
 
 	private workbenchGrid: Grid<View> | WorkbenchLegacyLayout;
@@ -459,9 +457,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			let input: IResourceInput | IUntitledResourceInput;
 			if (isNew) {
-				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
+				input = { filePath: resource.fsPath, options: { pinned: true } };
 			} else {
-				input = { resource, options: { pinned: true }, forceFile: true } as IResourceInput;
+				input = { resource, options: { pinned: true }, forceFile: true };
 			}
 
 			if (!isNew && typeof p.lineNumber === 'number') {

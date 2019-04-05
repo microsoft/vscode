@@ -287,7 +287,7 @@ class RemoteSearchProvider implements ISearchProvider {
 			const timestamp = Date.now();
 			const duration = timestamp - start;
 			const remoteSettings: IRemoteSetting[] = (result.value || [])
-				.map(r => {
+				.map((r: any) => {
 					const key = JSON.parse(r.setting || r.Setting);
 					const packageId = r['packageid'];
 					const id = getSettingKey(key, packageId);
@@ -447,7 +447,7 @@ class SettingMatches {
 
 	readonly matches: IRange[];
 
-	constructor(searchString: string, setting: ISetting, private requireFullQueryMatch: boolean, private searchDescription, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
+	constructor(searchString: string, setting: ISetting, private requireFullQueryMatch: boolean, private searchDescription: boolean, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
 	}
 

@@ -138,7 +138,7 @@ export class QuickOpenHandlerDescriptor {
 
 	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, description: string, instantProgress?: boolean);
 	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, param: any, instantProgress: boolean = false) {
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, param: string | QuickOpenHandlerHelpEntry[], instantProgress: boolean = false) {
 		this.ctor = ctor;
 		this.id = id;
 		this.prefix = prefix;
@@ -214,7 +214,7 @@ class QuickOpenRegistry implements IQuickOpenRegistry {
 	}
 
 	getQuickOpenHandler(text: string): QuickOpenHandlerDescriptor | null {
-		return text ? arrays.first<QuickOpenHandlerDescriptor>(this.handlers, h => strings.startsWith(text, h.prefix), null) : null;
+		return text ? (arrays.first<QuickOpenHandlerDescriptor>(this.handlers, h => strings.startsWith(text, h.prefix)) || null) : null;
 	}
 
 	getDefaultQuickOpenHandler(): QuickOpenHandlerDescriptor {
@@ -280,7 +280,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 					opts = EditorOptions.create(openOptions);
 				}
 
-				this.editorService.openEditor(input, opts || undefined, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				this.editorService.openEditor(input, types.withNullAsUndefined(opts), sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			} else {
 				const resourceInput = <IResourceInput>input;
 
@@ -325,7 +325,7 @@ export class QuickOpenAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	run(context?: any): Promise<void> {
+	run(): Promise<void> {
 
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);

@@ -6,7 +6,7 @@
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition, VIEW_CONTAINER } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, VIEW_CONTAINER } from 'vs/workbench/contrib/files/common/files';
 import { ViewContainerViewlet, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ExplorerView } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -103,7 +103,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			name: OpenEditorsView.NAME,
 			ctorDescriptor: { ctor: OpenEditorsView },
 			order: 0,
-			when: OpenEditorsVisibleCondition,
+			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,
 			focusCommand: {
 				id: 'workbench.files.action.focusOpenEditorsView',

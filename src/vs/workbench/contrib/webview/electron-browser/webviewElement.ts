@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { OnBeforeRequestDetails, OnHeadersReceivedDetails, Response } from 'electron';
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
+import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
+import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -13,22 +17,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
-import { areWebviewInputOptionsEqual } from './webviewEditorService';
-import { WebviewFindWidget } from './webviewFindWidget';
-import { endsWith } from 'vs/base/common/strings';
-import { isMacintosh } from 'vs/base/common/platform';
+import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
+import { WebviewFindWidget } from '../browser/webviewFindWidget';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { WebviewContentOptions, WebviewPortMapping, WebviewOptions, Webview } from 'vs/workbench/contrib/webview/common/webview';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
-export interface WebviewOptions {
-	readonly allowSvgs?: boolean;
-	readonly extensionLocation?: URI;
-	readonly enableFindWidget?: boolean;
-}
-
-export interface WebviewContentOptions {
-	readonly allowScripts?: boolean;
-	readonly svgWhiteList?: string[];
-	readonly localResourceRoots?: ReadonlyArray<URI>;
-}
 
 interface IKeydownEvent {
 	key: string;
@@ -41,6 +37,58 @@ interface IKeydownEvent {
 	repeat: boolean;
 }
 
+type OnBeforeRequestDelegate = (details: OnBeforeRequestDetails) => Promise<Response | undefined>;
+type OnHeadersReceivedDelegate = (details: OnHeadersReceivedDetails) => { cancel: boolean } | undefined;
+
+class WebviewSession extends Disposable {
+
+	private readonly _onBeforeRequestDelegates: Array<OnBeforeRequestDelegate> = [];
+	private readonly _onHeadersReceivedDelegates: Array<OnHeadersReceivedDelegate> = [];
+
+	public constructor(
+		webview: Electron.WebviewTag,
+	) {
+		super();
+
+		this._register(addDisposableListener(webview, 'did-start-loading', once(() => {
+			const contents = webview.getWebContents();
+			if (!contents) {
+				return;
+			}
+
+			contents.session.webRequest.onBeforeRequest(async (details, callback) => {
+				for (const delegate of this._onBeforeRequestDelegates) {
+					const result = await delegate(details);
+					if (typeof result !== 'undefined') {
+						callback(result);
+						return;
+					}
+				}
+				callback({});
+			});
+
+			contents.session.webRequest.onHeadersReceived((details, callback) => {
+				for (const delegate of this._onHeadersReceivedDelegates) {
+					const result = delegate(details);
+					if (typeof result !== 'undefined') {
+						callback(result);
+						return;
+					}
+				}
+				callback({ cancel: false, responseHeaders: details.responseHeaders });
+			});
+		})));
+	}
+
+	public onBeforeRequest(delegate: OnBeforeRequestDelegate) {
+		this._onBeforeRequestDelegates.push(delegate);
+	}
+
+	public onHeadersReceived(delegate: OnHeadersReceivedDelegate) {
+		this._onHeadersReceivedDelegates.push(delegate);
+	}
+}
+
 class WebviewProtocolProvider extends Disposable {
 	constructor(
 		webview: Electron.WebviewTag,
@@ -51,28 +99,22 @@ class WebviewProtocolProvider extends Disposable {
 	) {
 		super();
 
-		let loaded = false;
-		this._register(addDisposableListener(webview, 'did-start-loading', () => {
-			if (loaded) {
-				return;
-			}
-			loaded = true;
-
+		this._register(addDisposableListener(webview, 'did-start-loading', once(() => {
 			const contents = webview.getWebContents();
 			if (contents) {
-				this.registerFileProtocols(contents);
+				this.registerProtocols(contents);
 			}
-		}));
+		})));
 	}
 
-	private registerFileProtocols(contents: Electron.WebContents) {
+	private registerProtocols(contents: Electron.WebContents) {
 		if (contents.isDestroyed()) {
 			return;
 		}
 
 		const appRootUri = URI.file(this._environmentService.appRoot);
 
-		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, null, () => [
+		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, undefined, () => [
 			appRootUri
 		]);
 
@@ -82,52 +124,88 @@ class WebviewProtocolProvider extends Disposable {
 	}
 }
 
+class WebviewPortMappingProvider extends Disposable {
+
+	constructor(
+		session: WebviewSession,
+		mappings: () => ReadonlyArray<WebviewPortMapping>,
+		extensionId: ExtensionIdentifier | undefined,
+		@ITelemetryService telemetryService: ITelemetryService,
+	) {
+		super();
+
+		let hasLogged = false;
+
+		session.onBeforeRequest(async (details) => {
+			const uri = URI.parse(details.url);
+			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+				return undefined;
+			}
+
+			const localhostMatch = /^localhost:(\d+)$/.exec(uri.authority);
+			if (localhostMatch) {
+				if (!hasLogged && extensionId) {
+					hasLogged = true;
+
+					/* __GDPR__
+					"webview.accessLocalhost" : {
+							"extension" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					telemetryService.publicLog('webview.accessLocalhost', { extension: extensionId.value });
+				}
+
+				const port = +localhostMatch[1];
+				for (const mapping of mappings()) {
+					if (mapping.port === port && mapping.port !== mapping.resolvedPort) {
+						return {
+							redirectURL: details.url.replace(
+								new RegExp(`^${uri.scheme}://localhost:${mapping.port}/`),
+								`${uri.scheme}://localhost:${mapping.resolvedPort}/`)
+						};
+					}
+				}
+			}
+
+			return undefined;
+		});
+	}
+}
+
 class SvgBlocker extends Disposable {
 
 	private readonly _onDidBlockSvg = this._register(new Emitter<void>());
 	public readonly onDidBlockSvg = this._onDidBlockSvg.event;
 
 	constructor(
-		webview: Electron.WebviewTag,
+		session: WebviewSession,
 		private readonly _options: WebviewContentOptions,
 	) {
 		super();
 
-		let loaded = false;
-		this._register(addDisposableListener(webview, 'did-start-loading', () => {
-			if (loaded) {
-				return;
-			}
-			loaded = true;
-
-			const contents = webview.getWebContents();
-			if (!contents) {
-				return;
+		session.onBeforeRequest(async (details) => {
+			if (details.url.indexOf('.svg') > 0) {
+				const uri = URI.parse(details.url);
+				if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg') && !this.isAllowedSvg(uri)) {
+					this._onDidBlockSvg.fire();
+					return { cancel: true };
+				}
 			}
 
-			contents.session.webRequest.onBeforeRequest((details, callback) => {
-				if (details.url.indexOf('.svg') > 0) {
-					const uri = URI.parse(details.url);
-					if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg') && !this.isAllowedSvg(uri)) {
-						this._onDidBlockSvg.fire();
-						return callback({ cancel: true });
-					}
-				}
-				return callback({});
-			});
+			return undefined;
+		});
 
-			contents.session.webRequest.onHeadersReceived((details, callback) => {
-				const contentType: string[] = details.responseHeaders['content-type'] || details.responseHeaders['Content-Type'];
-				if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
-					const uri = URI.parse(details.url);
-					if (uri && !this.isAllowedSvg(uri)) {
-						this._onDidBlockSvg.fire();
-						return callback({ cancel: true });
-					}
+		session.onHeadersReceived((details) => {
+			const contentType: string[] = details.responseHeaders['content-type'] || details.responseHeaders['Content-Type'];
+			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
+				const uri = URI.parse(details.url);
+				if (uri && !this.isAllowedSvg(uri)) {
+					this._onDidBlockSvg.fire();
+					return { cancel: true };
 				}
-				return callback({ cancel: false, responseHeaders: details.responseHeaders });
-			});
-		}));
+			}
+			return undefined;
+		});
 	}
 
 	private isAllowedSvg(uri: URI): boolean {
@@ -216,7 +294,7 @@ class WebviewKeyboardHandler extends Disposable {
 }
 
 
-export class WebviewElement extends Disposable {
+export class WebviewElement extends Disposable implements Webview {
 	private _webview: Electron.WebviewTag;
 	private _ready: Promise<void>;
 
@@ -230,13 +308,14 @@ export class WebviewElement extends Disposable {
 	public get onDidFocus(): Event<void> { return this._onDidFocus.event; }
 
 	constructor(
-		private readonly _styleElement: Element,
 		private readonly _options: WebviewOptions,
 		private _contentOptions: WebviewContentOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._webview = document.createElement('webview');
@@ -249,7 +328,7 @@ export class WebviewElement extends Disposable {
 		this._webview.style.height = '0';
 		this._webview.style.outline = '0';
 
-		this._webview.preload = require.toUrl('./webview-pre.js');
+		this._webview.preload = require.toUrl('./pre/electron-index.js');
 		this._webview.src = 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
 
 		this._ready = new Promise(resolve => {
@@ -264,16 +343,24 @@ export class WebviewElement extends Disposable {
 			}));
 		});
 
-		this._register(
-			new WebviewProtocolProvider(
-				this._webview,
-				this._options.extensionLocation,
-				() => (this._contentOptions.localResourceRoots || []),
-				environmentService,
-				fileService));
+		const session = this._register(new WebviewSession(this._webview));
+
+		this._register(new WebviewProtocolProvider(
+			this._webview,
+			this._options.extension ? this._options.extension.location : undefined,
+			() => (this._contentOptions.localResourceRoots || []),
+			environmentService,
+			fileService));
+
+		this._register(new WebviewPortMappingProvider(
+			session,
+			() => (this._contentOptions.portMappings || []),
+			_options.extension ? _options.extension.id : undefined,
+			telemetryService));
+
 
 		if (!this._options.allowSvgs) {
-			const svgBlocker = this._register(new SvgBlocker(this._webview, this._contentOptions));
+			const svgBlocker = this._register(new SvgBlocker(session, this._contentOptions));
 			svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
 		}
 
@@ -430,10 +517,6 @@ export class WebviewElement extends Disposable {
 		});
 	}
 
-	public set baseUrl(value: string) {
-		this._send('baseUrl', value);
-	}
-
 	public focus(): void {
 		this._webview.focus();
 		this._send('focus');
@@ -460,7 +543,10 @@ export class WebviewElement extends Disposable {
 	}
 
 	private style(theme: ITheme): void {
-		const { fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement); // TODO@theme avoid styleElement
+		const configuration = this._configurationService.getValue<IEditorOptions>('editor');
+		const editorFontFamily = configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+		const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
+		const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
 
 		const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
 			const color = theme.getColor(entry.id);
@@ -468,13 +554,16 @@ export class WebviewElement extends Disposable {
 				colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
 			}
 			return colors;
-		}, {});
+		}, {} as { [key: string]: string });
 
 
 		const styles = {
-			'vscode-editor-font-family': fontFamily,
-			'vscode-editor-font-weight': fontWeight,
-			'vscode-editor-font-size': fontSize,
+			'vscode-font-family': '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+			'vscode-font-weight': 'normal',
+			'vscode-font-size': '13px',
+			'vscode-editor-font-family': editorFontFamily,
+			'vscode-editor-font-weight': editorFontWeight,
+			'vscode-editor-font-size': editorFontSize,
 			...exportedColors
 		};
 
@@ -495,7 +584,7 @@ export class WebviewElement extends Disposable {
 		if (!window || !window.webContents || window.webContents.isDestroyed()) {
 			return;
 		}
-		window.webContents.getZoomFactor(factor => {
+		window.webContents.getZoomFactor((factor: number) => {
 			if (contents.isDestroyed()) {
 				return;
 			}
@@ -531,12 +620,13 @@ export class WebviewElement extends Disposable {
 	 *
 	 * @param value The string to search for. Empty strings are ignored.
 	 */
-	public find(value: string, options?: Electron.FindInPageOptions): void {
+	public find(value: string, previous: boolean): void {
 		// Searching with an empty value will throw an exception
 		if (!value) {
 			return;
 		}
 
+		const options = { findNext: true, forward: !previous };
 		if (!this._findStarted) {
 			this.startFind(value, options);
 			return;

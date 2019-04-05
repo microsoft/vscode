@@ -56,7 +56,7 @@ export class LifecycleService extends AbstractLifecycleService {
 		const windowId = this.windowService.getCurrentWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
-		ipc.on('vscode:onBeforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
+		ipc.on('vscode:onBeforeUnload', (_event: unknown, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
 			this.logService.trace(`lifecycle: onBeforeUnload (reason: ${reply.reason})`);
 
 			// trigger onBeforeShutdown events and veto collecting
@@ -75,7 +75,7 @@ export class LifecycleService extends AbstractLifecycleService {
 		});
 
 		// Main side indicates that we will indeed shutdown
-		ipc.on('vscode:onWillUnload', (event, reply: { replyChannel: string, reason: ShutdownReason }) => {
+		ipc.on('vscode:onWillUnload', (_event: unknown, reply: { replyChannel: string, reason: ShutdownReason }) => {
 			this.logService.trace(`lifecycle: onWillUnload (reason: ${reply.reason})`);
 
 			// trigger onWillShutdown events and joining

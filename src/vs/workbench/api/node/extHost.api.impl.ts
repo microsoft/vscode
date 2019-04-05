@@ -19,7 +19,7 @@ import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
-import { ExtHostContext, IInitData, IMainContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostContext, IInitData, IMainContext, MainContext, MainThreadKeytarShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/node/extHostClipboard';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
@@ -60,12 +60,13 @@ import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostWindow } from 'vs/workbench/api/node/extHostWindow';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { throwProposedApiError, checkProposedApiEnabled, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { originalFSPath } from 'vs/base/common/resources';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -234,6 +235,7 @@ export function createApiFactory(
 			get language() { return platform.language!; },
 			get appName() { return product.nameLong; },
 			get appRoot() { return initData.environment.appRoot!.fsPath; },
+			get uriScheme() { return product.urlProtocol; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
 				return typeConverters.LogLevel.to(extHostLogService.getLevel());
@@ -357,6 +359,10 @@ export function createApiFactory(
 			registerSelectionRangeProvider(selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerSelectionRangeProvider(extension, selector, provider);
 			},
+			registerCallHierarchyProvider(selector: vscode.DocumentSelector, provider: vscode.CallHierarchyItemProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostLanguageFeatures.registerCallHierarchyProvider(extension, selector, provider);
+			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return extHostLanguageFeatures.setLanguageConfiguration(language, configuration);
 			}
@@ -426,13 +432,13 @@ export function createApiFactory(
 			onDidChangeWindowState(listener, thisArg?, disposables?) {
 				return extHostWindow.onDidChangeWindowState(listener, thisArg, disposables);
 			},
-			showInformationMessage(message, first, ...rest) {
+			showInformationMessage(message: string, first: vscode.MessageOptions | string | vscode.MessageItem, ...rest: Array<string | vscode.MessageItem>) {
 				return extHostMessageService.showMessage(extension, Severity.Info, message, first, rest);
 			},
-			showWarningMessage(message, first, ...rest) {
+			showWarningMessage(message: string, first: vscode.MessageOptions | string | vscode.MessageItem, ...rest: Array<string | vscode.MessageItem>) {
 				return extHostMessageService.showMessage(extension, Severity.Warning, message, first, rest);
 			},
-			showErrorMessage(message, first, ...rest) {
+			showErrorMessage(message: string, first: vscode.MessageOptions | string | vscode.MessageItem, ...rest: Array<string | vscode.MessageItem>) {
 				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
@@ -469,7 +475,7 @@ export function createApiFactory(
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviews.createWebviewPanel(extension, viewType, title, showOptions, options);
 			},
-			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
 					return extHostTerminalService.createTerminalFromOptions(<vscode.TerminalOptions>nameOrOptions);
 				}
@@ -531,19 +537,19 @@ export function createApiFactory(
 				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
 			},
 			findFiles: (include, exclude, maxResults?, token?) => {
-				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(exclude), maxResults, extension.identifier, token);
+				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(withNullAsUndefined(exclude)), maxResults, extension.identifier, token);
 			},
-			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback, callbackOrToken?, token?: vscode.CancellationToken) => {
+			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
 				let options: vscode.FindTextInFilesOptions;
 				let callback: (result: vscode.TextSearchResult) => void;
 
 				if (typeof optionsOrCallback === 'object') {
 					options = optionsOrCallback;
-					callback = callbackOrToken;
+					callback = callbackOrToken as (result: vscode.TextSearchResult) => void;
 				} else {
 					options = {};
 					callback = optionsOrCallback;
-					token = callbackOrToken;
+					token = callbackOrToken as vscode.CancellationToken;
 				}
 
 				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
@@ -614,14 +620,14 @@ export function createApiFactory(
 			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
-			registerFileSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
+			registerFileSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.FileSearchProvider) => {
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
 			}),
 			registerSearchProvider: proposedApiFunction(extension, () => {
 				// Temp for live share in Insiders
 				return { dispose: () => { } };
 			}),
-			registerTextSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
+			registerTextSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.TextSearchProvider) => {
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
 			}),
 			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
@@ -636,10 +642,10 @@ export function createApiFactory(
 			registerResourceLabelFormatter: proposedApiFunction(extension, (formatter: vscode.ResourceLabelFormatter) => {
 				return extHostFileSystem.registerResourceLabelFormatter(formatter);
 			}),
-			onDidRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onDidRenameFile: proposedApiFunction(extension, (listener: (e: vscode.FileRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
 			}),
-			onWillRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+			onWillRenameFile: proposedApiFunction(extension, (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
 			})
 		};
@@ -831,7 +837,9 @@ export function createApiFactory(
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
-			// functions
+			// proposed
+			CallHierarchyDirection: extHostTypes.CallHierarchyDirection,
+			CallHierarchyItem: extHostTypes.CallHierarchyItem
 		};
 	};
 }
@@ -869,41 +877,105 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 }
 
-export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory, extensionRegistry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): Promise<void> {
-	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie, extensionRegistry, configProvider));
+interface INodeModuleFactory {
+	readonly nodeModuleName: string;
+	load(request: string, parent: { filename: string; }): any;
 }
 
-function defineAPI(factory: IExtensionApiFactory, extensionPaths: TernarySearchTree<IExtensionDescription>, extensionRegistry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): void {
+export class NodeModuleRequireInterceptor {
+	public static INSTANCE = new NodeModuleRequireInterceptor();
 
-	// each extension is meant to get its own api implementation
-	const extApiImpl = new Map<string, typeof vscode>();
-	let defaultApiImpl: typeof vscode;
+	private readonly _factories: Map<string, INodeModuleFactory>;
 
-	const node_module = <any>require.__$__nodeRequire('module');
-	const original = node_module._load;
-	node_module._load = function load(request: string, parent: any, isMain: any) {
-		if (request !== 'vscode') {
-			return original.apply(this, arguments);
-		}
+	constructor() {
+		this._factories = new Map<string, INodeModuleFactory>();
+		this._installInterceptor(this._factories);
+	}
+
+	private _installInterceptor(factories: Map<string, INodeModuleFactory>): void {
+		const node_module = <any>require.__$__nodeRequire('module');
+		const original = node_module._load;
+		node_module._load = function load(request: string, parent: { filename: string; }, isMain: any) {
+			if (!factories.has(request)) {
+				return original.apply(this, arguments);
+			}
+			return factories.get(request)!.load(request, parent);
+		};
+	}
+
+	public register(interceptor: INodeModuleFactory): void {
+		this._factories.set(interceptor.nodeModuleName, interceptor);
+	}
+}
+
+export class VSCodeNodeModuleFactory implements INodeModuleFactory {
+	public readonly nodeModuleName = 'vscode';
+
+	private readonly _extApiImpl = new Map<string, typeof vscode>();
+	private _defaultApiImpl: typeof vscode;
+
+	constructor(
+		private readonly _apiFactory: IExtensionApiFactory,
+		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
+		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
+		private readonly _configProvider: ExtHostConfigProvider
+	) {
+	}
+
+	public load(request: string, parent: { filename: string; }): any {
 
 		// get extension id from filename and api for extension
-		const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
+		const ext = this._extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
 		if (ext) {
-			let apiImpl = extApiImpl.get(ExtensionIdentifier.toKey(ext.identifier));
+			let apiImpl = this._extApiImpl.get(ExtensionIdentifier.toKey(ext.identifier));
 			if (!apiImpl) {
-				apiImpl = factory(ext, extensionRegistry, configProvider);
-				extApiImpl.set(ExtensionIdentifier.toKey(ext.identifier), apiImpl);
+				apiImpl = this._apiFactory(ext, this._extensionRegistry, this._configProvider);
+				this._extApiImpl.set(ExtensionIdentifier.toKey(ext.identifier), apiImpl);
 			}
 			return apiImpl;
 		}
 
 		// fall back to a default implementation
-		if (!defaultApiImpl) {
+		if (!this._defaultApiImpl) {
 			let extensionPathsPretty = '';
-			extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
+			this._extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
 			console.warn(`Could not identify extension for 'vscode' require call from ${parent.filename}. These are the extension path mappings: \n${extensionPathsPretty}`);
-			defaultApiImpl = factory(nullExtensionDescription, extensionRegistry, configProvider);
+			this._defaultApiImpl = this._apiFactory(nullExtensionDescription, this._extensionRegistry, this._configProvider);
 		}
-		return defaultApiImpl;
-	};
+		return this._defaultApiImpl;
+	}
+}
+
+interface IKeytarModule {
+	getPassword(service: string, account: string): Promise<string | null>;
+	setPassword(service: string, account: string, password: string): Promise<void>;
+	deletePassword(service: string, account: string): Promise<boolean>;
+	findPassword(service: string): Promise<string | null>;
+}
+
+export class KeytarNodeModuleFactory implements INodeModuleFactory {
+	public readonly nodeModuleName = 'keytar';
+
+	private _impl: IKeytarModule;
+
+	constructor(mainThreadKeytar: MainThreadKeytarShape) {
+		this._impl = {
+			getPassword: (service: string, account: string): Promise<string | null> => {
+				return mainThreadKeytar.$getPassword(service, account);
+			},
+			setPassword: (service: string, account: string, password: string): Promise<void> => {
+				return mainThreadKeytar.$setPassword(service, account, password);
+			},
+			deletePassword: (service: string, account: string): Promise<boolean> => {
+				return mainThreadKeytar.$deletePassword(service, account);
+			},
+			findPassword: (service: string): Promise<string | null> => {
+				return mainThreadKeytar.$findPassword(service);
+			}
+		};
+	}
+
+	public load(request: string, parent: { filename: string; }): any {
+		return this._impl;
+	}
 }

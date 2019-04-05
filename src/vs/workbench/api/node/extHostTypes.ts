@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
 import { coalesce, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
@@ -13,7 +12,7 @@ import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as vscode from 'vscode';
-
+import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore
@@ -1058,15 +1057,15 @@ export class CodeAction {
 export class CodeActionKind {
 	private static readonly sep = '.';
 
-	public static Empty;
-	public static QuickFix;
-	public static Refactor;
-	public static RefactorExtract;
-	public static RefactorInline;
-	public static RefactorRewrite;
-	public static Source;
-	public static SourceOrganizeImports;
-	public static SourceFixAll;
+	public static Empty: CodeActionKind;
+	public static QuickFix: CodeActionKind;
+	public static Refactor: CodeActionKind;
+	public static RefactorExtract: CodeActionKind;
+	public static RefactorInline: CodeActionKind;
+	public static RefactorRewrite: CodeActionKind;
+	public static Source: CodeActionKind;
+	public static SourceOrganizeImports: CodeActionKind;
+	public static SourceFixAll: CodeActionKind;
 
 	constructor(
 		public readonly value: string
@@ -1110,6 +1109,29 @@ export class SelectionRange {
 	}
 }
 
+
+export enum CallHierarchyDirection {
+	CallsFrom = 1,
+	CallsTo = 2,
+}
+
+export class CallHierarchyItem {
+	kind: SymbolKind;
+	name: string;
+	detail?: string;
+	uri: URI;
+	range: Range;
+	selectionRange: Range;
+
+	constructor(kind: SymbolKind, name: string, detail: string, uri: URI, range: Range, selectionRange: Range) {
+		this.kind = kind;
+		this.name = name;
+		this.detail = detail;
+		this.uri = uri;
+		this.range = range;
+		this.selectionRange = selectionRange;
+	}
+}
 
 @es5ClassCompat
 export class CodeLens {
@@ -1522,6 +1544,14 @@ export class TaskGroup implements vscode.TaskGroup {
 	}
 }
 
+function computeTaskExecutionId(values: string[]): string {
+	let id: string = '';
+	for (let i = 0; i < values.length; i++) {
+		id += values[i].replace(/,/g, ',,') + ',';
+	}
+	return id;
+}
+
 @es5ClassCompat
 export class ProcessExecution implements vscode.ProcessExecution {
 
@@ -1581,17 +1611,17 @@ export class ProcessExecution implements vscode.ProcessExecution {
 	}
 
 	public computeId(): string {
-		const hash = crypto.createHash('md5');
-		hash.update('process');
+		const props: string[] = [];
+		props.push('process');
 		if (this._process !== undefined) {
-			hash.update(this._process);
+			props.push(this._process);
 		}
 		if (this._args && this._args.length > 0) {
 			for (let arg of this._args) {
-				hash.update(arg);
+				props.push(arg);
 			}
 		}
-		return hash.digest('hex');
+		return computeTaskExecutionId(props);
 	}
 }
 
@@ -1664,20 +1694,20 @@ export class ShellExecution implements vscode.ShellExecution {
 	}
 
 	public computeId(): string {
-		const hash = crypto.createHash('md5');
-		hash.update('shell');
+		const props: string[] = [];
+		props.push('shell');
 		if (this._commandLine !== undefined) {
-			hash.update(this._commandLine);
+			props.push(this._commandLine);
 		}
 		if (this._command !== undefined) {
-			hash.update(typeof this._command === 'string' ? this._command : this._command.value);
+			props.push(typeof this._command === 'string' ? this._command : this._command.value);
 		}
 		if (this._args && this._args.length > 0) {
 			for (let arg of this._args) {
-				hash.update(typeof arg === 'string' ? arg : arg.value);
+				props.push(typeof arg === 'string' ? arg : arg.value);
 			}
 		}
-		return hash.digest('hex');
+		return computeTaskExecutionId(props);
 	}
 }
 
@@ -1700,10 +1730,7 @@ export class CustomExecution implements vscode.CustomExecution {
 	}
 
 	public computeId(): string {
-		const hash = crypto.createHash('md5');
-		hash.update('customExecution');
-		hash.update(generateUuid());
-		return hash.digest('hex');
+		return 'customExecution' + generateUuid();
 	}
 
 	public set callback(value: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number>) {
@@ -2165,27 +2192,30 @@ export enum FileChangeType {
 export class FileSystemError extends Error {
 
 	static FileExists(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, 'EntryExists', FileSystemError.FileExists);
+		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.FileExists, FileSystemError.FileExists);
 	}
 	static FileNotFound(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, 'EntryNotFound', FileSystemError.FileNotFound);
+		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.FileNotFound, FileSystemError.FileNotFound);
 	}
 	static FileNotADirectory(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, 'EntryNotADirectory', FileSystemError.FileNotADirectory);
+		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.FileNotADirectory, FileSystemError.FileNotADirectory);
 	}
 	static FileIsADirectory(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, 'EntryIsADirectory', FileSystemError.FileIsADirectory);
+		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.FileIsADirectory, FileSystemError.FileIsADirectory);
 	}
 	static NoPermissions(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, 'NoPermissions', FileSystemError.NoPermissions);
+		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.NoPermissions, FileSystemError.NoPermissions);
 	}
 	static Unavailable(messageOrUri?: string | URI): FileSystemError {
-		return new FileSystemError(messageOrUri, 'Unavailable', FileSystemError.Unavailable);
+		return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.Unavailable, FileSystemError.Unavailable);
 	}
 
-	constructor(uriOrMessage?: string | URI, code?: string, terminator?: Function) {
+	constructor(uriOrMessage?: string | URI, code: FileSystemProviderErrorCode = FileSystemProviderErrorCode.Unknown, terminator?: Function) {
 		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
-		this.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
+
+		// mark the error as file system provider error so that
+		// we can extract the error code on the receiving side
+		markAsFileSystemProviderError(this, code);
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
 		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work

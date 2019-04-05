@@ -30,7 +30,7 @@ export class Query {
 					return [];
 				}
 				if (subcommands[command]) {
-					return subcommands[command].map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
+					return subcommands[command].map((subcommand: string) => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
 				}
 				else {
 					return [`@${command} `];

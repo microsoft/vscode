@@ -319,7 +319,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
 			let processStartedSignaled: boolean = false;
-			const onProgress = (progress) => {
+			const onProgress = (progress: LineData) => {
 				let line = Strings.removeAnsiEscapeCodes(progress.line);
 				this.appendOutput(line + '\n');
 				startStopProblemMatcher.processLine(line);

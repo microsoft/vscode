@@ -58,12 +58,39 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	get tokenColors(): ITokenColorizationRule[] {
+		const result: ITokenColorizationRule[] = [];
+
+		// the default rule (scope empty) is always the first rule. Ignore all other default rules.
+		const foreground = this.getColor(editorForeground) || this.getDefault(editorForeground)!;
+		const background = this.getColor(editorBackground) || this.getDefault(editorBackground)!;
+		result.push({
+			settings: {
+				foreground: Color.Format.CSS.formatHexA(foreground),
+				background: Color.Format.CSS.formatHexA(background)
+			}
+		});
+
+		let hasDefaultTokens = false;
+
+		function addRule(rule: ITokenColorizationRule) {
+			if (rule.scope && rule.settings) {
+				if (rule.scope === 'token.info-token') {
+					hasDefaultTokens = true;
+				}
+				result.push(rule);
+			}
+		}
+
+		this.themeTokenColors.forEach(addRule);
 		// Add the custom colors after the theme colors
 		// so that they will override them
-		return this.themeTokenColors.concat(this.customTokenColors);
+		this.customTokenColors.forEach(addRule);
+
+		if (!hasDefaultTokens) {
+			defaultThemeColors[this.type].forEach(addRule);
+		}
+		return result;
 	}
-
-
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
 		let color: Color | undefined = this.customColorMap[colorId];
@@ -92,9 +119,6 @@ export class ColorThemeData implements IColorTheme {
 		const themeSpecificColors = colors[`[${this.settingsId}]`] as IColorCustomizations;
 		if (types.isObject(themeSpecificColors)) {
 			this.overwriteCustomColors(themeSpecificColors);
-		}
-		if (this.themeTokenColors && this.themeTokenColors.length) {
-			updateDefaultRuleSettings(this.themeTokenColors[0], this);
 		}
 	}
 
@@ -155,30 +179,11 @@ export class ColorThemeData implements IColorTheme {
 		if (!this.location) {
 			return Promise.resolve(undefined);
 		}
+		this.themeTokenColors = [];
+		this.colorMap = {};
 		return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
 			this.isLoaded = true;
-			this.sanitizeTokenColors();
 		});
-	}
-
-	/**
-	 * Place the default settings first and add the token-info rules
-	 */
-	private sanitizeTokenColors() {
-		let hasDefaultTokens = false;
-		let updatedTokenColors: ITokenColorizationRule[] = [updateDefaultRuleSettings({ settings: {} }, this)];
-		this.themeTokenColors.forEach(rule => {
-			if (rule.scope && rule.settings) {
-				if (rule.scope === 'token.info-token') {
-					hasDefaultTokens = true;
-				}
-				updatedTokenColors.push(rule);
-			}
-		});
-		if (!hasDefaultTokens) {
-			updatedTokenColors.push(...defaultThemeColors[this.type]);
-		}
-		this.themeTokenColors = updatedTokenColors;
 	}
 
 	toStorageData() {
@@ -200,7 +205,7 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	hasEqualData(other: ColorThemeData) {
-		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.tokenColors, other.tokenColors);
+		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.themeTokenColors, other.themeTokenColors);
 	}
 
 	get baseTheme(): string {
@@ -220,7 +225,7 @@ export class ColorThemeData implements IColorTheme {
 	static createUnloadedTheme(id: string): ColorThemeData {
 		let themeData = new ColorThemeData(id, '', '__' + id);
 		themeData.isLoaded = false;
-		themeData.themeTokenColors = [{ settings: {} }];
+		themeData.themeTokenColors = [];
 		themeData.watch = false;
 		return themeData;
 	}
@@ -228,7 +233,7 @@ export class ColorThemeData implements IColorTheme {
 	static createLoadedEmptyTheme(id: string, settingsId: string): ColorThemeData {
 		let themeData = new ColorThemeData(id, '', settingsId);
 		themeData.isLoaded = true;
-		themeData.themeTokenColors = [{ settings: {} }];
+		themeData.themeTokenColors = [];
 		themeData.watch = false;
 		return themeData;
 	}
@@ -355,14 +360,6 @@ function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, result
 	}, error => {
 		return Promise.reject(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themeLocation.toString(), error.message)));
 	});
-}
-
-function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
-	const foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground)!;
-	const background = theme.getColor(editorBackground) || theme.getDefault(editorBackground)!;
-	defaultRule.settings.foreground = Color.Format.CSS.formatHexA(foreground);
-	defaultRule.settings.background = Color.Format.CSS.formatHexA(background);
-	return defaultRule;
 }
 
 let defaultThemeColors: { [baseTheme: string]: ITokenColorizationRule[] } = {

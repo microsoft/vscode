@@ -164,7 +164,7 @@ async function createSnippetFile(scope: string, defaultPath: URI, windowService:
 }
 
 async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileService) {
-	if (await fileService.existsFile(URI.file(pick.filepath))) {
+	if (await fileService.exists(URI.file(pick.filepath))) {
 		return;
 	}
 	const contents = [

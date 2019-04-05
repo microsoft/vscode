@@ -10,7 +10,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -106,7 +106,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 	public create(
 		shellPath?: string,
-		shellArgs?: string[],
+		shellArgs?: string[] | string,
 		cwd?: string | URI,
 		env?: { [key: string]: string | null },
 		waitOnExit?: boolean,
@@ -293,7 +293,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
 	}
 
-	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, name);
 		terminal.create(shellPath, shellArgs);
 		this._terminals.push(terminal);
@@ -527,6 +527,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public $acceptProcessRequestCwd(id: number): void {
 		this._terminalProcesses[id].getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
+	}
+
+	public $acceptProcessRequestLatency(id: number): number {
+		return id;
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {

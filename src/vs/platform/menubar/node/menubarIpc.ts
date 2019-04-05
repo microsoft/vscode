@@ -11,11 +11,11 @@ export class MenubarChannel implements IServerChannel {
 
 	constructor(private service: IMenubarService) { }
 
-	listen<T>(_, event: string): Event<T> {
+	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'updateMenubar': return this.service.updateMenubar(arg[0], arg[1]);
 		}

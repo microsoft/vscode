@@ -43,6 +43,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/callHierarchy",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/comments",
 			"project": "vscode-workbench"
 		},
@@ -216,6 +220,10 @@
 		},
 		{
 			"name": "vs/workbench/services/files",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/files2",
 			"project": "vscode-workbench"
 		},
 		{

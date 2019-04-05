@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -29,6 +29,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IRecentFile } from 'vs/platform/history/common/history';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -78,7 +79,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 			const rawEditorsData = e.dataTransfer.getData(CodeDataTransfers.EDITORS);
 			if (rawEditorsData) {
 				try {
-					const draggedEditors = JSON.parse(rawEditorsData) as ISerializedDraggedEditor[];
+					const draggedEditors: ISerializedDraggedEditor[] = JSON.parse(rawEditorsData);
 					draggedEditors.forEach(draggedEditor => {
 						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : undefined, viewState: draggedEditor.viewState, isExternal: false });
 					});
@@ -104,7 +105,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 		// Check for native file transfer
 		if (e.dataTransfer && e.dataTransfer.files) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++) {
-				const file = e.dataTransfer.files[i] as { path: string };
+				const file = e.dataTransfer.files[i];
 				if (file && file.path && !resources.some(r => r.resource.fsPath === file.path) /* prevent duplicates */) {
 					try {
 						resources.push({ resource: URI.file(file.path), isExternal: true });
@@ -119,7 +120,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
 		if (rawCodeFiles) {
 			try {
-				const codeFiles = JSON.parse(rawCodeFiles) as string[];
+				const codeFiles: string[] = JSON.parse(rawCodeFiles);
 				codeFiles.forEach(codeFile => {
 					if (!resources.some(r => r.resource.fsPath === codeFile) /* prevent duplicates */) {
 						resources.push({ resource: URI.file(codeFile), isExternal: true });
@@ -154,12 +155,12 @@ export class ResourcesDropHandler {
 		@IFileService private readonly fileService: IFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWindowService private readonly windowService: IWindowService,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService
 	) {
 	}
 
@@ -253,57 +254,42 @@ export class ResourcesDropHandler {
 	}
 
 	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
-		const workspaceResources: { workspaces: IURIToOpen[], folders: IURIToOpen[] } = {
-			workspaces: [],
-			folders: []
-		};
+		const urisToOpen: IURIToOpen[] = [];
+		const folderURIs: IWorkspaceFolderCreationData[] = [];
 
 		return Promise.all(fileOnDiskResources.map(fileOnDiskResource => {
 
 			// Check for Workspace
 			if (hasWorkspaceFileExtension(fileOnDiskResource.fsPath)) {
-				workspaceResources.workspaces.push({ uri: fileOnDiskResource, typeHint: 'file' });
+				urisToOpen.push({ workspaceUri: fileOnDiskResource });
 
 				return undefined;
 			}
 
 			// Check for Folder
-			return this.fileService.resolveFile(fileOnDiskResource).then(stat => {
+			return this.fileService.resolve(fileOnDiskResource).then(stat => {
 				if (stat.isDirectory) {
-					workspaceResources.folders.push({ uri: stat.resource, typeHint: 'folder' });
+					urisToOpen.push({ folderUri: stat.resource });
+					folderURIs.push({ uri: stat.resource });
 				}
 			}, error => undefined);
 		})).then(_ => {
-			const { workspaces, folders } = workspaceResources;
 
 			// Return early if no external resource is a folder or workspace
-			if (workspaces.length === 0 && folders.length === 0) {
+			if (urisToOpen.length === 0) {
 				return false;
 			}
 
 			// Pass focus to window
 			this.windowService.focusWindow();
 
-			let workspacesToOpen: Promise<IURIToOpen[]> | undefined;
-
 			// Open in separate windows if we drop workspaces or just one folder
-			if (workspaces.length > 0 || folders.length === 1) {
-				workspacesToOpen = Promise.resolve([...workspaces, ...folders]);
+			if (urisToOpen.length > folderURIs.length || folderURIs.length === 1) {
+				return this.windowService.openWindow(urisToOpen, { forceReuseWindow: true }).then(_ => true);
 			}
 
-			// Multiple folders: Create new workspace with folders and open
-			else if (folders.length > 1) {
-				workspacesToOpen = this.workspacesService.createUntitledWorkspace(folders).then(workspace => [<IURIToOpen>{ uri: workspace.configPath, typeHint: 'file' }]);
-			}
-
-			// Open
-			if (workspacesToOpen) {
-				workspacesToOpen.then(workspaces => {
-					this.windowService.openWindow(workspaces, { forceReuseWindow: true });
-				});
-			}
-
-			return true;
+			// folders.length > 1: Multiple folders: Create new workspace with folders and open
+			return this.workspaceEditingService.createAndEnterWorkspace(folderURIs).then(_ => true);
 		});
 	}
 }

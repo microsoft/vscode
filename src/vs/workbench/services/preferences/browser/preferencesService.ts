@@ -36,6 +36,7 @@ import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTarge
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel, DefaultRawSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -69,7 +70,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IModelService private readonly modelService: IModelService,
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IModeService private readonly modeService: IModeService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -208,6 +210,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return jsonEditor ?
 			this.openOrSwitchSettings(ConfigurationTarget.USER, this.userSettingsResource, options, group) :
 			this.openOrSwitchSettings2(ConfigurationTarget.USER, undefined, options, group);
+	}
+
+	async openRemoteSettings(): Promise<IEditor | null> {
+		const environemnt = await this.remoteAgentService.getEnvironment();
+		if (environemnt) {
+			await this.createIfNotExists(environemnt.appSettingsPath, emptyEditableSettingsContent);
+			return this.editorService.openEditor({ resource: environemnt.appSettingsPath, options: { pinned: true, revealIfOpened: true } });
+		}
+		return null;
 	}
 
 	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null> {

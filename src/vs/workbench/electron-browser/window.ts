@@ -115,7 +115,7 @@ export class ElectronWindow extends Disposable {
 
 		// Support runAction event
 		ipc.on('vscode:runAction', (event: Event, request: IRunActionInWindowRequest) => {
-			const args: any[] = request.args || [];
+			const args: unknown[] = request.args || [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
 			// as payload because the touch bar items are context aware depending on the editor
@@ -229,7 +229,7 @@ export class ElectronWindow extends Disposable {
 		const filesToWait = this.windowService.getConfiguration().filesToWait;
 		if (filesToWait) {
 			const resourcesToWaitFor = coalesce(filesToWait.paths.map(p => p.fileUri));
-			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
+			const waitMarkerFile = filesToWait.waitMarkerFileUri;
 			const listenerDispose = this.editorService.onDidCloseEditor(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
 
 			this._register(listenerDispose);
@@ -493,7 +493,7 @@ export class ElectronWindow extends Disposable {
 			// are closed that the user wants to wait for. When this happens we delete
 			// the wait marker file to signal to the outside that editing is done.
 			const resourcesToWaitFor = request.filesToWait.paths.map(p => URI.revive(p.fileUri));
-			const waitMarkerFile = URI.file(request.filesToWait.waitMarkerFilePath);
+			const waitMarkerFile = URI.revive(request.filesToWait.waitMarkerFileUri);
 			const unbind = this.editorService.onDidCloseEditor(() => {
 				if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
 					unbind.dispose();
@@ -504,7 +504,7 @@ export class ElectronWindow extends Disposable {
 	}
 
 	private openResources(resources: Array<IResourceInput | IUntitledResourceInput>, diffMode: boolean): void {
-		this.lifecycleService.when(LifecyclePhase.Ready).then((): Promise<any> => {
+		this.lifecycleService.when(LifecyclePhase.Ready).then((): Promise<unknown> => {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {
@@ -526,9 +526,9 @@ export class ElectronWindow extends Disposable {
 			const resource = URI.revive(p.fileUri);
 			let input: IResourceInput | IUntitledResourceInput;
 			if (isNew) {
-				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
+				input = { filePath: resource.fsPath, options: { pinned: true } };
 			} else {
-				input = { resource, options: { pinned: true } } as IResourceInput;
+				input = { resource, options: { pinned: true } };
 			}
 
 			if (!isNew && typeof p.lineNumber === 'number' && typeof p.columnNumber === 'number') {

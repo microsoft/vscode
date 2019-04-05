@@ -132,13 +132,13 @@ suite('Encoding', () => {
 		assert.equal(mimes.encoding, 'windows1252');
 	});
 
-	async function readAndDecodeFromDisk(path, _encoding) {
+	async function readAndDecodeFromDisk(path: string, fileEncoding: string | null) {
 		return new Promise<string>((resolve, reject) => {
 			fs.readFile(path, (err, data) => {
 				if (err) {
 					reject(err);
 				} else {
-					resolve(encoding.decode(data, _encoding));
+					resolve(encoding.decode(data, fileEncoding!));
 				}
 			});
 		});

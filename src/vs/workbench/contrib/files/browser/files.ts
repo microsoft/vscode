@@ -14,14 +14,14 @@ import { coalesce } from 'vs/base/common/arrays';
 
 // Commands can get exeucted from a command pallete, from a context menu or from some list using a keybinding
 // To cover all these cases we need to properly compute the resource on which the command is being executed
-export function getResourceForCommand(resource: URI | object, listService: IListService, editorService: IEditorService): URI | null {
+export function getResourceForCommand(resource: URI | object | undefined, listService: IListService, editorService: IEditorService): URI | null {
 	if (URI.isUri(resource)) {
 		return resource;
 	}
 
 	let list = listService.lastFocusedList;
 	if (list && list.getHTMLElement() === document.activeElement) {
-		let focus: any;
+		let focus: unknown;
 		if (list instanceof List) {
 			const focused = list.getFocusedElements();
 			if (focused.length) {
@@ -44,7 +44,7 @@ export function getResourceForCommand(resource: URI | object, listService: IList
 	return editorService.activeEditor ? toResource(editorService.activeEditor, { supportSideBySide: true }) : null;
 }
 
-export function getMultiSelectedResources(resource: URI | object, listService: IListService, editorService: IEditorService): Array<URI> {
+export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService): Array<URI> {
 	const list = listService.lastFocusedList;
 	if (list && list.getHTMLElement() === document.activeElement) {
 		// Explorer

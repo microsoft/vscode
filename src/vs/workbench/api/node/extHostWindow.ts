@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IMainContext } from './extHost.protocol';
+import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IMainContext } from '../common/extHost.protocol';
 import { WindowState } from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';

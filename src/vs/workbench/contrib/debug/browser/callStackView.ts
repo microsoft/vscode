@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { RunOnceScheduler, ignoreErrors } from 'vs/base/common/async';
+import { RunOnceScheduler, ignoreErrors, sequence } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
@@ -15,10 +15,8 @@ import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions'
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction } from 'vs/base/common/actions';
-import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction, TerminateThreadAction, CopyStackTraceAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -30,6 +28,7 @@ import { TreeResourceNavigator2, WorkbenchAsyncDataTree } from 'vs/platform/list
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { Event } from 'vs/base/common/event';
 
 const $ = dom.$;
 
@@ -47,6 +46,7 @@ export class CallStackView extends ViewletPanel {
 	private dataSource: CallStackDataSource;
 	private tree: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 	private contributedContextMenu: IMenu;
+	private parentSessionToExpand = new Set<IDebugSession>();
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -82,7 +82,11 @@ export class CallStackView extends ViewletPanel {
 
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
-			this.tree.updateChildren().then(() => this.updateTreeSelection());
+			this.tree.updateChildren().then(() => {
+				this.parentSessionToExpand.forEach(s => this.tree.expand(s));
+				this.parentSessionToExpand.clear();
+				this.updateTreeSelection();
+			});
 		}, 50);
 	}
 
@@ -99,7 +103,7 @@ export class CallStackView extends ViewletPanel {
 		dom.addClass(container, 'debug-call-stack');
 		const treeContainer = renderViewTree(container);
 
-		this.dataSource = new CallStackDataSource();
+		this.dataSource = new CallStackDataSource(this.debugService);
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new CallStackDelegate(), [
 			new SessionsRenderer(),
 			new ThreadsRenderer(),
@@ -111,7 +115,7 @@ export class CallStackView extends ViewletPanel {
 				accessibilityProvider: new CallStackAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
 				identityProvider: {
-					getId: element => {
+					getId: (element: CallStackItem) => {
 						if (typeof element === 'string') {
 							return element;
 						}
@@ -119,11 +123,11 @@ export class CallStackView extends ViewletPanel {
 							return `showMore ${element[0].getId()}`;
 						}
 
-						return (<IStackFrame | IThread | IDebugSession | ThreadAndSessionIds>element).getId();
+						return element.getId();
 					}
 				},
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: e => {
+					getKeyboardNavigationLabel: (e: CallStackItem) => {
 						if (isDebugSession(e)) {
 							return e.getLabel();
 						}
@@ -172,7 +176,7 @@ export class CallStackView extends ViewletPanel {
 				focusStackFrame(undefined, undefined, element);
 			}
 			if (element instanceof ThreadAndSessionIds) {
-				const session = this.debugService.getModel().getSessions().filter(p => p.getId() === element.sessionId).pop();
+				const session = this.debugService.getModel().getSession(element.sessionId);
 				const thread = session && session.getThread(element.threadId);
 				if (thread) {
 					(<Thread>thread).fetchCallStack()
@@ -195,7 +199,8 @@ export class CallStackView extends ViewletPanel {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
-		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+		const onCallStackChange = Event.any<any>(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getViewModel().onDidFocusSession);
+		this.disposables.push(onCallStackChange(() => {
 			if (this.ignoreFocusStackFrameEvent) {
 				return;
 			}
@@ -216,6 +221,13 @@ export class CallStackView extends ViewletPanel {
 		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onCallStackChangeScheduler.schedule();
+			}
+		}));
+
+		this.disposables.push(this.debugService.onDidNewSession(s => {
+			if (s.parentSession) {
+				// Auto expand sessions that have sub sessions
+				this.parentSessionToExpand.add(s.parentSession);
 			}
 		}));
 	}
@@ -255,41 +267,31 @@ export class CallStackView extends ViewletPanel {
 				updateSelectionAndReveal(session);
 			}
 		} else {
-			const expansionsPromise = ignoreErrors(this.tree.expand(thread.session))
-				.then(() => ignoreErrors(this.tree.expand(thread)));
-			if (stackFrame) {
-				expansionsPromise.then(() => updateSelectionAndReveal(stackFrame));
+			const expandPromises = [() => ignoreErrors(this.tree.expand(thread))];
+			let s: IDebugSession | undefined = thread.session;
+			while (s) {
+				const sessionToExpand = s;
+				expandPromises.push(() => ignoreErrors(this.tree.expand(sessionToExpand)));
+				s = s.parentSession;
 			}
+
+			sequence(expandPromises.reverse()).then(() => {
+				const toReveal = stackFrame || session;
+				if (toReveal) {
+					updateSelectionAndReveal(toReveal);
+				}
+			});
 		}
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<CallStackItem>): void {
-		const actions: IAction[] = [];
 		const element = e.element;
 		if (isDebugSession(element)) {
 			this.callStackItemType.set('session');
-			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
-			actions.push(new StopAction(StopAction.ID, StopAction.LABEL, this.debugService, this.keybindingService));
 		} else if (element instanceof Thread) {
 			this.callStackItemType.set('thread');
-			const thread = <Thread>element;
-			if (thread.stopped) {
-				actions.push(new ContinueAction(ContinueAction.ID, ContinueAction.LABEL, this.debugService, this.keybindingService));
-				actions.push(new StepOverAction(StepOverAction.ID, StepOverAction.LABEL, this.debugService, this.keybindingService));
-				actions.push(new StepIntoAction(StepIntoAction.ID, StepIntoAction.LABEL, this.debugService, this.keybindingService));
-				actions.push(new StepOutAction(StepOutAction.ID, StepOutAction.LABEL, this.debugService, this.keybindingService));
-			} else {
-				actions.push(new PauseAction(PauseAction.ID, PauseAction.LABEL, this.debugService, this.keybindingService));
-			}
-
-			actions.push(new Separator());
-			actions.push(new TerminateThreadAction(TerminateThreadAction.ID, TerminateThreadAction.LABEL, this.debugService, this.keybindingService));
 		} else if (element instanceof StackFrame) {
 			this.callStackItemType.set('stackFrame');
-			if (element.thread.session.capabilities.supportsRestartFrame) {
-				actions.push(new RestartFrameAction(RestartFrameAction.ID, RestartFrameAction.LABEL, this.debugService, this.keybindingService));
-			}
-			actions.push(this.instantiationService.createInstance(CopyStackTraceAction, CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		} else {
 			this.callStackItemType.reset();
 		}
@@ -297,7 +299,8 @@ export class CallStackView extends ViewletPanel {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => {
-				fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element) }, actions, this.contextMenuService);
+				const actions: IAction[] = [];
+				fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
 				return actions;
 			},
 			getActionsContext: () => element
@@ -314,6 +317,9 @@ export class CallStackView extends ViewletPanel {
 		}
 		if (element instanceof Thread) {
 			return element.threadId;
+		}
+		if (isDebugSession(element)) {
+			return element.getId();
 		}
 
 		return undefined;
@@ -579,6 +585,8 @@ function isDeemphasized(frame: IStackFrame): boolean {
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
 	deemphasizedStackFramesToShow: IStackFrame[];
 
+	constructor(private debugService: IDebugService) { }
+
 	hasChildren(element: IDebugModel | CallStackItem): boolean {
 		return isDebugModel(element) || isDebugSession(element) || (element instanceof Thread && element.stopped);
 	}
@@ -589,14 +597,19 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			if (sessions.length === 0) {
 				return Promise.resolve([]);
 			}
-			if (sessions.length > 1) {
-				return Promise.resolve(sessions);
+			if (sessions.length > 1 || this.debugService.getViewModel().isMultiSessionView()) {
+				return Promise.resolve(sessions.filter(s => !s.parentSession));
 			}
 
 			const threads = sessions[0].getAllThreads();
 			// Only show the threads in the call stack if there is more than 1 thread.
 			return threads.length === 1 ? this.getThreadChildren(<Thread>threads[0]) : Promise.resolve(threads);
 		} else if (isDebugSession(element)) {
+			const childSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === element);
+			if (childSessions.length) {
+				return Promise.resolve(childSessions);
+			}
+
 			return Promise.resolve(element.getAllThreads());
 		} else {
 			return this.getThreadChildren(<Thread>element);

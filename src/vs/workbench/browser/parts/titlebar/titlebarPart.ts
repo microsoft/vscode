@@ -179,7 +179,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private updateRepresentedFilename(): void {
-		const file = toResource(this.editorService.activeEditor || null, { supportSideBySide: true, filter: 'file' });
+		const file = toResource(this.editorService.activeEditor, { supportSideBySide: true, filter: 'file' });
 		const path = file ? file.fsPath : '';
 
 		// Apply to window
@@ -282,7 +282,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Compute folder resource
 		// Single Root Workspace: always the root single workspace in this case
 		// Otherwise: root folder of the currently active file if any
-		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor || null, { supportSideBySide: true })!);
+		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor, { supportSideBySide: true })!);
 
 		// Variables
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';

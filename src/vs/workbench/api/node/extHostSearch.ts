@@ -6,16 +6,16 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import * as extfs from 'vs/base/node/extfs';
+import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery, isSerializedFileMatch } from 'vs/workbench/services/search/common/search';
+import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery, isSerializedFileMatch, ISerializedSearchProgressItem } from 'vs/workbench/services/search/common/search';
 import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
-import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
+import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
 
 export interface ISchemeTransformer {
 	transformOutgoing(scheme: string): string;
@@ -35,7 +35,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	private _fileSearchManager: FileSearchManager;
 
-	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer | null, private _logService: ILogService, private _extfs = extfs) {
+	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer | null, private _logService: ILogService, private _pfs = pfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
 		this._fileSearchManager = new FileSearchManager();
 	}
@@ -107,7 +107,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	}
 
 	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
-		const onResult = (ev) => {
+		const onResult = (ev: ISerializedSearchProgressItem) => {
 			if (isSerializedFileMatch(ev)) {
 				ev = [ev];
 			}
@@ -146,7 +146,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		}
 
 		const query = reviveQuery(rawQuery);
-		const engine = new TextSearchManager(query, provider, this._extfs);
+		const engine = new TextSearchManager(query, provider, this._pfs);
 		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
 	}
 }

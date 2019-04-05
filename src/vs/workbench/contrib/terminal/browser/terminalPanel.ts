@@ -161,7 +161,7 @@ export class TerminalPanel extends Panel {
 		return this._contextMenuActions;
 	}
 
-	public getActionItem(action: Action): IActionItem | null {
+	public getActionItem(action: Action): IActionItem | undefined {
 		if (action.id === SwitchTerminalAction.ID) {
 			return this._instantiationService.createInstance(SwitchTerminalActionItem, action);
 		}

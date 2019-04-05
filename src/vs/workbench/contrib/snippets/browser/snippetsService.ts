@@ -114,20 +114,16 @@ namespace snippetExt {
 }
 
 function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
-	let listener = service.onFileChanges(e => {
-		for (const change of e.changes) {
-			if (resources.isEqualOrParent(change.resource, resource)) {
-				callback(change.type, change.resource);
+	return combinedDisposable([
+		service.watch(resource),
+		service.onFileChanges(e => {
+			for (const change of e.changes) {
+				if (resources.isEqualOrParent(change.resource, resource)) {
+					callback(change.type, change.resource);
+				}
 			}
-		}
-	});
-	service.watchFileChanges(resource);
-	return {
-		dispose() {
-			listener.dispose();
-			service.unwatchFileChanges(resource);
-		}
-	};
+		})
+	]);
 }
 
 class SnippetsService implements ISnippetsService {
@@ -277,7 +273,7 @@ class SnippetsService implements ISnippetsService {
 	private _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: IDisposable[]): Promise<any> {
 		let promises = workspace.folders.map(folder => {
 			const snippetFolder = folder.toResource('.vscode');
-			return this._fileService.existsFile(snippetFolder).then(value => {
+			return this._fileService.exists(snippetFolder).then(value => {
 				if (value) {
 					this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
 				} else {
@@ -305,7 +301,7 @@ class SnippetsService implements ISnippetsService {
 			if (type === FileChangeType.DELETED) {
 				return Promise.resolve();
 			}
-			return this._fileService.resolveFile(folder).then(stat => {
+			return this._fileService.resolve(folder).then(stat => {
 				for (const entry of stat.children || []) {
 					disposables.push(this._addSnippetFile(entry.resource, source));
 				}

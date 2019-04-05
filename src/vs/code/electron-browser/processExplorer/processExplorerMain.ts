@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/processExplorer';
-import { listProcesses, ProcessItem } from 'vs/base/node/ps';
+import { listProcesses } from 'vs/base/node/ps';
 import { webFrame, ipcRenderer, clipboard } from 'electron';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
@@ -15,6 +15,7 @@ import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
+import { ProcessItem } from 'vs/base/common/processes';
 
 let processList: any[];
 let mapPidToWindowTitle = new Map<number, string>();
@@ -99,7 +100,7 @@ function attachTo(item: ProcessItem) {
 	ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });
 }
 
-function getProcessIdWithHighestProperty(processList, propertyName: string) {
+function getProcessIdWithHighestProperty(processList: any[], propertyName: string) {
 	let max = 0;
 	let maxProcessId;
 	processList.forEach(process => {
@@ -112,7 +113,7 @@ function getProcessIdWithHighestProperty(processList, propertyName: string) {
 	return maxProcessId;
 }
 
-function updateProcessInfo(processList): void {
+function updateProcessInfo(processList: any[]): void {
 	const container = document.getElementById('process-list');
 	if (!container) {
 		return;
@@ -199,12 +200,12 @@ function applyZoom(zoomLevel: number): void {
 	browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 }
 
-function showContextMenu(e) {
+function showContextMenu(e: MouseEvent) {
 	e.preventDefault();
 
 	const items: IContextMenuItem[] = [];
 
-	const pid = parseInt(e.currentTarget.id);
+	const pid = parseInt((e.currentTarget as HTMLElement).id);
 	if (pid && typeof pid === 'number') {
 		items.push({
 			label: localize('killProcess', "Kill Process"),
@@ -277,7 +278,7 @@ export function startup(data: ProcessExplorerData): void {
 	applyZoom(data.zoomLevel);
 
 	// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
-	ipcRenderer.on('vscode:windowsInfoResponse', (event, windows) => {
+	ipcRenderer.on('vscode:windowsInfoResponse', (_event: unknown, windows: any[]) => {
 		mapPidToWindowTitle = new Map<number, string>();
 		windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
 	});

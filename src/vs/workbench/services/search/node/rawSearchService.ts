@@ -17,14 +17,14 @@ import * as strings from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { MAX_FILE_SIZE } from 'vs/platform/files/node/fileConstants';
-import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery, IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
+import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery, IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
 gracefulFs.gracefulify(fs);
 
-type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
-type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
+export type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
+export type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
 
 export class SearchService implements IRawSearchService {
 
@@ -97,7 +97,7 @@ export class SearchService implements IRawSearchService {
 				resultCount++;
 				progressCallback(this.rawMatchToSearchItem(<IRawFileMatch>progress));
 			} else {
-				progressCallback(<IProgress>progress);
+				progressCallback(<IProgressMessage>progress);
 			}
 		};
 
@@ -383,13 +383,13 @@ export class SearchService implements IRawSearchService {
 			cancel() {
 				// Do nothing
 			}
-			then(resolve, reject) {
+			then(resolve: any, reject: any) {
 				return promise.then(resolve, reject);
 			}
-			catch(reject?) {
+			catch(reject?: any) {
 				return this.then(undefined, reject);
 			}
-			finally(onFinally) {
+			finally(onFinally: any) {
 				return promise.finally(onFinally);
 			}
 		};

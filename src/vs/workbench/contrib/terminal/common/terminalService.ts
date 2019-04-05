@@ -70,7 +70,7 @@ export abstract class TerminalService implements ITerminalService {
 		@INotificationService protected readonly _notificationService: INotificationService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService protected readonly _fileService: IFileService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
@@ -416,7 +416,7 @@ export abstract class TerminalService implements ITerminalService {
 			return Promise.resolve(null);
 		}
 		const current = potentialPaths.shift();
-		return this._fileService.existsFile(URI.file(current!)).then(exists => {
+		return this._fileService.exists(URI.file(current!)).then(exists => {
 			if (!exists) {
 				return this._validateShellPaths(label, potentialPaths);
 			}

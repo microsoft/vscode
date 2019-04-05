@@ -36,6 +36,6 @@ export class ExtensionsManifestCache extends Disposable {
 	}
 
 	invalidate(): void {
-		pfs.del(this.extensionsManifestCache).then(() => { }, () => { });
+		pfs.rimraf(this.extensionsManifestCache, pfs.RimRafMode.MOVE).then(() => { }, () => { });
 	}
 }

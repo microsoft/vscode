@@ -5,10 +5,10 @@
 
 import { URI } from 'vs/base/common/uri';
 import { sep, posix, normalize } from 'vs/base/common/path';
-import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
+import { endsWith, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
-import { isEqual, basename } from 'vs/base/common/resources';
+import { isEqual, basename, relativePath } from 'vs/base/common/resources';
 import { CharCode } from 'vs/base/common/charCode';
 
 export interface IWorkspaceFolderProvider {
@@ -40,8 +40,7 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 			if (isEqual(baseResource.uri, resource)) {
 				pathLabel = ''; // no label if paths are identical
 			} else {
-				// TODO: isidor use resources.relative
-				pathLabel = normalize(ltrim(resource.path.substr(baseResource.uri.path.length), posix.sep)!);
+				pathLabel = relativePath(baseResource.uri, resource)!;
 			}
 
 			if (hasMultipleRoots) {
@@ -369,8 +368,8 @@ export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean
  * -   Linux: Supported via _ character (replace && with _)
  * -   macOS: Unsupported (replace && with empty string)
  */
-export function mnemonicButtonLabel(label: string): string {
-	if (isMacintosh) {
+export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: boolean): string {
+	if (isMacintosh || forceDisableMnemonics) {
 		return label.replace(/\(&&\w\)|&&/g, '');
 	}
 

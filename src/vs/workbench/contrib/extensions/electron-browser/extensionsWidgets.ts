@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
@@ -155,6 +155,7 @@ export class RecommendationWidget extends ExtensionWidget {
 		super();
 		this.render();
 		this._register(toDisposable(() => this.clear()));
+		this._register(this.extensionTipsService.onRecommendationChange(() => this.render()));
 	}
 
 	private clear(): void {
@@ -172,27 +173,22 @@ export class RecommendationWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return;
 		}
-		const updateRecommendationMarker = () => {
-			this.clear();
-			const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-			if (extRecommendations[this.extension.identifier.id.toLowerCase()]) {
-				this.element = append(this.parent, $('div.bookmark'));
-				const recommendation = append(this.element, $('.recommendation'));
-				append(recommendation, $('span.octicon.octicon-star'));
-				const applyBookmarkStyle = (theme) => {
-					const bgColor = theme.getColor(extensionButtonProminentBackground);
-					const fgColor = theme.getColor(extensionButtonProminentForeground);
-					recommendation.style.borderTopColor = bgColor ? bgColor.toString() : 'transparent';
-					recommendation.style.color = fgColor ? fgColor.toString() : 'white';
-				};
-				applyBookmarkStyle(this.themeService.getTheme());
-				this.themeService.onThemeChange(applyBookmarkStyle, this, this.disposables);
-				this.parent.title = extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText;
-				this.parent.setAttribute('aria-label', localize('viewRecommendedExtensionDetailsAria', "{0}. {1} Press enter for extension details.", this.extension.displayName, extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText));
-			}
-		};
-		updateRecommendationMarker();
-		this.extensionTipsService.onRecommendationChange(() => updateRecommendationMarker(), this, this.disposables);
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+		if (extRecommendations[this.extension.identifier.id.toLowerCase()]) {
+			this.element = append(this.parent, $('div.bookmark'));
+			const recommendation = append(this.element, $('.recommendation'));
+			append(recommendation, $('span.octicon.octicon-star'));
+			const applyBookmarkStyle = (theme: ITheme) => {
+				const bgColor = theme.getColor(extensionButtonProminentBackground);
+				const fgColor = theme.getColor(extensionButtonProminentForeground);
+				recommendation.style.borderTopColor = bgColor ? bgColor.toString() : 'transparent';
+				recommendation.style.color = fgColor ? fgColor.toString() : 'white';
+			};
+			applyBookmarkStyle(this.themeService.getTheme());
+			this.themeService.onThemeChange(applyBookmarkStyle, this, this.disposables);
+			this.parent.title = extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText;
+			this.parent.setAttribute('aria-label', localize('viewRecommendedExtensionDetailsAria', "{0}. {1} Press enter for extension details.", this.extension.displayName, extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText));
+		}
 	}
 
 }

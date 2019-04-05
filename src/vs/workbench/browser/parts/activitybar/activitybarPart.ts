@@ -66,6 +66,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private cachedViewlets: ICachedViewlet[] = [];
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
+	private readonly viewletDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
 	constructor(
 		@IViewletService private readonly viewletService: IViewletService,
@@ -109,7 +110,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Viewlet registration
 		this._register(this.viewletService.onDidViewletRegister(viewlet => this.onDidRegisterViewlets([viewlet])));
-		this._register(this.viewletService.onDidViewletDeregister(({ id }) => this.removeComposite(id, true)));
+		this._register(this.viewletService.onDidViewletDeregister(({ id }) => this.onDidDeregisterViewlet(id)));
 
 		// Activate viewlet action on opening of a viewlet
 		this._register(this.viewletService.onDidViewletOpen(viewlet => this.onDidViewletOpen(viewlet)));
@@ -132,27 +133,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private onDidRegisterExtensions(): void {
 		this.removeNotExistingComposites();
 
-		for (const viewlet of this.viewletService.getViewlets()) {
-			this.enableCompositeActions(viewlet);
-			const viewContainer = this.getViewContainer(viewlet.id);
-			if (viewContainer && viewContainer.hideIfEmpty) {
-				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
-				if (viewDescriptors) {
-					this.onDidChangeActiveViews(viewlet, viewDescriptors);
-					viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors));
-				}
-			}
-		}
-
 		this.saveCachedViewlets();
-	}
-
-	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
-		if (viewDescriptors.activeViewDescriptors.length) {
-			this.compositeBar.addComposite(viewlet);
-		} else {
-			this.removeComposite(viewlet.id, true);
-		}
 	}
 
 	private onDidViewletOpen(viewlet: IViewlet): void {
@@ -308,6 +289,34 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 					this.compositeBar.activateComposite(viewlet.id);
 				}
 			}
+		}
+		for (const viewlet of viewlets) {
+			this.enableCompositeActions(viewlet);
+			const viewContainer = this.getViewContainer(viewlet.id);
+			if (viewContainer && viewContainer.hideIfEmpty) {
+				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
+				if (viewDescriptors) {
+					this.onDidChangeActiveViews(viewlet, viewDescriptors);
+					this.viewletDisposables.set(viewlet.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors)));
+				}
+			}
+		}
+	}
+
+	private onDidDeregisterViewlet(viewletId: string): void {
+		const disposable = this.viewletDisposables.get(viewletId);
+		if (disposable) {
+			disposable.dispose();
+		}
+		this.viewletDisposables.delete(viewletId);
+		this.removeComposite(viewletId, true);
+	}
+
+	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+		if (viewDescriptors.activeViewDescriptors.length) {
+			this.compositeBar.addComposite(viewlet);
+		} else {
+			this.removeComposite(viewlet.id, true);
 		}
 	}
 

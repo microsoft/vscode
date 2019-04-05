@@ -403,7 +403,7 @@ export class ExcludeSettingWidget extends Disposable {
 	private renderEditItem(item: IExcludeViewItem): HTMLElement {
 		const rowElement = $('.setting-exclude-edit-row');
 
-		const onSubmit = edited => {
+		const onSubmit = (edited: boolean) => {
 			this.model.setEditKey(null);
 			const pattern = patternInput.value.trim();
 			if (edited && pattern) {

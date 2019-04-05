@@ -18,8 +18,7 @@ import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { readFile } from 'vs/base/node/pfs';
-import { writeFileAndFlushSync } from 'vs/base/node/extfs';
+import { writeFileSync, readFile } from 'vs/base/node/pfs';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -395,7 +394,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			});
 	}
 
-	query(options: IQueryOptions = {}): Promise<IPager<IGalleryExtension>> {
+	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
+	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
+	query(arg1: any, arg2?: any): Promise<IPager<IGalleryExtension>> {
+		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
+		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
+
 		if (!this.isEnabled()) {
 			return Promise.reject(new Error('No extension gallery service configured.'));
 		}
@@ -455,7 +459,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			query = query.withSortOrder(options.sortOrder);
 		}
 
-		return this.queryGallery(query, CancellationToken.None).then(({ galleryExtensions, total }) => {
+		return this.queryGallery(query, token).then(({ galleryExtensions, total }) => {
 			const extensions = galleryExtensions.map((e, index) => toExtension(e, e.versions[0], index, query, options.source));
 			const pageSize = query.pageSize;
 			const getPage = (pageIndex: number, ct: CancellationToken) => {
@@ -843,7 +847,7 @@ export function resolveMarketplaceHeaders(environmentService: IEnvironmentServic
 			if (!uuid) {
 				uuid = generateUuid();
 				try {
-					writeFileAndFlushSync(marketplaceMachineIdFile, uuid);
+					writeFileSync(marketplaceMachineIdFile, uuid);
 				} catch (error) {
 					//noop
 				}

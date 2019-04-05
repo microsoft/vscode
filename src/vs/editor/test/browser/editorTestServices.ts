@@ -13,7 +13,7 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TestCodeEditorService extends AbstractCodeEditorService {
-	public lastInput: IResourceInput;
+	public lastInput?: IResourceInput;
 	public getActiveCodeEditor(): ICodeEditor | null { return null; }
 	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		this.lastInput = input;

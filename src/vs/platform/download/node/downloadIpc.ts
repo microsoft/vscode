@@ -29,7 +29,7 @@ export class DownloadServiceChannel implements IServerChannel {
 
 	constructor() { }
 
-	listen(_, event: string, arg?: any): Event<any> {
+	listen(_: unknown, event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'upload': return Event.buffer(upload(URI.revive(arg)));
 		}
@@ -37,7 +37,7 @@ export class DownloadServiceChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string): Promise<any> {
+	call(_: unknown, command: string): Promise<any> {
 		throw new Error(`Call not found: ${command}`);
 	}
 }

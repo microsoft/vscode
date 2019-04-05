@@ -66,7 +66,7 @@ export class FoldingModel {
 	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
 		let newEditorDecorations: IModelDeltaDecoration[] = [];
 
-		let isBlocked = (startLineNumber, endLineNumber) => {
+		let isBlocked = (startLineNumber: number, endLineNumber: number) => {
 			for (let blockedLineNumber of blockedLineNumers) {
 				if (startLineNumber < blockedLineNumber && blockedLineNumber <= endLineNumber) { // first line is visible
 					return true;

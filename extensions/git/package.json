@@ -241,6 +241,11 @@
         "category": "Git"
       },
       {
+        "command": "git.branchFrom",
+        "title": "%command.branchFrom%",
+        "category": "Git"
+      },
+      {
         "command": "git.deleteBranch",
         "title": "%command.deleteBranch%",
         "category": "Git"
@@ -513,6 +518,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.branchFrom",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.deleteBranch",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -695,88 +704,93 @@
           "when": "scmProvider == git && config.git.allowForcePush"
         },
         {
+          "command": "git.checkout",
+          "group": "2_branch",
+          "when": "scmProvider == git"
+        },
+        {
           "command": "git.publish",
-          "group": "2_publish",
+          "group": "2_branch",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitStaged",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitStagedSigned",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitStagedAmend",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitAll",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitAllSigned",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitAllAmend",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.undoCommit",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stageAll",
-          "group": "4_stage",
+          "group": "5_stage",
           "when": "scmProvider == git"
         },
         {
           "command": "git.unstageAll",
-          "group": "4_stage",
+          "group": "5_stage",
           "when": "scmProvider == git"
         },
         {
           "command": "git.cleanAll",
-          "group": "4_stage",
+          "group": "5_stage",
           "when": "scmProvider == git && !gitFreshRepository"
         },
         {
           "command": "git.stashIncludeUntracked",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stash",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stashPop",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stashPopLatest",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stashApply",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stashApplyLatest",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {

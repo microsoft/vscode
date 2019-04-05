@@ -8,7 +8,7 @@ import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { Action, IAction, IRunEvent } from 'vs/base/common/actions';
+import { IAction, IRunEvent } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -39,7 +39,7 @@ import { Themable } from 'vs/workbench/common/theme';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
-import { withUndefinedAsNull } from 'vs/base/common/types';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -122,10 +122,10 @@ export abstract class TitleControl extends Themable {
 	protected abstract handleBreadcrumbsEnablementChange(): void;
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
-		const context = { groupId: this.group.id } as IEditorCommandsContext;
+		const context: IEditorCommandsContext = { groupId: this.group.id };
 
 		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
-			actionItemProvider: action => this.actionItemProvider(action as Action),
+			actionItemProvider: action => this.actionItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
@@ -155,18 +155,18 @@ export abstract class TitleControl extends Themable {
 		}));
 	}
 
-	private actionItemProvider(action: Action): IActionItem | null {
+	private actionItemProvider(action: IAction): IActionItem | undefined {
 		const activeControl = this.group.activeControl;
 
 		// Check Active Editor
-		let actionItem: IActionItem | null = null;
+		let actionItem: IActionItem | undefined = undefined;
 		if (activeControl instanceof BaseEditor) {
 			actionItem = activeControl.getActionItem(action);
 		}
 
 		// Check extensions
 		if (!actionItem) {
-			actionItem = withUndefinedAsNull(createActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService));
+			actionItem = createActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 		}
 
 		return actionItem;
@@ -302,7 +302,7 @@ export abstract class TitleControl extends Themable {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions,
-			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) } as IEditorCommandsContext),
+			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) }),
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: () => {
 
@@ -322,7 +322,7 @@ export abstract class TitleControl extends Themable {
 	protected getKeybindingLabel(action: IAction): string | undefined {
 		const keybinding = this.getKeybinding(action);
 
-		return keybinding ? keybinding.getLabel() || undefined : undefined;
+		return keybinding ? withNullAsUndefined(keybinding.getLabel()) : undefined;
 	}
 
 	abstract openEditor(editor: IEditorInput): void;

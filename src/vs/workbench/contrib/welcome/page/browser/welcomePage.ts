@@ -13,7 +13,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IWindowService, URIType } from 'vs/platform/windows/common/windows';
+import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -40,6 +40,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
 import { IRecentlyOpened, isRecentWorkspace, IRecentWorkspace, IRecentFolder, isRecentFolder } from 'vs/platform/history/common/history';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 used();
 
@@ -68,8 +69,10 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 					if (openWithReadme) {
 						return Promise.all(contextService.getWorkspace().folders.map(folder => {
 							const folderUri = folder.uri;
-							return fileService.readFolder(folderUri)
-								.then(files => {
+							return fileService.resolve(folderUri)
+								.then(folder => {
+									const files = folder.children ? folder.children.map(child => child.name) : [];
+
 									const file = arrays.find(files.sort(), file => strings.startsWith(file.toLowerCase(), 'readme'));
 									if (file) {
 										return joinPath(folderUri, file);
@@ -339,16 +342,13 @@ class WelcomePage {
 	private createListEntries(recents: (IRecentWorkspace | IRecentFolder)[]) {
 		return recents.map(recent => {
 			let fullPath: string;
-			let resource: URI;
-			let typeHint: URIType | undefined;
+			let uriToOpen: IURIToOpen;
 			if (isRecentFolder(recent)) {
-				resource = recent.folderUri;
+				uriToOpen = { folderUri: recent.folderUri };
 				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
-				typeHint = 'folder';
 			} else {
 				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
-				resource = recent.workspace.configPath;
-				typeHint = 'file';
+				uriToOpen = { workspaceUri: recent.workspace.configPath };
 			}
 
 			const { name, parentPath } = splitName(fullPath);
@@ -371,7 +371,7 @@ class WelcomePage {
 					id: 'openRecentFolder',
 					from: telemetryFrom
 				});
-				this.windowService.openWindow([{ uri: resource, typeHint }], { forceNewWindow: e.ctrlKey || e.metaKey });
+				this.windowService.openWindow([uriToOpen], { forceNewWindow: e.ctrlKey || e.metaKey });
 				e.preventDefault();
 				e.stopPropagation();
 			});
@@ -453,7 +453,7 @@ class WelcomePage {
 				this.notificationService.info(strings.alreadyInstalled.replace('{0}', extensionSuggestion.name));
 				return;
 			}
-			const foundAndInstalled = installedExtension ? Promise.resolve(installedExtension.local) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
+			const foundAndInstalled = installedExtension ? Promise.resolve(installedExtension.local) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom }, CancellationToken.None)
 				.then((result): null | Promise<ILocalExtension | null> => {
 					const [extension] = result.firstPage;
 					if (!extension) {
@@ -548,7 +548,7 @@ class WelcomePage {
 							from: telemetryFrom,
 							extensionId: extensionSuggestion.id,
 						});
-						this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] })
+						this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] }, CancellationToken.None)
 							.then(result => this.extensionsWorkbenchService.open(result.firstPage[0]))
 							.then(undefined, onUnexpectedError);
 					}

@@ -392,7 +392,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : null);
+			const when = (item.when ? item.when.normalize() : undefined);
 			const keybinding = item.keybinding;
 			if (!keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
@@ -411,7 +411,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private _resolveUserKeybindingItems(items: IUserKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : null);
+			const when = (item.when ? item.when.normalize() : undefined);
 			const parts = item.parts;
 			if (parts.length === 0) {
 				// This might be a removal keybinding item in user settings => accept it
@@ -577,7 +577,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 let schemaId = 'vscode://schemas/keybindings';
 let commandsSchemas: IJSONSchema[] = [];
 let commandsEnum: string[] = [];
-let commandsEnumDescriptions: (string | null | undefined)[] = [];
+let commandsEnumDescriptions: (string | undefined)[] = [];
 let schema: IJSONSchema = {
 	'id': schemaId,
 	'type': 'array',
@@ -636,7 +636,7 @@ function updateSchema() {
 	commandsEnumDescriptions.length = 0;
 
 	const knownCommands = new Set<string>();
-	const addKnownCommand = (commandId: string, description?: string | null) => {
+	const addKnownCommand = (commandId: string, description?: string | undefined) => {
 		if (!/^_/.test(commandId)) {
 			if (!knownCommands.has(commandId)) {
 				knownCommands.add(commandId);
@@ -655,7 +655,7 @@ function updateSchema() {
 	for (let commandId in allCommands) {
 		const commandDescription = allCommands[commandId].description;
 
-		addKnownCommand(commandId, commandDescription && commandDescription.description);
+		addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
 
 		if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
 			continue;
@@ -684,7 +684,6 @@ function updateSchema() {
 	for (let commandId in menuCommands) {
 		addKnownCommand(commandId);
 	}
-
 }
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);

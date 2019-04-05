@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
+import { ipcRenderer as ipc } from 'electron';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -33,6 +34,7 @@ import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription }
 import { Schemas } from 'vs/base/common/network';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -643,6 +645,23 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
 	}
 
+	private isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
+		if (this._environmentService.isExtensionDevelopment) {
+			const extDevLoc = this._environmentService.extensionDevelopmentLocationURI;
+			const extLocation = extension.extensionLocation;
+			if (Array.isArray(extDevLoc)) {
+				for (let p of extDevLoc) {
+					if (isEqualOrParent(extLocation, p)) {
+						return true;
+					}
+				}
+			} else if (extDevLoc) {
+				return isEqualOrParent(extLocation, extDevLoc);
+			}
+		}
+		return false;
+	}
+
 	private _getRuntimeExtensions(allExtensions: IExtensionDescription[]): Promise<IExtensionDescription[]> {
 		return this._extensionEnablementService.getDisabledExtensions()
 			.then(disabledExtensions => {
@@ -674,14 +693,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 					(!!this._environmentService.extensionDevelopmentLocationURI && product.nameLong !== 'Visual Studio Code') ||
 					(enableProposedApiFor.length === 0 && 'enable-proposed-api' in this._environmentService.args);
 
+
 				for (const extension of allExtensions) {
-					const isExtensionUnderDevelopment = (
-						this._environmentService.isExtensionDevelopment
-						&& this._environmentService.extensionDevelopmentLocationURI
-						&& isEqualOrParent(extension.extensionLocation, this._environmentService.extensionDevelopmentLocationURI)
-					);
+
 					// Do not disable extensions under development
-					if (!isExtensionUnderDevelopment) {
+					if (!this.isExtensionUnderDevelopment(extension)) {
 						if (disabledExtensions.some(disabled => areSameExtensions(disabled, { id: extension.identifier.value }))) {
 							continue;
 						}
@@ -839,6 +855,19 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 		this._extensionHostExtensionRuntimeErrors.get(extensionKey)!.push(err);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
+	}
+
+	public _onExtensionHostExit(code: number): void {
+		// Expected development extension termination: When the extension host goes down we also shutdown the window
+		const devOpts = parseExtensionDevOptions(this._environmentService);
+		if (!devOpts.isExtensionDevTestFromCli) {
+			this._windowService.closeWindow();
+		}
+
+		// When CLI testing make sure to exit with proper exit code
+		else {
+			ipc.send('vscode:exit', code);
+		}
 	}
 }
 

@@ -75,10 +75,10 @@ export class ToolBar extends Disposable {
 					);
 					this.toggleMenuActionItem!.setActionContext(this.actionBar.context);
 
-					return this.toggleMenuActionItem || null;
+					return this.toggleMenuActionItem;
 				}
 
-				return options.actionItemProvider ? options.actionItemProvider(action) : null;
+				return options.actionItemProvider ? options.actionItemProvider(action) : undefined;
 			}
 		}));
 	}

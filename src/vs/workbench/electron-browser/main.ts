@@ -13,8 +13,8 @@ import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/brow
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI as uri } from 'vs/base/common/uri';
-import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
+import { URI } from 'vs/base/common/uri';
+import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
@@ -24,13 +24,13 @@ import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { webFrame } from 'electron';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, IMultiFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { StorageService } from 'vs/platform/storage/node/storageService';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
 import { Schemas } from 'vs/base/common/network';
-import { sanitizeFilePath } from 'vs/base/node/extfs';
+import { sanitizeFilePath } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/path';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -39,6 +39,20 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { IFileService } from 'vs/platform/files/common/files';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/electron-browser/diskFileSystemProvider';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationExportHelper';
+import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
+import { ConfigurationFileService } from 'vs/workbench/services/configuration/node/configurationFileService';
+import { IConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
 
 class CodeRendererMain extends Disposable {
 
@@ -72,22 +86,28 @@ class CodeRendererMain extends Disposable {
 
 	private reviveUris() {
 		if (this.configuration.folderUri) {
-			this.configuration.folderUri = uri.revive(this.configuration.folderUri);
+			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
 		}
+
 		if (this.configuration.workspace) {
 			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
 		}
 
-		const filesToWaitPaths = this.configuration.filesToWait && this.configuration.filesToWait.paths;
+		const filesToWait = this.configuration.filesToWait;
+		const filesToWaitPaths = filesToWait && filesToWait.paths;
 		[filesToWaitPaths, this.configuration.filesToOpen, this.configuration.filesToCreate, this.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
 					if (path.fileUri) {
-						path.fileUri = uri.revive(path.fileUri);
+						path.fileUri = URI.revive(path.fileUri);
 					}
 				});
 			}
 		});
+
+		if (filesToWait) {
+			filesToWait.waitMarkerFileUri = URI.revive(filesToWait.waitMarkerFileUri);
+		}
 	}
 
 	open(): Promise<void> {
@@ -149,6 +169,11 @@ class CodeRendererMain extends Disposable {
 	private initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: StorageService }> {
 		const serviceCollection = new ServiceCollection();
 
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
+		// CONTRIBUTE IT VIA WORKBENCH.MAIN.TS AND registerSingleton().
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 		// Main Process
 		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
@@ -164,8 +189,32 @@ class CodeRendererMain extends Disposable {
 		const logService = this._register(this.createLogService(mainProcessService, environmentService));
 		serviceCollection.set(ILogService, logService);
 
+		// Remote
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
+		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+
+		const remoteAgentService = this._register(new RemoteAgentService(this.configuration, environmentService, remoteAuthorityResolverService));
+		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+
+		// Files
+		const fileService = this._register(new FileService2(logService));
+		serviceCollection.set(IFileService, fileService);
+
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
+		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
+			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			fileService.registerProvider(REMOTE_HOST_SCHEME, remoteFileSystemProvider);
+		}
+
+		const configurationFileService = new ConfigurationFileService();
+		fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+
 		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => Promise.all([
-			this.createWorkspaceService(payload, environmentService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, configurationFileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -190,7 +239,7 @@ class CodeRendererMain extends Disposable {
 
 		// Multi-root workspace
 		if (this.configuration.workspace) {
-			return Promise.resolve(this.configuration.workspace as IMultiFolderWorkspaceInitializationPayload);
+			return Promise.resolve(this.configuration.workspace);
 		}
 
 		// Single-folder workspace
@@ -212,7 +261,7 @@ class CodeRendererMain extends Disposable {
 					return Promise.reject(new Error('Unexpected window configuration without backupPath'));
 				}
 
-				payload = { id } as IEmptyWorkspaceInitializationPayload;
+				payload = { id };
 			}
 
 			return payload;
@@ -226,7 +275,7 @@ class CodeRendererMain extends Disposable {
 			return Promise.resolve({ id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri });
 		}
 
-		function computeLocalDiskFolderId(folder: uri, stat: fs.Stats): string {
+		function computeLocalDiskFolderId(folder: URI, stat: fs.Stats): string {
 			let ctime: number | undefined;
 			if (isLinux) {
 				ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
@@ -248,16 +297,16 @@ class CodeRendererMain extends Disposable {
 		// For local: ensure path is absolute and exists
 		const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
 		return stat(sanitizedFolderPath).then(stat => {
-			const sanitizedFolderUri = uri.file(sanitizedFolderPath);
+			const sanitizedFolderUri = URI.file(sanitizedFolderPath);
 			return {
 				id: computeLocalDiskFolderId(sanitizedFolderUri, stat),
 				folder: sanitizedFolderUri
-			} as ISingleFolderWorkspaceInitializationPayload;
+			};
 		}, error => onUnexpectedError(error));
 	}
 
-	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService(environmentService);
+	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, configurationFileService: IConfigurationFileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 
 		return workspaceService.initialize(payload).then(() => workspaceService, error => {
 			onUnexpectedError(error);

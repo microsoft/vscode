@@ -137,7 +137,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			const result: ViewEntry[] = [];
 			if (views.length) {
 				for (const view of views) {
-					if (this.contextKeyService.contextMatchesRules(view.when || null)) {
+					if (this.contextKeyService.contextMatchesRules(view.when)) {
 						result.push(new ViewEntry(view.name, viewlet.name, () => this.viewsService.openView(view.id, true)));
 					}
 				}

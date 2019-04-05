@@ -53,6 +53,7 @@ export const CONTEXT_LOADED_SCRIPTS_SUPPORTED = new RawContextKey<boolean>('load
 export const CONTEXT_LOADED_SCRIPTS_ITEM_TYPE = new RawContextKey<string>('loadedScriptsItemType', undefined);
 export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('focusedSessionIsAttach', false);
 export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false);
+export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
@@ -148,6 +149,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly unresolvedConfiguration: IConfig | undefined;
 	readonly state: State;
 	readonly root: IWorkspaceFolder;
+	readonly parentSession: IDebugSession | undefined;
 
 	getLabel(): string;
 
@@ -166,7 +168,7 @@ export interface IDebugSession extends ITreeElement {
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void;
-	logToRepl(sev: severity, args: any[], frame?: { uri: uri, line: number, column: number });
+	logToRepl(sev: severity, args: any[], frame?: { uri: uri, line: number, column: number }): void;
 
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent>;
@@ -387,6 +389,7 @@ export interface IEvaluate {
 }
 
 export interface IDebugModel extends ITreeElement {
+	getSession(sessionId: string | undefined, includeInactive?: boolean): IDebugSession | undefined;
 	getSessions(includeInactive?: boolean): IDebugSession[];
 	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
@@ -421,6 +424,7 @@ export interface IDebugConfiguration {
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
+	hideSubSessions: boolean;
 	console: {
 		fontSize: number;
 		fontFamily: string;
@@ -469,8 +473,8 @@ export interface ICompound {
 export interface IDebugAdapter extends IDisposable {
 	readonly onError: Event<Error>;
 	readonly onExit: Event<number | null>;
-	onRequest(callback: (request: DebugProtocol.Request) => void);
-	onEvent(callback: (event: DebugProtocol.Event) => void);
+	onRequest(callback: (request: DebugProtocol.Request) => void): void;
+	onEvent(callback: (event: DebugProtocol.Event) => void): void;
 	startSession(): Promise<void>;
 	sendMessage(message: DebugProtocol.ProtocolMessage): void;
 	sendResponse(response: DebugProtocol.Response): void;

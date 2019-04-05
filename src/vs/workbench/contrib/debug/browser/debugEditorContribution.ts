@@ -516,6 +516,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
+		this.editor.revealLine(lineNumber);
 	}
 
 	private closeExceptionWidget(): void {

@@ -294,9 +294,9 @@ class DirtyDiffWidget extends PeekViewWidget {
 		};
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
-			return null;
+			return undefined;
 		}
 
 		return new DiffMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);

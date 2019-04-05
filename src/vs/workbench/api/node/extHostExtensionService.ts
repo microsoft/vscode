@@ -12,8 +12,8 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createApiFactory, initializeExtensionApi, IExtensionApiFactory } from 'vs/workbench/api/node/extHost.api.impl';
-import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IStaticWorkspaceData } from 'vs/workbench/api/node/extHost.protocol';
+import { createApiFactory, IExtensionApiFactory, NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory } from 'vs/workbench/api/node/extHost.api.impl';
+import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IStaticWorkspaceData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionMemento, IExtensionModule, HostExtension } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
@@ -29,6 +29,8 @@ import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { realpath } from 'vs/base/node/extpath';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -201,7 +203,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._readyToRunExtensions = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
-		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
+		this._storagePath = new ExtensionStoragePath(withNullAsUndefined(initData.workspace), initData.environment);
 
 		const hostExtensions = new Set<string>();
 		initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));
@@ -240,7 +242,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private async _initialize(): Promise<void> {
 		try {
 			const configProvider = await this._extHostConfiguration.getConfigProvider();
-			await initializeExtensionApi(this, this._extensionApiFactory, this._registry, configProvider);
+			const extensionPaths = await this.getExtensionPathIndex();
+			NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(this._extensionApiFactory, extensionPaths, this._registry, configProvider));
+			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar)));
+
 			// Do this when extension service exists, but extensions are not being activated yet.
 			await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
 			this._almostReadyToRunExtensions.open();
@@ -315,7 +320,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				if (!ext.main) {
 					return undefined;
 				}
-				return pfs.realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
+				return realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
 			});
 			this._extensionPathIndex = Promise.all(extensions).then(() => tree);
 		}
@@ -639,7 +644,15 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private _gracefulExit(code: number): void {
 		// to give the PH process a chance to flush any outstanding console
 		// messages to the main process, we delay the exit() by some time
-		setTimeout(() => this._nativeExit(code), 500);
+		setTimeout(() => {
+			// If extension tests are running, give the exit code to the renderer
+			if (this._initData.remoteAuthority && !!this._initData.environment.extensionTestsLocationURI) {
+				this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
+				return;
+			}
+
+			this._nativeExit(code);
+		}, 500);
 	}
 
 	private _startExtensionHost(): Promise<void> {
@@ -724,13 +737,13 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			if (!extensionDescription) {
 				return;
 			}
-			const realpath = await pfs.realpath(extensionDescription.extensionLocation.fsPath);
-			trie.delete(URI.file(realpath).fsPath);
+			const realpathValue = await realpath(extensionDescription.extensionLocation.fsPath);
+			trie.delete(URI.file(realpathValue).fsPath);
 		}));
 
 		await Promise.all(toAdd.map(async (extensionDescription) => {
-			const realpath = await pfs.realpath(extensionDescription.extensionLocation.fsPath);
-			trie.set(URI.file(realpath).fsPath, extensionDescription);
+			const realpathValue = await realpath(extensionDescription.extensionLocation.fsPath);
+			trie.set(URI.file(realpathValue).fsPath, extensionDescription);
 		}));
 
 		this._registry.deltaExtensions(toAdd, toRemove);

@@ -38,7 +38,7 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 		return DefaultPreferencesEditorInput.ID;
 	}
 
-	matches(other: any): boolean {
+	matches(other: unknown): boolean {
 		if (other instanceof DefaultPreferencesEditorInput) {
 			return true;
 		}
@@ -49,10 +49,18 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	}
 }
 
+export interface IKeybindingsEditorSearchOptions {
+	searchValue: string;
+	recordKeybindings: boolean;
+	sortByPrecedence: boolean;
+}
+
 export class KeybindingsEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.input.keybindings';
 	readonly keybindingsModel: KeybindingsEditorModel;
+
+	searchOptions: IKeybindingsEditorSearchOptions | null;
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
@@ -71,7 +79,7 @@ export class KeybindingsEditorInput extends EditorInput {
 		return Promise.resolve(this.keybindingsModel);
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		return otherInput instanceof KeybindingsEditorInput;
 	}
 }
@@ -93,7 +101,7 @@ export class SettingsEditor2Input extends EditorInput {
 		this._settingsModel = _preferencesService.createSettings2EditorModel();
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		return otherInput instanceof SettingsEditor2Input;
 	}
 

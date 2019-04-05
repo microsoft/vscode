@@ -6,7 +6,9 @@
 declare module 'spdlog' {
 
 	export const version: string;
-	export function setAsyncMode(bufferSize: number, flushInterval: number);
+	export function setAsyncMode(bufferSize: number, flushInterval: number): void;
+	export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): RotatingLogger;
+	export function createRotatingLoggerAsync(name: string, filename: string, filesize: number, filecount: number): Promise<RotatingLogger>;
 
 	export enum LogLevel {
 		CRITICAL,
@@ -21,14 +23,14 @@ declare module 'spdlog' {
 	export class RotatingLogger {
 		constructor(name: string, filename: string, filesize: number, filecount: number);
 
-		trace(message: string);
-		debug(message: string);
-		info(message: string);
-		warn(message: string);
-		error(message: string);
-		critical(message: string);
-		setLevel(level: number);
-		clearFormatters();
+		trace(message: string): void;
+		debug(message: string): void;
+		info(message: string): void;
+		warn(message: string): void;
+		error(message: string): void;
+		critical(message: string): void;
+		setLevel(level: number): void;
+		clearFormatters(): void;
 		/**
 		 * A synchronous operation to flush the contents into file
 		*/

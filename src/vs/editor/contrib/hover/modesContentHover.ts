@@ -23,7 +23,7 @@ import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contri
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
+import { coalesce, isNonEmptyArray, asArray } from 'vs/base/common/arrays';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { basename } from 'vs/base/common/resources';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
@@ -41,6 +41,7 @@ import { Action } from 'vs/base/common/actions';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 const $ = dom.$;
 
@@ -148,16 +149,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 					return null;
 				}
 
-				let contents: IMarkdownString[] = [];
-
-				if (d.options.hoverMessage) {
-					if (Array.isArray(d.options.hoverMessage)) {
-						contents = [...d.options.hoverMessage];
-					} else {
-						contents = [d.options.hoverMessage];
-					}
-				}
-
+				const contents: IMarkdownString[] = d.options.hoverMessage ? asArray(d.options.hoverMessage) : [];
 				return { contents, range };
 			}
 		});
@@ -394,10 +386,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					model.guessColorPresentation(color, originalText);
 
 					const updateEditorModel = () => {
-						let textEdits;
-						let newRange;
+						let textEdits: IIdentifiedSingleEditOperation[];
+						let newRange: Range;
 						if (model.presentation.textEdit) {
-							textEdits = [model.presentation.textEdit];
+							textEdits = [model.presentation.textEdit as IIdentifiedSingleEditOperation];
 							newRange = new Range(
 								model.presentation.textEdit.range.startLineNumber,
 								model.presentation.textEdit.range.startColumn,
@@ -414,7 +406,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						this._editor.executeEdits('colorpicker', textEdits);
 
 						if (model.presentation.additionalTextEdits) {
-							textEdits = [...model.presentation.additionalTextEdits];
+							textEdits = [...model.presentation.additionalTextEdits as IIdentifiedSingleEditOperation[]];
 							this._editor.executeEdits('colorpicker', textEdits);
 							this.hide();
 						}

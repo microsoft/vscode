@@ -9,7 +9,7 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/node/extHostTypes';
@@ -42,7 +42,7 @@ export interface ITextEditOperation {
 export interface IEditData {
 	documentVersionId: number;
 	edits: ITextEditOperation[];
-	setEndOfLine: EndOfLine;
+	setEndOfLine: EndOfLine | undefined;
 	undoStopBefore: boolean;
 	undoStopAfter: boolean;
 }
@@ -52,7 +52,7 @@ export class TextEditorEdit {
 	private readonly _document: vscode.TextDocument;
 	private readonly _documentVersionId: number;
 	private _collectedEdits: ITextEditOperation[];
-	private _setEndOfLine: EndOfLine;
+	private _setEndOfLine: EndOfLine | undefined;
 	private readonly _undoStopBefore: boolean;
 	private readonly _undoStopAfter: boolean;
 
@@ -60,7 +60,7 @@ export class TextEditorEdit {
 		this._document = document;
 		this._documentVersionId = document.version;
 		this._collectedEdits = [];
-		this._setEndOfLine = 0;
+		this._setEndOfLine = undefined;
 		this._undoStopBefore = options.undoStopBefore;
 		this._undoStopAfter = options.undoStopAfter;
 	}
@@ -158,7 +158,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 		this._indentSize = source.indentSize;
 		this._insertSpaces = source.insertSpaces;
 		this._cursorStyle = source.cursorStyle;
-		this._lineNumbers = source.lineNumbers;
+		this._lineNumbers = TypeConverters.TextEditorLineNumbersStyle.to(source.lineNumbers);
 	}
 
 	public get tabSize(): number | string {
@@ -295,7 +295,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 		}
 		this._lineNumbers = value;
 		warnOnError(this._proxy.$trySetOptions(this._id, {
-			lineNumbers: value
+			lineNumbers: TypeConverters.TextEditorLineNumbersStyle.from(value)
 		}));
 	}
 
@@ -354,7 +354,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 			if (this._lineNumbers !== newOptions.lineNumbers) {
 				this._lineNumbers = newOptions.lineNumbers;
 				hasUpdate = true;
-				bulkConfigurationUpdate.lineNumbers = newOptions.lineNumbers;
+				bulkConfigurationUpdate.lineNumbers = TypeConverters.TextEditorLineNumbersStyle.from(newOptions.lineNumbers);
 			}
 		}
 
@@ -607,7 +607,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		});
 
 		return this._proxy.$tryApplyEdits(this._id, editData.documentVersionId, edits, {
-			setEndOfLine: editData.setEndOfLine,
+			setEndOfLine: typeof editData.setEndOfLine === 'number' ? TypeConverters.EndOfLine.from(editData.setEndOfLine) : undefined,
 			undoStopBefore: editData.undoStopBefore,
 			undoStopAfter: editData.undoStopAfter
 		});

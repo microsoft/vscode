@@ -41,7 +41,7 @@ export class TestChannel implements IServerChannel {
 
 	constructor(private testService: ITestService) { }
 
-	listen(_, event: string): Event<any> {
+	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'marco': return this.testService.onMarco;
 		}
@@ -49,7 +49,7 @@ export class TestChannel implements IServerChannel {
 		throw new Error('Event not found');
 	}
 
-	call(_, command: string, ...args: any[]): Promise<any> {
+	call(_: unknown, command: string, ...args: any[]): Promise<any> {
 		switch (command) {
 			case 'pong': return this.testService.pong(args[0]);
 			case 'cancelMe': return this.testService.cancelMe();

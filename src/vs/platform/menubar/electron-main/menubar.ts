@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { app, shell, Menu, MenuItem, BrowserWindow } from 'electron';
-import { OpenContext, IRunActionInWindowRequest, getTitleBarStyle, IRunKeybindingInWindowRequest } from 'vs/platform/windows/common/windows';
+import { OpenContext, IRunActionInWindowRequest, getTitleBarStyle, IRunKeybindingInWindowRequest, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
@@ -464,7 +464,9 @@ export class Menubar {
 
 	private createOpenRecentMenuItem(uri: URI, label: string, commandId: string): Electron.MenuItem {
 		const revivedUri = URI.revive(uri);
-		const typeHint = commandId === 'openRecentFile' || commandId === 'openRecentWorkspace' ? 'file' : 'folder';
+		const uriToOpen: IURIToOpen =
+			(commandId === 'openRecentFile') ? { fileUri: revivedUri } :
+				(commandId === 'openRecentWorkspace') ? { workspaceUri: revivedUri } : { folderUri: revivedUri };
 
 		return new MenuItem(this.likeAction(commandId, {
 			label,
@@ -473,9 +475,8 @@ export class Menubar {
 				const success = this.windowsMainService.open({
 					context: OpenContext.MENU,
 					cli: this.environmentService.args,
-					urisToOpen: [{ uri: revivedUri, typeHint }],
-					forceNewWindow: openInNewWindow,
-					forceOpenWorkspaceAsFile: commandId === 'openRecentFile'
+					urisToOpen: [uriToOpen],
+					forceNewWindow: openInNewWindow
 				}).length > 0;
 
 				if (!success) {
@@ -571,7 +572,7 @@ export class Menubar {
 
 			case StateType.Ready:
 				return [new MenuItem({
-					label: this.mnemonicLabel(nls.localize('miRestartToUpdate', "Restart to &&Update...")), click: () => {
+					label: this.mnemonicLabel(nls.localize('miRestartToUpdate', "Restart to &&Update")), click: () => {
 						this.reportMenuActionTelemetry('RestartToUpdate');
 						this.updateService.quitAndInstall();
 					}

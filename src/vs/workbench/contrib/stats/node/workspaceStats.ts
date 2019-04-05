@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as crypto from 'crypto';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, IResolveFileResult, IContent } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -196,12 +196,15 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
 	const path = workspaceUri.path;
 	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-	return fileService.resolveFile(uri).then(() => {
+	return fileService.exists(uri).then(exists => {
+		if (!exists) {
+			return [];
+		}
 		return fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 			content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
 			err => [] // ignore missing or binary file
 		);
-	}, err => []);
+	});
 }
 
 export class WorkspaceStats implements IWorkbenchContribution {
@@ -361,7 +364,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			return Promise.resolve(tags);
 		}
 
-		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
+		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
@@ -431,10 +434,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			function getFilePromises(filename, fileService, contentHandler): Promise<void>[] {
+			function getFilePromises(filename: string, fileService: IFileService, contentHandler: (content: IContent) => void): Promise<void>[] {
 				return !nameSet.has(filename) ? [] : (folders as URI[]).map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
-					return fileService.resolveFile(uri).then(() => {
+					return fileService.exists(uri).then(exists => {
+						if (!exists) {
+							return undefined;
+						}
+
 						return fileService.resolveContent(uri, { acceptTextOnly: true }).then(contentHandler);
 					}, err => {
 						// Ignore missing file
@@ -551,7 +558,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
-				run: () => this.windowService.openWindow([{ uri: joinPath(folder, workspaceFile), typeHint: 'file' }])
+				run: () => this.windowService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
 			}, doNotShowAgain]);
 		}
 
@@ -564,7 +571,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
 						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
 							if (pick) {
-								this.windowService.openWindow([{ uri: joinPath(folder, pick.label), typeHint: 'file' }]);
+								this.windowService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
 							}
 						});
 				}
@@ -613,12 +620,15 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-			return this.fileService.resolveFile(uri).then(() => {
+			return this.fileService.exists(uri).then(exists => {
+				if (!exists) {
+					return [];
+				}
 				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 					content => getDomainsOfRemotes(content.value, SecondLevelDomainWhitelist),
 					err => [] // ignore missing or binary file
 				);
-			}, err => []);
+			});
 		})).then(domains => {
 			const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
 			const list: string[] = [];
@@ -656,7 +666,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			const path = workspaceUri.path;
 			return workspaceUri.with({ path: `${path !== '/' ? path : ''}/node_modules` });
 		});
-		return this.fileService.resolveFiles(uris.map(resource => ({ resource }))).then(
+		return this.fileService.resolveAll(uris.map(resource => ({ resource }))).then(
 			results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 				const referencesAzure = WorkspaceStats.searchArray(names, /azure/i);
@@ -679,12 +689,15 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return Promise.all(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
-			return this.fileService.resolveFile(uri).then(stats => {
+			return this.fileService.exists(uri).then(exists => {
+				if (!exists) {
+					return false;
+				}
 				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 					content => !!content.value.match(/azure/i),
 					err => false
 				);
-			}, err => false);
+			});
 		})).then(javas => {
 			if (javas.indexOf(true) !== -1) {
 				tags['java'] = true;

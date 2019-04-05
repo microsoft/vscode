@@ -7,12 +7,12 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class TextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -26,10 +26,7 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 		@IWindowService private readonly windowService: IWindowService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
-		const remoteAgentConnection = remoteAgentService.getConnection();
-		if (remoteAgentConnection) {
-			remoteAgentConnection.getEnvironment().then(remoteEnv => this.remoteEnvironment = remoteEnv);
-		}
+		remoteAgentService.getEnvironment().then(remoteEnv => this.remoteEnvironment = remoteEnv);
 	}
 
 	getEOL(resource: URI, language?: string): string {

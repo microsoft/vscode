@@ -218,7 +218,11 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	async focusWindow(windowId: number): Promise<void> {
 		this.logService.trace('windowsService#focusWindow', windowId);
 
-		return this.withWindow(windowId, codeWindow => codeWindow.win.focus());
+		if (isMacintosh) {
+			return this.withWindow(windowId, codeWindow => codeWindow.win.show());
+		} else {
+			return this.withWindow(windowId, codeWindow => codeWindow.win.focus());
+		}
 	}
 
 	async closeWindow(windowId: number): Promise<void> {
@@ -273,7 +277,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		});
 	}
 
-	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options?: IOpenSettings): Promise<void> {
+	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings): Promise<void> {
 		this.logService.trace('windowsService#openWindow');
 		if (!urisToOpen || !urisToOpen.length) {
 			return undefined;
@@ -283,12 +287,13 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			urisToOpen: urisToOpen,
-			cli: options && options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
-			forceNewWindow: options && options.forceNewWindow,
-			forceReuseWindow: options && options.forceReuseWindow,
-			forceOpenWorkspaceAsFile: options && options.forceOpenWorkspaceAsFile,
-			diffMode: options && options.diffMode,
-			addMode: options && options.addMode
+			cli: options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
+			forceNewWindow: options.forceNewWindow,
+			forceReuseWindow: options.forceReuseWindow,
+			diffMode: options.diffMode,
+			addMode: options.addMode,
+			noRecentEntry: options.noRecentEntry,
+			waitMarkerFileURI: options.waitMarkerFileURI
 		});
 	}
 
@@ -296,12 +301,6 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.logService.trace('windowsService#openNewWindow ' + JSON.stringify(options));
 
 		this.windowsMainService.openNewWindow(OpenContext.API, options);
-	}
-
-	async showWindow(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#showWindow', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.win.show());
 	}
 
 	async getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
@@ -380,6 +379,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			version = `${version} (${product.target} setup)`;
 		}
 
+		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
 		const detail = nls.localize('aboutDetail',
 			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
 			version,
@@ -389,7 +389,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			process.versions['chrome'],
 			process.versions['node'],
 			process.versions['v8'],
-			`${os.type()} ${os.arch()} ${os.release()}`
+			`${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
 		);
 
 		const ok = nls.localize('okButton', "OK");
@@ -420,7 +420,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 		// Catch file URLs
 		if (uri.authority === Schemas.file && !!uri.path) {
-			this.openFileForURI({ uri: URI.file(uri.fsPath) }); // using fsPath on a non-file URI...
+			this.openFileForURI({ fileUri: URI.file(uri.fsPath) }); // using fsPath on a non-file URI...
 			return true;
 		}
 

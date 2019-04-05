@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { IWindowService, IURIToOpen, FileFilter } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -21,7 +21,9 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRemoteEnvironmentService } from 'vs/workbench/services/remote/common/remoteEnvironmentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RemoteFileDialogContext } from 'vs/workbench/common/contextkeys';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -38,7 +40,6 @@ export class RemoteFileDialog {
 	private options: IOpenDialogOptions;
 	private currentFolder: URI;
 	private filePickBox: IQuickPick<FileQuickPickItem>;
-	private filters: FileFilter[] | undefined;
 	private hidden: boolean;
 	private allowFileSelection: boolean;
 	private allowFolderSelection: boolean;
@@ -47,6 +48,8 @@ export class RemoteFileDialog {
 	private userValue: string;
 	private scheme: string = REMOTE_HOST_SCHEME;
 	private shouldOverwriteFile: boolean = false;
+	private autoComplete: string;
+	private contextKey: IContextKey<boolean>;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -59,13 +62,15 @@ export class RemoteFileDialog {
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IRemoteEnvironmentService private readonly remoteEnvironmentService: IRemoteEnvironmentService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IContextKeyService contextKeyService: IContextKeyService
 
 	) {
 		this.remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
+		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
 	}
 
-	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<IURIToOpen[] | undefined> {
+	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
 		const newOptions = await this.getOptions(options);
 		if (!newOptions) {
@@ -79,20 +84,13 @@ export class RemoteFileDialog {
 		let fallbackLabel = options.canSelectFiles ? (options.canSelectFolders ? openFileFolderString : openFileString) : openFolderString;
 		this.fallbackListItem = this.getFallbackFileSystem(fallbackLabel);
 
-		return this.pickResource().then(async fileFolderUri => {
-			if (fileFolderUri) {
-				const stat = await this.fileService.resolveFile(fileFolderUri);
-				return <IURIToOpen[]>[{ uri: fileFolderUri, typeHint: stat.isDirectory ? 'folder' : 'file' }];
-
-			}
-			return Promise.resolve(undefined);
-		});
+		return this.pickResource();
 	}
 
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
 		this.requiresTrailing = true;
-		const newOptions = await this.getOptions(options);
+		const newOptions = await this.getOptions(options, true);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
 		}
@@ -108,14 +106,18 @@ export class RemoteFileDialog {
 		});
 	}
 
-	private async getOptions(options: ISaveDialogOptions | IOpenDialogOptions): Promise<IOpenDialogOptions | undefined> {
+	private async getOptions(options: ISaveDialogOptions | IOpenDialogOptions, isSave: boolean = false): Promise<IOpenDialogOptions | undefined> {
 		let defaultUri = options.defaultUri;
-		if (!defaultUri) {
-			const env = await this.remoteEnvironmentService.remoteEnvironment;
+		const filename = (defaultUri && isSave && (resources.dirname(defaultUri).path === '/')) ? resources.basename(defaultUri) : undefined;
+		if (!defaultUri || filename) {
+			const env = await this.remoteAgentService.getEnvironment();
 			if (env) {
 				defaultUri = env.userHome;
 			} else {
 				defaultUri = URI.from({ scheme: this.scheme, path: this.environmentService.userHome });
+			}
+			if (filename) {
+				defaultUri = resources.joinPath(defaultUri, filename);
 			}
 		}
 		if ((this.scheme !== Schemas.file) && !this.fileService.canHandleResource(defaultUri)) {
@@ -153,7 +155,7 @@ export class RemoteFileDialog {
 		let ext: string = resources.extname(homedir);
 		if (this.options.defaultUri) {
 			try {
-				stat = await this.fileService.resolveFile(this.options.defaultUri);
+				stat = await this.fileService.resolve(this.options.defaultUri);
 			} catch (e) {
 				// The file or folder doesn't exist
 			}
@@ -185,7 +187,7 @@ export class RemoteFileDialog {
 			this.filePickBox.buttons = [this.acceptButton];
 			this.filePickBox.onDidTriggerButton(_ => {
 				// accept button
-				const resolveValue = this.remoteUriFrom(this.filePickBox.value);
+				const resolveValue = this.addPostfix(this.remoteUriFrom(this.filePickBox.value));
 				this.validate(resolveValue).then(validated => {
 					if (validated) {
 						isResolving = true;
@@ -222,18 +224,21 @@ export class RemoteFileDialog {
 			});
 
 			this.filePickBox.onDidChangeValue(async value => {
-				if (value !== this.userValue) {
-					this.filePickBox.validationMessage = undefined;
-					this.shouldOverwriteFile = false;
-					const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
-					const valueUri = this.remoteUriFrom(trimmedPickBoxValue);
-					if (!resources.isEqual(this.currentFolder, valueUri, true)) {
-						await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
+				// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
+				if (!this.autoComplete || (value !== this.autoComplete)) {
+					if (value !== this.userValue) {
+						this.filePickBox.validationMessage = undefined;
+						this.shouldOverwriteFile = false;
+						const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
+						const valueUri = this.remoteUriFrom(trimmedPickBoxValue);
+						if (!resources.isEqual(this.currentFolder, valueUri, true)) {
+							await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
+						}
+						this.setActiveItems(value);
+						this.userValue = value;
+					} else {
+						this.filePickBox.activeItems = [];
 					}
-					this.setActiveItems(value);
-					this.userValue = value;
-				} else {
-					this.filePickBox.activeItems = [];
 				}
 			});
 			this.filePickBox.onDidHide(() => {
@@ -241,10 +246,12 @@ export class RemoteFileDialog {
 				if (!isResolving) {
 					resolve(undefined);
 				}
+				this.contextKey.set(false);
 				this.filePickBox.dispose();
 			});
 
 			this.filePickBox.show();
+			this.contextKey.set(true);
 			this.updateItems(homedir, trailing);
 			if (trailing) {
 				this.filePickBox.valueSelection = [this.filePickBox.value.length - trailing.length, this.filePickBox.value.length - ext.length];
@@ -281,8 +288,8 @@ export class RemoteFileDialog {
 		let stat: IFileStat | undefined;
 		let statDirname: IFileStat | undefined;
 		try {
-			statDirname = await this.fileService.resolveFile(inputUriDirname);
-			stat = await this.fileService.resolveFile(inputUri);
+			statDirname = await this.fileService.resolve(inputUriDirname);
+			stat = await this.fileService.resolve(inputUri);
 		} catch (e) {
 			// do nothing
 		}
@@ -308,6 +315,7 @@ export class RemoteFileDialog {
 		}
 
 		if (resolveValue) {
+			resolveValue = this.addPostfix(resolveValue);
 			if (await this.validate(resolveValue)) {
 				return Promise.resolve(resolveValue);
 			}
@@ -324,7 +332,7 @@ export class RemoteFileDialog {
 		if (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true))) {
 			let stat: IFileStat | undefined;
 			try {
-				stat = await this.fileService.resolveFile(valueUri);
+				stat = await this.fileService.resolve(valueUri);
 			} catch (e) {
 				// do nothing
 			}
@@ -335,7 +343,7 @@ export class RemoteFileDialog {
 				if (!resources.isEqual(this.currentFolder, inputUriDirname, true)) {
 					let statWithoutTrailing: IFileStat | undefined;
 					try {
-						statWithoutTrailing = await this.fileService.resolveFile(inputUriDirname);
+						statWithoutTrailing = await this.fileService.resolve(inputUriDirname);
 					} catch (e) {
 						// do nothing
 					}
@@ -356,8 +364,12 @@ export class RemoteFileDialog {
 				const itemBasename = (item.label === '..') ? item.label : resources.basename(item.uri);
 				if ((itemBasename.length >= inputBasename.length) && (itemBasename.substr(0, inputBasename.length).toLowerCase() === inputBasename.toLowerCase())) {
 					this.filePickBox.activeItems = [item];
-					this.filePickBox.value = this.filePickBox.value + itemBasename.substr(inputBasename.length);
-					this.filePickBox.valueSelection = [value.length, this.filePickBox.value.length];
+					const insertValue = itemBasename.substr(inputBasename.length);
+					this.autoComplete = value + insertValue;
+					if (this.filePickBox.inputHasFocus()) {
+						document.execCommand('insertText', false, insertValue);
+						this.filePickBox.valueSelection = [value.length, this.filePickBox.value.length];
+					}
 					hasMatch = true;
 					break;
 				}
@@ -368,12 +380,38 @@ export class RemoteFileDialog {
 		}
 	}
 
+	private addPostfix(uri: URI): URI {
+		let result = uri;
+		if (this.requiresTrailing && this.options.filters && this.options.filters.length > 0) {
+			// Make sure that the suffix is added. If the user deleted it, we automatically add it here
+			let hasExt: boolean = false;
+			const currentExt = resources.extname(uri).substr(1);
+			if (currentExt !== '') {
+				for (let i = 0; i < this.options.filters.length; i++) {
+					for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
+						if ((this.options.filters[i].extensions[j] === '*') || (this.options.filters[i].extensions[j] === currentExt)) {
+							hasExt = true;
+							break;
+						}
+					}
+					if (hasExt) {
+						break;
+					}
+				}
+			}
+			if (!hasExt) {
+				result = resources.joinPath(resources.dirname(uri), resources.basename(uri) + '.' + this.options.filters[0].extensions[0]);
+			}
+		}
+		return result;
+	}
+
 	private async validate(uri: URI): Promise<boolean> {
 		let stat: IFileStat | undefined;
 		let statDirname: IFileStat | undefined;
 		try {
-			statDirname = await this.fileService.resolveFile(resources.dirname(uri));
-			stat = await this.fileService.resolveFile(uri);
+			statDirname = await this.fileService.resolve(resources.dirname(uri));
+			stat = await this.fileService.resolve(uri);
 		} catch (e) {
 			// do nothing
 		}
@@ -494,7 +532,8 @@ export class RemoteFileDialog {
 
 		const backDir = this.createBackItem(currentFolder);
 		try {
-			const fileNames = await this.fileService.readFolder(currentFolder);
+			const folder = await this.fileService.resolve(currentFolder);
+			const fileNames = folder.children ? folder.children.map(child => child.name) : [];
 			const items = await Promise.all(fileNames.map(fileName => this.createItem(fileName, currentFolder)));
 			for (let item of items) {
 				if (item) {
@@ -519,17 +558,17 @@ export class RemoteFileDialog {
 		}
 
 		if (this.fallbackListItem) {
-			sorted.unshift(this.fallbackListItem);
+			sorted.push(this.fallbackListItem);
 		}
 		return sorted;
 	}
 
 	private filterFile(file: URI): boolean {
-		if (this.filters) {
+		if (this.options.filters) {
 			const ext = resources.extname(file);
-			for (let i = 0; i < this.filters.length; i++) {
-				for (let j = 0; j < this.filters[i].extensions.length; j++) {
-					if (ext === ('.' + this.filters[i].extensions[j])) {
+			for (let i = 0; i < this.options.filters.length; i++) {
+				for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
+					if (ext === ('.' + this.options.filters[i].extensions[j])) {
 						return true;
 					}
 				}
@@ -542,7 +581,7 @@ export class RemoteFileDialog {
 	private async createItem(filename: string, parent: URI): Promise<FileQuickPickItem | undefined> {
 		let fullPath = resources.joinPath(parent, filename);
 		try {
-			const stat = await this.fileService.resolveFile(fullPath);
+			const stat = await this.fileService.resolve(fullPath);
 			if (stat.isDirectory) {
 				filename = this.basenameWithTrailingSlash(fullPath);
 				return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };

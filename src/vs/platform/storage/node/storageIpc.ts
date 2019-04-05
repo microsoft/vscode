@@ -101,10 +101,10 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 		const items = new Map<Key, Value>();
 		events.forEach(event => items.set(event.key, this.storageMainService.get(event.key)));
 
-		return { items: mapToSerializable(items) } as ISerializableItemsChangeEvent;
+		return { items: mapToSerializable(items) };
 	}
 
-	listen(_, event: string): Event<any> {
+	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeItems': return this.onDidChangeItems;
 		}
@@ -112,7 +112,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'getItems': {
 				return this.whenReady.then(() => mapToSerializable(this.storageMainService.items));
@@ -120,7 +120,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 			case 'updateItems': {
 				return this.whenReady.then(() => {
-					const items = arg as ISerializableUpdateRequest;
+					const items: ISerializableUpdateRequest = arg;
 					if (items.insert) {
 						for (const [key, value] of items.insert) {
 							this.storageMainService.store(key, value);
@@ -199,7 +199,7 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	close(): Promise<void> {
 
 		// when we are about to close, we start to ignore main-side changes since we close anyway
-		this.onDidChangeItemsOnMainListener = dispose(this.onDidChangeItemsOnMainListener);
+		dispose(this.onDidChangeItemsOnMainListener);
 
 		return Promise.resolve(); // global storage is closed on the main side
 	}
@@ -207,6 +207,6 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	dispose(): void {
 		super.dispose();
 
-		this.onDidChangeItemsOnMainListener = dispose(this.onDidChangeItemsOnMainListener);
+		dispose(this.onDidChangeItemsOnMainListener);
 	}
 }
