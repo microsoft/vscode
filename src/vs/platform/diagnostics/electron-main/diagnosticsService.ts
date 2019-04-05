@@ -306,13 +306,13 @@ export class DiagnosticsService implements IDiagnosticsService {
 		output.push('CPU %\tMem MB\t   PID\tProcess');
 
 		if (rootProcess) {
-			this.formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
+			this.formatProcessItem(info.mainPID, mapPidToWindowTitle, output, rootProcess, 0);
 		}
 
 		return output.join('\n');
 	}
 
-	private formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
+	private formatProcessItem(mainPid: number, mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
 		const isRoot = (indent === 0);
 
 		const MB = 1024 * 1024;
@@ -320,7 +320,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		// Format name with indent
 		let name: string;
 		if (isRoot) {
-			name = `${product.applicationName} main`;
+			name = item.pid === mainPid ? `${product.applicationName} main` : 'remote agent';
 		} else {
 			name = `${repeat('  ', indent)} ${item.name}`;
 
@@ -333,7 +333,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 		// Recurse into children if any
 		if (Array.isArray(item.children)) {
-			item.children.forEach(child => this.formatProcessItem(mapPidToWindowTitle, output, child, indent + 1));
+			item.children.forEach(child => this.formatProcessItem(mainPid, mapPidToWindowTitle, output, child, indent + 1));
 		}
 	}
 }
