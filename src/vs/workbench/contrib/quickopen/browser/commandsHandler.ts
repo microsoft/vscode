@@ -377,7 +377,8 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	private commandHistoryEnabled: boolean;
 	private commandsHistory: CommandsHistory;
-	private extensionsRegistered: boolean;
+
+	private waitedForExtensionsRegistered: boolean;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -391,7 +392,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		this.commandsHistory = this.instantiationService.createInstance(CommandsHistory);
 
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.extensionsRegistered = true);
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.waitedForExtensionsRegistered = true);
 
 		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
 		this.updateConfiguration();
@@ -402,7 +403,7 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
-		if (this.extensionsRegistered) {
+		if (this.waitedForExtensionsRegistered) {
 			return this.doGetResults(searchValue, token);
 		}
 
@@ -410,7 +411,11 @@ export class CommandsHandler extends QuickOpenHandler {
 		// a chance to register so that the complete set of commands shows up as result
 		// We do not want to delay functionality beyond that time though to keep the commands
 		// functional.
-		return Promise.race([timeout(800), this.extensionService.whenInstalledExtensionsRegistered().then(() => undefined)]).then(() => this.doGetResults(searchValue, token));
+		return Promise.race([timeout(800), this.extensionService.whenInstalledExtensionsRegistered().then(() => undefined)]).then(() => {
+			this.waitedForExtensionsRegistered = true;
+
+			return this.doGetResults(searchValue, token);
+		});
 	}
 
 	private doGetResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
