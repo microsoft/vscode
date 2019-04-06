@@ -226,8 +226,8 @@ export interface IWindowService {
 
 	readonly hasFocus: boolean;
 
-	getConfiguration(): IWindowConfiguration;
-	getCurrentWindowId(): number;
+	readonly windowId: number;
+
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;

@@ -669,7 +669,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			return Promise.reject(new Error('Missing local'));
 		}
 
-		this.logService.info(`Requested uninstalling the extension ${extension.identifier.id} from window ${this.windowService.getCurrentWindowId()}`);
+		this.logService.info(`Requested uninstalling the extension ${extension.identifier.id} from window ${this.windowService.windowId}`);
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),

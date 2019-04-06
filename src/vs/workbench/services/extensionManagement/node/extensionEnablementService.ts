@@ -10,11 +10,10 @@ import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnab
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -33,9 +32,8 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 	) {
@@ -138,7 +136,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		if (Array.isArray(disabledExtensions)) {
 			return disabledExtensions.some(id => areSameExtensions({ id }, extension.identifier));
 		}
-		if (this.windowService.getConfiguration().remoteAuthority) {
+		if (this.environmentService.configuration.remoteAuthority) {
 			const server = isUIExtension(extension.manifest, this.configurationService) ? this.extensionManagementServerService.localExtensionManagementServer : this.extensionManagementServerService.remoteExtensionManagementServer;
 			return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
 		}

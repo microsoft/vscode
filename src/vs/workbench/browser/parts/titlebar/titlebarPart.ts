@@ -18,7 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { EditorInput, toResource, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
@@ -85,7 +85,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -412,7 +412,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			// Resizer
 			this.resizer = append(this.element, $('div.resizer'));
 
-			const isMaximized = this.windowService.getConfiguration().maximized ? true : false;
+			const isMaximized = this.environmentService.configuration.maximized ? true : false;
 			this.onDidChangeMaximized(isMaximized);
 			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
 		}

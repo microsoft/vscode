@@ -7,15 +7,15 @@ import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/t
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/product';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -24,13 +24,12 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	private impl: ITelemetryService;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@ILogService logService: ILogService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWindowService windowService: IWindowService
 	) {
 		super();
 
@@ -38,7 +37,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const channel = sharedProcessService.getChannel('telemetryAppender');
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService)),
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, windowService.getConfiguration().machineId, environmentService.installSourcePath),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.installSourcePath),
 				piiPaths: [environmentService.appRoot, environmentService.extensionsPath]
 			};
 
@@ -60,3 +59,5 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.getTelemetryInfo();
 	}
 }
+
+registerSingleton(ITelemetryService, TelemetryService);

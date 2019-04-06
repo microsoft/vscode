@@ -15,14 +15,12 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
-import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { webFrame } from 'electron';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
@@ -177,12 +175,9 @@ class CodeRendererMain extends Disposable {
 		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		// Window
-		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, [this.configuration]));
-
 		// Environment
-		const environmentService = new EnvironmentService(this.configuration, this.configuration.execPath);
-		serviceCollection.set(IEnvironmentService, environmentService);
+		const environmentService = new WorkbenchEnvironmentService(this.configuration, this.configuration.execPath);
+		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Log
 		const logService = this._register(this.createLogService(mainProcessService, environmentService));
@@ -231,7 +226,7 @@ class CodeRendererMain extends Disposable {
 		]).then(services => ({ serviceCollection, logService, storageService: services[1] })));
 	}
 
-	private resolveWorkspaceInitializationPayload(environmentService: EnvironmentService): Promise<IWorkspaceInitializationPayload> {
+	private resolveWorkspaceInitializationPayload(environmentService: IWorkbenchEnvironmentService): Promise<IWorkspaceInitializationPayload> {
 
 		// Multi-root workspace
 		if (this.configuration.workspace) {
@@ -301,7 +296,7 @@ class CodeRendererMain extends Disposable {
 		}, error => onUnexpectedError(error));
 	}
 
-	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, fileService: FileService2, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService2, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
 		const configurationFileService = new ConfigurationFileService();
 		fileService.whenReady.then(() => configurationFileService.fileService = fileService);
 
@@ -315,7 +310,7 @@ class CodeRendererMain extends Disposable {
 		});
 	}
 
-	private createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, logService: ILogService, mainProcessService: IMainProcessService): Promise<StorageService> {
+	private createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, logService: ILogService, mainProcessService: IMainProcessService): Promise<StorageService> {
 		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage'));
 		const storageService = new StorageService(globalStorageDatabase, logService, environmentService);
 
@@ -327,7 +322,7 @@ class CodeRendererMain extends Disposable {
 		});
 	}
 
-	private createLogService(mainProcessService: IMainProcessService, environmentService: IEnvironmentService): ILogService {
+	private createLogService(mainProcessService: IMainProcessService, environmentService: IWorkbenchEnvironmentService): ILogService {
 		const spdlogService = createSpdLogService(`renderer${this.configuration.windowId}`, this.configuration.logLevel, environmentService.logsPath);
 		const consoleLogService = new ConsoleLogService(this.configuration.logLevel);
 		const logService = new MultiplexLogService([consoleLogService, spdlogService]);

@@ -75,8 +75,6 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 // import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 // import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-// import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-// import { TelemetryService } from 'vs/platform/telemetry/electron-browser/telemetryService';
 // import { IProductService } from 'vs/platform/product/common/product';
 // import { ProductService } from 'vs/platform/product/node/productService';
 // import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -137,7 +135,9 @@ import 'vs/workbench/services/label/common/labelService';
 // import 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
 // import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
-
+// import 'vs/workbench/services/heap/node/heap';
+// import 'vs/workbench/services/window/electron-browser/windowService';
+// import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 
 
 registerSingleton(IMenuService, MenuService, true);
@@ -158,7 +158,6 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(ILifecycleService, LifecycleService);
 // registerSingleton(ILocalizationsService, LocalizationsService);
 // registerSingleton(ISharedProcessService, SharedProcessService, true);
-// registerSingleton(ITelemetryService, TelemetryService);
 // registerSingleton(IProductService, ProductService, true);
 // registerSingleton(IWindowsService, WindowsService);
 // registerSingleton(IUpdateService, UpdateService);

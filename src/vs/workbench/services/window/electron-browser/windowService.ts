@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class WindowService extends Disposable implements IWindowService {
 
@@ -19,24 +21,26 @@ export class WindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: any;
 
-	private windowId: number;
+	private _windowId: number;
+	private remoteAuthority: string | undefined;
 
 	private _hasFocus: boolean;
 	get hasFocus(): boolean { return this._hasFocus; }
 
 	constructor(
-		private configuration: IWindowConfiguration,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
-		this.windowId = configuration.windowId;
+		this._windowId = environmentService.configuration.windowId;
+		this.remoteAuthority = environmentService.configuration.remoteAuthority;
 
-		const onThisWindowFocus = Event.map(Event.filter(windowsService.onWindowFocus, id => id === this.windowId), _ => true);
-		const onThisWindowBlur = Event.map(Event.filter(windowsService.onWindowBlur, id => id === this.windowId), _ => false);
-		const onThisWindowMaximize = Event.map(Event.filter(windowsService.onWindowMaximize, id => id === this.windowId), _ => true);
-		const onThisWindowUnmaximize = Event.map(Event.filter(windowsService.onWindowUnmaximize, id => id === this.windowId), _ => false);
+		const onThisWindowFocus = Event.map(Event.filter(windowsService.onWindowFocus, id => id === this._windowId), _ => true);
+		const onThisWindowBlur = Event.map(Event.filter(windowsService.onWindowBlur, id => id === this._windowId), _ => false);
+		const onThisWindowMaximize = Event.map(Event.filter(windowsService.onWindowMaximize, id => id === this._windowId), _ => true);
+		const onThisWindowUnmaximize = Event.map(Event.filter(windowsService.onWindowUnmaximize, id => id === this._windowId), _ => false);
 		this.onDidChangeFocus = Event.any(onThisWindowFocus, onThisWindowBlur);
 		this.onDidChangeMaximize = Event.any(onThisWindowMaximize, onThisWindowUnmaximize);
 
@@ -45,12 +49,8 @@ export class WindowService extends Disposable implements IWindowService {
 		this._register(this.onDidChangeFocus(focus => this._hasFocus = focus));
 	}
 
-	getCurrentWindowId(): number {
-		return this.windowId;
-	}
-
-	getConfiguration(): IWindowConfiguration {
-		return this.configuration;
+	get windowId(): number {
+		return this._windowId;
 	}
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
@@ -98,9 +98,10 @@ export class WindowService extends Disposable implements IWindowService {
 	}
 
 	openWindow(uris: IURIToOpen[], options: IOpenSettings = {}): Promise<void> {
-		if (!!this.configuration.remoteAuthority) {
+		if (!!this.remoteAuthority) {
 			uris.forEach(u => u.label = u.label || this.getRecentLabel(u));
 		}
+
 		return this.windowsService.openWindow(this.windowId, uris, options);
 	}
 
@@ -183,3 +184,4 @@ export class WindowService extends Disposable implements IWindowService {
 	}
 }
 
+registerSingleton(IWindowService, WindowService);

@@ -13,7 +13,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { EnablementState, IExtensionEnablementService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { BetterMergeId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -97,7 +97,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
@@ -112,7 +112,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			e.join(this.activateByEvent(`onFileSystem:${e.scheme}`));
 		}));
 
-		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._windowService.getCurrentWindowId()}`));
+		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._windowService.windowId}`));
 		this._registry = new ExtensionDescriptionRegistry([]);
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
@@ -189,7 +189,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[]): Promise<void> {
-		if (this._windowService.getConfiguration().remoteAuthority) {
+		if (this._environmentService.configuration.remoteAuthority) {
 			return;
 		}
 
@@ -283,7 +283,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public canAddExtension(extension: IExtensionDescription): boolean {
-		if (this._windowService.getConfiguration().remoteAuthority) {
+		if (this._environmentService.configuration.remoteAuthority) {
 			return false;
 		}
 
@@ -303,7 +303,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public canRemoveExtension(extension: IExtensionDescription): boolean {
-		if (this._windowService.getConfiguration().remoteAuthority) {
+		if (this._environmentService.configuration.remoteAuthority) {
 			return false;
 		}
 

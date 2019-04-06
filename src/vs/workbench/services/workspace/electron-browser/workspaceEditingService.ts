@@ -24,7 +24,7 @@ import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { isEqual, basename, isEqualOrParent, getComparisonKey } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -49,7 +49,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IFileService private readonly fileSystemService: IFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWorkspacesService private readonly workspaceService: IWorkspacesService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILifecycleService readonly lifecycleService: ILifecycleService,
@@ -245,7 +245,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (path && !this.isValidTargetWorkspacePath(path)) {
 			return Promise.reject(null);
 		}
-		const remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders, remoteAuthority);
 		if (path) {
 			await this.saveWorkspaceAs(untitledWorkspace, path);
@@ -360,7 +360,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			}
 		}
 
-		if (this.windowService.getConfiguration().remoteAuthority) {
+		if (this.environmentService.configuration.remoteAuthority) {
 			this.windowService.reloadWindow(); // TODO aeschli: workaround until restarting works
 		} else {
 			this.extensionService.startExtensionHost();

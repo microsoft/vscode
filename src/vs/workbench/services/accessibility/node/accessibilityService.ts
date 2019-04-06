@@ -6,7 +6,7 @@
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { isWindows } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class AccessibilityService implements IAccessibilityService {
 	_serviceBrand: any;
@@ -16,7 +16,7 @@ export class AccessibilityService implements IAccessibilityService {
 	readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
 
 	constructor(
-		@IWindowService private readonly windowService: IWindowService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) { }
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {
@@ -49,9 +49,8 @@ export class AccessibilityService implements IAccessibilityService {
 
 	getAccessibilitySupport(): AccessibilitySupport {
 		if (this._accessibilitySupport === AccessibilitySupport.Unknown) {
-			const config = this.windowService.getConfiguration();
+			const config = this.environmentService.configuration;
 			this._accessibilitySupport = (config && config.accessibilitySupport) ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled;
-
 		}
 
 		return this._accessibilitySupport;

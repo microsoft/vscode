@@ -14,7 +14,7 @@ import { URI as Uri } from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel, hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { TestContextService, TestTextResourceConfigurationService, TestEnvironmentService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestTextResourceConfigurationService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
@@ -24,6 +24,8 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 
 const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');
@@ -38,18 +40,18 @@ const fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
 const barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
 const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
 
-class TestBackupWindowService extends TestWindowService {
+class TestBackupEnvironmentService extends WorkbenchEnvironmentService {
 
 	private config: IWindowConfiguration;
 
 	constructor(workspaceBackupPath: string) {
-		super();
+		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
 
 		this.config = Object.create(null);
 		this.config.backupPath = workspaceBackupPath;
 	}
 
-	getConfiguration(): IWindowConfiguration {
+	get configuration(): IWindowConfiguration {
 		return this.config;
 	}
 }
@@ -64,9 +66,9 @@ class TestBackupFileService extends BackupFileService {
 			TestEnvironmentService,
 			new TestTextResourceConfigurationService(),
 		));
-		const windowService = new TestBackupWindowService(workspaceBackupPath);
+		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
 
-		super(windowService, fileService);
+		super(environmentService, fileService);
 	}
 
 	public toBackupResource(resource: Uri): Uri {

@@ -9,7 +9,7 @@ import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
@@ -18,7 +18,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -78,8 +78,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
-		@IWindowService private readonly windowService: IWindowService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
@@ -609,7 +608,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 	}
 
 	private untitledToAssociatedFileResource(untitled: URI): URI {
-		const authority = this.windowService.getConfiguration().remoteAuthority;
+		const authority = this.environmentService.configuration.remoteAuthority;
 		if (authority) {
 			let path = untitled.path;
 			if (path && path[0] !== '/') {
@@ -799,7 +798,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 	private suggestFileName(untitledResource: URI): URI {
 		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource);
-		const remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? REMOTE_HOST_SCHEME : Schemas.file;
 
 		const lastActiveFile = this.historyService.getLastActiveFile(schemeFilter);

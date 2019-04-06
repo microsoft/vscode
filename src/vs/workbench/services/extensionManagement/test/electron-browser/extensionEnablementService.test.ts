@@ -9,14 +9,12 @@ import { ExtensionEnablementService } from 'vs/workbench/services/extensionManag
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, InMemoryStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionContributions, ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 
 function storageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -34,11 +32,13 @@ function storageService(instantiationService: TestInstantiationService): IStorag
 
 export class TestExtensionEnablementService extends ExtensionEnablementService {
 	constructor(instantiationService: TestInstantiationService) {
-		super(storageService(instantiationService), instantiationService.get(IWorkspaceContextService),
-			instantiationService.get(IEnvironmentService) || instantiationService.stub(IEnvironmentService, {} as IEnvironmentService),
+		super(
+			storageService(instantiationService),
+			instantiationService.get(IWorkspaceContextService),
+			instantiationService.get(IWorkbenchEnvironmentService) || instantiationService.stub(IWorkbenchEnvironmentService, { configuration: Object.create(null) } as IWorkbenchEnvironmentService),
 			instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService,
 				{ onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event, onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService),
-			instantiationService.stub(IWindowService, new TestWindowService()), instantiationService.get(IConfigurationService), instantiationService.get(IExtensionManagementServerService));
+			instantiationService.get(IConfigurationService), instantiationService.get(IExtensionManagementServerService));
 	}
 
 	public reset(): void {
@@ -437,26 +437,26 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test canChangeEnablement return false when extensions are disabled in environment', () => {
-		instantiationService.stub(IEnvironmentService, { disableExtensions: true } as IEnvironmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: true } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a')), false);
 	});
 
 	test('test canChangeEnablement return false when the extension is disabled in environment', () => {
-		instantiationService.stub(IEnvironmentService, { disableExtensions: ['pub.a'] } as IEnvironmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: ['pub.a'] } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a')), false);
 	});
 
 	test('test canChangeEnablement return true for system extensions when extensions are disabled in environment', () => {
-		instantiationService.stub(IEnvironmentService, { disableExtensions: true } as IEnvironmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: true } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 		const extension = aLocalExtension('pub.a', undefined, ExtensionType.System);
 		assert.equal(testObject.canChangeEnablement(extension), true);
 	});
 
 	test('test canChangeEnablement return false for system extension when extension is disabled in environment', () => {
-		instantiationService.stub(IEnvironmentService, { disableExtensions: ['pub.a'] } as IEnvironmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: ['pub.a'] } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 		const extension = aLocalExtension('pub.a', undefined, ExtensionType.System);
 		assert.ok(!testObject.canChangeEnablement(extension));
@@ -464,7 +464,7 @@ suite('ExtensionEnablementService Test', () => {
 
 	test('test extension is disabled when disabled in enviroment', async () => {
 		const extension = aLocalExtension('pub.a');
-		instantiationService.stub(IEnvironmentService, { disableExtensions: ['pub.a'] } as IEnvironmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: ['pub.a'] } as IWorkbenchEnvironmentService);
 		instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: didUninstallEvent.event, onDidInstallExtension: didInstallEvent.event, getInstalled: () => Promise.resolve([extension, aLocalExtension('pub.b')]) } as IExtensionManagementService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(!testObject.isEnabled(extension));

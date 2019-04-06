@@ -61,6 +61,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Color, RGBA } from 'vs/base/common/color';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAgentService, IRemoteAgentConnection } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const workspaceResource = URI.file(isWindows ? 'C:\\simpleWorkspace' : '/simpleWorkspace');
 
@@ -225,7 +226,8 @@ registerSingleton(IDownloadService, SimpleDownloadService, true);
 
 //#region Environment
 
-export class SimpleEnvironmentService implements IEnvironmentService {
+export class SimpleEnvironmentService implements IWorkbenchEnvironmentService {
+	configuration: IWindowConfiguration = new SimpleWindowConfiguration();
 	untitledWorkspacesHome: URI;
 	extensionTestsLocationURI?: URI;
 	_serviceBrand: any;
@@ -1382,7 +1384,7 @@ export class SimpleWindowService implements IWindowService {
 
 	hasFocus = true;
 
-	private configuration: IWindowConfiguration = new SimpleWindowConfiguration();
+	readonly windowId = 0;
 
 	isFocused(): Promise<boolean> {
 		return Promise.resolve(false);
@@ -1390,14 +1392,6 @@ export class SimpleWindowService implements IWindowService {
 
 	isMaximized(): Promise<boolean> {
 		return Promise.resolve(false);
-	}
-
-	getConfiguration(): IWindowConfiguration {
-		return this.configuration;
-	}
-
-	getCurrentWindowId(): number {
-		return 0;
 	}
 
 	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {

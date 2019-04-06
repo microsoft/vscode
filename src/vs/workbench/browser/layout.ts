@@ -25,7 +25,7 @@ import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Sizing, Direction, Grid, View } from 'vs/base/browser/ui/grid/grid';
@@ -89,7 +89,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private editorPartView: View;
 	private statusBarPartView: View;
 
-	private environmentService: IEnvironmentService;
+	private environmentService: IWorkbenchEnvironmentService;
 	private configurationService: IConfigurationService;
 	private lifecycleService: ILifecycleService;
 	private storageService: IStorageService;
@@ -161,7 +161,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	protected initLayout(accessor: ServicesAccessor): void {
 
 		// Services
-		this.environmentService = accessor.get(IEnvironmentService);
+		this.environmentService = accessor.get(IWorkbenchEnvironmentService);
 		this.configurationService = accessor.get(IConfigurationService);
 		this.lifecycleService = accessor.get(ILifecycleService);
 		this.windowService = accessor.get(IWindowService);
@@ -389,7 +389,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private resolveEditorsToOpen(): Promise<IResourceEditor[]> | IResourceEditor[] {
-		const configuration = this.windowService.getConfiguration();
+		const configuration = this.environmentService.configuration;
 		const hasInitialFilesToOpen = this.hasInitialFilesToOpen();
 
 		// Only restore editors if we are not instructed to open files initially
@@ -436,7 +436,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private hasInitialFilesToOpen(): boolean {
-		const configuration = this.windowService.getConfiguration();
+		const configuration = this.environmentService.configuration;
 
 		return !!(
 			(configuration.filesToCreate && configuration.filesToCreate.length > 0) ||

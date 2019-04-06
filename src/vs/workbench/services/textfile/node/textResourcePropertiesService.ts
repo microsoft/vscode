@@ -9,7 +9,7 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -23,7 +23,7 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		remoteAgentService.getEnvironment().then(remoteEnv => this.remoteEnvironment = remoteEnv);
@@ -40,7 +40,7 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 
 	private getOS(resource: URI): OperatingSystem {
 		let os = OS;
-		const remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		if (remoteAuthority) {
 			if (resource.scheme !== Schemas.file) {
 				const osCacheKey = `resource.authority.os.${remoteAuthority}`;

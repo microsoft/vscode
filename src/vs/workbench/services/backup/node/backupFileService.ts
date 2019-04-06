@@ -15,7 +15,7 @@ import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export interface IBackupFilesModel {
@@ -114,10 +114,10 @@ export class BackupFileService implements IBackupFileService {
 	private impl: IBackupFileService;
 
 	constructor(
-		@IWindowService windowService: IWindowService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileService fileService: IFileService
 	) {
-		const backupWorkspacePath = windowService.getConfiguration().backupPath;
+		const backupWorkspacePath = environmentService.configuration.backupPath;
 		if (backupWorkspacePath) {
 			this.impl = new BackupFileServiceImpl(backupWorkspacePath, fileService);
 		} else {

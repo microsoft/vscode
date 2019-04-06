@@ -12,7 +12,6 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -20,7 +19,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Schemas } from 'vs/base/common/network';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { RemoteFileDialogContext } from 'vs/workbench/common/contextkeys';
@@ -54,19 +53,18 @@ export class RemoteFileDialog {
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IWindowService private readonly windowService: IWindowService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService
 
 	) {
-		this.remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
+		this.remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
 	}
 

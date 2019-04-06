@@ -53,7 +53,7 @@ class ExtensionHostDebugService implements IExtensionHostDebugService {
 	constructor(
 		@IWindowService readonly windowService: IWindowService,
 	) {
-		this.windowId = windowService.getCurrentWindowId();
+		this.windowId = windowService.windowId;
 
 		ipc.on(CHANNEL, (_: unknown, broadcast: IReloadBroadcast | ICloseBroadcast | IAttachSessionBroadcast | ILogToSessionBroadcast | ITerminateSessionBroadcast) => {
 			if (broadcast.type === 'vscode:extensionReload') {

@@ -10,7 +10,7 @@ import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { toResource } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -20,7 +20,6 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 
@@ -29,9 +28,8 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	static INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
 
 	constructor(
-		@IWindowService windowService: IWindowService,
 		@IEditorService editorService: IEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -84,7 +82,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				}
 				return undefined;
 			}
-		}, windowService.getConfiguration().userEnv);
+		}, environmentService.configuration.userEnv);
 	}
 
 	public resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {

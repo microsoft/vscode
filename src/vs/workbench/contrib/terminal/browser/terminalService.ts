@@ -17,7 +17,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
@@ -35,7 +35,7 @@ export abstract class TerminalService extends CommonTerminalService implements I
 		@INotificationService notificationService: INotificationService,
 		@IDialogService dialogService: IDialogService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@IWindowService private _windowService: IWindowService,
+		@IWorkbenchEnvironmentService private _environmentService: IWorkbenchEnvironmentService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
 	) {
@@ -76,7 +76,7 @@ export abstract class TerminalService extends CommonTerminalService implements I
 			return;
 		}
 
-		if (this._windowService.getConfiguration().remoteAuthority) {
+		if (this._environmentService.configuration.remoteAuthority) {
 			// Don't suggest if the opened workspace is remote
 			return;
 		}
@@ -87,7 +87,7 @@ export abstract class TerminalService extends CommonTerminalService implements I
 			return;
 		}
 
-		if (this._windowService.getConfiguration().remoteAuthority) {
+		if (this._environmentService.configuration.remoteAuthority) {
 			// Don't suggest if the opened workspace is remote
 			return;
 		}

@@ -8,7 +8,7 @@ import { IWindowService, INativeOpenDialogOptions, OpenDialogOptions, IURIToOpen
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
@@ -28,7 +28,7 @@ export class FileDialogService implements IFileDialogService {
 		@IWindowService private readonly windowService: IWindowService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IHistoryService private readonly historyService: IHistoryService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService
@@ -257,7 +257,7 @@ export class FileDialogService implements IFileDialogService {
 	}
 
 	private getSchemeFilterForWindow() {
-		return !this.windowService.getConfiguration().remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
+		return !this.environmentService.configuration.remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
 	}
 
 	private getFileSystemSchema(options: { availableFileSystems?: string[], defaultUri?: URI }): string {
@@ -266,7 +266,7 @@ export class FileDialogService implements IFileDialogService {
 
 }
 
-function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
+function isUntitledWorkspace(path: URI, environmentService: IWorkbenchEnvironmentService): boolean {
 	return resources.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
 }
 

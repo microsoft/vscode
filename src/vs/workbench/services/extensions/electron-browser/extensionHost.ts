@@ -22,7 +22,7 @@ import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { generateRandomPipeName, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -78,7 +78,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@IWindowsService private readonly _windowsService: IWindowsService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -240,7 +240,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 				// Help in case we fail to start it
 				let startupTimeoutHandle: any;
-				if (!this._environmentService.isBuilt && !this._windowService.getConfiguration().remoteAuthority || this._isExtensionDevHost) {
+				if (!this._environmentService.isBuilt && !this._environmentService.configuration.remoteAuthority || this._isExtensionDevHost) {
 					startupTimeoutHandle = setTimeout(() => {
 						const msg = this._isExtensionDevDebugBrk
 							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
