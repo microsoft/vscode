@@ -214,7 +214,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 			if (this.watchedIconThemeLocation && this.currentIconTheme && e.contains(this.watchedIconThemeLocation, FileChangeType.UPDATED)) {
 				await this.currentIconTheme.reload(this.fileService);
-				_applyIconTheme(this.currentIconTheme, () => Promise.resolve(this.currentIconTheme));
+				_applyIconTheme(this.currentIconTheme, () => {
+					this.doSetFileIconTheme(this.currentIconTheme);
+					return Promise.resolve(this.currentIconTheme);
+				});
 			}
 		});
 	}
