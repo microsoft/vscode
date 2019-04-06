@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/MagicStack/MagicPython/commit/8ff35b3e5fcde471fae62a57ea1ae1c7cd34c9fc",
+	"version": "https://github.com/MagicStack/MagicPython/commit/38422d302fe0b3e7716d26ce8cd7d0b9685f3a38",
 	"name": "MagicPython",
 	"scopeName": "source.python",
 	"patterns": [
@@ -827,7 +827,7 @@
 			]
 		},
 		"f-expression": {
-			"comment": "All valid Python expressions, except comments and line cont",
+			"comment": "All valid Python expressions, except comments and line continuation",
 			"patterns": [
 				{
 					"include": "#expression-bare"

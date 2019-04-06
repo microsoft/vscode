@@ -6,7 +6,7 @@
 import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
-import { Throttler, Delayer } from 'vs/base/common/async';
+import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
@@ -1022,9 +1022,10 @@ export class ReloadAction extends ExtensionAction {
 	private static readonly EnabledClass = 'extension-action reload';
 	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
 
-	// Use delayer to wait for more updates
-	private throttler: Throttler;
 	private disposables: IDisposable[] = [];
+	private _runningExtensions: IExtensionDescription[] = [];
+	private get runningExtensions(): IExtensionDescription[] { return this._runningExtensions; }
+	private set runningExtensions(runningExtensions: IExtensionDescription[]) { this._runningExtensions = runningExtensions; this.update(); }
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -1033,39 +1034,38 @@ export class ReloadAction extends ExtensionAction {
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
-		this.throttler = new Throttler();
-		this.extensionService.onDidChangeExtensions(this.update, this, this.disposables);
-		this.update();
+		this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this, this.disposables);
+		this.updateRunningExtensions();
 	}
 
-	update(): Promise<void> {
-		return this.throttler.queue(() => {
-			this.enabled = false;
-			this.tooltip = '';
-			if (!this.extension) {
-				return Promise.resolve(undefined);
-			}
-			const state = this.extension.state;
-			if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
-				return Promise.resolve(undefined);
-			}
-			const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
-			const local = this.extension.local || (installed && installed.local);
-			if (local && local.manifest && local.manifest.contributes && local.manifest.contributes.localizations && local.manifest.contributes.localizations.length > 0) {
-				return Promise.resolve(undefined);
-			}
-			return this.extensionService.getExtensions()
-				.then(runningExtensions => this.computeReloadState(runningExtensions, installed));
-		}).then(() => {
-			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
-		});
+	private updateRunningExtensions(): void {
+		this.extensionService.getExtensions().then(runningExtensions => this.runningExtensions = runningExtensions);
 	}
 
-	private computeReloadState(runningExtensions: IExtensionDescription[], installed: IExtension): void {
+	update(): void {
+		this.enabled = false;
+		this.tooltip = '';
+		if (!this.extension) {
+			return;
+		}
+		const state = this.extension.state;
+		if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
+			return;
+		}
+		const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
+		const local = this.extension.local || (installed && installed.local);
+		if (local && local.manifest && local.manifest.contributes && local.manifest.contributes.localizations && local.manifest.contributes.localizations.length > 0) {
+			return;
+		}
+		this.computeReloadState(installed);
+		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
+	}
+
+	private computeReloadState(installed: IExtension): void {
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const isDisabled = this.extension.local ? !this.extensionEnablementService.isEnabled(this.extension.local) : false;
 		const isEnabled = this.extension.local ? this.extensionEnablementService.isEnabled(this.extension.local) : false;
-		const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+		const runningExtension = this.runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
 
 		if (installed && installed.local) {
 			if (runningExtension) {

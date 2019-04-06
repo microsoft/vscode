@@ -115,20 +115,16 @@ export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtension
 	});
 }
 
-export function getInstalledExtensions(accessor: ServicesAccessor): Promise<IExtensionStatus[]> {
+export async function getInstalledExtensions(accessor: ServicesAccessor): Promise<IExtensionStatus[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IExtensionEnablementService);
-	return extensionService.getInstalled().then(extensions => {
-		return extensionEnablementService.getDisabledExtensions()
-			.then(disabledExtensions => {
-				return extensions.map(extension => {
-					return {
-						identifier: extension.identifier,
-						local: extension,
-						globallyEnabled: disabledExtensions.every(disabled => !areSameExtensions(disabled, extension.identifier))
-					};
-				});
-			});
+	const extensions = await extensionService.getInstalled();
+	return extensions.map(extension => {
+		return {
+			identifier: extension.identifier,
+			local: extension,
+			globallyEnabled: extensionEnablementService.isEnabled(extension)
+		};
 	});
 }
 

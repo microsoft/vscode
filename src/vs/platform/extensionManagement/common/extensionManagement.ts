@@ -242,12 +242,6 @@ export interface IExtensionEnablementService {
 	onEnablementChanged: Event<IExtension[]>;
 
 	/**
-	 * Returns all disabled extension identifiers for current workspace
-	 * Returns an empty array if none exist
-	 */
-	getDisabledExtensions(): Promise<IExtensionIdentifier[]>;
-
-	/**
 	 * Returns the enablement state for the given extension
 	 */
 	getEnablementState(extension: IExtension): EnablementState;

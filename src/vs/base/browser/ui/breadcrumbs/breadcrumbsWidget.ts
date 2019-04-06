@@ -274,7 +274,7 @@ export class BreadcrumbsWidget {
 		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
 	}
 
-	getItems(): ReadonlyArray<BreadcrumbsItem> {
+	getItems(): readonly BreadcrumbsItem[] {
 		return this._items;
 	}
 

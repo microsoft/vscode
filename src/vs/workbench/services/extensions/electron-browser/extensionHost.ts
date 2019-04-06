@@ -13,8 +13,9 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
-import { isWindows } from 'vs/base/common/platform';
+import * as platform from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
+import pkg from 'vs/platform/product/node/package';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
@@ -160,7 +161,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					// and detach under Linux and Mac create another process group.
 					// We detach because we have noticed that when the renderer exits, its child processes
 					// (i.e. extension host) are taken down in a brutal fashion by the OS
-					detached: !!isWindows,
+					detached: !!platform.isWindows,
 					execArgv: undefined as string[] | undefined,
 					silent: true
 				};
@@ -401,11 +402,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				const workspace = this._contextService.getWorkspace();
 				const r: IInitData = {
 					commit: product.commit,
+					version: pkg.version,
 					parentPid: process.pid,
 					environment: {
 						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : undefined,
+						appName: product.nameLong,
+						appUriScheme: product.urlProtocol,
+						appLanguage: platform.language,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome),

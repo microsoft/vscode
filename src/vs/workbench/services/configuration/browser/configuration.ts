@@ -49,7 +49,7 @@ export class RemoteUserConfiguration extends Disposable {
 				this._userConfigurationDisposable.dispose();
 				this._userConfiguration = this._register(new UserConfiguration(environment.appSettingsPath, this._configurationFileService));
 				this._userConfigurationDisposable = this._register(this._userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
-				this._userConfiguration.initialize().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel));
+				this._userConfiguration.initialize().then(configurationModel => this.onDidUserConfigurationChange(configurationModel));
 			}
 		});
 	}

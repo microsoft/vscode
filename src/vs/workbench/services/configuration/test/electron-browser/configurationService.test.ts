@@ -219,14 +219,16 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), remoteAgentService);
+				const fileService = new FileService2(new NullLogService());
+				const configurationFileService = new ConfigurationFileService();
+				fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
-					const fileService = new FileService2(new NullLogService());
 					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 					fileService.setLegacyService(new LegacyFileService(
 						fileService,
@@ -238,7 +240,6 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.acquireInstantiationService(instantiationService);
-					workspaceService.acquireFileService(fileService);
 
 					testObject = workspaceService;
 				});
@@ -485,13 +486,15 @@ suite('WorkspaceService - Initialization', () => {
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), remoteAgentService);
+				const fileService = new FileService2(new NullLogService());
+				const configurationFileService = new ConfigurationFileService();
+				fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize({ id: '' }).then(() => {
-					const fileService = new FileService2(new NullLogService());
 					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 					fileService.setLegacyService(new LegacyFileService(
 						fileService,
@@ -503,7 +506,6 @@ suite('WorkspaceService - Initialization', () => {
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.acquireInstantiationService(instantiationService);
-					workspaceService.acquireFileService(fileService);
 					testObject = workspaceService;
 				});
 			});
@@ -749,13 +751,15 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), remoteAgentService);
+				const fileService = new FileService2(new NullLogService());
+				const configurationFileService = new ConfigurationFileService();
+				fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(convertToWorkspacePayload(URI.file(folderDir))).then(() => {
-					const fileService = new FileService2(new NullLogService());
 					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 					fileService.setLegacyService(new LegacyFileService(
 						fileService,
@@ -767,7 +771,6 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.acquireInstantiationService(instantiationService);
-					workspaceService.acquireFileService(fileService);
 					testObject = workspaceService;
 				});
 			});
@@ -1046,14 +1049,16 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), remoteAgentService);
+				const fileService = new FileService2(new NullLogService());
+				const configurationFileService = new ConfigurationFileService();
+				fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
-					const fileService = new FileService2(new NullLogService());
 					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 					fileService.setLegacyService(new LegacyFileService(
 						fileService,
@@ -1065,7 +1070,6 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.acquireInstantiationService(instantiationService);
-					workspaceService.acquireFileService(fileService);
 
 					workspaceContextService = workspaceService;
 					jsonEditingServce = instantiationService.createInstance(JSONEditingService);

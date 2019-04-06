@@ -241,7 +241,7 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 
 	if (!resource) {
 		const editorService = accessor.get(IEditorService);
-		const file = editorService.activeEditor ? toResource(editorService.activeEditor, { filter: 'file' }) : null;
+		const file = editorService.activeEditor ? toResource(editorService.activeEditor, { filterByScheme: 'file' }) : null;
 		if (file) {
 			process(file).then(result => {
 				console.log(result);

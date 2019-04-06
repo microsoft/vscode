@@ -210,7 +210,7 @@ class CodeRendererMain extends Disposable {
 		}
 
 		return this.resolveWorkspaceInitializationPayload(environmentService).then(payload => Promise.all([
-			this.createWorkspaceService(payload, environmentService, remoteAgentService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -301,8 +301,11 @@ class CodeRendererMain extends Disposable {
 		}, error => onUnexpectedError(error));
 	}
 
-	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), remoteAgentService);
+	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IEnvironmentService, fileService: FileService2, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+		const configurationFileService = new ConfigurationFileService();
+		fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+
+		const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 
 		return workspaceService.initialize(payload).then(() => workspaceService, error => {
 			onUnexpectedError(error);

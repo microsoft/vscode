@@ -432,8 +432,6 @@ export class Selection extends Range {
 export class ResolvedAuthority {
 	readonly host: string;
 	readonly port: number;
-	debugListenPort?: number;
-	debugConnectPort?: number;
 
 	constructor(host: string, port: number) {
 		if (typeof host !== 'string' || host.length === 0) {
