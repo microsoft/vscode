@@ -94,10 +94,11 @@ export class MarkdownContentProvider {
 		resource: vscode.Uri,
 	): Promise<string> {
 		const resourcePath = path.basename(resource.fsPath);
+		const body = localize('preview.notFound', '{0} cannot be found', resourcePath);
 		return `<!DOCTYPE html>
 			<html>
 			<body class="vscode-body">
-				${resourcePath} cannot be found.
+				${body}
 			</body>
 			</html>`;
 	}
