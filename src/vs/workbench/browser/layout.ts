@@ -167,6 +167,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.windowService = accessor.get(IWindowService);
 		this.contextService = accessor.get(IWorkspaceContextService);
 		this.storageService = accessor.get(IStorageService);
+		this.backupFileService = accessor.get(IBackupFileService);
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
@@ -418,8 +419,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Empty workbench
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.inspect('workbench.startupEditor').value === 'newUntitledFile') {
-			const isEmpty = this.editorGroupService.count === 1 && this.editorGroupService.activeGroup.count === 0;
-			if (!isEmpty) {
+			if (this.editorGroupService.willRestoreEditors) {
 				return []; // do not open any empty untitled file if we restored editors from previous session
 			}
 
