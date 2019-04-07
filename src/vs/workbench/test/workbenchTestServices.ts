@@ -658,6 +658,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	orientation: any;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
+	willRestoreEditors = false;
 
 	dimension = { width: 800, height: 600 };
 
