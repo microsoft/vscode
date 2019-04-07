@@ -369,36 +369,39 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			// Dispose old
 			dispose(this.recursiveWatcher);
 
-			let watcherImpl: {
-				new(
-					folders: { path: string, excludes: string[] }[],
-					onChange: (changes: IDiskFileChange[]) => void,
-					onError: (msg: string) => void,
-					verboseLogging: boolean
-				): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
-			};
+			// Create new if we actually have folders to watch
+			if (this.recursiveFoldersToWatch.length > 0) {
+				let watcherImpl: {
+					new(
+						folders: { path: string, excludes: string[] }[],
+						onChange: (changes: IDiskFileChange[]) => void,
+						onError: (msg: string) => void,
+						verboseLogging: boolean
+					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
+				};
 
-			// Single Folder Watcher
-			if (this.recursiveFoldersToWatch.length === 1) {
-				if (isWindows) {
-					watcherImpl = WindowsWatcherService;
-				} else {
-					watcherImpl = UnixWatcherService;
+				// Single Folder Watcher
+				if (this.recursiveFoldersToWatch.length === 1) {
+					if (isWindows) {
+						watcherImpl = WindowsWatcherService;
+					} else {
+						watcherImpl = UnixWatcherService;
+					}
 				}
-			}
 
-			// Multi Folder Watcher
-			else {
-				watcherImpl = NsfwWatcherService;
-			}
+				// Multi Folder Watcher
+				else {
+					watcherImpl = NsfwWatcherService;
+				}
 
-			// Create and start watching
-			this.recursiveWatcher = new watcherImpl(
-				this.recursiveFoldersToWatch,
-				event => this._onDidChangeFile.fire(toFileChanges(event)),
-				error => this._onDidWatchErrorOccur.fire(new Error(error)),
-				this.logService.getLevel() === LogLevel.Trace
-			);
+				// Create and start watching
+				this.recursiveWatcher = new watcherImpl(
+					this.recursiveFoldersToWatch,
+					event => this._onDidChangeFile.fire(toFileChanges(event)),
+					error => this._onDidWatchErrorOccur.fire(new Error(error)),
+					this.logService.getLevel() === LogLevel.Trace
+				);
+			}
 		}
 	}
 
