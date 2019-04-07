@@ -163,7 +163,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
 	constructor(logsLocation: URI, mainContext: IMainContext) {
 		const outputDirPath = join(logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
-		this._outputDir = dirExists(outputDirPath).then(exists => exists ? exists : mkdirp(outputDirPath)).then(() => outputDirPath);
+		this._outputDir = dirExists(outputDirPath).then(exists => exists ? exists : mkdirp(outputDirPath).then(() => true)).then(() => outputDirPath);
 		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
 	}
 

@@ -6,21 +6,21 @@
 import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
-import * as extfs from 'vs/base/node/extfs';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileStorage } from 'vs/platform/state/node/stateService';
+import { mkdirp, rimraf, RimRafMode, writeFileSync } from 'vs/base/node/pfs';
 
 suite('StateService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
 	const storageFile = path.join(parentDir, 'storage.json');
 
 	teardown(done => {
-		extfs.del(parentDir, os.tmpdir(), done);
+		rimraf(parentDir, RimRafMode.MOVE).then(done, done);
 	});
 
 	test('Basics', () => {
-		return extfs.mkdirp(parentDir).then(() => {
-			extfs.writeFileAndFlushSync(storageFile, '');
+		return mkdirp(parentDir).then(() => {
+			writeFileSync(storageFile, '');
 
 			let service = new FileStorage(storageFile, () => null);
 

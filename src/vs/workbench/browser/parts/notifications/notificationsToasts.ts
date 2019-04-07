@@ -191,6 +191,10 @@ export class NotificationsToasts extends Themable {
 
 		// Update when item height potentially changes due to label changes
 		itemDisposeables.push(item.onDidLabelChange(e => {
+			if (!item.expanded) {
+				return; // dynamic height only applies to expanded notifications
+			}
+
 			if (e.kind === NotificationViewItemLabelKind.ACTIONS || e.kind === NotificationViewItemLabelKind.MESSAGE) {
 				notificationList.updateNotificationsList(0, 1, [item]);
 			}

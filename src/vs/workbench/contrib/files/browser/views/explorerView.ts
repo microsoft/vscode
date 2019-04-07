@@ -8,9 +8,9 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash } from 'vs/workbench/contrib/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
-import { toResource } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
@@ -39,7 +39,7 @@ import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemAc
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
+import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/browser/parts/views/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
@@ -49,6 +49,7 @@ import { isEqualOrParent } from 'vs/base/common/resources';
 import { values } from 'vs/base/common/map';
 import { first } from 'vs/base/common/arrays';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -61,6 +62,7 @@ export class ExplorerView extends ViewletPanel {
 	private folderContext: IContextKey<boolean>;
 	private readonlyContext: IContextKey<boolean>;
 	private rootContext: IContextKey<boolean>;
+	private resourceMoveableToTrash: IContextKey<boolean>;
 
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
@@ -85,7 +87,8 @@ export class ExplorerView extends ViewletPanel {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IClipboardService private clipboardService: IClipboardService
+		@IClipboardService private clipboardService: IClipboardService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
@@ -94,6 +97,7 @@ export class ExplorerView extends ViewletPanel {
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
+		this.resourceMoveableToTrash = ExplorerResourceMoveableToTrash.bindTo(contextKeyService);
 
 		const decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
 		decorationService.registerDecorationsProvider(decorationProvider);
@@ -163,11 +167,11 @@ export class ExplorerView extends ViewletPanel {
 
 		this.disposables.push(this.labelService.onDidChangeFormatters(() => {
 			this._onDidChangeTitleArea.fire();
-			this.refresh();
+			this.refresh(true);
 		}));
 
 		this.disposables.push(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
-		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refresh(e)));
+		this.disposables.push(this.explorerService.onDidChangeItem(e => this.refresh(e.recursive, e.item)));
 		this.disposables.push(this.explorerService.onDidChangeEditable(async e => {
 			const isEditing = !!this.explorerService.getEditableData(e);
 
@@ -177,7 +181,7 @@ export class ExplorerView extends ViewletPanel {
 				DOM.removeClass(treeContainer, 'highlight');
 			}
 
-			await this.refresh(e.parent);
+			await this.refresh(false, e.parent);
 
 			if (isEditing) {
 				DOM.addClass(treeContainer, 'highlight');
@@ -217,12 +221,8 @@ export class ExplorerView extends ViewletPanel {
 	getActions(): IAction[] {
 		const actions: Action[] = [];
 
-		const getFocus = () => {
-			const focus = this.tree.getFocus();
-			return focus.length > 0 ? focus[0] : undefined;
-		};
-		actions.push(this.instantiationService.createInstance(NewFileAction, getFocus));
-		actions.push(this.instantiationService.createInstance(NewFolderAction, getFocus));
+		actions.push(this.instantiationService.createInstance(NewFileAction));
+		actions.push(this.instantiationService.createInstance(NewFolderAction));
 		actions.push(this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL));
 		actions.push(this.instantiationService.createInstance(CollapseAction, this.tree, true, 'explorer-action collapse-explorer'));
 
@@ -267,7 +267,7 @@ export class ExplorerView extends ViewletPanel {
 	private createTree(container: HTMLElement): void {
 		this.filter = this.instantiationService.createInstance(FilesFilter);
 		this.disposables.push(this.filter);
-		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
+		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this.disposables.push(explorerLabels);
 
 		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
@@ -365,7 +365,7 @@ export class ExplorerView extends ViewletPanel {
 
 		// Refresh viewer as needed if this originates from a config event
 		if (event && needsRefresh) {
-			this.refresh();
+			this.refresh(true);
 		}
 	}
 
@@ -405,6 +405,14 @@ export class ExplorerView extends ViewletPanel {
 		this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && stat.isReadonly);
 		this.rootContext.set(!stat || (stat && stat.isRoot));
+
+		if (stat) {
+			const enableTrash = this.configurationService.getValue<IFilesConfiguration>().files.enableTrash;
+			const hasCapability = this.fileService.hasCapability(stat.resource, FileSystemProviderCapabilities.Trash);
+			this.resourceMoveableToTrash.set(enableTrash && hasCapability);
+		} else {
+			this.resourceMoveableToTrash.reset();
+		}
 	}
 
 	// General methods
@@ -413,7 +421,7 @@ export class ExplorerView extends ViewletPanel {
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
 	 */
-	private refresh(item?: ExplorerItem): Promise<void> {
+	private refresh(recursive: boolean, item?: ExplorerItem): Promise<void> {
 		if (!this.tree || !this.isBodyVisible()) {
 			this.shouldRefresh = true;
 			return Promise.resolve(undefined);
@@ -424,7 +432,6 @@ export class ExplorerView extends ViewletPanel {
 			return Promise.resolve(undefined);
 		}
 
-		const recursive = !item;
 		const toRefresh = item || this.tree.getInput();
 
 		return this.tree.updateChildren(toRefresh, recursive);
@@ -462,7 +469,7 @@ export class ExplorerView extends ViewletPanel {
 		} else {
 			const rawViewState = this.storageService.get(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
 			if (rawViewState) {
-				viewState = JSON.parse(rawViewState) as IAsyncDataTreeViewState;
+				viewState = JSON.parse(rawViewState);
 			}
 		}
 
@@ -496,7 +503,7 @@ export class ExplorerView extends ViewletPanel {
 		}
 
 		// check for files
-		return withNullAsUndefined(toResource(input, { supportSideBySide: true }));
+		return withNullAsUndefined(toResource(input, { supportSideBySide: SideBySideEditor.MASTER }));
 	}
 
 	private async onSelectResource(resource: URI | undefined, reveal = this.autoReveal): Promise<void> {

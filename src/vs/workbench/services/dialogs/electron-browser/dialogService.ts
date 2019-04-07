@@ -87,7 +87,7 @@ class NativeDialogService implements IDialogService {
 			return {
 				confirmed: buttonIndexMap[result.button] === 0 ? true : false,
 				checkboxChecked: result.checkboxChecked
-			} as IConfirmationResult;
+			};
 		});
 	}
 

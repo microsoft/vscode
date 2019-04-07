@@ -7,23 +7,26 @@ import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import * as assert from 'assert';
-import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
+import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
+import { FileOperation, FileOperationEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { URI as uri } from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import * as encodingLib from 'vs/base/node/encoding';
-import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, TestLifecycleService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IEncodingOverride } from 'vs/workbench/services/files/node/encoding';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Schemas } from 'vs/base/common/network';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 
-suite('FileService', () => {
-	let service: FileService;
+suite('LegacyFileService', () => {
+	let service: LegacyFileService;
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'fileservice');
 	let testDir: string;
 
@@ -32,14 +35,22 @@ suite('FileService', () => {
 		testDir = path.join(parentDir, id);
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
+		const fileService = new FileService2(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
 		return pfs.copy(sourceDir, testDir).then(() => {
-			service = new FileService(new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+			service = new LegacyFileService(
+				fileService,
+				new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))),
+				TestEnvironmentService,
+				new TestTextResourceConfigurationService(),
+			);
 		});
 	});
 
 	teardown(() => {
 		service.dispose();
-		return pfs.del(parentDir, os.tmpdir());
+		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
 	test('createFile', () => {
@@ -348,45 +359,6 @@ suite('FileService', () => {
 		});
 	});
 
-	test('watch', function (done) {
-		const toWatch = uri.file(path.join(testDir, 'index.html'));
-
-		service.watch(toWatch);
-
-		service.onFileChanges((e: FileChangesEvent) => {
-			assert.ok(e);
-
-			service.unwatch(toWatch);
-			done();
-		});
-
-		setTimeout(() => {
-			fs.writeFileSync(toWatch.fsPath, 'Changes');
-		}, 100);
-	});
-
-	// test('watch - support atomic save', function (done) {
-	// 	const toWatch = uri.file(path.join(testDir, 'index.html'));
-
-	// 	service.watch(toWatch);
-
-	// 	service.onFileChanges((e: FileChangesEvent) => {
-	// 		assert.ok(e);
-
-	// 		service.unwatch(toWatch);
-	// 		done();
-	// 	});
-
-	// 	setTimeout(() => {
-	// 		// Simulate atomic save by deleting the file, creating it under different name
-	// 		// and then replacing the previously deleted file with those contents
-	// 		const renamed = `${toWatch.fsPath}.bak`;
-	// 		fs.unlinkSync(toWatch.fsPath);
-	// 		fs.writeFileSync(renamed, 'Changes');
-	// 		fs.renameSync(renamed, toWatch.fsPath);
-	// 	}, 100);
-	// });
-
 	test('options - encoding override (parent)', function () {
 
 		// setup
@@ -406,18 +378,16 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
-			const _service = new FileService(
+			const fileService = new FileService2(new NullLogService());
+			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
+
+			const _service = new LegacyFileService(
+				fileService,
 				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
-				configurationService,
-				new TestLifecycleService(),
-				new TestStorageService(),
-				new TestNotificationService(),
-				{
-					encodingOverride,
-					disableWatcher: true
-				});
+				{ encodingOverride });
 
 			return _service.resolveContent(uri.file(path.join(testDir, 'index.html'))).then(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -451,18 +421,15 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
-			const _service = new FileService(
+			const fileService = new FileService2(new NullLogService());
+			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
+			const _service = new LegacyFileService(
+				fileService,
 				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
-				configurationService,
-				new TestLifecycleService(),
-				new TestStorageService(),
-				new TestNotificationService(),
-				{
-					encodingOverride,
-					disableWatcher: true
-				});
+				{ encodingOverride });
 
 			return _service.resolveContent(uri.file(path.join(testDir, 'index.html'))).then(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -485,17 +452,15 @@ suite('FileService', () => {
 		const _sourceDir = getPathFromAmdModule(require, './fixtures/service');
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
-		const _service = new FileService(
+		const fileService = new FileService2(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
+		const _service = new LegacyFileService(
+			fileService,
 			new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 			TestEnvironmentService,
-			new TestTextResourceConfigurationService(),
-			new TestConfigurationService(),
-			new TestLifecycleService(),
-			new TestStorageService(),
-			new TestNotificationService(),
-			{
-				disableWatcher: true
-			});
+			new TestTextResourceConfigurationService()
+		);
 
 		return pfs.copy(_sourceDir, _testDir).then(() => {
 			return pfs.readFile(resource.fsPath).then(data => {

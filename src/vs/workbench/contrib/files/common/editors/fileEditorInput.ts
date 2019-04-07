@@ -296,7 +296,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		super.dispose();
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}

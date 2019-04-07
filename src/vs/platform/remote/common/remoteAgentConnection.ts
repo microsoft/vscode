@@ -63,7 +63,6 @@ export interface IRemoteExtensionHostStartParams {
 	debugId?: string;
 	break?: boolean;
 	port?: number | null;
-	updatePort?: boolean;
 }
 
 interface IExtensionHostConnectionResult {

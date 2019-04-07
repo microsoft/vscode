@@ -15,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape, CodeInsetDto } from '../common/extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, MainThreadWebviewsShape, CodeInsetDto, SuggestDataDto, LinksListDto, ChainedCacheId } from '../common/extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -129,7 +129,7 @@ class CodeLensAdapter {
 		});
 	}
 
-	resolveCodeLens(resource: URI, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined> {
+	resolveCodeLens(symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined> {
 
 		const lens = this._heapService.get<vscode.CodeLens>(ObjectIdentifier.of(symbol));
 		if (!lens) {
@@ -623,8 +623,7 @@ class SuggestAdapter {
 	private _commands: CommandsConverter;
 	private _provider: vscode.CompletionItemProvider;
 
-	private _cache = new Map<number, vscode.CompletionItem[]>();
-	private _idPool = 0;
+	private _cache = new Cache<vscode.CompletionItem>();
 
 	constructor(documents: ExtHostDocuments, commands: CommandsConverter, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
@@ -637,75 +636,64 @@ class SuggestAdapter {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		return asPromise<vscode.CompletionItem[] | vscode.CompletionList | null | undefined>(
-			() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))
-		).then(value => {
+		return asPromise(() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))).then(value => {
 
-			const _id = this._idPool++;
-
-			const result: SuggestResultDto = {
-				_id,
-				suggestions: [],
-			};
-
-			let list: CompletionList;
 			if (!value) {
 				// undefined and null are valid results
 				return undefined;
+			}
 
-			} else if (Array.isArray(value)) {
-				list = new CompletionList(value);
+			let list = Array.isArray(value) ? new CompletionList(value) : value;
+			let pid: number | undefined;
 
-			} else {
-				list = value;
-				result.incomplete = list.isIncomplete;
+			// keep result for providers that support resolving
+			if (SuggestAdapter.supportsResolving(this._provider)) {
+				pid = this._cache.add(list.items);
 			}
 
 			// the default text edit range
 			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos))
 				.with({ end: pos });
 
+			const result: SuggestResultDto = {
+				x: pid,
+				b: [],
+				a: typeConvert.Range.from(wordRangeBeforePos),
+				c: list.isIncomplete || undefined
+			};
+
 			for (let i = 0; i < list.items.length; i++) {
-				const suggestion = this._convertCompletionItem(list.items[i], pos, wordRangeBeforePos, i, _id);
+				const suggestion = this._convertCompletionItem(list.items[i], pos, pid && [pid, i] || undefined);
 				// check for bad completion item
 				// for the converter did warn
 				if (suggestion) {
-					result.suggestions.push(suggestion);
+					result.b.push(suggestion);
 				}
 			}
-			this._cache.set(_id, list.items);
 
 			return result;
 		});
 	}
 
-	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Promise<modes.CompletionItem> {
+	resolveCompletionItem(_resource: URI, position: IPosition, id: ChainedCacheId, token: CancellationToken): Promise<SuggestDataDto | undefined> {
 
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
-			return Promise.resolve(suggestion);
+			return Promise.resolve(undefined);
 		}
 
-		const { _parentId, _id } = (<SuggestionDto>suggestion);
-		const item = this._cache.has(_parentId) ? this._cache.get(_parentId)![_id] : undefined;
+		const item = this._cache.get(...id);
 		if (!item) {
-			return Promise.resolve(suggestion);
+			return Promise.resolve(undefined);
 		}
 
 		return asPromise(() => this._provider.resolveCompletionItem!(item, token)).then(resolvedItem => {
 
 			if (!resolvedItem) {
-				return suggestion;
+				return undefined;
 			}
 
-			const doc = this._documents.getDocument(resource);
 			const pos = typeConvert.Position.to(position);
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos)).with({ end: pos });
-			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos, _id, _parentId);
-			if (newSuggestion) {
-				mixin(suggestion, newSuggestion, true);
-			}
-
-			return suggestion;
+			return this._convertCompletionItem(resolvedItem, pos, id);
 		});
 	}
 
@@ -713,60 +701,51 @@ class SuggestAdapter {
 		this._cache.delete(id);
 	}
 
-	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range, _id: number, _parentId: number): SuggestionDto | undefined {
+	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: ChainedCacheId | undefined): SuggestDataDto | undefined {
 		if (typeof item.label !== 'string' || item.label.length === 0) {
 			console.warn('INVALID text edit -> must have at least a label');
 			return undefined;
 		}
 
-		const result: SuggestionDto = {
+		const result: SuggestDataDto = {
 			//
-			_id,
-			_parentId,
+			x: id,
 			//
-			label: item.label,
-			kind: typeConvert.CompletionItemKind.from(item.kind),
-			detail: item.detail,
-			documentation: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
-			filterText: item.filterText,
-			sortText: item.sortText,
-			preselect: item.preselect,
-			//
-			range: undefined!, // populated below
-			insertText: undefined!, // populated below
-			insertTextRules: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
-			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
-			command: this._commands.toInternal(item.command),
-			commitCharacters: item.commitCharacters
+			a: item.label,
+			b: typeConvert.CompletionItemKind.from(item.kind),
+			c: item.detail,
+			d: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
+			e: item.sortText,
+			f: item.filterText,
+			g: item.preselect,
+			i: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
+			k: item.commitCharacters,
+			l: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
+			m: this._commands.toInternal(item.command),
 		};
 
 		// 'insertText'-logic
 		if (item.textEdit) {
-			result.insertText = item.textEdit.newText;
+			result.h = item.textEdit.newText;
 
 		} else if (typeof item.insertText === 'string') {
-			result.insertText = item.insertText;
+			result.h = item.insertText;
 
 		} else if (item.insertText instanceof SnippetString) {
-			result.insertText = item.insertText.value;
-			result.insertTextRules! |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
-
-		} else {
-			result.insertText = item.label;
+			result.h = item.insertText.value;
+			result.i! |= modes.CompletionItemInsertTextRule.InsertAsSnippet;
 		}
 
 		// 'overwrite[Before|After]'-logic
-		let range: vscode.Range;
+		let range: vscode.Range | undefined;
 		if (item.textEdit) {
 			range = item.textEdit.range;
 		} else if (item.range) {
 			range = item.range;
-		} else {
-			range = defaultRange;
 		}
-		result.range = typeConvert.Range.from(range);
+		result.j = typeConvert.Range.from(range);
 
-		if (!range.isSingleLine || range.start.line !== position.line) {
+		if (range && (!range.isSingleLine || range.start.line !== position.line)) {
 			console.warn('INVALID text edit -> must be single line and on the same line');
 			return undefined;
 		}
@@ -814,48 +793,77 @@ class SignatureHelpAdapter {
 	}
 }
 
+class Cache<T> {
+
+	private _data = new Map<number, T[]>();
+	private _idPool = 1;
+
+	add(item: T[]): number {
+		const id = this._idPool++;
+		this._data.set(id, item);
+		return id;
+	}
+
+	get(pid: number, id: number): T | undefined {
+		return this._data.has(pid) ? this._data.get(pid)![id] : undefined;
+	}
+
+	delete(id: number) {
+		this._data.delete(id);
+	}
+}
+
 class LinkProviderAdapter {
+
+	private _cache = new Cache<vscode.DocumentLink>();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _heapService: ExtHostHeapService,
 		private readonly _provider: vscode.DocumentLinkProvider
 	) { }
 
-	provideLinks(resource: URI, token: CancellationToken): Promise<LinkDto[] | undefined> {
+	provideLinks(resource: URI, token: CancellationToken): Promise<LinksListDto | undefined> {
 		const doc = this._documents.getDocument(resource);
 
 		return asPromise(() => this._provider.provideDocumentLinks(doc, token)).then(links => {
-			if (!Array.isArray(links)) {
+			if (!Array.isArray(links) || links.length === 0) {
+				// bad result
 				return undefined;
 			}
-			const result: LinkDto[] = [];
-			for (const link of links) {
-				const data = typeConvert.DocumentLink.from(link);
-				const id = this._heapService.keep(link);
-				result.push(ObjectIdentifier.mixin(data, id));
+
+			if (typeof this._provider.resolveDocumentLink !== 'function') {
+				// no resolve -> no caching
+				return { links: links.map(typeConvert.DocumentLink.from) };
+
+			} else {
+				// cache links for future resolving
+				const pid = this._cache.add(links);
+				const result: LinksListDto = { links: [], id: pid };
+				for (let i = 0; i < links.length; i++) {
+					const dto: LinkDto = typeConvert.DocumentLink.from(links[i]);
+					dto.cacheId = [pid, i];
+					result.links.push(dto);
+				}
+				return result;
 			}
-			return result;
 		});
 	}
 
-	resolveLink(link: LinkDto, token: CancellationToken): Promise<LinkDto | undefined> {
+	resolveLink(id: ChainedCacheId, token: CancellationToken): Promise<LinkDto | undefined> {
 		if (typeof this._provider.resolveDocumentLink !== 'function') {
 			return Promise.resolve(undefined);
 		}
-
-		const id = ObjectIdentifier.of(link);
-		const item = this._heapService.get<vscode.DocumentLink>(id);
+		const item = this._cache.get(...id);
 		if (!item) {
 			return Promise.resolve(undefined);
 		}
-
 		return asPromise(() => this._provider.resolveDocumentLink!(item, token)).then(value => {
-			if (value) {
-				return typeConvert.DocumentLink.from(value);
-			}
-			return undefined;
+			return value && typeConvert.DocumentLink.from(value) || undefined;
 		});
+	}
+
+	releaseLinks(id: number): any {
+		this._cache.delete(id);
 	}
 }
 
@@ -1181,8 +1189,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.provideCodeLenses(URI.revive(resource), token), []);
 	}
 
-	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> {
-		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(URI.revive(resource), symbol, token), undefined);
+	$resolveCodeLens(handle: number, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> {
+		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(symbol, token), undefined);
 	}
 
 	// --- code insets
@@ -1387,8 +1395,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context, token), undefined);
 	}
 
-	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Promise<modes.CompletionItem> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(URI.revive(resource), position, suggestion, token), suggestion);
+	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: ChainedCacheId, token: CancellationToken): Promise<SuggestDataDto | undefined> {
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(URI.revive(resource), position, id, token), undefined);
 	}
 
 	$releaseCompletionItems(handle: number, id: number): void {
@@ -1414,17 +1422,21 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	// --- links
 
 	registerDocumentLinkProvider(extension: IExtensionDescription | undefined, selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new LinkProviderAdapter(this._documents, this._heapService, provider), extension);
-		this._proxy.$registerDocumentLinkProvider(handle, this._transformDocumentSelector(selector));
+		const handle = this._addNewAdapter(new LinkProviderAdapter(this._documents, provider), extension);
+		this._proxy.$registerDocumentLinkProvider(handle, this._transformDocumentSelector(selector), typeof provider.resolveDocumentLink === 'function');
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinkDto[] | undefined> {
+	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinksListDto | undefined> {
 		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.provideLinks(URI.revive(resource), token), undefined);
 	}
 
-	$resolveDocumentLink(handle: number, link: modes.ILink, token: CancellationToken): Promise<LinkDto | undefined> {
-		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(link, token), undefined);
+	$resolveDocumentLink(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<LinkDto | undefined> {
+		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(id, token), undefined);
+	}
+
+	$releaseDocumentLinks(handle: number, id: number): void {
+		this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.releaseLinks(id), undefined);
 	}
 
 	registerColorProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { illegalState } from 'vs/base/common/errors';
-import { create } from 'vs/base/common/types';
 import { Graph } from 'vs/platform/instantiation/common/graph';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, optional } from 'vs/platform/instantiation/common/instantiation';
@@ -40,7 +39,7 @@ export class InstantiationService implements IInstantiationService {
 		return new InstantiationService(services, this._strict, this);
 	}
 
-	invokeFunction<R, TS extends any[]=[]>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R {
+	invokeFunction<R, TS extends any[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R {
 		let _trace = Trace.traceInvocation(fn);
 		let _done = false;
 		try {
@@ -108,7 +107,7 @@ export class InstantiationService implements IInstantiationService {
 		}
 
 		// now create the instance
-		return <T>create.apply(null, [ctor].concat(args, serviceArgs));
+		return <T>new ctor(...[...args, ...serviceArgs]);
 	}
 
 	private _setServiceInstance<T>(id: ServiceIdentifier<T>, instance: T): void {

@@ -178,7 +178,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return undefined;
 	}
 
-	getActionsContext(): any {
+	getActionsContext(): unknown {
 		return undefined;
 	}
 

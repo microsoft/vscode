@@ -9,7 +9,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, REPL_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, REPL_ID, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -30,6 +30,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { startDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -183,6 +184,12 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			if (!session || !session.getId) {
 				session = debugService.getViewModel().focusedSession;
+				const configurationService = accessor.get(IConfigurationService);
+				const hideSubSessions = configurationService.getValue<IDebugConfiguration>('debug').hideSubSessions;
+				// Stop should be sent to the root parent session
+				while (hideSubSessions && session && session.parentSession) {
+					session = session.parentSession;
+				}
 			}
 
 			debugService.stopSession(session).then(undefined, onUnexpectedError);

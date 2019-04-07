@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSubmenu, IMenubarKeybinding, IMenubarService, IMenubarData, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle, URIType } from 'vs/platform/windows/common/windows';
+import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -307,7 +307,7 @@ export class MenubarControl extends Disposable {
 			// Send menus to main process to be rendered by Electron
 			const menubarData = { menus: {}, keybindings: {} };
 			if (this.getMenubarMenus(menubarData)) {
-				this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), menubarData);
+				this.menubarService.updateMenubar(this.windowService.windowId, menubarData);
 			}
 		}
 	}
@@ -350,36 +350,35 @@ export class MenubarControl extends Disposable {
 		return label;
 	}
 
-	private createOpenRecentMenuAction(recent: IRecent, isFile: boolean): IAction & { uri: URI } {
+	private createOpenRecentMenuAction(recent: IRecent): IAction & { uri: URI } {
 
 		let label: string;
 		let uri: URI;
 		let commandId: string;
-		let typeHint: URIType | undefined;
+		let uriToOpen: IURIToOpen;
 
 		if (isRecentFolder(recent)) {
 			uri = recent.folderUri;
 			label = recent.label || this.labelService.getWorkspaceLabel(uri, { verbose: true });
 			commandId = 'openRecentFolder';
-			typeHint = 'folder';
+			uriToOpen = { folderUri: uri };
 		} else if (isRecentWorkspace(recent)) {
 			uri = recent.workspace.configPath;
 			label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 			commandId = 'openRecentWorkspace';
-			typeHint = 'file';
+			uriToOpen = { workspaceUri: uri };
 		} else {
 			uri = recent.fileUri;
 			label = recent.label || this.labelService.getUriLabel(uri);
 			commandId = 'openRecentFile';
-			typeHint = 'file';
+			uriToOpen = { fileUri: uri };
 		}
 
 		const ret: IAction = new Action(commandId, unmnemonicLabel(label), undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
-			return this.windowService.openWindow([{ uri, typeHint }], {
-				forceNewWindow: openInNewWindow,
-				forceOpenWorkspaceAsFile: isFile
+			return this.windowService.openWindow([uriToOpen], {
+				forceNewWindow: openInNewWindow
 			});
 		});
 
@@ -398,7 +397,7 @@ export class MenubarControl extends Disposable {
 
 		if (workspaces.length > 0) {
 			for (let i = 0; i < MenubarControl.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
-				result.push(this.createOpenRecentMenuAction(workspaces[i], false));
+				result.push(this.createOpenRecentMenuAction(workspaces[i]));
 			}
 
 			result.push(new Separator());
@@ -406,7 +405,7 @@ export class MenubarControl extends Disposable {
 
 		if (files.length > 0) {
 			for (let i = 0; i < MenubarControl.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
-				result.push(this.createOpenRecentMenuAction(files[i], true));
+				result.push(this.createOpenRecentMenuAction(files[i]));
 			}
 
 			result.push(new Separator());
@@ -436,7 +435,7 @@ export class MenubarControl extends Disposable {
 				return null;
 
 			case StateType.Idle:
-				const windowId = this.windowService.getCurrentWindowId();
+				const windowId = this.windowService.windowId;
 				return new Action('update.check', nls.localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
 					this.updateService.checkForUpdates({ windowId }));
 

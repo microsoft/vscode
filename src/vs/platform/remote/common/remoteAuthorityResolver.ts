@@ -11,8 +11,6 @@ export interface ResolvedAuthority {
 	readonly authority: string;
 	readonly host: string;
 	readonly port: number;
-	readonly debugListenPort?: number;
-	readonly debugConnectPort?: number;
 }
 
 export interface IRemoteAuthorityResolverService {
@@ -21,6 +19,7 @@ export interface IRemoteAuthorityResolverService {
 
 	resolveAuthority(authority: string): Promise<ResolvedAuthority>;
 
+	clearResolvedAuthority(authority: string): void;
 	setResolvedAuthority(resolvedAuthority: ResolvedAuthority): void;
 	setResolvedAuthorityError(authority: string, err: any): void;
 }

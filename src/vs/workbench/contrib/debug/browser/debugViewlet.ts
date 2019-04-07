@@ -136,7 +136,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 			return this.startDebugActionItem;
 		}
 		if (action.id === FocusSessionAction.ID) {
-			return new FocusSessionActionItem(action, this.debugService, this.themeService, this.contextViewService);
+			return new FocusSessionActionItem(action, this.debugService, this.themeService, this.contextViewService, this.configurationService);
 		}
 		if (action instanceof MenuItemAction) {
 			return new MenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);

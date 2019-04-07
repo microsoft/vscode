@@ -762,13 +762,13 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 	return !!editorContext ? [editorContext] : [];
 }
 
-function isEditorGroup(thing: any): thing is IEditorGroup {
+function isEditorGroup(thing: unknown): thing is IEditorGroup {
 	const group = thing as IEditorGroup;
 
 	return group && typeof group.id === 'number' && Array.isArray(group.editors);
 }
 
-function isEditorIdentifier(thing: any): thing is IEditorIdentifier {
+function isEditorIdentifier(thing: unknown): thing is IEditorIdentifier {
 	const identifier = thing as IEditorIdentifier;
 
 	return identifier && typeof identifier.groupId === 'number';

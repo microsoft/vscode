@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as extfs from 'vs/base/node/extfs';
-import { dirname, join } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
 import { URI } from 'vs/base/common/uri';
@@ -13,37 +12,15 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOutputChannelModel, AbstractFileOutputChannelModel, IOutputChannelModelService, AsbtractOutputChannelModelService, BufferredOutputChannel } from 'vs/workbench/services/output/common/outputChannelModel';
 import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalISOString } from 'vs/base/common/date';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
-
-let watchingOutputDir = false;
-let callbacks: ((eventType: string, fileName?: string) => void)[] = [];
-function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: string, fileName: string) => void): IDisposable {
-	callbacks.push(onChange);
-	if (!watchingOutputDir) {
-		const watcherDisposable = extfs.watch(outputDir, (eventType, fileName) => {
-			for (const callback of callbacks) {
-				callback(eventType, fileName);
-			}
-		}, (error: string) => {
-			logService.error(error);
-		});
-		watchingOutputDir = true;
-		return toDisposable(() => {
-			callbacks = [];
-			watcherDisposable.dispose();
-		});
-	}
-	return toDisposable(() => { });
-}
 
 class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implements IOutputChannelModel {
 
@@ -51,7 +28,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 	private appendedMessage: string;
 	private loadingFromFileInProgress: boolean;
 	private resettingDelayer: ThrottledDelayer<void>;
-	private readonly rotatingFilePath: string;
+	private readonly rotatingFilePath: URI;
 
 	constructor(
 		id: string,
@@ -69,8 +46,16 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 
 		// Use one rotating file to check for main file reset
 		this.appender = new OutputAppender(id, this.file.fsPath);
-		this.rotatingFilePath = `${id}.1.log`;
-		this._register(watchOutputDirectory(dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
+
+		const rotatingFilePathDirectory = resources.dirname(this.file);
+		this.rotatingFilePath = resources.joinPath(rotatingFilePathDirectory, `${id}.1.log`);
+
+		this._register(fileService.watch(rotatingFilePathDirectory));
+		this._register(fileService.onFileChanges(e => {
+			if (e.contains(this.rotatingFilePath)) {
+				this.resettingDelayer.trigger(() => this.resetModel());
+			}
+		}));
 
 		this.resettingDelayer = new ThrottledDelayer<void>(50);
 	}
@@ -140,13 +125,6 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		if (this.model && this.appendedMessage) {
 			this.appendToModel(this.appendedMessage);
 			this.appendedMessage = '';
-		}
-	}
-
-	private onFileChangedInOutputDirector(eventType: string, fileName?: string): void {
-		// Check if rotating file has changed. It changes only when the main file exceeds its limit.
-		if (this.rotatingFilePath === fileName) {
-			this.resettingDelayer.trigger(() => this.resetModel());
 		}
 	}
 
@@ -227,8 +205,7 @@ export class OutputChannelModelService extends AsbtractOutputChannelModelService
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super(instantiationService);
@@ -242,7 +219,7 @@ export class OutputChannelModelService extends AsbtractOutputChannelModelService
 	private _outputDir: Promise<URI> | null;
 	private get outputDir(): Promise<URI> {
 		if (!this._outputDir) {
-			const outputDir = URI.file(join(this.environmentService.logsPath, `output_${this.windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`));
+			const outputDir = URI.file(join(this.environmentService.logsPath, `output_${this.environmentService.configuration.windowId}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`));
 			this._outputDir = this.fileService.createFolder(outputDir).then(() => outputDir);
 		}
 		return this._outputDir;

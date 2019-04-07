@@ -424,6 +424,7 @@ export interface IDebugConfiguration {
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
+	hideSubSessions: boolean;
 	console: {
 		fontSize: number;
 		fontFamily: string;

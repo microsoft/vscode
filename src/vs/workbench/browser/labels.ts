@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { toResource, IEditorInput } from 'vs/workbench/common/editor';
+import { toResource, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -27,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IResourceLabelProps {
-	resource?: uri;
+	resource?: URI;
 	name?: string;
 	description?: string;
 }
@@ -61,7 +61,7 @@ export interface IResourceLabel extends IDisposable {
 	/**
 	 * Convinient method to render a file label based on a resource.
 	 */
-	setFile(resource: uri, options?: IFileLabelOptions): void;
+	setFile(resource: URI, options?: IFileLabelOptions): void;
 
 	/**
 	 * Convinient method to apply a label by passing an editor along.
@@ -151,7 +151,7 @@ export class ResourceLabels extends Disposable {
 			setLabel: (label?: string, description?: string, options?: IIconLabelValueOptions) => widget.setLabel(label, description, options),
 			setResource: (label: IResourceLabelProps, options?: IResourceLabelOptions) => widget.setResource(label, options),
 			setEditor: (editor: IEditorInput, options?: IResourceLabelOptions) => widget.setEditor(editor, options),
-			setFile: (resource: uri, options?: IFileLabelOptions) => widget.setFile(resource, options),
+			setFile: (resource: URI, options?: IFileLabelOptions) => widget.setFile(resource, options),
 			clear: () => widget.clear(),
 			dispose: () => this.disposeWidget(widget)
 		};
@@ -332,13 +332,13 @@ class ResourceLabelWidget extends IconLabel {
 
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
 		this.setResource({
-			resource: withNullAsUndefined(toResource(editor, { supportSideBySide: true })),
+			resource: withNullAsUndefined(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER })),
 			name: withNullAsUndefined(editor.getName()),
 			description: withNullAsUndefined(editor.getDescription())
 		}, options);
 	}
 
-	setFile(resource: uri, options?: IFileLabelOptions): void {
+	setFile(resource: URI, options?: IFileLabelOptions): void {
 		const hideLabel = options && options.hideLabel;
 		let name: string | undefined;
 		if (!hideLabel) {

@@ -81,8 +81,10 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 		const base = document.uri.scheme === 'file' ? path.dirname(document.uri.fsPath) : '';
 		const text = document.getText();
 
-		return this.providerInlineLinks(text, document, base)
-			.concat(this.provideReferenceLinks(text, document, base));
+		return [
+			...this.providerInlineLinks(text, document, base),
+			...this.provideReferenceLinks(text, document, base)
+		];
 	}
 
 	private providerInlineLinks(

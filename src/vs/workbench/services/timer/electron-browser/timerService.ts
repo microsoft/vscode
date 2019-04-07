@@ -7,7 +7,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { virtualMachineHint } from 'vs/base/node/id';
 import * as perf from 'vs/base/common/performance';
 import * as os from 'os';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -18,7 +19,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -310,7 +310,7 @@ class TimerService implements ITimerService {
 
 	constructor(
 		@IWindowsService private readonly _windowsService: IWindowsService,
-		@IWindowService private readonly _windowService: IWindowService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -333,7 +333,7 @@ class TimerService implements ITimerService {
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
 
 		const now = Date.now();
-		const initialStartup = !!this._windowService.getConfiguration().isInitialStartup;
+		const initialStartup = !!this._environmentService.configuration.isInitialStartup;
 		const startMark = initialStartup ? 'main:started' : 'main:loadWindow';
 
 		let totalmem: number | undefined;

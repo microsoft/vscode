@@ -12,7 +12,7 @@ import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEn
 export interface IGetEnvironmentDataArguments {
 	language: string;
 	remoteAuthority: string;
-	extensionDevelopmentPath: UriComponents | undefined;
+	extensionDevelopmentPath: UriComponents | UriComponents[] | undefined;
 }
 
 export interface IRemoteAgentEnvironmentDTO {
@@ -34,7 +34,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 
 	constructor(private channel: IChannel) { }
 
-	getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI): Promise<IRemoteAgentEnvironment> {
+	getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI | URI[]): Promise<IRemoteAgentEnvironment> {
 		const args: IGetEnvironmentDataArguments = {
 			language: platform.language,
 			remoteAuthority,

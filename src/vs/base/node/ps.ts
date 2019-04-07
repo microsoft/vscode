@@ -4,19 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-
+import { ProcessItem } from 'vs/base/common/processes';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-
-export interface ProcessItem {
-	name: string;
-	cmd: string;
-	pid: number;
-	ppid: number;
-	load: number;
-	mem: number;
-
-	children?: ProcessItem[];
-}
 
 export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
@@ -181,7 +170,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			exec(CMD, { maxBuffer: 1000 * 1024, env: { LC_NUMERIC: 'en_US.UTF-8' } }, (err, stdout, stderr) => {
 
 				if (err || stderr) {
-					reject(err || stderr.toString());
+					reject(err || new Error(stderr.toString()));
 				} else {
 
 					const lines = stdout.toString().split('\n');
@@ -214,7 +203,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 						exec(cmd, {}, (err, stdout, stderr) => {
 							if (err || stderr) {
-								reject(err || stderr.toString());
+								reject(err || new Error(stderr.toString()));
 							} else {
 								const cpuUsage = stdout.toString().split('\n');
 								for (let i = 0; i < pids.length; i++) {

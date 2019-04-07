@@ -32,6 +32,7 @@
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
+	height: 100%;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar {

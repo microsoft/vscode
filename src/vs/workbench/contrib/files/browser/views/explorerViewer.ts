@@ -309,7 +309,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
-			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) } as CachedParsedExpression);
+			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
 		});
 
 		return needsRefresh;
@@ -325,8 +325,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		if (cached && cached.parsed(path.normalize(path.relative(stat.root.resource.path, stat.resource.path)), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
-			// review (isidor): is path.normalize necessary? path.relative already returns an os path
+		if (cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
 			return false; // hidden through pattern
 		}
 
@@ -334,7 +333,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 
 	public dispose(): void {
-		this.workspaceFolderChangeListener = dispose(this.workspaceFolderChangeListener);
+		dispose(this.workspaceFolderChangeListener);
 	}
 }
 
@@ -735,7 +734,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				primaryButton: localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
 			});
 		} else {
-			confirmPromise = Promise.resolve({ confirmed: true } as IConfirmationResult);
+			confirmPromise = Promise.resolve({ confirmed: true });
 		}
 
 		return confirmPromise.then(res => {

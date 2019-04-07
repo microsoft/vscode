@@ -40,7 +40,7 @@ export interface IComposite {
 	/**
 	 * Returns the underlying control of this composite.
 	 */
-	getControl(): ICompositeControl | null;
+	getControl(): ICompositeControl | undefined;
 
 	/**
 	 * Asks the underlying control to focus.

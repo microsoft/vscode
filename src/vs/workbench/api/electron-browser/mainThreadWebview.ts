@@ -7,30 +7,37 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IWebviewOptions } from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import product from 'vs/platform/product/node/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewInsetHandle, WebviewPanelHandle, WebviewPanelShowOptions } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { CodeInsetController } from 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
-import { WebviewEditor } from 'vs/workbench/contrib/webview/electron-browser/webviewEditor';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
-import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorService';
+import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
+import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
-import { IWebviewOptions } from 'vs/editor/common/modes';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews extends Disposable implements MainThreadWebviewsShape {
 
-	private static readonly standardSupportedLinkSchemes = ['http', 'https', 'mailto'];
+	private static readonly standardSupportedLinkSchemes = new Set([
+		'http',
+		'https',
+		'mailto',
+		product.urlProtocol,
+		'vscode',
+		'vscode-insiders'
+	]);
 
 	private static revivalPool = 0;
 
@@ -53,7 +60,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -104,7 +110,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		};
 
 		this._webviews.set(handle, webview);
-		this._activeWebview = handle;
 
 		/* __GDPR__
 			"webviews:createWebviewPanel" : {
@@ -129,7 +134,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		// 4) continue to forward messages to the webview
 		const webview = this._instantiationService.createInstance(
 			WebviewElement,
-			this._layoutService.getContainer(Parts.EDITOR_PART),
 			{
 				extension: {
 					location: URI.revive(extensionLocation),
@@ -200,9 +204,9 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			return;
 		}
 
-		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn));
+		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn)) || this._editorGroupService.getGroup(webview.group || 0);
 		if (targetGroup) {
-			this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.getGroup(webview.group || ACTIVE_GROUP), !!showOptions.preserveFocus);
+			this._webviewService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
 		}
 	}
 
@@ -366,10 +370,16 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}
 
 		const webview = this.getWebview(handle);
-		const enableCommandUris = webview.options.enableCommandUris;
-		if (MainThreadWebviews.standardSupportedLinkSchemes.indexOf(link.scheme) >= 0 || enableCommandUris && link.scheme === 'command') {
+		if (this.isSupportedLink(webview, link)) {
 			this._openerService.open(link);
 		}
+	}
+
+	private isSupportedLink(webview: WebviewEditorInput, link: URI): boolean {
+		if (MainThreadWebviews.standardSupportedLinkSchemes.has(link.scheme)) {
+			return true;
+		}
+		return !!webview.options.enableCommandUris && link.scheme === 'command';
 	}
 
 	private getWebview(handle: WebviewPanelHandle): WebviewEditorInput {

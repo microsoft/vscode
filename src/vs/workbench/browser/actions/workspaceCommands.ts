@@ -89,13 +89,13 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 		return undefined;
 	}
 
-	const folderPicks = folders.map(folder => {
+	const folderPicks: IQuickPickItem[] = folders.map(folder => {
 		return {
 			label: folder.name,
 			description: labelService.getUriLabel(resources.dirname(folder.uri), { relative: true }),
 			folder,
 			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
-		} as IQuickPickItem;
+		};
 	});
 
 	const options: IPickOptions<IQuickPickItem> = (args ? args[0] : undefined) || Object.create(null);

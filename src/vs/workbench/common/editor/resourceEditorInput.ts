@@ -74,14 +74,14 @@ export class ResourceEditorInput extends EditorInput {
 				ref.dispose();
 				this.modelReference = null;
 
-				return Promise.reject<any>(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
+				return Promise.reject(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
 			}
 
 			return model;
 		});
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}

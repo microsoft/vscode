@@ -13,7 +13,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { MainThreadConfiguration } from 'vs/workbench/api/browser/mainThreadConfiguration';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 suite('MainThreadConfiguration', function () {

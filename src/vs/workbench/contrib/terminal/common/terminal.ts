@@ -101,6 +101,7 @@ export interface ITerminalConfiguration {
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
+	experimentalRefreshOnResume: boolean;
 }
 
 export interface ITerminalConfigHelper {

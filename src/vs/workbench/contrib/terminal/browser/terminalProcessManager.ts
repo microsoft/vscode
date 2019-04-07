@@ -14,11 +14,10 @@ import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Schemas } from 'vs/base/common/network';
 import { REMOTE_HOST_SCHEME, getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/product';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -72,9 +71,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
-		@IWindowService private readonly _windowService: IWindowService,
 		@IConfigurationService private readonly _workspaceConfigurationService: IConfigurationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
@@ -114,7 +112,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 			this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
 		} else {
-			this.remoteAuthority = this._windowService.getConfiguration().remoteAuthority;
+			this.remoteAuthority = this._environmentService.configuration.remoteAuthority;
 		}
 		const hasRemoteAuthority = !!this.remoteAuthority;
 		let launchRemotely = hasRemoteAuthority || forceExtHostProcess;

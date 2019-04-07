@@ -558,6 +558,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 			preserveFocus,
 			selection,
 			revealIfVisible: true,
+			revealIfOpened: true,
 			revealInCenterIfOutsideViewport: true,
 			pinned: !preserveFocus
 		}

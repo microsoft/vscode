@@ -601,7 +601,7 @@ export class MarkerViewModel extends Disposable {
 			return Promise.resolve(model);
 		}
 		if (waitForModel) {
-			if (this.modelPromise === null) {
+			if (!this.modelPromise) {
 				this.modelPromise = createCancelablePromise(cancellationToken => {
 					return new Promise((c) => {
 						this._register(this.modelService.onModelAdded(model => {

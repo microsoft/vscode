@@ -20,6 +20,10 @@ export class NodeSocket implements ISocket {
 		this.socket = socket;
 	}
 
+	public dispose(): void {
+		this.socket.destroy();
+	}
+
 	public onData(_listener: (e: VSBuffer) => void): IDisposable {
 		const listener = (buff: Buffer) => _listener(VSBuffer.wrap(buff));
 		this.socket.on('data', listener);

@@ -158,9 +158,15 @@
 	display: flex;
 }
 
+.debug-viewlet .debug-call-stack .thread > .name,
+.debug-viewlet .debug-call-stack .session > .name {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .debug-viewlet .debug-call-stack .thread > .state,
 .debug-viewlet .debug-call-stack .session > .state {
-	flex: 1;
 	text-align: right;
 	overflow: hidden;
 	text-overflow: ellipsis;

@@ -184,22 +184,22 @@ export interface IFileDialogService {
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.
 	 */
-	pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any>;
+	pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
 	 * Shows a file selection dialog and opens the selected entry.
 	 */
-	pickFileAndOpen(options: IPickAndOpenOptions): Promise<any>;
+	pickFileAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
 	 * Shows a folder selection dialog and opens the selected entry.
 	 */
-	pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any>;
+	pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
 	 * Shows a workspace selection dialog and opens the selected entry.
 	 */
-	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<any>;
+	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
 	 * Shows a save file dialog and returns the chosen file URI.

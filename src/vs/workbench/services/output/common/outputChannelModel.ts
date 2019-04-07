@@ -17,7 +17,7 @@ import { isNumber } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { binarySearch } from 'vs/base/common/arrays';
-import { toUint8ArrayBuffer } from 'vs/base/common/uint';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDidAppendedContent: Event<void>;
@@ -129,6 +129,7 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	}
 }
 
+// TODO@ben see if new watchers can cope with spdlog and avoid polling then
 class OutputFileListener extends Disposable {
 
 	private readonly _onDidContentChange = new Emitter<number | undefined>();
@@ -259,10 +260,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 
 	protected getByteLength(str: string): number {
-		if (typeof Buffer !== 'undefined') {
-			return Buffer.from(str).byteLength;
-		}
-		return toUint8ArrayBuffer(str).byteLength;
+		return VSBuffer.fromString(str).byteLength;
 	}
 
 	update(size?: number): void {

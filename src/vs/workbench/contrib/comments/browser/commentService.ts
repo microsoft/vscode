@@ -24,6 +24,7 @@ export interface IResourceCommentThreadEvent {
 
 export interface ICommentInfo extends CommentInfo {
 	owner: string;
+	label?: string;
 }
 
 export interface IWorkspaceCommentThreadsEvent {
@@ -42,7 +43,7 @@ export interface ICommentService {
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string>;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
-	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void;
+	setWorkspaceComments(owner: string, commentsByResource: CommentThread[] | CommentThread2[]): void;
 	removeWorkspaceComments(owner: string): void;
 	registerCommentController(owner: string, commentControl: MainThreadCommentController): void;
 	unregisterCommentController(owner: string): void;

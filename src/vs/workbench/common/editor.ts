@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import * as objects from 'vs/base/common/objects';
-import * as types from 'vs/base/common/types';
+import { assign } from 'vs/base/common/objects';
+import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
@@ -14,7 +14,6 @@ import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
-import { Schemas } from 'vs/base/common/network';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
@@ -91,7 +90,7 @@ export interface IEditor {
 	/**
 	 * Returns the underlying control of this editor.
 	 */
-	getControl(): IEditorControl | null;
+	getControl(): IEditorControl | undefined;
 
 	/**
 	 * Asks the underlying control to focus.
@@ -279,7 +278,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the associated resource of this input.
 	 */
-	getResource(): URI | null;
+	getResource(): URI | undefined;
 
 	/**
 	 * Unique type identifier for this inpput.
@@ -319,7 +318,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns if the other object matches this input.
 	 */
-	matches(other: any): boolean;
+	matches(other: unknown): boolean;
 }
 
 /**
@@ -347,8 +346,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	/**
 	 * Returns the associated resource of this input if any.
 	 */
-	getResource(): URI | null {
-		return null;
+	getResource(): URI | undefined {
+		return undefined;
 	}
 
 	/**
@@ -392,7 +391,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 *
 	 * Subclasses should extend if they can contribute.
 	 */
-	getTelemetryDescriptor(): { [key: string]: any } {
+	getTelemetryDescriptor(): { [key: string]: unknown } {
 		/* __GDPR__FRAGMENT__
 			"EditorTelemetryDescriptor" : {
 				"typeId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -452,7 +451,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	/**
 	 * Returns true if this input is identical to the otherInput.
 	 */
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		return this === otherInput;
 	}
 
@@ -571,7 +570,7 @@ export class SideBySideEditorInput extends EditorInput {
 	getTelemetryDescriptor(): object {
 		const descriptor = this.master.getTelemetryDescriptor();
 
-		return objects.assign(descriptor, super.getTelemetryDescriptor());
+		return assign(descriptor, super.getTelemetryDescriptor());
 	}
 
 	private registerListeners(): void {
@@ -612,7 +611,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.description;
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}
@@ -673,7 +672,7 @@ export interface IEditorInputWithOptions {
 	options?: IEditorOptions | ITextEditorOptions;
 }
 
-export function isEditorInputWithOptions(obj: any): obj is IEditorInputWithOptions {
+export function isEditorInputWithOptions(obj: unknown): obj is IEditorInputWithOptions {
 	const editorInputWithOptions = obj as IEditorInputWithOptions;
 
 	return !!editorInputWithOptions && !!editorInputWithOptions.editor;
@@ -827,7 +826,7 @@ export class TextEditorOptions extends EditorOptions {
 	 * Returns if this options object has objects defined for the editor.
 	 */
 	hasOptionsDefined(): boolean {
-		return !!this.editorViewState || (!types.isUndefinedOrNull(this.startLineNumber) && !types.isUndefinedOrNull(this.startColumn));
+		return !!this.editorViewState || (!isUndefinedOrNull(this.startLineNumber) && !isUndefinedOrNull(this.startColumn));
 	}
 
 	/**
@@ -875,10 +874,10 @@ export class TextEditorOptions extends EditorOptions {
 		}
 
 		// Otherwise check for selection
-		else if (!types.isUndefinedOrNull(this.startLineNumber) && !types.isUndefinedOrNull(this.startColumn)) {
+		else if (!isUndefinedOrNull(this.startLineNumber) && !isUndefinedOrNull(this.startColumn)) {
 
 			// Select
-			if (!types.isUndefinedOrNull(this.endLineNumber) && !types.isUndefinedOrNull(this.endColumn)) {
+			if (!isUndefinedOrNull(this.endLineNumber) && !isUndefinedOrNull(this.endColumn)) {
 				const range = {
 					startLineNumber: this.startLineNumber,
 					startColumn: this.startColumn,
@@ -937,7 +936,7 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 		super();
 	}
 
-	run(action: IAction, context?: any): Promise<void> {
+	run(action: IAction): Promise<void> {
 		return super.run(action, this.context);
 	}
 }
@@ -979,9 +978,14 @@ export interface IEditorPartOptions extends IEditorPartConfiguration {
 	iconTheme?: string;
 }
 
+export enum SideBySideEditor {
+	MASTER = 1,
+	DETAILS = 2
+}
+
 export interface IResourceOptions {
-	supportSideBySide?: boolean;
-	filter?: string | string[];
+	supportSideBySide?: SideBySideEditor;
+	filterByScheme?: string | string[];
 }
 
 export function toResource(editor: IEditorInput | null | undefined, options?: IResourceOptions): URI | null {
@@ -989,35 +993,20 @@ export function toResource(editor: IEditorInput | null | undefined, options?: IR
 		return null;
 	}
 
-	// Check for side by side if we are asked to
 	if (options && options.supportSideBySide && editor instanceof SideBySideEditorInput) {
-		editor = editor.master;
+		editor = options.supportSideBySide === SideBySideEditor.MASTER ? editor.master : editor.details;
 	}
 
 	const resource = editor.getResource();
-	if (!options || !options.filter) {
-		return resource; // return early if no filter is specified
+	if (!resource || !options || !options.filterByScheme) {
+		return withUndefinedAsNull(resource);
 	}
 
-	if (!resource) {
-		return null;
-	}
-
-	let includeFiles: boolean;
-	let includeUntitled: boolean;
-	if (Array.isArray(options.filter)) {
-		includeFiles = (options.filter.indexOf(Schemas.file) >= 0);
-		includeUntitled = (options.filter.indexOf(Schemas.untitled) >= 0);
-	} else {
-		includeFiles = (options.filter === Schemas.file);
-		includeUntitled = (options.filter === Schemas.untitled);
-	}
-
-	if (includeFiles && resource.scheme === Schemas.file) {
+	if (Array.isArray(options.filterByScheme) && options.filterByScheme.some(scheme => resource.scheme === scheme)) {
 		return resource;
 	}
 
-	if (includeUntitled && resource.scheme === Schemas.untitled) {
+	if (options.filterByScheme === resource.scheme) {
 		return resource;
 	}
 

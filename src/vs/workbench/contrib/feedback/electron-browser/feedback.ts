@@ -99,7 +99,7 @@ export class FeedbackDropdown extends Dropdown {
 			y: position.top - 9, // above status bar
 			width: position.width,
 			height: position.height
-		} as IAnchor;
+		};
 	}
 
 	protected renderContents(container: HTMLElement): IDisposable {

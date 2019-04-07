@@ -32,7 +32,7 @@ export class ExplorerService implements IExplorerService {
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
 	private _onDidChangeRoots = new Emitter<void>();
-	private _onDidChangeItem = new Emitter<ExplorerItem | undefined>();
+	private _onDidChangeItem = new Emitter<{ item?: ExplorerItem, recursive: boolean }>();
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
 	private _onDidSelectResource = new Emitter<{ resource?: URI, reveal?: boolean }>();
 	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
@@ -40,6 +40,7 @@ export class ExplorerService implements IExplorerService {
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
+	private fileSystemProviderSchemes = new Set<string>();
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -60,7 +61,7 @@ export class ExplorerService implements IExplorerService {
 		return this._onDidChangeRoots.event;
 	}
 
-	get onDidChangeItem(): Event<ExplorerItem | undefined> {
+	get onDidChangeItem(): Event<{ item?: ExplorerItem, recursive: boolean }> {
 		return this._onDidChangeItem.event;
 	}
 
@@ -98,7 +99,14 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
 		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
-		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this._onDidChangeItem.fire(undefined)));
+		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (e.added && this.fileSystemProviderSchemes.has(e.scheme)) {
+				// A file system provider got re-registered, we should update all file stats since they might change (got read-only)
+				this._onDidChangeItem.fire({ recursive: true });
+			} else {
+				this.fileSystemProviderSchemes.add(e.scheme);
+			}
+		}));
 		this.disposables.push(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
 
 		return model;
@@ -158,19 +166,19 @@ export class ExplorerService implements IExplorerService {
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
 			const item = root.find(resource);
-			this._onDidChangeItem.fire(item ? item.parent : undefined);
+			this._onDidChangeItem.fire({ item: root, recursive: true });
 
 			// Select and Reveal
 			this._onDidSelectResource.fire({ resource: item ? item.resource : undefined, reveal });
 		}, () => {
 			root.isError = true;
-			this._onDidChangeItem.fire(root);
+			this._onDidChangeItem.fire({ item: root, recursive: false });
 		});
 	}
 
 	refresh(): void {
 		this.model.roots.forEach(r => r.forgetChildren());
-		this._onDidChangeItem.fire(undefined);
+		this._onDidChangeItem.fire({ recursive: true });
 		const resource = this.editorService.activeEditor ? this.editorService.activeEditor.getResource() : undefined;
 		if (resource) {
 			// We did a top level refresh, reveal the active file #67118
@@ -205,7 +213,7 @@ export class ExplorerService implements IExplorerService {
 						p.removeChild(childElement);
 						p.addChild(childElement);
 						// Refresh the Parent (View)
-						this._onDidChangeItem.fire(p);
+						this._onDidChangeItem.fire({ item: p, recursive: false });
 					});
 				});
 			}
@@ -224,7 +232,7 @@ export class ExplorerService implements IExplorerService {
 				modelElements.forEach(modelElement => {
 					// Rename File (Model)
 					modelElement.rename(newElement);
-					this._onDidChangeItem.fire(modelElement.parent);
+					this._onDidChangeItem.fire({ item: modelElement.parent, recursive: false });
 				});
 			}
 
@@ -238,8 +246,8 @@ export class ExplorerService implements IExplorerService {
 					modelElements.forEach((modelElement, index) => {
 						const oldParent = modelElement.parent;
 						modelElement.move(newParents[index]);
-						this._onDidChangeItem.fire(oldParent);
-						this._onDidChangeItem.fire(newParents[index]);
+						this._onDidChangeItem.fire({ item: oldParent, recursive: false });
+						this._onDidChangeItem.fire({ item: newParents[index], recursive: false });
 					});
 				}
 			}
@@ -254,7 +262,7 @@ export class ExplorerService implements IExplorerService {
 					// Remove Element from Parent (Model)
 					parent.removeChild(element);
 					// Refresh Parent (View)
-					this._onDidChangeItem.fire(parent);
+					this._onDidChangeItem.fire({ item: parent, recursive: false });
 				}
 			});
 		}
@@ -332,7 +340,7 @@ export class ExplorerService implements IExplorerService {
 
 			if (shouldRefresh()) {
 				this.roots.forEach(r => r.forgetChildren());
-				this._onDidChangeItem.fire(undefined);
+				this._onDidChangeItem.fire({ recursive: true });
 			}
 		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
 	}

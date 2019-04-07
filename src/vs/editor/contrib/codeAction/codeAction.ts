@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals, flatten, isNonEmptyArray, mergeSort } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -14,6 +14,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './codeActionTrigger';
+import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
 
 export class CodeActionSet {
 
@@ -31,7 +32,7 @@ export class CodeActionSet {
 		}
 	}
 
-	public readonly actions: ReadonlyArray<CodeAction>;
+	public readonly actions: readonly CodeAction[];
 
 	public constructor(actions: CodeAction[]) {
 		this.actions = mergeSort(actions, CodeActionSet.codeActionsComparator);
@@ -55,14 +56,12 @@ export function getCodeActions(
 		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
-	const chainedCancellation = new CancellationTokenSource();
-	token.onCancellationRequested(() => chainedCancellation.cancel());
-
+	const cts = new TextModelCancellationTokenSource(model, token);
 	const providers = getCodeActionProviders(model, filter);
 
 	const promises = providers.map(provider => {
-		return Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, chainedCancellation.token)).then(providedCodeActions => {
-			if (!Array.isArray(providedCodeActions)) {
+		return Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token)).then(providedCodeActions => {
+			if (cts.token.isCancellationRequested || !Array.isArray(providedCodeActions)) {
 				return [];
 			}
 			return providedCodeActions.filter(action => action && filtersAction(filter, action));
@@ -79,7 +78,7 @@ export function getCodeActions(
 	const listener = CodeActionProviderRegistry.onDidChange(() => {
 		const newProviders = CodeActionProviderRegistry.all(model);
 		if (!equals(newProviders, providers)) {
-			chainedCancellation.cancel();
+			cts.cancel();
 		}
 	});
 
@@ -88,6 +87,7 @@ export function getCodeActions(
 		.then(actions => new CodeActionSet(actions))
 		.finally(() => {
 			listener.dispose();
+			cts.dispose();
 		});
 }
 

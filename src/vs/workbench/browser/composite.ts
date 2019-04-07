@@ -176,7 +176,7 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Provide a context to be passed to the toolbar.
 	 */
-	getActionsContext(): any {
+	getActionsContext(): unknown {
 		return null;
 	}
 
@@ -210,10 +210,10 @@ export abstract class Composite extends Component implements IComposite {
 	}
 
 	/**
-	 * Returns the underlying composite control or null if it is not accessible.
+	 * Returns the underlying composite control or `undefined` if it is not accessible.
 	 */
-	getControl(): ICompositeControl | null {
-		return null;
+	getControl(): ICompositeControl | undefined {
+		return undefined;
 	}
 }
 
@@ -257,7 +257,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 
 	protected deregisterComposite(id: string): void {
 		const descriptor = this.compositeById(id);
-		if (descriptor === null) {
+		if (!descriptor) {
 			return;
 		}
 

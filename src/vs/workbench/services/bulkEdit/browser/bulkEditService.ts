@@ -327,7 +327,7 @@ export class BulkEdit {
 				// delete file
 				if (await this._fileService.exists(edit.oldUri)) {
 					let useTrash = this._configurationService.getValue<boolean>('files.enableTrash');
-					if (useTrash && !(await this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash))) {
+					if (useTrash && !(this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash))) {
 						useTrash = false; // not supported by provider
 					}
 					await this._textFileService.delete(edit.oldUri, { useTrash, recursive: options.recursive });

@@ -473,17 +473,16 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 	}
 
 	disposeTemplate(templateId: string, templateData: IQuickOpenEntryGroupTemplateData): void {
-		const data = templateData as IQuickOpenEntryGroupTemplateData;
-		data.actionBar.dispose();
-		data.actionBar = null!;
-		data.container = null!;
-		data.entry = null!;
-		data.keybinding = null!;
-		data.detail = null!;
-		data.group = null!;
-		data.icon = null!;
-		data.label.dispose();
-		data.label = null!;
+		templateData.actionBar.dispose();
+		templateData.actionBar = null!;
+		templateData.container = null!;
+		templateData.entry = null!;
+		templateData.keybinding = null!;
+		templateData.detail = null!;
+		templateData.group = null!;
+		templateData.icon = null!;
+		templateData.label.dispose();
+		templateData.label = null!;
 	}
 }
 
