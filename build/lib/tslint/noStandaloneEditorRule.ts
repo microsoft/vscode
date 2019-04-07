@@ -53,8 +53,8 @@ class NoStandaloneEditorRuleWalker extends Lint.RuleWalker {
 		}
 
 		if (
-			/vs(\/|\\)editor(\/|\\)standalone/.test(path)
-			|| /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone/.test(path)
+			/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(path)
+			|| /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(path)
 			|| /vs(\/|\\)editor(\/|\\)editor.api/.test(path)
 			|| /vs(\/|\\)editor(\/|\\)editor.main/.test(path)
 			|| /vs(\/|\\)editor(\/|\\)editor.worker/.test(path)

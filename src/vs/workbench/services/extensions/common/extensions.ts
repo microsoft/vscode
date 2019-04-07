@@ -8,17 +8,8 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionIdentifier, IExtensionManifest, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-
-export interface IExtensionDescription extends IExtensionManifest {
-	readonly identifier: ExtensionIdentifier;
-	readonly uuid?: string;
-	readonly isBuiltin: boolean;
-	readonly isUnderDevelopment: boolean;
-	readonly extensionLocation: URI;
-	enableProposedApi?: boolean;
-}
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -42,8 +33,13 @@ export interface IMessage {
 
 export interface IExtensionsStatus {
 	messages: IMessage[];
-	activationTimes: ActivationTimes;
+	activationTimes: ActivationTimes | undefined;
 	runtimeErrors: Error[];
+}
+
+export type ExtensionActivationError = string | MissingDependencyError;
+export class MissingDependencyError {
+	constructor(readonly dependency: string) { }
 }
 
 /**
@@ -222,6 +218,13 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	 * Stops the extension host.
 	 */
 	stopExtensionHost(): void;
+
+	_logOrShowMessage(severity: Severity, msg: string): void;
+	_activateById(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void>;
+	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
+	_onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
+	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
+	_onExtensionHostExit(code: number): void;
 }
 
 export interface ICpuProfilerTarget {
@@ -282,4 +285,10 @@ export class NullExtensionService implements IExtensionService {
 	stopExtensionHost(): void { }
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }
+	_logOrShowMessage(_severity: Severity, _msg: string): void { }
+	_activateById(_extensionId: ExtensionIdentifier, _activationEvent: string): Promise<void> { return Promise.resolve(); }
+	_onWillActivateExtension(_extensionId: ExtensionIdentifier): void { }
+	_onDidActivateExtension(_extensionId: ExtensionIdentifier, _startup: boolean, _codeLoadingTime: number, _activateCallTime: number, _activateResolvedTime: number, _activationEvent: string): void { }
+	_onExtensionRuntimeError(_extensionId: ExtensionIdentifier, _err: Error): void { }
+	_onExtensionHostExit(code: number): void { }
 }

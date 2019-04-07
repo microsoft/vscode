@@ -20,9 +20,9 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
-import { IWebviewEditorService } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorService';
+import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/electron-browser/webviewEditorInput';
+import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -209,7 +209,7 @@ export class ReleaseNotesManager {
 
 		renderer.code = (code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			return `<code>${tokenizeToString(code, modeId ? TokenizationRegistry.get(modeId) : undefined)}</code>`;
+			return `<code>${tokenizeToString(code, modeId ? TokenizationRegistry.get(modeId)! : undefined)}</code>`;
 		};
 		return renderer;
 	}

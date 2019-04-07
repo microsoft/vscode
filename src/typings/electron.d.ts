@@ -1,4 +1,4 @@
-// Type definitions for Electron 3.1.3
+// Type definitions for Electron 3.1.8
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -86,7 +86,7 @@ declare namespace Electron {
 		webviewTag: WebviewTag;
 	}
 
-	interface AllElectron extends MainInterface, RendererInterface { }
+  interface AllElectron extends MainInterface, RendererInterface {}
 
 	const app: App;
 	const autoUpdater: AutoUpdater;

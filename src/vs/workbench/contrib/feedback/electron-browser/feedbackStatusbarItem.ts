@@ -5,15 +5,14 @@
 
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { FeedbackDropdown, IFeedback, IFeedbackDelegate, FEEDBACK_VISIBLE_CONFIG, IFeedbackDropdownOptions } from 'vs/workbench/contrib/feedback/electron-browser/feedback';
+import { FeedbackDropdown, IFeedback, IFeedbackDelegate, FEEDBACK_VISIBLE_CONFIG } from 'vs/workbench/contrib/feedback/electron-browser/feedback';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/product/node/product';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { clearNode, EventHelper, addClass, removeClass, addDisposableListener } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
@@ -62,7 +61,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
@@ -126,14 +125,14 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 				this.dropdown = this._register(this.instantiationService.createInstance(FeedbackDropdown, this.container, {
 					contextViewProvider: this.contextViewService,
 					feedbackService: this.instantiationService.createInstance(TwitterFeedbackService),
-					onFeedbackVisibilityChange: visible => {
+					onFeedbackVisibilityChange: (visible: boolean) => {
 						if (visible) {
 							addClass(this.container, 'has-beak');
 						} else {
 							removeClass(this.container, 'has-beak');
 						}
 					}
-				} as IFeedbackDropdownOptions));
+				}));
 
 				this.updateStyles();
 
@@ -155,7 +154,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 class HideAction extends Action {
 
 	constructor(
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super('feedback.hide', localize('hide', "Hide"));
 	}

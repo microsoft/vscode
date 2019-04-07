@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
 
@@ -185,5 +185,43 @@ suite('ObjectTree', function () {
 			assert.equal(navigator.first(), 0);
 			assert.equal(navigator.last(), 2);
 		});
+	});
+
+	test('traits are preserved according to string identity', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new class implements IListVirtualDelegate<number> {
+			getHeight() { return 20; }
+			getTemplateId(): string { return 'default'; }
+		};
+
+		const renderer = new class implements ITreeRenderer<number, void, HTMLElement> {
+			readonly templateId = 'default';
+			renderTemplate(container: HTMLElement): HTMLElement {
+				return container;
+			}
+			renderElement(element: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
+				templateData.textContent = `${element.element}`;
+			}
+			disposeTemplate(): void { }
+		};
+
+		const identityProvider = new class implements IIdentityProvider<number> {
+			getId(element: number): { toString(): string; } {
+				return `${element % 100}`;
+			}
+		};
+
+		const tree = new ObjectTree<number>(container, delegate, [renderer], { identityProvider });
+		tree.layout(200);
+
+		tree.setChildren(null, [{ element: 0 }, { element: 1 }, { element: 2 }, { element: 3 }]);
+		tree.setFocus([1]);
+		assert.deepStrictEqual(tree.getFocus(), [1]);
+
+		tree.setChildren(null, [{ element: 100 }, { element: 101 }, { element: 102 }, { element: 103 }]);
+		assert.deepStrictEqual(tree.getFocus(), [101]);
 	});
 });

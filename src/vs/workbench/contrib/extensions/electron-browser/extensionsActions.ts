@@ -6,7 +6,7 @@
 import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
-import { Throttler, Delayer } from 'vs/base/common/async';
+import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
@@ -17,7 +17,7 @@ import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IE
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -25,7 +25,7 @@ import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IFileService, IContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -51,7 +51,7 @@ import product from 'vs/platform/product/node/product';
 import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { clipboard } from 'electron';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
 import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IFileIconTheme, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -1022,9 +1022,10 @@ export class ReloadAction extends ExtensionAction {
 	private static readonly EnabledClass = 'extension-action reload';
 	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
 
-	// Use delayer to wait for more updates
-	private throttler: Throttler;
 	private disposables: IDisposable[] = [];
+	private _runningExtensions: IExtensionDescription[] = [];
+	private get runningExtensions(): IExtensionDescription[] { return this._runningExtensions; }
+	private set runningExtensions(runningExtensions: IExtensionDescription[]) { this._runningExtensions = runningExtensions; this.update(); }
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -1033,39 +1034,38 @@ export class ReloadAction extends ExtensionAction {
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
-		this.throttler = new Throttler();
-		this.extensionService.onDidChangeExtensions(this.update, this, this.disposables);
-		this.update();
+		this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this, this.disposables);
+		this.updateRunningExtensions();
 	}
 
-	update(): Promise<void> {
-		return this.throttler.queue(() => {
-			this.enabled = false;
-			this.tooltip = '';
-			if (!this.extension) {
-				return Promise.resolve(undefined);
-			}
-			const state = this.extension.state;
-			if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
-				return Promise.resolve(undefined);
-			}
-			const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
-			const local = this.extension.local || (installed && installed.local);
-			if (local && local.manifest && local.manifest.contributes && local.manifest.contributes.localizations && local.manifest.contributes.localizations.length > 0) {
-				return Promise.resolve(undefined);
-			}
-			return this.extensionService.getExtensions()
-				.then(runningExtensions => this.computeReloadState(runningExtensions, installed));
-		}).then(() => {
-			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
-		});
+	private updateRunningExtensions(): void {
+		this.extensionService.getExtensions().then(runningExtensions => this.runningExtensions = runningExtensions);
 	}
 
-	private computeReloadState(runningExtensions: IExtensionDescription[], installed: IExtension): void {
+	update(): void {
+		this.enabled = false;
+		this.tooltip = '';
+		if (!this.extension) {
+			return;
+		}
+		const state = this.extension.state;
+		if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
+			return;
+		}
+		const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
+		const local = this.extension.local || (installed && installed.local);
+		if (local && local.manifest && local.manifest.contributes && local.manifest.contributes.localizations && local.manifest.contributes.localizations.length > 0) {
+			return;
+		}
+		this.computeReloadState(installed);
+		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
+	}
+
+	private computeReloadState(installed: IExtension): void {
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const isDisabled = this.extension.local ? !this.extensionEnablementService.isEnabled(this.extension.local) : false;
 		const isEnabled = this.extension.local ? this.extensionEnablementService.isEnabled(this.extension.local) : false;
-		const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+		const runningExtension = this.runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
 
 		if (installed && installed.local) {
 			if (runningExtension) {
@@ -1276,9 +1276,9 @@ export class OpenExtensionsViewletAction extends ShowViewletAction {
 		label: string,
 		@IViewletService viewletService: IViewletService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPartService partService: IPartService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService, partService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
 	}
 }
 
@@ -1514,7 +1514,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 				viewlet.search('@recommended ');
 				viewlet.focus();
 				const names = this.recommendations.map(({ extensionId }) => extensionId);
-				return this.extensionWorkbenchService.queryGallery({ names, source: 'install-all-workspace-recommendations' }).then(pager => {
+				return this.extensionWorkbenchService.queryGallery({ names, source: 'install-all-workspace-recommendations' }, CancellationToken.None).then(pager => {
 					let installPromises: Promise<any>[] = [];
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
@@ -1556,7 +1556,7 @@ export class InstallRecommendedExtensionAction extends Action {
 			.then(viewlet => {
 				viewlet.search('@recommended ');
 				viewlet.focus();
-				return this.extensionWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 })
+				return this.extensionWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 }, CancellationToken.None)
 					.then(pager => {
 						if (pager && pager.firstPage && pager.firstPage.length) {
 							const extension = pager.firstPage[0];
@@ -2528,12 +2528,12 @@ export class OpenExtensionsFolderAction extends Action {
 	run(): Promise<void> {
 		const extensionsHome = URI.file(this.environmentService.extensionsPath);
 
-		return Promise.resolve(this.fileService.resolveFile(extensionsHome)).then(file => {
-			let itemToShow: string;
+		return Promise.resolve(this.fileService.resolve(extensionsHome)).then(file => {
+			let itemToShow: URI;
 			if (file.children && file.children.length > 0) {
-				itemToShow = file.children[0].resource.fsPath;
+				itemToShow = file.children[0].resource;
 			} else {
-				itemToShow = extensionsHome.fsPath;
+				itemToShow = extensionsHome;
 			}
 
 			return this.windowsService.showItemInFolder(itemToShow);

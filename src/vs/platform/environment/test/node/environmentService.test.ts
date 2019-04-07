@@ -11,7 +11,7 @@ import { parseExtensionHostPort, parseUserDataDir } from 'vs/platform/environmen
 suite('EnvironmentService', () => {
 
 	test('parseExtensionHostPort when built', () => {
-		const parse = a => parseExtensionHostPort(parseArgs(a), true);
+		const parse = (a: string[]) => parseExtensionHostPort(parseArgs(a), true);
 
 		assert.deepEqual(parse([]), { port: null, break: false, debugId: undefined });
 		assert.deepEqual(parse(['--debugPluginHost']), { port: null, break: false, debugId: undefined });
@@ -28,7 +28,7 @@ suite('EnvironmentService', () => {
 	});
 
 	test('parseExtensionHostPort when unbuilt', () => {
-		const parse = a => parseExtensionHostPort(parseArgs(a), false);
+		const parse = (a: string[]) => parseExtensionHostPort(parseArgs(a), false);
 
 		assert.deepEqual(parse([]), { port: 5870, break: false, debugId: undefined });
 		assert.deepEqual(parse(['--debugPluginHost']), { port: 5870, break: false, debugId: undefined });
@@ -45,7 +45,7 @@ suite('EnvironmentService', () => {
 	});
 
 	test('userDataPath', () => {
-		const parse = (a, b: { cwd: () => string, env: { [key: string]: string } }) => parseUserDataDir(parseArgs(a), <any>b);
+		const parse = (a: string[], b: { cwd: () => string, env: { [key: string]: string } }) => parseUserDataDir(parseArgs(a), <any>b);
 
 		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: {} }), path.resolve('/foo/dir'),
 			'should use cwd when --user-data-dir is specified');

@@ -36,9 +36,9 @@ suite('Workbench resource editor input', () => {
 		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
 		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
 
-		return input.resolve().then((model: ResourceEditorModel) => {
+		return input.resolve().then(model => {
 			assert.ok(model);
-			assert.equal(snapshotToString(model.createSnapshot()), 'function test() {}');
+			assert.equal(snapshotToString((model as ResourceEditorModel).createSnapshot()!), 'function test() {}');
 		});
 	});
 });

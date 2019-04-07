@@ -5,8 +5,8 @@
 
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
-import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from '../common/extHost.protocol';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 function isMessageItem(item: any): item is vscode.MessageItem {
 	return item && item.title;
@@ -22,9 +22,10 @@ export class ExtHostMessageService {
 
 	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string, rest: string[]): Promise<string | undefined>;
 	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem, rest: vscode.MessageItem[]): Promise<vscode.MessageItem | undefined>;
-	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem, rest: (string | vscode.MessageItem)[]): Promise<string | vscode.MessageItem | undefined> {
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem | string, rest: Array<vscode.MessageItem | string>): Promise<string | vscode.MessageItem | undefined>;
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem, rest: Array<string | vscode.MessageItem>): Promise<string | vscode.MessageItem | undefined> {
 
-		let options: MainThreadMessageOptions = { extension };
+		const options: MainThreadMessageOptions = { extension };
 		let items: (string | vscode.MessageItem)[];
 
 		if (typeof optionsOrFirstItem === 'string' || isMessageItem(optionsOrFirstItem)) {
@@ -37,7 +38,7 @@ export class ExtHostMessageService {
 		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
 
 		for (let handle = 0; handle < items.length; handle++) {
-			let command = items[handle];
+			const command = items[handle];
 			if (typeof command === 'string') {
 				commands.push({ title: command, handle, isCloseAffordance: false });
 			} else if (typeof command === 'object') {

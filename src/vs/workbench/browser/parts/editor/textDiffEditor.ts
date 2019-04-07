@@ -61,7 +61,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return new EditorMemento(this.getId(), key, Object.create(null), limit, editorGroupService); // do not persist in storage as diff editors are never persisted
 	}
 
-	getTitle(): string {
+	getTitle(): string | null {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -120,6 +120,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 				// Readonly flag
 				diffEditor.updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
+				return undefined;
 			}, error => {
 
 				// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
@@ -226,7 +227,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 	private isFileBinaryError(error: Error[]): boolean;
 	private isFileBinaryError(error: Error): boolean;
-	private isFileBinaryError(error: any): boolean {
+	private isFileBinaryError(error: Error | Error[]): boolean {
 		if (types.isArray(error)) {
 			const errors = <Error[]>error;
 			return errors.some(e => this.isFileBinaryError(e));
@@ -262,7 +263,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return super.loadTextEditorViewState(resource) as IDiffEditorViewState;  // overridden for text diff editor support
 	}
 
-	private saveTextDiffEditorViewState(input: EditorInput): void {
+	private saveTextDiffEditorViewState(input: EditorInput | null): void {
 		if (!(input instanceof DiffEditorInput)) {
 			return; // only supported for diff editor inputs
 		}
@@ -288,11 +289,11 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		}
 	}
 
-	protected retrieveTextEditorViewState(resource: URI): IDiffEditorViewState {
+	protected retrieveTextEditorViewState(resource: URI): IDiffEditorViewState | null {
 		return this.retrieveTextDiffEditorViewState(resource); // overridden for text diff editor support
 	}
 
-	private retrieveTextDiffEditorViewState(resource: URI): IDiffEditorViewState {
+	private retrieveTextDiffEditorViewState(resource: URI): IDiffEditorViewState | null {
 		const control = this.getControl();
 		const model = control.getModel();
 		if (!model || !model.modified || !model.original) {
@@ -311,9 +312,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return control.saveViewState();
 	}
 
-	private toDiffEditorViewStateResource(modelOrInput: IDiffEditorModel | DiffEditorInput): URI {
-		let original: URI;
-		let modified: URI;
+	private toDiffEditorViewStateResource(modelOrInput: IDiffEditorModel | DiffEditorInput): URI | undefined {
+		let original: URI | undefined;
+		let modified: URI | undefined;
 
 		if (modelOrInput instanceof DiffEditorInput) {
 			original = modelOrInput.originalInput.getResource();
@@ -324,7 +325,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		}
 
 		if (!original || !modified) {
-			return null;
+			return undefined;
 		}
 
 		// create a URI that is the Base64 concatenation of original + modified resource

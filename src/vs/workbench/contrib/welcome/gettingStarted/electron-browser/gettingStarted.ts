@@ -14,7 +14,7 @@ export class GettingStarted implements IWorkbenchContribution {
 
 	private static readonly hideWelcomeSettingskey = 'workbench.hide.welcome';
 
-	private welcomePageURL: string;
+	private welcomePageURL?: string;
 	private appName: string;
 
 	constructor(

@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
-import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything } from 'vs/base/common/comparers';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -291,18 +291,6 @@ class NoActionProvider implements IActionProvider {
 	getActions(tree: ITree, element: any): IAction[] | null {
 		return null;
 	}
-
-	hasSecondaryActions(tree: ITree, element: any): boolean {
-		return false;
-	}
-
-	getSecondaryActions(tree: ITree, element: any): IAction[] | null {
-		return null;
-	}
-
-	getActionItem(tree: ITree, element: any, action: Action) {
-		return null;
-	}
 }
 
 export interface IQuickOpenEntryTemplateData {
@@ -471,13 +459,13 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			// Label
 			const options: IIconLabelValueOptions = entry.getLabelOptions() || Object.create(null);
 			options.matches = labelHighlights || [];
-			options.title = entry.getTooltip() || undefined;
-			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription() || undefined; // tooltip over description because it could overflow
+			options.title = types.withNullAsUndefined(entry.getTooltip());
+			options.descriptionTitle = entry.getDescriptionTooltip() || types.withNullAsUndefined(entry.getDescription()); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
-			data.label.setLabel(entry.getLabel() || undefined, entry.getDescription() || undefined, options);
+			data.label.setLabel(types.withNullAsUndefined(entry.getLabel()), types.withNullAsUndefined(entry.getDescription()), options);
 
 			// Meta
-			data.detail.set(entry.getDetail() || undefined, detailHighlights);
+			data.detail.set(types.withNullAsUndefined(entry.getDetail()), detailHighlights);
 
 			// Keybinding
 			data.keybinding.set(entry.getKeybinding()!);
@@ -485,17 +473,16 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 	}
 
 	disposeTemplate(templateId: string, templateData: IQuickOpenEntryGroupTemplateData): void {
-		const data = templateData as IQuickOpenEntryGroupTemplateData;
-		data.actionBar.dispose();
-		data.actionBar = null!;
-		data.container = null!;
-		data.entry = null!;
-		data.keybinding = null!;
-		data.detail = null!;
-		data.group = null!;
-		data.icon = null!;
-		data.label.dispose();
-		data.label = null!;
+		templateData.actionBar.dispose();
+		templateData.actionBar = null!;
+		templateData.container = null!;
+		templateData.entry = null!;
+		templateData.keybinding = null!;
+		templateData.detail = null!;
+		templateData.group = null!;
+		templateData.icon = null!;
+		templateData.label.dispose();
+		templateData.label = null!;
 	}
 }
 

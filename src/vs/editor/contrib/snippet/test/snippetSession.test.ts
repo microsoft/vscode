@@ -331,7 +331,7 @@ suite('SnippetSession', function () {
 
 		// reset selection to placeholder
 		session.next();
-		assert.equal(session.isSelectionWithinPlaceholders(), true);
+		assert.equal(session.isSelectionWithinPlaceholders(), false);
 		assert.equal(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 13, 1, 13), new Selection(2, 17, 2, 17));
 	});

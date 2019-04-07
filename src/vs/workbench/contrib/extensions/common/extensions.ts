@@ -83,7 +83,8 @@ export interface IExtensionsWorkbenchService {
 	onChange: Event<IExtension | undefined>;
 	local: IExtension[];
 	queryLocal(): Promise<IExtension[]>;
-	queryGallery(options?: IQueryOptions): Promise<IPager<IExtension>>;
+	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
+	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	canInstall(extension: IExtension): boolean;
 	install(vsix: string): Promise<IExtension>;
 	install(extension: IExtension, promptToInstallDependencies?: boolean): Promise<IExtension>;

@@ -57,14 +57,14 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	private openExternal(resource: URI): void {
 		this.windowsService.openExternal(resource.toString()).then(didOpen => {
 			if (!didOpen) {
-				return this.windowsService.showItemInFolder(resource.fsPath);
+				return this.windowsService.showItemInFolder(resource);
 			}
 
 			return undefined;
 		});
 	}
 
-	getTitle(): string {
+	getTitle(): string | null {
 		return this.input ? this.input.getName() : nls.localize('binaryFileEditor', "Binary File Viewer");
 	}
 }

@@ -172,9 +172,16 @@ export class EnvironmentService implements IEnvironmentService {
 	}
 
 	@memoize
-	get extensionDevelopmentLocationURI(): URI | undefined {
+	get extensionDevelopmentLocationURI(): URI | URI[] | undefined {
 		const s = this._args.extensionDevelopmentPath;
-		if (s) {
+		if (Array.isArray(s)) {
+			return s.map(p => {
+				if (/^[^:/?#]+?:\/\//.test(p)) {
+					return URI.parse(p);
+				}
+				return URI.file(path.normalize(p));
+			});
+		} else if (s) {
 			if (/^[^:/?#]+?:\/\//.test(s)) {
 				return URI.parse(s);
 			}

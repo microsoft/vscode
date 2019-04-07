@@ -84,6 +84,7 @@
 
 .monaco-sash.disabled {
 	cursor: default !important;
+	pointer-events: none !important;
 }
 
 /** Touch **/
@@ -98,8 +99,12 @@
 
 /** Debug **/
 
-.monaco-sash.debug:not(.disabled) {
+.monaco-sash.debug {
 	background: cyan;
+}
+
+.monaco-sash.debug.disabled {
+	background: rgba(0, 255, 255, 0.2);
 }
 
 .monaco-sash.debug:not(.disabled).orthogonal-start::before,

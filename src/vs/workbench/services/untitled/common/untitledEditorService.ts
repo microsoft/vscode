@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import * as arrays from 'vs/base/common/arrays';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
@@ -14,6 +14,8 @@ import { ResourceMap } from 'vs/base/common/map';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { basename } from 'vs/base/common/resources';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
@@ -95,7 +97,7 @@ export interface IUntitledEditorService {
 	/**
 	 * Suggests a filename for the given untitled resource if it is known.
 	 */
-	suggestFileName(resource: URI): string | undefined;
+	suggestFileName(resource: URI): string;
 
 	/**
 	 * Get the configured encoding for the given untitled resource if any.
@@ -105,7 +107,7 @@ export interface IUntitledEditorService {
 
 export class UntitledEditorService extends Disposable implements IUntitledEditorService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private mapResourceToInput = new ResourceMap<UntitledEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
@@ -265,10 +267,10 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		return this.mapResourceToAssociatedFilePath.has(resource);
 	}
 
-	suggestFileName(resource: URI): string | undefined {
+	suggestFileName(resource: URI): string {
 		const input = this.get(resource);
 
-		return input ? input.suggestFileName() : undefined;
+		return input ? input.suggestFileName() : basename(resource);
 	}
 
 	getEncoding(resource: URI): string | undefined {
@@ -277,3 +279,5 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		return input ? input.getEncoding() : undefined;
 	}
 }
+
+registerSingleton(IUntitledEditorService, UntitledEditorService, true);

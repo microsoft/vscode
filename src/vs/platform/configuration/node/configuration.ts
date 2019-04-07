@@ -9,7 +9,7 @@ import { ConfigurationModelParser, ConfigurationModel } from 'vs/platform/config
 import { ConfigWatcher } from 'vs/base/node/config';
 import { Event, Emitter } from 'vs/base/common/event';
 
-export class UserConfiguration extends Disposable {
+export class NodeBasedUserConfiguration extends Disposable {
 
 	private userConfigModelWatcher: ConfigWatcher<ConfigurationModelParser>;
 	private initializePromise: Promise<void>;
@@ -50,4 +50,7 @@ export class UserConfiguration extends Disposable {
 		return this.initialize().then(() => new Promise<ConfigurationModel>(c => this.userConfigModelWatcher.reload(userConfigModelParser => c(userConfigModelParser.configurationModel))));
 	}
 
+	getConfigurationModel(): ConfigurationModel {
+		return this.userConfigModelWatcher.getConfig().configurationModel;
+	}
 }

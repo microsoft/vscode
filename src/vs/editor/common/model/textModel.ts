@@ -32,6 +32,7 @@ import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048;
 
@@ -265,8 +266,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	//#region Tokenization
 	private _languageIdentifier: LanguageIdentifier;
-	private _tokenizationListener: IDisposable;
-	private _languageRegistryListener: IDisposable;
+	private readonly _tokenizationListener: IDisposable;
+	private readonly _languageRegistryListener: IDisposable;
 	private _revalidateTokensTimeout: any;
 	/*private*/_tokens: ModelLinesTokens;
 	//#endregion
@@ -893,24 +894,24 @@ export class TextModel extends Disposable implements model.ITextModel {
 	 * @param strict Do NOT allow a position inside a high-low surrogate pair
 	 */
 	private _isValidPosition(lineNumber: number, column: number, strict: boolean): boolean {
-		if (isNaN(lineNumber)) {
+		if (typeof lineNumber !== 'number' || typeof column !== 'number') {
 			return false;
 		}
 
-		if (lineNumber < 1) {
+		if (isNaN(lineNumber) || isNaN(column)) {
+			return false;
+		}
+
+		if (lineNumber < 1 || column < 1) {
+			return false;
+		}
+
+		if ((lineNumber | 0) !== lineNumber || (column | 0) !== column) {
 			return false;
 		}
 
 		const lineCount = this._buffer.getLineCount();
 		if (lineNumber > lineCount) {
-			return false;
-		}
-
-		if (isNaN(column)) {
-			return false;
-		}
-
-		if (column < 1) {
 			return false;
 		}
 
@@ -2730,12 +2731,12 @@ class DecorationsTrees {
 	/**
 	 * This tree holds decorations that do not show up in the overview ruler.
 	 */
-	private _decorationsTree0: IntervalTree;
+	private readonly _decorationsTree0: IntervalTree;
 
 	/**
 	 * This tree holds decorations that show up in the overview ruler.
 	 */
-	private _decorationsTree1: IntervalTree;
+	private readonly _decorationsTree1: IntervalTree;
 
 	constructor() {
 		this._decorationsTree0 = new IntervalTree();
@@ -2877,8 +2878,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
-		this.hoverMessage = options.hoverMessage || null;
-		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
+		this.hoverMessage = withUndefinedAsNull(options.hoverMessage);
+		this.glyphMarginHoverMessage = withUndefinedAsNull(options.glyphMarginHoverMessage);
 		this.isWholeLine = options.isWholeLine || false;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;

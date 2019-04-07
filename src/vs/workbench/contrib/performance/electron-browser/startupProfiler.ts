@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { dirname, join, basename } from 'vs/base/common/path';
-import { del, exists, readdir, readFile } from 'vs/base/node/pfs';
+import { exists, readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -16,6 +16,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { URI } from 'vs/base/common/uri';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
@@ -49,7 +50,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 
 		const removeArgs: string[] = ['--prof-startup'];
 		const markerFile = readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
-			.then(() => del(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
+			.then(() => rimraf(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
 			.then(() => new Promise(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
 				const check = () => {
 					exists(profileFilenamePrefix).then(exists => {
@@ -62,7 +63,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 				};
 				check();
 			}))
-			.then(() => del(profileFilenamePrefix)); // (3) finally delete the file again
+			.then(() => rimraf(profileFilenamePrefix)); // (3) finally delete the file again
 
 		markerFile.then(() => {
 			return readdir(dir).then(files => files.filter(value => value.indexOf(prefix) === 0));
@@ -78,7 +79,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 			}).then(res => {
 				if (res.confirmed) {
 					Promise.all<any>([
-						this._windowsService.showItemInFolder(join(dir, files[0])),
+						this._windowsService.showItemInFolder(URI.file(join(dir, files[0]))),
 						this._createPerfIssue(files)
 					]).then(() => {
 						// keep window stable until restart is selected
@@ -87,7 +88,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
 							primaryButton: localize('prof.restart', "Restart"),
-							secondaryButton: null
+							secondaryButton: undefined
 						}).then(() => {
 							// now we are ready to restart
 							this._windowsService.relaunch({ removeArgs });

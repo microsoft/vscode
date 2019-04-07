@@ -145,7 +145,7 @@ export interface ITreeMouseEvent<T> {
 export interface ITreeContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | null;
-	anchor: HTMLElement | { x: number; y: number; } | undefined;
+	anchor: HTMLElement | { x: number; y: number; };
 }
 
 export interface ITreeNavigator<T> {

@@ -7,24 +7,26 @@ import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import * as assert from 'assert';
-import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
+import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
+import { FileOperation, FileOperationEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { URI as uri } from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import * as encodingLib from 'vs/base/node/encoding';
-import * as utils from 'vs/workbench/services/files/test/electron-browser/utils';
-import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, TestLifecycleService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IEncodingOverride } from 'vs/workbench/services/files/node/encoding';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Schemas } from 'vs/base/common/network';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 
-suite('FileService', () => {
-	let service: FileService;
+suite('LegacyFileService', () => {
+	let service: LegacyFileService;
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'fileservice');
 	let testDir: string;
 
@@ -33,14 +35,22 @@ suite('FileService', () => {
 		testDir = path.join(parentDir, id);
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
+		const fileService = new FileService2(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
 		return pfs.copy(sourceDir, testDir).then(() => {
-			service = new FileService(new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+			service = new LegacyFileService(
+				fileService,
+				new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))),
+				TestEnvironmentService,
+				new TestTextResourceConfigurationService(),
+			);
 		});
 	});
 
 	teardown(() => {
 		service.dispose();
-		return pfs.del(parentDir, os.tmpdir());
+		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
 	test('createFile', () => {
@@ -96,448 +106,6 @@ suite('FileService', () => {
 			assert.equal(event.operation, FileOperation.CREATE);
 			assert.equal(event.target!.resource.fsPath, resource.fsPath);
 			toDispose.dispose();
-		});
-	});
-
-	test('createFolder', () => {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		return service.resolveFile(uri.file(testDir)).then(parent => {
-			const resource = uri.file(path.join(parent.resource.fsPath, 'newFolder'));
-
-			return service.createFolder(resource).then(f => {
-				assert.equal(f.name, 'newFolder');
-				assert.equal(fs.existsSync(f.resource.fsPath), true);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.CREATE);
-				assert.equal(event.target!.resource.fsPath, resource.fsPath);
-				assert.equal(event.target!.isDirectory, true);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('createFolder: creating multiple folders at once', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
-		return service.resolveFile(uri.file(testDir)).then(parent => {
-			const resource = uri.file(path.join(parent.resource.fsPath, ...multiFolderPaths));
-
-			return service.createFolder(resource).then(f => {
-				const lastFolderName = multiFolderPaths[multiFolderPaths.length - 1];
-				assert.equal(f.name, lastFolderName);
-				assert.equal(fs.existsSync(f.resource.fsPath), true);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.CREATE);
-				assert.equal(event.target!.resource.fsPath, resource.fsPath);
-				assert.equal(event.target!.isDirectory, true);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('renameFile', () => {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const resource = uri.file(path.join(testDir, 'index.html'));
-		return service.resolveFile(resource).then(source => {
-			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'other.html'))).then(renamed => {
-				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
-				assert.equal(fs.existsSync(source.resource.fsPath), false);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('renameFile - multi folder', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
-		const renameToPath = path.join(...multiFolderPaths, 'other.html');
-
-		const resource = uri.file(path.join(testDir, 'index.html'));
-		return service.resolveFile(resource).then(source => {
-			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), renameToPath))).then(renamed => {
-				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
-				assert.equal(fs.existsSync(source.resource.fsPath), false);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('renameFolder', () => {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const resource = uri.file(path.join(testDir, 'deep'));
-		return service.resolveFile(resource).then(source => {
-			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'deeper'))).then(renamed => {
-				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
-				assert.equal(fs.existsSync(source.resource.fsPath), false);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('renameFolder - multi folder', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
-		const renameToPath = path.join(...multiFolderPaths);
-
-		const resource = uri.file(path.join(testDir, 'deep'));
-		return service.resolveFile(resource).then(source => {
-			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), renameToPath))).then(renamed => {
-				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
-				assert.equal(fs.existsSync(source.resource.fsPath), false);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
-				toDispose.dispose();
-			});
-		});
-	});
-	test('renameFile - MIX CASE', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const resource = uri.file(path.join(testDir, 'index.html'));
-		return service.resolveFile(resource).then(source => {
-			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'INDEX.html'))).then(renamed => {
-				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
-				assert.equal(path.basename(renamed.resource.fsPath), 'INDEX.html');
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('moveFile', () => {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const resource = uri.file(path.join(testDir, 'index.html'));
-		return service.resolveFile(resource).then(source => {
-			return service.moveFile(source.resource, uri.file(path.join(testDir, 'other.html'))).then(renamed => {
-				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
-				assert.equal(fs.existsSync(source.resource.fsPath), false);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('move - source parent of target', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
-			return service.moveFile(uri.file(testDir), uri.file(path.join(testDir, 'binary.txt'))).then(undefined, (e: Error) => {
-				assert.ok(e);
-
-				assert.ok(!event);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('move - FILE_MOVE_CONFLICT', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
-			return service.moveFile(source.resource, uri.file(path.join(testDir, 'binary.txt'))).then(undefined, (e: FileOperationError) => {
-				assert.equal(e.fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
-
-				assert.ok(!event);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('moveFile - MIX CASE', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const resource = uri.file(path.join(testDir, 'index.html'));
-		return service.resolveFile(resource).then(source => {
-			return service.moveFile(source.resource, uri.file(path.join(testDir, 'INDEX.html'))).then(renamed => {
-				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
-				assert.equal(path.basename(renamed.resource.fsPath), 'INDEX.html');
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.MOVE);
-				assert.equal(event.target!.resource.fsPath, renamed.resource.fsPath);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('moveFile - overwrite folder with file', function () {
-		let createEvent: FileOperationEvent;
-		let moveEvent: FileOperationEvent;
-		let deleteEvent: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			if (e.operation === FileOperation.CREATE) {
-				createEvent = e;
-			} else if (e.operation === FileOperation.DELETE) {
-				deleteEvent = e;
-			} else if (e.operation === FileOperation.MOVE) {
-				moveEvent = e;
-			}
-		});
-
-		return service.resolveFile(uri.file(testDir)).then(parent => {
-			const folderResource = uri.file(path.join(parent.resource.fsPath, 'conway.js'));
-			return service.createFolder(folderResource).then(f => {
-				const resource = uri.file(path.join(testDir, 'deep', 'conway.js'));
-				return service.moveFile(resource, f.resource, true).then(moved => {
-					assert.equal(fs.existsSync(moved.resource.fsPath), true);
-					assert.ok(fs.statSync(moved.resource.fsPath).isFile);
-
-					assert.ok(createEvent);
-					assert.ok(deleteEvent);
-					assert.ok(moveEvent);
-
-					assert.equal(moveEvent.resource.fsPath, resource.fsPath);
-					assert.equal(moveEvent!.target!.resource.fsPath, moved.resource.fsPath);
-
-					assert.equal(deleteEvent.resource.fsPath, folderResource.fsPath);
-
-					toDispose.dispose();
-				});
-			});
-		});
-	});
-
-	test('copyFile', () => {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
-			const resource = uri.file(path.join(testDir, 'other.html'));
-			return service.copyFile(source.resource, resource).then(copied => {
-				assert.equal(fs.existsSync(copied.resource.fsPath), true);
-				assert.equal(fs.existsSync(source.resource.fsPath), true);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, source.resource.fsPath);
-				assert.equal(event.operation, FileOperation.COPY);
-				assert.equal(event.target!.resource.fsPath, copied.resource.fsPath);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('copyFile - overwrite folder with file', function () {
-		let createEvent: FileOperationEvent;
-		let copyEvent: FileOperationEvent;
-		let deleteEvent: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			if (e.operation === FileOperation.CREATE) {
-				createEvent = e;
-			} else if (e.operation === FileOperation.DELETE) {
-				deleteEvent = e;
-			} else if (e.operation === FileOperation.COPY) {
-				copyEvent = e;
-			}
-		});
-
-		return service.resolveFile(uri.file(testDir)).then(parent => {
-			const folderResource = uri.file(path.join(parent.resource.fsPath, 'conway.js'));
-			return service.createFolder(folderResource).then(f => {
-				const resource = uri.file(path.join(testDir, 'deep', 'conway.js'));
-				return service.copyFile(resource, f.resource, true).then(copied => {
-					assert.equal(fs.existsSync(copied.resource.fsPath), true);
-					assert.ok(fs.statSync(copied.resource.fsPath).isFile);
-
-					assert.ok(createEvent);
-					assert.ok(deleteEvent);
-					assert.ok(copyEvent);
-
-					assert.equal(copyEvent.resource.fsPath, resource.fsPath);
-					assert.equal(copyEvent.target!.resource.fsPath, copied.resource.fsPath);
-
-					assert.equal(deleteEvent.resource.fsPath, folderResource.fsPath);
-
-					toDispose.dispose();
-				});
-			});
-		});
-	});
-
-	test('copyFile - MIX CASE', function () {
-		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
-			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'CONWAY.js'))).then(renamed => {
-				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
-				assert.ok(fs.readdirSync(testDir).some(f => f === 'CONWAY.js'));
-
-				return service.resolveFile(uri.file(path.join(testDir, 'deep', 'conway.js'))).then(source => {
-					const targetParent = uri.file(testDir);
-					const target = targetParent.with({ path: path.posix.join(targetParent.path, path.posix.basename(source.resource.path)) });
-
-					return service.copyFile(source.resource, target, true).then(res => { // CONWAY.js => conway.js
-						assert.equal(fs.existsSync(res.resource.fsPath), true);
-						assert.ok(fs.readdirSync(testDir).some(f => f === 'conway.js'));
-					});
-				});
-			});
-		});
-	});
-
-	test('copyFile - same file', function () {
-		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
-			const targetParent = uri.file(path.dirname(source.resource.fsPath));
-			const target = targetParent.with({ path: path.posix.join(targetParent.path, path.posix.basename(source.resource.path)) });
-			return service.copyFile(source.resource, target, true).then(copied => {
-				assert.equal(copied.size, source.size);
-			});
-		});
-	});
-
-	test('deleteFile', () => {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const resource = uri.file(path.join(testDir, 'deep', 'conway.js'));
-		return service.resolveFile(resource).then(source => {
-			return service.del(source.resource).then(() => {
-				assert.equal(fs.existsSync(source.resource.fsPath), false);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.DELETE);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('deleteFolder (recursive)', function () {
-		let event: FileOperationEvent;
-		const toDispose = service.onAfterOperation(e => {
-			event = e;
-		});
-
-		const resource = uri.file(path.join(testDir, 'deep'));
-		return service.resolveFile(resource).then(source => {
-			return service.del(source.resource, { recursive: true }).then(() => {
-				assert.equal(fs.existsSync(source.resource.fsPath), false);
-
-				assert.ok(event);
-				assert.equal(event.resource.fsPath, resource.fsPath);
-				assert.equal(event.operation, FileOperation.DELETE);
-				toDispose.dispose();
-			});
-		});
-	});
-
-	test('deleteFolder (non recursive)', function () {
-		const resource = uri.file(path.join(testDir, 'deep'));
-		return service.resolveFile(resource).then(source => {
-			return service.del(source.resource).then(() => {
-				return Promise.reject(new Error('Unexpected'));
-			}, error => {
-				return Promise.resolve(true);
-			});
-		});
-	});
-
-	test('resolveFile', () => {
-		return service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).then(r => {
-			assert.equal(r.children!.length, 8);
-
-			const deep = utils.getByName(r, 'deep')!;
-			assert.equal(deep.children!.length, 4);
-		});
-	});
-
-	test('resolveFiles', () => {
-		return service.resolveFiles([
-			{ resource: uri.file(testDir), options: { resolveTo: [uri.file(path.join(testDir, 'deep'))] } },
-			{ resource: uri.file(path.join(testDir, 'deep')) }
-		]).then(res => {
-			const r1 = res[0].stat;
-
-			assert.equal(r1.children!.length, 8);
-
-			const deep = utils.getByName(r1, 'deep')!;
-			assert.equal(deep.children!.length, 4);
-
-			const r2 = res[1].stat;
-			assert.equal(r2.children!.length, 4);
-			assert.equal(r2.name, 'deep');
-		});
-	});
-
-	test('existsFile', () => {
-		return service.existsFile(uri.file(testDir)).then((exists) => {
-			assert.equal(exists, true);
-
-			return service.existsFile(uri.file(testDir + 'something')).then((exists) => {
-				assert.equal(exists, false);
-			});
 		});
 	});
 
@@ -791,45 +359,6 @@ suite('FileService', () => {
 		});
 	});
 
-	test('watchFileChanges', function (done) {
-		const toWatch = uri.file(path.join(testDir, 'index.html'));
-
-		service.watchFileChanges(toWatch);
-
-		service.onFileChanges((e: FileChangesEvent) => {
-			assert.ok(e);
-
-			service.unwatchFileChanges(toWatch);
-			done();
-		});
-
-		setTimeout(() => {
-			fs.writeFileSync(toWatch.fsPath, 'Changes');
-		}, 100);
-	});
-
-	test('watchFileChanges - support atomic save', function (done) {
-		const toWatch = uri.file(path.join(testDir, 'index.html'));
-
-		service.watchFileChanges(toWatch);
-
-		service.onFileChanges((e: FileChangesEvent) => {
-			assert.ok(e);
-
-			service.unwatchFileChanges(toWatch);
-			done();
-		});
-
-		setTimeout(() => {
-			// Simulate atomic save by deleting the file, creating it under different name
-			// and then replacing the previously deleted file with those contents
-			const renamed = `${toWatch.fsPath}.bak`;
-			fs.unlinkSync(toWatch.fsPath);
-			fs.writeFileSync(renamed, 'Changes');
-			fs.renameSync(renamed, toWatch.fsPath);
-		}, 100);
-	});
-
 	test('options - encoding override (parent)', function () {
 
 		// setup
@@ -849,18 +378,16 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
-			const _service = new FileService(
+			const fileService = new FileService2(new NullLogService());
+			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
+
+			const _service = new LegacyFileService(
+				fileService,
 				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
-				configurationService,
-				new TestLifecycleService(),
-				new TestStorageService(),
-				new TestNotificationService(),
-				{
-					encodingOverride,
-					disableWatcher: true
-				});
+				{ encodingOverride });
 
 			return _service.resolveContent(uri.file(path.join(testDir, 'index.html'))).then(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -894,18 +421,15 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
-			const _service = new FileService(
+			const fileService = new FileService2(new NullLogService());
+			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
+			const _service = new LegacyFileService(
+				fileService,
 				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
-				configurationService,
-				new TestLifecycleService(),
-				new TestStorageService(),
-				new TestNotificationService(),
-				{
-					encodingOverride,
-					disableWatcher: true
-				});
+				{ encodingOverride });
 
 			return _service.resolveContent(uri.file(path.join(testDir, 'index.html'))).then(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -928,17 +452,15 @@ suite('FileService', () => {
 		const _sourceDir = getPathFromAmdModule(require, './fixtures/service');
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
-		const _service = new FileService(
+		const fileService = new FileService2(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+
+		const _service = new LegacyFileService(
+			fileService,
 			new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 			TestEnvironmentService,
-			new TestTextResourceConfigurationService(),
-			new TestConfigurationService(),
-			new TestLifecycleService(),
-			new TestStorageService(),
-			new TestNotificationService(),
-			{
-				disableWatcher: true
-			});
+			new TestTextResourceConfigurationService()
+		);
 
 		return pfs.copy(_sourceDir, _testDir).then(() => {
 			return pfs.readFile(resource.fsPath).then(data => {

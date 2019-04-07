@@ -7,7 +7,7 @@ import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
@@ -19,7 +19,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
@@ -29,6 +29,7 @@ import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { coalesce } from 'vs/base/common/arrays';
+import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export interface PositionLike {
 	line: number;
@@ -236,7 +237,7 @@ export namespace MarkdownString {
 		const resUris: { [href: string]: UriComponents } = Object.create(null);
 		res.uris = resUris;
 
-		let renderer = new marked.Renderer();
+		const renderer = new marked.Renderer();
 		renderer.image = renderer.link = (href: string): string => {
 			try {
 				let uri = URI.parse(href, true);
@@ -267,7 +268,7 @@ export namespace MarkdownString {
 		}
 		data = cloneAndChange(data, value => {
 			if (value instanceof URI) {
-				let key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
+				const key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
 				bucket[key] = value;
 				return key;
 			} else {
@@ -457,7 +458,7 @@ export namespace WorkspaceEdit {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				const doc = documents && uri ? documents.getDocument(uri.toString()) : undefined;
+				const doc = documents && uri ? documents.getDocument(uri) : undefined;
 				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
@@ -854,27 +855,17 @@ export namespace Color {
 	}
 }
 
-export namespace SelectionRangeKind {
-
-	export function from(kind: vscode.SelectionRangeKind): string {
-		return kind.value;
-	}
-
-	export function to(value: string): vscode.SelectionRangeKind {
-		return new types.SelectionRangeKind(value);
-	}
-}
 
 export namespace SelectionRange {
 	export function from(obj: vscode.SelectionRange): modes.SelectionRange {
 		return {
-			kind: SelectionRangeKind.from(obj.kind),
+			kind: '',
 			range: Range.from(obj.range)
 		};
 	}
 
 	export function to(obj: modes.SelectionRange): vscode.SelectionRange {
-		return new types.SelectionRange(Range.to(obj.range), SelectionRangeKind.to(obj.kind));
+		return new types.SelectionRange(Range.to(obj.range));
 	}
 }
 
@@ -893,6 +884,30 @@ export namespace TextDocumentSaveReason {
 	}
 }
 
+export namespace TextEditorLineNumbersStyle {
+	export function from(style: vscode.TextEditorLineNumbersStyle): RenderLineNumbersType {
+		switch (style) {
+			case types.TextEditorLineNumbersStyle.Off:
+				return RenderLineNumbersType.Off;
+			case types.TextEditorLineNumbersStyle.Relative:
+				return RenderLineNumbersType.Relative;
+			case types.TextEditorLineNumbersStyle.On:
+			default:
+				return RenderLineNumbersType.On;
+		}
+	}
+	export function to(style: RenderLineNumbersType): vscode.TextEditorLineNumbersStyle {
+		switch (style) {
+			case RenderLineNumbersType.Off:
+				return types.TextEditorLineNumbersStyle.Off;
+			case RenderLineNumbersType.Relative:
+				return types.TextEditorLineNumbersStyle.Relative;
+			case RenderLineNumbersType.On:
+			default:
+				return types.TextEditorLineNumbersStyle.On;
+		}
+	}
+}
 
 export namespace EndOfLine {
 
@@ -970,7 +985,10 @@ export namespace TextEditorOptions {
 
 export namespace GlobPattern {
 
-	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern {
+	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
+	export function from(pattern: undefined): undefined;
+	export function from(pattern: vscode.GlobPattern | undefined): string | types.RelativePattern | undefined;
+	export function from(pattern: vscode.GlobPattern | undefined): string | types.RelativePattern | undefined {
 		if (pattern instanceof types.RelativePattern) {
 			return pattern;
 		}

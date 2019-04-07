@@ -198,8 +198,17 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	}
 
 	getNode(element: T | null = null): ITreeNode<T | null, TFilterData> {
-		const location = this.getElementLocation(element);
-		return this.model.getNode(location);
+		if (element === null) {
+			return this.model.getNode(this.model.rootRef);
+		}
+
+		const node = this.nodes.get(element);
+
+		if (!node) {
+			throw new Error(`Tree element not found: ${element}`);
+		}
+
+		return node;
 	}
 
 	getNodeLocation(node: ITreeNode<T, TFilterData>): T {

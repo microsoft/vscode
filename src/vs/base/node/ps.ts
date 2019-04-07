@@ -4,19 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-
+import { ProcessItem } from 'vs/base/common/processes';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-
-export interface ProcessItem {
-	name: string;
-	cmd: string;
-	pid: number;
-	ppid: number;
-	load: number;
-	mem: number;
-
-	children?: ProcessItem[];
-}
 
 export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
@@ -151,7 +140,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						rootItem = processItems.get(rootPid);
 						if (rootItem) {
 							processItems.forEach(item => {
-								let parent = processItems.get(item.ppid);
+								const parent = processItems.get(item.ppid);
 								if (parent) {
 									if (!parent.children) {
 										parent.children = [];
@@ -181,12 +170,12 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			exec(CMD, { maxBuffer: 1000 * 1024, env: { LC_NUMERIC: 'en_US.UTF-8' } }, (err, stdout, stderr) => {
 
 				if (err || stderr) {
-					reject(err || stderr.toString());
+					reject(err || new Error(stderr.toString()));
 				} else {
 
 					const lines = stdout.toString().split('\n');
 					for (const line of lines) {
-						let matches = PID_CMD.exec(line.trim());
+						const matches = PID_CMD.exec(line.trim());
 						if (matches && matches.length === 6) {
 							addToTree(parseInt(matches[1]), parseInt(matches[2]), matches[5], parseFloat(matches[3]), parseFloat(matches[4]));
 						}
@@ -214,7 +203,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 						exec(cmd, {}, (err, stdout, stderr) => {
 							if (err || stderr) {
-								reject(err || stderr.toString());
+								reject(err || new Error(stderr.toString()));
 							} else {
 								const cpuUsage = stdout.toString().split('\n');
 								for (let i = 0; i < pids.length; i++) {

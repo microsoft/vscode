@@ -37,10 +37,10 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	get onDidOpenInPlace(): Event<void> { return this._onDidOpenInPlace.event; }
 
 	private callbacks: IOpenCallbacks;
-	private metadata: string | null;
+	private metadata: string | undefined;
 	private binaryContainer: HTMLElement;
 	private scrollbar: DomScrollableElement;
-	private resourceViewerContext: ResourceViewerContext;
+	private resourceViewerContext: ResourceViewerContext | undefined;
 
 	constructor(
 		id: string,
@@ -110,24 +110,25 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		});
 	}
 
-	private handleMetadataChanged(meta: string | null): void {
+	private handleMetadataChanged(meta: string | undefined): void {
 		this.metadata = meta;
 
 		this._onMetadataChanged.fire();
 	}
 
-	getMetadata() {
+	getMetadata(): string | undefined {
 		return this.metadata;
 	}
 
 	clearInput(): void {
 
 		// Clear Meta
-		this.handleMetadataChanged(null);
+		this.handleMetadataChanged(undefined);
 
 		// Clear Resource Viewer
 		clearNode(this.binaryContainer);
-		this.resourceViewerContext = dispose(this.resourceViewerContext);
+		dispose(this.resourceViewerContext);
+		this.resourceViewerContext = undefined;
 
 		super.clearInput();
 	}
@@ -149,7 +150,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	dispose(): void {
 		this.binaryContainer.remove();
 
-		this.resourceViewerContext = dispose(this.resourceViewerContext);
+		dispose(this.resourceViewerContext);
+		this.resourceViewerContext = undefined;
 
 		super.dispose();
 	}

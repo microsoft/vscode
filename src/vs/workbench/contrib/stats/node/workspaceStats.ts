@@ -7,10 +7,10 @@ import { localize } from 'vs/nls';
 import * as crypto from 'crypto';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, IResolveFileResult, IContent } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
@@ -20,7 +20,6 @@ import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspa
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { joinPath } from 'vs/base/common/resources';
-import { collectWorkspaceStats, WorkspaceStats as WorkspaceStatsType } from 'vs/base/node/stats';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -197,12 +196,15 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
 	const path = workspaceUri.path;
 	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-	return fileService.resolveFile(uri).then(() => {
+	return fileService.exists(uri).then(exists => {
+		if (!exists) {
+			return [];
+		}
 		return fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 			content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
 			err => [] // ignore missing or binary file
 		);
-	}, err => []);
+	});
 }
 
 export class WorkspaceStats implements IWorkbenchContribution {
@@ -215,7 +217,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWindowService private readonly windowService: IWindowService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -226,14 +228,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private report(): void {
 
-		// Workspace Tags
-		this.resolveWorkspaceTags(this.windowService.getConfiguration(), rootFiles => this.handleWorkspaceFiles(rootFiles))
+		// Workspace Stats
+		this.resolveWorkspaceTags(this.environmentService.configuration, rootFiles => this.handleWorkspaceFiles(rootFiles))
 			.then(tags => this.reportWorkspaceTags(tags), error => onUnexpectedError(error));
-
-		// Workspace file types, config files, and launch configs
-		this.getWorkspaceMetadata().then(stats => {
-			this.reportWorkspaceMetadata(stats);
-		});
 
 		// Cloud Stats
 		this.reportCloudStats();
@@ -367,8 +364,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			return Promise.resolve(tags);
 		}
 
-		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
-			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
+		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
+			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
 			if (participant) {
@@ -437,10 +434,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			function getFilePromises(filename, fileService, contentHandler): Promise<void>[] {
+			function getFilePromises(filename: string, fileService: IFileService, contentHandler: (content: IContent) => void): Promise<void>[] {
 				return !nameSet.has(filename) ? [] : (folders as URI[]).map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
-					return fileService.resolveFile(uri).then(() => {
+					return fileService.exists(uri).then(exists => {
+						if (!exists) {
+							return undefined;
+						}
+
 						return fileService.resolveContent(uri, { acceptTextOnly: true }).then(contentHandler);
 					}, err => {
 						// Ignore missing file
@@ -557,7 +558,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
-				run: () => this.windowService.openWindow([{ uri: joinPath(folder, workspaceFile), typeHint: 'file' }])
+				run: () => this.windowService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
 			}, doNotShowAgain]);
 		}
 
@@ -570,7 +571,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
 						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
 							if (pick) {
-								this.windowService.openWindow([{ uri: joinPath(folder, pick.label), typeHint: 'file' }]);
+								this.windowService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
 							}
 						});
 				}
@@ -619,12 +620,15 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-			return this.fileService.resolveFile(uri).then(() => {
+			return this.fileService.exists(uri).then(exists => {
+				if (!exists) {
+					return [];
+				}
 				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 					content => getDomainsOfRemotes(content.value, SecondLevelDomainWhitelist),
 					err => [] // ignore missing or binary file
 				);
-			}, err => []);
+			});
 		})).then(domains => {
 			const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
 			const list: string[] = [];
@@ -662,9 +666,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			const path = workspaceUri.path;
 			return workspaceUri.with({ path: `${path !== '/' ? path : ''}/node_modules` });
 		});
-		return this.fileService.resolveFiles(uris.map(resource => ({ resource }))).then(
+		return this.fileService.resolveAll(uris.map(resource => ({ resource }))).then(
 			results => {
-				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
+				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 				const referencesAzure = WorkspaceStats.searchArray(names, /azure/i);
 				if (referencesAzure) {
 					tags['node'] = true;
@@ -685,12 +689,15 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return Promise.all(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
-			return this.fileService.resolveFile(uri).then(stats => {
+			return this.fileService.exists(uri).then(exists => {
+				if (!exists) {
+					return false;
+				}
 				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 					content => !!content.value.match(/azure/i),
 					err => false
 				);
-			}, err => false);
+			});
 		})).then(javas => {
 			if (javas.indexOf(true) !== -1) {
 				tags['java'] = true;
@@ -740,40 +747,5 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				*/
 				this.telemetryService.publicLog('resolveProxy.stats', { type });
 			}).then(undefined, onUnexpectedError);
-	}
-
-	/* __GDPR__
-		"workspace.metadata" : {
-			"fileTypes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"configTypes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"launchConfigs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-		}
-	*/
-	private reportWorkspaceMetadata(stats: WorkspaceStatsType[]): void {
-		for (let stat of stats) { // one event for each root folder in the workspace
-			this.telemetryService.publicLog('workspace.metadata', {
-				'fileTypes': stat.fileTypes,
-				'configTypes': stat.configFiles,
-				'launchConfigs': stat.launchConfigFiles
-			});
-		}
-	}
-
-	private getWorkspaceMetadata(): Promise<WorkspaceStatsType[]> {
-		const workspaceStatPromises: Promise<WorkspaceStatsType>[] = [];
-		const workspace = this.contextService.getWorkspace();
-		workspace.folders.forEach(folder => {
-			const folderUri = URI.revive(folder.uri);
-			if (folderUri.scheme === 'file') {
-				const folder = folderUri.fsPath;
-				workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(async stats => {
-					return stats;
-				}));
-			}
-		});
-
-		return Promise.all(workspaceStatPromises).then((stats) => {
-			return stats;
-		});
 	}
 }

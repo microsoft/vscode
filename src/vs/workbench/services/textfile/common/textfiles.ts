@@ -7,10 +7,10 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
-import { IBaseStat, IResolveContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
+import { IResolveContentOptions, ITextSnapshot, IBaseStatWithMetadata } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
@@ -29,7 +29,7 @@ export interface ISaveParticipant {
 	/**
 	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
 	 */
-	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void>;
+	participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason }): Promise<void>;
 }
 
 /**
@@ -101,7 +101,7 @@ export interface IResult {
 }
 
 export interface IAutoSaveConfiguration {
-	autoSaveDelay: number;
+	autoSaveDelay?: number;
 	autoSaveFocusChange: boolean;
 	autoSaveApplicationChange: boolean;
 }
@@ -129,7 +129,7 @@ export const enum LoadReason {
 
 export const ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
 
-export interface IRawTextContent extends IBaseStat {
+export interface IRawTextContent extends IBaseStatWithMetadata {
 
 	/**
 	 * The line grouped content of a text file.
@@ -189,7 +189,7 @@ export interface ITextFileEditorModelManager {
 	onModelsSaved: Event<TextFileModelChangeEvent[]>;
 	onModelsReverted: Event<TextFileModelChangeEvent[]>;
 
-	get(resource: URI): ITextFileEditorModel;
+	get(resource: URI): ITextFileEditorModel | undefined;
 
 	getAll(resource?: URI): ITextFileEditorModel[];
 
@@ -255,11 +255,17 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	isDisposed(): boolean;
 }
 
+export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
+	readonly textEditorModel: ITextModel;
+
+	createSnapshot(): ITextSnapshot;
+}
+
 
 export interface IWillMoveEvent {
 	oldResource: URI;
 	newResource: URI;
-	waitUntil(p: Promise<any>): void;
+	waitUntil(p: Promise<unknown>): void;
 }
 
 export interface ITextFileService extends IDisposable {
@@ -313,9 +319,9 @@ export interface ITextFileService extends IDisposable {
 	 * @param resource the resource to save as.
 	 * @param targetResource the optional target to save to.
 	 * @param options optional save options
-	 * @return true if the file was saved.
+	 * @return Path of the saved resource.
 	 */
-	saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): Promise<URI>;
+	saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): Promise<URI | undefined>;
 
 	/**
 	 * Saves the set of resources and returns a promise with the operation result.

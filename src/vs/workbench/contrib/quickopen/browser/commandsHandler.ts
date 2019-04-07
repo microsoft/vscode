@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
-import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
+import { Language } from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -19,7 +19,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { registerEditorAction, EditorAction, IEditorCommandMenuOptions } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -111,7 +111,7 @@ class CommandsHistory extends Disposable {
 			entries.forEach(entry => commandHistory.set(entry.key, entry.value));
 		}
 
-		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
+		commandCounter = this.storageService.getNumber(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
 	}
 
 	push(commandId: string): void {
@@ -145,7 +145,7 @@ export class ShowAllCommandsAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): Promise<void> {
+	run(): Promise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -174,7 +174,7 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): Promise<void> {
+	run(): Promise<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new LRUCache<string, number>(commandHistoryLength);
@@ -196,7 +196,7 @@ class CommandPaletteEditorAction extends EditorAction {
 			menuOpts: {
 				group: 'z_commands',
 				order: 1
-			} as IEditorCommandMenuOptions
+			}
 		});
 	}
 
@@ -377,7 +377,8 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	private commandHistoryEnabled: boolean;
 	private commandsHistory: CommandsHistory;
-	private extensionsRegistered: boolean;
+
+	private waitedForExtensionsRegistered: boolean;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -391,7 +392,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		this.commandsHistory = this.instantiationService.createInstance(CommandsHistory);
 
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.extensionsRegistered = true);
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.waitedForExtensionsRegistered = true);
 
 		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
 		this.updateConfiguration();
@@ -402,7 +403,7 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
-		if (this.extensionsRegistered) {
+		if (this.waitedForExtensionsRegistered) {
 			return this.doGetResults(searchValue, token);
 		}
 
@@ -410,7 +411,11 @@ export class CommandsHandler extends QuickOpenHandler {
 		// a chance to register so that the complete set of commands shows up as result
 		// We do not want to delay functionality beyond that time though to keep the commands
 		// functional.
-		return Promise.race([timeout(800), this.extensionService.whenInstalledExtensionsRegistered().then(() => undefined)]).then(() => this.doGetResults(searchValue, token));
+		return Promise.race([timeout(800), this.extensionService.whenInstalledExtensionsRegistered().then(() => undefined)]).then(() => {
+			this.waitedForExtensionsRegistered = true;
+
+			return this.doGetResults(searchValue, token);
+		});
 	}
 
 	private doGetResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
@@ -506,7 +511,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			if (label) {
 
 				// Alias for non default languages
-				const alias = (language !== LANGUAGE_DEFAULT) ? action.alias : null;
+				const alias = !Language.isDefaultVariant() ? action.alias : null;
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 
@@ -540,8 +545,8 @@ export class CommandsHandler extends QuickOpenHandler {
 				const labelHighlights = wordFilter(searchValue, label);
 
 				// Add an 'alias' in original language when running in different locale
-				const aliasTitle = (language !== LANGUAGE_DEFAULT && typeof action.item.title !== 'string') ? action.item.title.original : null;
-				const aliasCategory = (language !== LANGUAGE_DEFAULT && category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : null;
+				const aliasTitle = (!Language.isDefaultVariant() && typeof action.item.title !== 'string') ? action.item.title.original : null;
+				const aliasCategory = (!Language.isDefaultVariant() && category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : null;
 				let alias;
 				if (aliasTitle && category) {
 					alias = aliasCategory ? `${aliasCategory}: ${aliasTitle}` : `${category}: ${aliasTitle}`;

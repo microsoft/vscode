@@ -14,9 +14,8 @@ import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorMo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -25,9 +24,8 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
-	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
-	private modelResolve?: Promise<UntitledEditorModel>;
+	private modelResolve?: Promise<UntitledEditorModel & IResolvedTextEditorModel>;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	get onDidModelChangeContent(): Event<void> { return this._onDidModelChangeContent.event; }
@@ -36,19 +34,16 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	get onDidModelChangeEncoding(): Event<void> { return this._onDidModelChangeEncoding.event; }
 
 	constructor(
-		private resource: URI,
-		hasAssociatedFilePath: boolean,
-		private modeId: string,
-		private initialValue: string,
+		private readonly resource: URI,
+		private readonly _hasAssociatedFilePath: boolean,
+		private readonly modeId: string,
+		private readonly initialValue: string,
 		private preferredEncoding: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IHashService private readonly hashService: IHashService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
-
-		this._hasAssociatedFilePath = hasAssociatedFilePath;
 	}
 
 	get hasAssociatedFilePath(): boolean {
@@ -63,7 +58,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.resource;
 	}
 
-	getModeId(): string {
+	getModeId(): string | null {
 		if (this.cachedModel) {
 			return this.cachedModel.getModeId();
 		}
@@ -121,25 +116,21 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.labelService.getUriLabel(this.resource);
 	}
 
-	getTitle(verbosity: Verbosity): string {
+	getTitle(verbosity: Verbosity): string | null {
 		if (!this.hasAssociatedFilePath) {
 			return this.getName();
 		}
 
-		let title: string | undefined;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				title = this.shortTitle;
-				break;
+				return this.shortTitle;
 			case Verbosity.MEDIUM:
-				title = this.mediumTitle;
-				break;
+				return this.mediumTitle;
 			case Verbosity.LONG:
-				title = this.longTitle;
-				break;
+				return this.longTitle;
 		}
 
-		return title;
+		return null;
 	}
 
 	isDirty(): boolean {
@@ -203,7 +194,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		}
 	}
 
-	resolve(): Promise<UntitledEditorModel> {
+	resolve(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
 
 		// Join a model resolve if we have had one before
 		if (this.modelResolve) {
@@ -228,19 +219,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return model;
 	}
 
-	getTelemetryDescriptor(): object {
-		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resource'] = telemetryURIDescriptor(this.getResource(), path => this.hashService.createSHA1(path));
-
-		/* __GDPR__FRAGMENT__
-			"EditorTelemetryDescriptor" : {
-				"resource": { "${inline}": [ "${URIDescriptor}" ] }
-			}
-		*/
-		return descriptor;
-	}
-
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}

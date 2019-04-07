@@ -19,7 +19,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { isDiffEditor, isCodeEditor, ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isDiffEditor, isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -241,7 +241,11 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	}
 
 	protected retrieveTextEditorViewState(resource: URI): IEditorViewState | null {
-		const control = this.getControl() as ICodeEditor;
+		const control = this.getControl();
+		if (!isCodeEditor(control)) {
+			return null;
+		}
+
 		const model = control.getModel();
 		if (!model) {
 			return null; // view state always needs a model
@@ -302,7 +306,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		}
 	}
 
-	protected getResource(): URI | null {
+	protected getResource(): URI | undefined {
 		const codeEditor = getCodeEditor(this.editorControl);
 		if (codeEditor) {
 			const model = codeEditor.getModel();
@@ -315,7 +319,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 			return this.input.getResource();
 		}
 
-		return null;
+		return undefined;
 	}
 
 	protected abstract getAriaLabel(): string;

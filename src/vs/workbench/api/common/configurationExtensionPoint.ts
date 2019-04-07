@@ -294,6 +294,9 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			default: {},
 			description: nls.localize('workspaceConfig.extensions.description', "Workspace extensions"),
 			$ref: 'vscode://schemas/extensions'
+		},
+		'remoteAuthority': {
+			type: 'string'
 		}
 	},
 	additionalProperties: false,

@@ -9,8 +9,8 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace, TextDocument, SelectionRange, SelectionRangeKind } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable, TextDocumentIdentifier } from 'vscode-languageclient';
+import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace, TextDocument, SelectionRange } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
 
 // this method is called when vs code is activated
@@ -81,43 +81,23 @@ export function activate(context: ExtensionContext) {
 
 		documentSelector.forEach(selector => {
 			context.subscriptions.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
+				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[]> {
 					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					return Promise.all(positions.map(async position => {
-						const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
-						if (Array.isArray(rawRanges)) {
-							return rawRanges.map(r => {
+					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
+					if (Array.isArray(rawResult)) {
+						return rawResult.map(rawSelectionRanges => {
+							return rawSelectionRanges.reduceRight((parent: SelectionRange | undefined, selectionRange: SelectionRange) => {
 								return {
-									range: client.protocol2CodeConverter.asRange(r),
-									kind: SelectionRangeKind.Declaration
+									range: client.protocol2CodeConverter.asRange(selectionRange.range),
+									parent
 								};
-							});
-						}
-						return [];
-					}));
+							}, undefined)!;
+						});
+					}
+					return [];
 				}
 			}));
 		});
-	});
-
-	const selectionRangeProvider = {
-		async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
-			const textDocument = TextDocumentIdentifier.create(document.uri.toString());
-			return Promise.all(positions.map(async position => {
-				const rawRanges: Range[] = await client.sendRequest('$/textDocument/selectionRange', { textDocument, position });
-
-				return rawRanges.map(r => {
-					const actualRange = new Range(new Position(r.start.line, r.start.character), new Position(r.end.line, r.end.character));
-					return {
-						range: actualRange,
-						kind: SelectionRangeKind.Declaration
-					};
-				});
-			}));
-		}
-	};
-	documentSelector.forEach(selector => {
-		languages.registerSelectionRangeProvider(selector, selectionRangeProvider);
 	});
 
 	function initCompletionProvider(): Disposable {

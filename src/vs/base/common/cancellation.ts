@@ -16,7 +16,7 @@ export interface CancellationToken {
 }
 
 const shortcutEvent = Object.freeze(function (callback, context?): IDisposable {
-	let handle = setTimeout(callback.bind(context), 0);
+	const handle = setTimeout(callback.bind(context), 0);
 	return { dispose() { clearTimeout(handle); } };
 } as Event<any>);
 
@@ -87,7 +87,12 @@ class MutableToken implements CancellationToken {
 
 export class CancellationTokenSource {
 
-	private _token: CancellationToken;
+	private _token?: CancellationToken = undefined;
+	private _parentListener?: IDisposable = undefined;
+
+	constructor(parent?: CancellationToken) {
+		this._parentListener = parent && parent.onCancellationRequested(this.cancel, this);
+	}
 
 	get token(): CancellationToken {
 		if (!this._token) {
@@ -112,6 +117,9 @@ export class CancellationTokenSource {
 	}
 
 	dispose(): void {
+		if (this._parentListener) {
+			this._parentListener.dispose();
+		}
 		if (!this._token) {
 			// ensure to initialize with an empty token if we had none
 			this._token = CancellationToken.None;

@@ -46,7 +46,7 @@ suite('OutlineModel', function () {
 		let isCancelled = false;
 
 		let reg = DocumentSymbolProviderRegistry.register({ pattern: '**/path.foo' }, {
-			provideDocumentSymbols(_d, token) {
+			provideDocumentSymbols(d, token) {
 				return new Promise(resolve => {
 					token.onCancellationRequested(_ => {
 						isCancelled = true;
@@ -181,30 +181,6 @@ suite('OutlineModel', function () {
 		assert.equal(model.children['g1']!.children['c1'].marker!.count, 2);
 		assert.equal(model.children['g2']!.children['c2'].children['c2.1'].marker!.count, 1);
 		assert.equal(model.children['g2']!.children['c2'].children['c2.2'].marker!.count, 1);
-	});
-
-	test('"Cannot read property \'adapter\' of undefined" #69147', async function () {
-
-		let model = TextModel.createFromString('foo', undefined, undefined, URI.file('/fome/path.foo'));
-		let reg1 = DocumentSymbolProviderRegistry.register({ pattern: '**/path.foo' }, {
-			provideDocumentSymbols(_model, token) {
-				assert.equal(token.isCancellationRequested, true);
-				return [];
-			}
-		});
-		let reg2 = DocumentSymbolProviderRegistry.register({ pattern: '**/path.foo' }, {
-			provideDocumentSymbols(_model, token) {
-				assert.equal(token.isCancellationRequested, false);
-				reg1.dispose();
-				assert.equal(token.isCancellationRequested, true);
-				return [];
-			}
-		});
-
-		await OutlineModel.create(model, CancellationToken.None);
-
-		reg1.dispose();
-		reg2.dispose();
 	});
 
 });

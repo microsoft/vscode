@@ -3482,10 +3482,10 @@ gauge@~2.7.3:
     strip-ansi "^3.0.1"
     wide-align "^1.1.0"
 
-gc-signals@^0.0.1:
-  version "0.0.1"
-  resolved "https://registry.yarnpkg.com/gc-signals/-/gc-signals-0.0.1.tgz#91e3b7904168b58aa3dc78b619b7b4495b4038ab"
-  integrity sha1-keO3kEFotYqj3Hi2Gbe0SVtAOKs=
+gc-signals@^0.0.2:
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/gc-signals/-/gc-signals-0.0.2.tgz#1cfa8a00adecaeeb93ea0dda72dad9e9f333e62f"
+  integrity sha512-Ghj4Co6x5bd3dvbAFuiDc6gN+BVK8ic8CBn70dXjzrtbC5hq4a+s4S6acEvftMP7LcQuHKN5v+30PGXhkCLoCQ==
 
 generate-function@^2.0.0:
   version "2.0.0"
@@ -3944,10 +3944,10 @@ gulp-symdest@^1.1.1:
     queue "^3.1.0"
     vinyl-fs "^2.4.3"
 
-gulp-tsb@2.0.6:
-  version "2.0.6"
-  resolved "https://registry.yarnpkg.com/gulp-tsb/-/gulp-tsb-2.0.6.tgz#2f8fbee9a81cf0da088744d6da2bca457f2893d1"
-  integrity sha512-tSIAPfU9rhbtwMgRWopipWFx3NZg943bCLPcP3LxQJ4KUkSdPVc2ZivCibMojw/7HwJUMjLWQ2NCN0yStTQP0g==
+gulp-tsb@2.0.7:
+  version "2.0.7"
+  resolved "https://registry.yarnpkg.com/gulp-tsb/-/gulp-tsb-2.0.7.tgz#0e8c5cc20643d304979a59e90a6448260b314eba"
+  integrity sha512-9cllqseEkotum/aWHnCTQX/ATD3kyEi1aVzkGp0AEe768uNuU1DqPzRxvyVrfuIPcdYUUvtvmKvEvgIMffNmNA==
   dependencies:
     ansi-colors "^1.0.1"
     fancy-log "^1.3.2"
@@ -5939,6 +5939,11 @@ node-abi@^2.2.0:
   integrity sha512-pUlswqpHQ7zGPI9lGjZ4XDNIEUDbHxsltfIRb7dTnYdhgHWHOcB0MLZKLoCz6UMcGzSPG5wGl1HODZVQAUsH6w==
   dependencies:
     semver "^5.4.1"
+
+node-addon-api@1.6.2:
+  version "1.6.2"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-1.6.2.tgz#d8aad9781a5cfc4132cc2fecdbdd982534265217"
+  integrity sha512-479Bjw9nTE5DdBSZZWprFryHGjUaQC31y1wHo19We/k0BZlrmhqQitWoUL0cD8+scljCbIUL+E58oRDEakdGGA==
 
 node-libs-browser@^2.0.0:
   version "2.1.0"
@@ -8141,10 +8146,10 @@ sparkles@^1.0.0:
   resolved "https://registry.yarnpkg.com/sparkles/-/sparkles-1.0.0.tgz#1acbbfb592436d10bbe8f785b7cc6f82815012c3"
   integrity sha1-Gsu/tZJDbRC76PeFt8xvgoFQEsM=
 
-spdlog@0.7.2:
-  version "0.7.2"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.7.2.tgz#9298753d7694b9ee9bbfd7e01ea1e4c6ace1e64d"
-  integrity sha512-rHfWCaWMD4NindDnql6rc6kn7Bs8JR92jhiUpCl3D6v+jYcQ6GozMLig0RliOOR8st5mU+IHLZnr15fBys5x/Q==
+spdlog@0.8.1:
+  version "0.8.1"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.8.1.tgz#dfb3f3422ab3efe32be79e4769b95440ed72699f"
+  integrity sha512-W0s8IOXpn86md+8PJ4mJeB/22thykzH5YaNc3Rgnql4x4/zFIhvNiEx6/a1arnqvmJF0HtRO0Ehlswg0WcwTLQ==
   dependencies:
     bindings "^1.3.0"
     mkdirp "^0.5.1"
@@ -8869,10 +8874,10 @@ typescript-tslint-plugin@^0.0.7:
     minimatch "^3.0.4"
     vscode-languageserver "^5.1.0"
 
-typescript@3.3.1:
-  version "3.3.1"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.3.1.tgz#6de14e1db4b8a006ac535e482c8ba018c55f750b"
-  integrity sha512-cTmIDFW7O0IHbn1DPYjkiebHxwtCMU+eTy30ZtJNBPF9j2O1ITu5XH2YnBeVRKWHqF+3JQwWJv0Q0aUgX8W7IA==
+typescript@3.4.1:
+  version "3.4.1"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.4.1.tgz#b6691be11a881ffa9a05765a205cb7383f3b63c6"
+  integrity sha512-3NSMb2VzDQm8oBTLH6Nj55VVtUEpe/rgkIzMir0qVoLyjDZlnMBva0U6vDiV3IH+sl/Yu6oP5QwsAQtHPmDd2Q==
 
 typescript@^2.6.2:
   version "2.6.2"
@@ -9442,6 +9447,13 @@ vscode-uri@^1.0.6:
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.6.tgz#6b8f141b0bbc44ad7b07e94f82f168ac7608ad4d"
   integrity sha512-sLI2L0uGov3wKVb9EB+vIQBl9tVP90nqRvxSoJ35vI3NjxE8jfsE5DSOhWgSunHSZmKS4OCi2jrtfxK7uyp2ww==
 
+vscode-windows-ca-certs@0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/vscode-windows-ca-certs/-/vscode-windows-ca-certs-0.1.0.tgz#d58eeb40b536130918cfde2b01e6dc7e5c1bd757"
+  integrity sha512-ZfZbfJIE09Q0dwGqmqTj7kuAq4g6lul9WPJvo0DkKjln8/FL+dY3wUKIKbYwWQp4x56SBTLBq3tJkD72xQ9Gqw==
+  dependencies:
+    node-addon-api "1.6.2"
+
 vscode-windows-registry@1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.1.tgz#bc9f765563eb6dc1c9ad9a41f9eaacc84dfadc7c"
@@ -9449,10 +9461,10 @@ vscode-windows-registry@1.0.1:
   dependencies:
     nan "^2.12.1"
 
-vscode-xterm@3.12.0-beta5:
-  version "3.12.0-beta5"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.12.0-beta5.tgz#cc1ab88fd564c2ddc36269f7e2b5c9740243a409"
-  integrity sha512-/UiL1pPm5MKllLyUlKwD5TAOAO8PObWAKQ0Hg3Z3tkF2zkNnR+fT0u+J/J6yWFtOoZ27Cj6QhFEfoiH6WSoXVQ==
+vscode-xterm@3.13.0-beta2:
+  version "3.13.0-beta2"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.13.0-beta2.tgz#4517a96ef30d8a8d6f27c60bfc374a405811ee6e"
+  integrity sha512-9iu3oxpFbyUzsAPYeipMSaI7I/nY4WHlpq2kJXXzibZAO9l7pVFBxFR9H0gfDBVn1+fMJsLIzRWGX9lKC83lfQ==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

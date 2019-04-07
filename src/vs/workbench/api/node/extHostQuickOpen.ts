@@ -10,11 +10,12 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/node/extHostWorkspace';
 import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
-import { ExtHostQuickOpenShape, IMainContext, MainContext, MainThreadQuickOpenShape, TransferQuickPickItems, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
+import { ExtHostQuickOpenShape, IMainContext, MainContext, MainThreadQuickOpenShape, TransferQuickPickItems, TransferQuickInput, TransferQuickInputButton } from '../common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/node/extHostTypes';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { coalesce } from 'vs/base/common/arrays';
 
 export type Item = string | QuickPickItem;
 
@@ -24,7 +25,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	private _workspace: IExtHostWorkspaceProvider;
 	private _commands: ExtHostCommands;
 
-	private _onDidSelectItem: (handle: number) => void;
+	private _onDidSelectItem?: (handle: number) => void;
 	private _validateInput?: (input: string) => string | undefined | null | Thenable<string | undefined | null>;
 
 	private _sessions = new Map<number, ExtHostQuickInput>();
@@ -67,10 +68,10 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 			return itemsPromise.then(items => {
 
-				let pickItems: TransferQuickPickItems[] = [];
+				const pickItems: TransferQuickPickItems[] = [];
 				for (let handle = 0; handle < items.length; handle++) {
 
-					let item = items[handle];
+					const item = items[handle];
 					let label: string;
 					let description: string | undefined;
 					let detail: string | undefined;
@@ -158,12 +159,15 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	// ---- workspace folder picker
 
-	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Promise<WorkspaceFolder> {
+	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Promise<WorkspaceFolder | undefined> {
 		return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then(async (selectedFolder: WorkspaceFolder) => {
 			if (!selectedFolder) {
 				return undefined;
 			}
 			const workspaceFolders = await this._workspace.getWorkspaceFolders2();
+			if (!workspaceFolders) {
+				return undefined;
+			}
 			return workspaceFolders.filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0];
 		});
 	}
@@ -171,13 +175,13 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	// ---- QuickInput
 
 	createQuickPick<T extends QuickPickItem>(extensionId: ExtensionIdentifier, enableProposedApi: boolean): QuickPick<T> {
-		const session = new ExtHostQuickPick(this._proxy, extensionId, enableProposedApi, () => this._sessions.delete(session._id));
+		const session: ExtHostQuickPick<T> = new ExtHostQuickPick(this._proxy, extensionId, enableProposedApi, () => this._sessions.delete(session._id));
 		this._sessions.set(session._id, session);
 		return session;
 	}
 
 	createInputBox(extensionId: ExtensionIdentifier): InputBox {
-		const session = new ExtHostInputBox(this._proxy, extensionId, () => this._sessions.delete(session._id));
+		const session: ExtHostInputBox = new ExtHostInputBox(this._proxy, extensionId, () => this._sessions.delete(session._id));
 		this._sessions.set(session._id, session);
 		return session;
 	}
@@ -375,14 +379,16 @@ class ExtHostQuickInput implements QuickInput {
 		this._onDidAcceptEmitter.fire();
 	}
 
-	_fireDidChangeValue(value) {
+	_fireDidChangeValue(value: string) {
 		this._value = value;
 		this._onDidChangeValueEmitter.fire(value);
 	}
 
 	_fireDidTriggerButton(handle: number) {
 		const button = this._handlesToButtons.get(handle);
-		this._onDidTriggerButtonEmitter.fire(button);
+		if (button) {
+			this._onDidTriggerButtonEmitter.fire(button);
+		}
 	}
 
 	_fireDidHide() {
@@ -437,9 +443,13 @@ class ExtHostQuickInput implements QuickInput {
 	}
 }
 
-function getIconUris(iconPath: QuickInputButton['iconPath']) {
+function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light?: URI } | undefined {
+	const dark = getDarkIconUri(iconPath);
 	const light = getLightIconUri(iconPath);
-	return { dark: getDarkIconUri(iconPath) || light, light };
+	if (!light && !dark) {
+		return undefined;
+	}
+	return { dark: (dark || light)!, light };
 }
 
 function getLightIconUri(iconPath: QuickInputButton['iconPath']) {
@@ -563,13 +573,13 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	onDidChangeSelection = this._onDidChangeSelectionEmitter.event;
 
 	_fireDidChangeActive(handles: number[]) {
-		const items = handles.map(handle => this._handlesToItems.get(handle));
+		const items = coalesce(handles.map(handle => this._handlesToItems.get(handle)));
 		this._activeItems = items;
 		this._onDidChangeActiveEmitter.fire(items);
 	}
 
 	_fireDidChangeSelection(handles: number[]) {
-		const items = handles.map(handle => this._handlesToItems.get(handle));
+		const items = coalesce(handles.map(handle => this._handlesToItems.get(handle)));
 		this._selectedItems = items;
 		this._onDidChangeSelectionEmitter.fire(items);
 	}

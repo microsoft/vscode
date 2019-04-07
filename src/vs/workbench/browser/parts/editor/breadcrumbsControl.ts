@@ -46,6 +46,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 
 class Item extends BreadcrumbsItem {
 
@@ -221,7 +222,7 @@ export class BreadcrumbsControl {
 			input = input.master;
 		}
 
-		if (!input || !input.getResource() || (input.getResource().scheme !== Schemas.untitled && !this._fileService.canHandleResource(input.getResource()))) {
+		if (!input || !input.getResource() || (input.getResource()!.scheme !== Schemas.untitled && !this._fileService.canHandleResource(input.getResource()!))) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -238,7 +239,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsPossible.set(true);
 
 		let editor = this._getActiveCodeEditor();
-		let model = new EditorBreadcrumbsModel(input.getResource(), editor, this._workspaceService, this._configurationService);
+		let model = new EditorBreadcrumbsModel(input.getResource()!, editor, this._workspaceService, this._configurationService);
 		dom.toggleClass(this.domNode, 'relative-path', model.isRelative());
 
 		let updateBreadcrumbs = () => {
@@ -335,7 +336,12 @@ export class BreadcrumbsControl {
 						editorViewState = undefined;
 					}
 					this._contextViewService.hideContextView(this);
-					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent), (data.payload && data.payload.originalEvent && data.payload.originalEvent.middleButton));
+
+					const group = (picker.useAltAsMultipleSelectionModifier && (data.browserEvent as MouseEvent).metaKey) || (!picker.useAltAsMultipleSelectionModifier && (data.browserEvent as MouseEvent).altKey)
+						? SIDE_GROUP
+						: ACTIVE_GROUP;
+
+					this._revealInEditor(event, data.target, group, (data.browserEvent as MouseEvent).button === 1);
 					/* __GDPR__
 						"breadcrumbs/open" : {
 							"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -348,7 +354,7 @@ export class BreadcrumbsControl {
 						return;
 					}
 					if (!editorViewState) {
-						editorViewState = editor.saveViewState() || undefined;
+						editorViewState = withNullAsUndefined(editor.saveViewState());
 					}
 					const { symbol } = data.target;
 					editor.revealRangeInCenter(symbol.range, ScrollType.Smooth);
@@ -435,7 +441,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.set(value);
 	}
 
-	private _revealInEditor(event: IBreadcrumbsItemEvent, element: any, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, pinned: boolean = false): void {
+	private _revealInEditor(event: IBreadcrumbsItemEvent, element: any, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined, pinned: boolean = false): void {
 		if (element instanceof FileElement) {
 			if (element.kind === FileKind.FILE) {
 				// open file in any editor
@@ -450,21 +456,23 @@ export class BreadcrumbsControl {
 
 		} else if (element instanceof OutlineElement) {
 			// open symbol in code editor
-			let model = OutlineModel.get(element);
-			this._codeEditorService.openCodeEditor({
-				resource: model.textModel.uri,
-				options: {
-					selection: Range.collapseToStart(element.symbol.selectionRange),
-					revealInCenterIfOutsideViewport: true
-				}
-			}, this._getActiveCodeEditor(), group === SIDE_GROUP);
+			const model = OutlineModel.get(element);
+			if (model) {
+				this._codeEditorService.openCodeEditor({
+					resource: model.textModel.uri,
+					options: {
+						selection: Range.collapseToStart(element.symbol.selectionRange),
+						revealInCenterIfOutsideViewport: true
+					}
+				}, withUndefinedAsNull(this._getActiveCodeEditor()), group === SIDE_GROUP);
+			}
 		}
 	}
 
-	private _getEditorGroup(data: StandardMouseEvent | object): SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined {
-		if (data === BreadcrumbsControl.Payload_RevealAside || (data instanceof StandardMouseEvent && data.altKey)) {
+	private _getEditorGroup(data: object): SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined {
+		if (data === BreadcrumbsControl.Payload_RevealAside) {
 			return SIDE_GROUP;
-		} else if (data === BreadcrumbsControl.Payload_Reveal || (data instanceof StandardMouseEvent && data.metaKey)) {
+		} else if (data === BreadcrumbsControl.Payload_Reveal) {
 			return ACTIVE_GROUP;
 		} else {
 			return undefined;
@@ -640,7 +648,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 		widget.setFocused(undefined);
 		widget.setSelection(undefined);
-		groups.activeGroup.activeControl.focus();
+		if (groups.activeGroup.activeControl) {
+			groups.activeGroup.activeControl.focus();
+		}
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -651,15 +661,20 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler(accessor) {
 		const editors = accessor.get(IEditorService);
 		const lists = accessor.get(IListService);
-		const element = <OutlineElement | IFileStat>lists.lastFocusedList.getFocus();
+		const element = lists.lastFocusedList ? <OutlineElement | IFileStat>lists.lastFocusedList.getFocus() : undefined;
 		if (element instanceof OutlineElement) {
+			const outlineElement = OutlineModel.get(element);
+			if (!outlineElement) {
+				return undefined;
+			}
+
 			// open symbol in editor
 			return editors.openEditor({
-				resource: OutlineModel.get(element).textModel.uri,
+				resource: outlineElement.textModel.uri,
 				options: { selection: Range.collapseToStart(element.symbol.selectionRange) }
 			}, SIDE_GROUP);
 
-		} else if (URI.isUri(element.resource)) {
+		} else if (element && URI.isUri(element.resource)) {
 			// open file in editor
 			return editors.openEditor({
 				resource: element.resource,

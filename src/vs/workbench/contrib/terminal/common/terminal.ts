@@ -13,8 +13,6 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
-export const TERMINAL_SERVICE_ID = 'terminalService';
-
 /** A context key that is set when there is at least one opened integrated terminal. */
 export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);
 /** A context key that is set when the integrated terminal has focus. */
@@ -47,7 +45,7 @@ export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverM
 // trying to create the corressponding object on the ext host.
 export const EXT_HOST_CREATION_DELAY = 100;
 
-export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
+export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
@@ -103,10 +101,12 @@ export interface ITerminalConfiguration {
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
+	experimentalRefreshOnResume: boolean;
 }
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
+	configFontIsMonospace(): boolean;
 	getFont(): ITerminalFont;
 	/**
 	 * Merges the default shell path and args into the provided launch configuration
@@ -224,6 +224,7 @@ export interface ITerminalService {
 	 * @param name The name of the terminal.
 	 */
 	createTerminalRenderer(name: string): ITerminalInstance;
+
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
@@ -251,8 +252,19 @@ export interface ITerminalService {
 	findPrevious(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	selectDefaultWindowsShell(): Promise<string>;
+	selectDefaultWindowsShell(): Promise<string | undefined>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
+
+	/**
+	 * Takes a path and returns the properly escaped path to send to the terminal.
+	 * On Windows, this included trying to prepare the path for WSL if needed.
+	 *
+	 * @param executable The executable off the shellLaunchConfig
+	 * @param title The terminal's title
+	 * @param path The path to be escaped and formatted.
+	 * @returns An escaped version of the path to be execuded in the terminal.
+	 */
+	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string): Promise<string>;
 
 	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 }
@@ -429,6 +441,14 @@ export interface ITerminalInstance {
 	dispose(immediate?: boolean): void;
 
 	/**
+	 * Indicates that a consumer of a renderer only terminal is finished with it.
+	 *
+	 * @param exitCode The exit code of the terminal. Zero indicates success, non-zero indicates
+	 * failure.
+	 */
+	rendererExit(exitCode: number): void;
+
+	/**
 	 * Forces the terminal to redraw its viewport.
 	 */
 	forceRedraw(): void;
@@ -525,15 +545,6 @@ export interface ITerminalInstance {
 	sendText(text: string, addNewLine: boolean): void;
 
 	/**
-	 * Takes a path and returns the properly escaped path to send to the terminal.
-	 * On Windows, this included trying to prepare the path for WSL if needed.
-	 *
-	 * @param path The path to be escaped and formatted.
-	 * @returns An escaped version of the path to be execuded in the terminal.
-	 */
-	preparePathForTerminalAsync(path: string): Promise<string>;
-
-	/**
 	 * Write text directly to the terminal, skipping the process if it exists.
 	 * @param text The text to write.
 	 */
@@ -627,20 +638,24 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number;
+	readonly remoteAuthority: string | undefined;
+	readonly os: platform.OperatingSystem | undefined;
+	readonly userHome: string | undefined;
 
 	readonly onProcessReady: Event<void>;
 	readonly onProcessData: Event<string>;
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number>;
 
-	addDisposable(disposable: IDisposable);
-	dispose(immediate?: boolean);
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
+	addDisposable(disposable: IDisposable): void;
+	dispose(immediate?: boolean): void;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
+	getLatency(): Promise<number>;
 }
 
 export const enum ProcessState {
@@ -672,12 +687,14 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitExit(exitCode: number): void;
 	emitInitialCwd(initialCwd: string): void;
 	emitCwd(cwd: string): void;
+	emitLatency(latency: number): void;
 
 	onInput: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
 	onShutdown: Event<boolean>;
 	onRequestInitialCwd: Event<void>;
 	onRequestCwd: Event<void>;
+	onRequestLatency: Event<void>;
 }
 
 export interface ITerminalProcessExtHostRequest {
@@ -686,4 +703,39 @@ export interface ITerminalProcessExtHostRequest {
 	activeWorkspaceRootUri: URI;
 	cols: number;
 	rows: number;
+}
+
+export enum LinuxDistro {
+	Fedora,
+	Ubuntu,
+	Unknown
+}
+
+export interface IWindowsShellHelper extends IDisposable {
+	getShellName(): Promise<string>;
+}
+
+/**
+ * An interface representing a raw terminal child process, this contains a subset of the
+ * child_process.ChildProcess node.js interface.
+ */
+export interface ITerminalChildProcess {
+	onProcessData: Event<string>;
+	onProcessExit: Event<number>;
+	onProcessIdReady: Event<number>;
+	onProcessTitleChanged: Event<string>;
+
+	/**
+	 * Shutdown the terminal process.
+	 *
+	 * @param immediate When true the process will be killed immediately, otherwise the process will
+	 * be given some time to make sure no additional data comes through.
+	 */
+	shutdown(immediate: boolean): void;
+	input(data: string): void;
+	resize(cols: number, rows: number): void;
+
+	getInitialCwd(): Promise<string>;
+	getCwd(): Promise<string>;
+	getLatency(): Promise<number>;
 }

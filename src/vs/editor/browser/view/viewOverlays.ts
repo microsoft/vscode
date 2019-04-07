@@ -40,7 +40,7 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 		}
 
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-			let dynamicOverlay = this._dynamicOverlays[i];
+			const dynamicOverlay = this._dynamicOverlays[i];
 			if (dynamicOverlay.shouldRender()) {
 				return true;
 			}
@@ -53,7 +53,7 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 		super.dispose();
 
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-			let dynamicOverlay = this._dynamicOverlays[i];
+			const dynamicOverlay = this._dynamicOverlays[i];
 			dynamicOverlay.dispose();
 		}
 		this._dynamicOverlays = [];
@@ -79,10 +79,10 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._visibleLines.onConfigurationChanged(e);
-		let startLineNumber = this._visibleLines.getStartLineNumber();
-		let endLineNumber = this._visibleLines.getEndLineNumber();
+		const startLineNumber = this._visibleLines.getStartLineNumber();
+		const endLineNumber = this._visibleLines.getEndLineNumber();
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let line = this._visibleLines.getVisibleLine(lineNumber);
+			const line = this._visibleLines.getVisibleLine(lineNumber);
 			line.onConfigurationChanged(e);
 		}
 		return true;
@@ -116,10 +116,10 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 	// ----- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
-		let toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
+		const toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
 
 		for (let i = 0, len = toRender.length; i < len; i++) {
-			let dynamicOverlay = toRender[i];
+			const dynamicOverlay = toRender[i];
 			dynamicOverlay.prepareRender(ctx);
 			dynamicOverlay.onDidRender();
 		}
@@ -139,8 +139,8 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 
 export class ViewOverlayLine implements IVisibleLine {
 
-	private _configuration: IConfiguration;
-	private _dynamicOverlays: DynamicViewOverlay[];
+	private readonly _configuration: IConfiguration;
+	private readonly _dynamicOverlays: DynamicViewOverlay[];
 	private _domNode: FastDomNode<HTMLElement> | null;
 	private _renderedContent: string | null;
 	private _lineHeight: number;
@@ -179,7 +179,7 @@ export class ViewOverlayLine implements IVisibleLine {
 	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {
 		let result = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-			let dynamicOverlay = this._dynamicOverlays[i];
+			const dynamicOverlay = this._dynamicOverlays[i];
 			result += dynamicOverlay.render(viewportData.startLineNumber, lineNumber);
 		}
 
@@ -276,7 +276,7 @@ export class MarginViewOverlays extends ViewOverlays {
 
 	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
-		let height = Math.min(ctx.scrollHeight, 1000000);
+		const height = Math.min(ctx.scrollHeight, 1000000);
 		this.domNode.setHeight(height);
 		this.domNode.setWidth(this._contentLeft);
 	}

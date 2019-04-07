@@ -25,10 +25,12 @@ import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { getBackgroundColor } from 'vs/code/electron-main/theme';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { endsWith } from 'vs/base/common/strings';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
-	extensionDevelopmentPath?: string;
+	extensionDevelopmentPath?: string | string[];
 	isExtensionTestHost?: boolean;
 }
 
@@ -60,7 +62,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
 	private hiddenTitleBarStyle: boolean;
-	private showTimeoutHandle: any;
+	private showTimeoutHandle: NodeJS.Timeout;
 	private _id: number;
 	private _win: Electron.BrowserWindow;
 	private _lastFocusTime: number;
@@ -69,14 +71,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private currentMenuBarVisibility: MenuBarVisibility;
 	private representedFilename: string;
 
-	private whenReadyCallbacks: { (window: ICodeWindow): void }[];
+	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[];
 
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig?: IWindowConfiguration;
 
 	private marketplaceHeadersPromise: Promise<object>;
 
-	private touchBarGroups: Electron.TouchBarSegmentedControl[];
+	private readonly touchBarGroups: Electron.TouchBarSegmentedControl[];
+
+	private nodeless: boolean;
 
 	constructor(
 		config: IWindowCreationOptions,
@@ -93,6 +97,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this.whenReadyCallbacks = [];
+
+		this.nodeless = !!(environmentService.args.nodeless && !environmentService.isBuilt);
 
 		// create browser window
 		this.createBrowserWindow(config);
@@ -123,7 +129,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: getBackgroundColor(this.stateService),
+			backgroundColor: this.nodeless ? undefined : getBackgroundColor(this.stateService),
 			minWidth: CodeWindow.MIN_WIDTH,
 			minHeight: CodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
@@ -133,9 +139,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// want to enforce that Code stays in the foreground. This triggers a disable_hidden_
 				// flag that Electron provides via patch:
 				// https://github.com/electron/libchromiumcontent/blob/master/patches/common/chromium/disable_hidden.patch
-				'backgroundThrottling': false
+				backgroundThrottling: false
 			}
 		};
+
+		if (this.nodeless) {
+			options.webPreferences!.nodeIntegration = false; // simulate Electron 5 behaviour
+		}
 
 		if (isLinux) {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
@@ -192,6 +202,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 		}
 
+		if (this.nodeless) {
+			this._win.webContents.toggleDevTools();
+		}
+
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 	}
 
@@ -207,9 +221,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return !!this.config.extensionTestsPath;
 	}
 
-	get extensionDevelopmentPath(): string | undefined {
+	/*
+	get extensionDevelopmentPaths(): string | string[] | undefined {
 		return this.config.extensionDevelopmentPath;
 	}
+	*/
 
 	get config(): IWindowConfiguration {
 		return this.currentConfig;
@@ -302,9 +318,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
-		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details: any, cb: any) => {
+		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
 			this.marketplaceHeadersPromise.then(headers => {
-				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
+				const requestHeaders = objects.assign(details.requestHeaders, headers);
+				cb({ cancel: false, requestHeaders });
 			});
 		});
 	}
@@ -315,7 +332,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.webContents.session.webRequest.onBeforeRequest(null!, (details, callback) => {
 			if (details.url.indexOf('.svg') > 0) {
 				const uri = URI.parse(details.url);
-				if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
+				if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg')) {
 					return callback({ cancel: true });
 				}
 			}
@@ -323,8 +340,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return callback({});
 		});
 
-		this._win.webContents.session.webRequest.onHeadersReceived(null!, (details: any, callback: any) => {
-			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
+		this._win.webContents.session.webRequest.onHeadersReceived(null!, (details, callback) => {
+			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']);
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				return callback({ cancel: true });
 			}
@@ -391,7 +408,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Window (Un)Maximize
-		this._win.on('maximize', e => {
+		this._win.on('maximize', (e: Event) => {
 			if (this.currentConfig) {
 				this.currentConfig.maximized = true;
 			}
@@ -399,7 +416,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			app.emit('browser-window-maximize', e, this._win);
 		});
 
-		this._win.on('unmaximize', e => {
+		this._win.on('unmaximize', (e: Event) => {
 			if (this.currentConfig) {
 				this.currentConfig.maximized = false;
 			}
@@ -622,6 +639,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private doGetUrl(config: object): string {
+		if (this.nodeless) {
+			return `${require.toUrl('vs/code/electron-browser/workbench/workbench.nodeless.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		}
+
 		return `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 
@@ -687,7 +708,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private restoreWindowState(state?: IWindowState): IWindowState {
 		if (state) {
 			try {
-				state = this.validateWindowState(state) || undefined;
+				state = withNullAsUndefined(this.validateWindowState(state));
 			} catch (err) {
 				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
@@ -1031,9 +1052,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			}
 
+			let title: string;
+			if (typeof item.title === 'string') {
+				title = item.title;
+			} else {
+				title = item.title.value;
+			}
+
 			return {
 				id: item.id,
-				label: !icon ? item.title as string : undefined,
+				label: !icon ? title : undefined,
 				icon
 			};
 		});

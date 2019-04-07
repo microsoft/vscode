@@ -10,6 +10,8 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TextEditorOptions } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class CodeEditorService extends CodeEditorServiceImpl {
 
@@ -73,3 +75,5 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 		});
 	}
 }
+
+registerSingleton(ICodeEditorService, CodeEditorService, true);

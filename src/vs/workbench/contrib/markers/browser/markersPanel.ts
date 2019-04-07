@@ -43,6 +43,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker } from 'vs/platform/markers/common/markers';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
@@ -187,7 +188,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
 		const { resource, selection, event, data } = element instanceof Marker ? { resource: element.resource, selection: element.range, event: 'problems.selectDiagnostic', data: this.getTelemetryData(element.marker) } :
 			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw, event: 'problems.selectRelatedInformation', data: this.getTelemetryData(element.marker) } : { resource: null, selection: null, event: null, data: null };
-		if (resource && selection) {
+		if (resource && selection && event) {
 			/* __GDPR__
 			"problems.selectDiagnostic" : {
 				"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
@@ -459,13 +460,13 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private setCurrentActiveEditor(): void {
 		const activeEditor = this.editorService.activeEditor;
-		this.currentActiveResource = activeEditor ? activeEditor.getResource() : null;
+		this.currentActiveResource = activeEditor ? withUndefinedAsNull(activeEditor.getResource()) : null;
 	}
 
 	private onSelected(): void {
 		let selection = this.tree.getSelection();
 		if (selection && selection.length > 0) {
-			this.lastSelectedRelativeTop = this.tree.getRelativeTop(selection[0]);
+			this.lastSelectedRelativeTop = this.tree.getRelativeTop(selection[0]) || 0;
 		}
 	}
 
@@ -612,7 +613,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {
-		if (!e.element) {
+		const element = e.element;
+		if (!element) {
 			return;
 		}
 
@@ -620,14 +622,14 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		e.browserEvent.stopPropagation();
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
-			getActions: () => this.getMenuActions(e.element),
+			getAnchor: () => e.anchor!,
+			getActions: () => this.getMenuActions(element),
 			getActionItem: (action) => {
 				const keybinding = this.keybindingService.lookupKeybinding(action.id);
 				if (keybinding) {
 					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
-				return null;
+				return undefined;
 			},
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
@@ -665,11 +667,11 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return result;
 	}
 
-	public getFocusElement(): TreeElement {
+	public getFocusElement() {
 		return this.tree.getFocus()[0];
 	}
 
-	public getActionItem(action: IAction): IActionItem | null {
+	public getActionItem(action: IAction): IActionItem | undefined {
 		if (action.id === MarkersFilterAction.ID) {
 			this.filterInputActionItem = this.instantiationService.createInstance(MarkersFilterActionItem, this.filterAction, this);
 			return this.filterInputActionItem;

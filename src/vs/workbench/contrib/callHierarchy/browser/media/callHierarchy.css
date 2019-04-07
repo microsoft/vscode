@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .call-hierarchy .results,
+.monaco-workbench .call-hierarchy .message {
+	display: none;
+}
+
+.monaco-workbench .call-hierarchy[data-state="data"] .results {
+	display: inherit;
+}
+
+.monaco-workbench .call-hierarchy[data-state="message"] .message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+}
+
+.monaco-workbench .action-label.calls-to {
+	background-image: url(files_CallTo_CallTo_16x.svg);
+	background-size: 14px 14px;
+	background-repeat: no-repeat;
+	background-position: left center;
+}
+
+.monaco-workbench .action-label.calls-from {
+	background-image: url(files_CallFrom_CallFrom_16x.svg);
+	background-size: 14px 14px;
+	background-repeat: no-repeat;
+	background-position: left center;
+}
+
+.monaco-workbench .call-hierarchy .monaco-split-view2.horizontal > .split-view-container > .split-view-view {
+	/* this is a little bizare.. */
+	height: unset;
+}
+
+.monaco-workbench .call-hierarchy .tree {
+	height: 100%;
+}

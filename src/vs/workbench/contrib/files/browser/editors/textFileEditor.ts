@@ -82,7 +82,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private updateRestoreViewStateConfiguration(): void {
-		this.restoreViewState = this.configurationService.getValue(null, 'workbench.editor.restoreViewState');
+		this.restoreViewState = this.configurationService.getValue(undefined, 'workbench.editor.restoreViewState');
 	}
 
 	getTitle(): string {
@@ -99,7 +99,7 @@ export class TextFileEditor extends BaseTextEditor {
 		// React to editors closing to preserve or clear view state. This needs to happen
 		// in the onWillCloseEditor because at that time the editor has not yet
 		// been disposed and we can safely persist the view state still as needed.
-		this.groupListener = dispose(this.groupListener);
+		dispose(this.groupListener);
 		this.groupListener = ((group as IEditorGroupView).onWillCloseEditor(e => this.onWillCloseEditorInGroup(e)));
 	}
 
@@ -178,14 +178,14 @@ export class TextFileEditor extends BaseTextEditor {
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
 					this.openAsFolder(input);
 
-					return Promise.reject<any>(new Error(nls.localize('openFolderError', "File is a directory")));
+					return Promise.reject(new Error(nls.localize('openFolderError', "File is a directory")));
 				}
 
 				// Offer to create a file from the error if we have a file not found and the name is valid
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.getResource()))) {
 					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
-							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
+							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, () => {
 								return this.fileService.updateContent(input.getResource(), '').then(() => this.editorService.openEditor({
 									resource: input.getResource(),
 									options: {
@@ -198,18 +198,18 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
-					const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
+					const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
 					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
-							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), null, true, () => {
+							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), undefined, true, () => {
 								return this.windowsService.relaunch({
 									addArgs: [
 										`--max-memory=${memoryLimit}`
 									]
 								});
 							}),
-							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), null, true, () => {
+							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), undefined, true, () => {
 								return this.preferencesService.openGlobalSettings(undefined, { query: 'files.maxMemoryForLargeFilesMB' });
 							})
 						]
@@ -228,13 +228,16 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private openAsFolder(input: FileEditorInput): void {
+		if (!this.group) {
+			return;
+		}
 
 		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
 		this.group.closeEditor(this.input).then(() => {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {
-				this.viewletService.openViewlet(VIEWLET_ID, true).then(() => {
+				this.viewletService.openViewlet(VIEWLET_ID).then(() => {
 					this.explorerService.select(input.getResource(), true);
 				});
 			}
@@ -293,7 +296,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	dispose(): void {
-		this.groupListener = dispose(this.groupListener);
+		dispose(this.groupListener);
 
 		super.dispose();
 	}
