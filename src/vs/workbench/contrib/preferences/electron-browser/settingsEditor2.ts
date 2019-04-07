@@ -1211,7 +1211,8 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private renderResultCountMessages() {
-		if (!this.currentSettingsModel) {
+		if (!this.currentSettingsModel || !this.searchResultModel) {
+			this.countElement.style.display = 'none';
 			return;
 		}
 
