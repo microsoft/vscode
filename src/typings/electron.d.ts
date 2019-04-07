@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.1.2
+// Type definitions for Electron 4.1.4
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -2403,7 +2403,8 @@ declare namespace Electron {
 		// Docs: http://electronjs.org/docs/api/structures/cookie
 
 		/**
-		 * The domain of the cookie.
+		 * The domain of the cookie; this will be normalized with a preceding dot so that
+		 * it's also valid for subdomains.
 		 */
 		domain?: string;
 		/**
@@ -2412,7 +2413,8 @@ declare namespace Electron {
 		 */
 		expirationDate?: number;
 		/**
-		 * Whether the cookie is a host-only cookie.
+		 * Whether the cookie is a host-only cookie; this will only be true if no domain
+		 * was passed.
 		 */
 		hostOnly?: boolean;
 		/**
@@ -7859,7 +7861,8 @@ declare namespace Electron {
 		 */
 		value?: string;
 		/**
-		 * The domain of the cookie. Empty by default if omitted.
+		 * The domain of the cookie; this will be normalized with a preceding dot so that
+		 * it's also valid for subdomains. Empty by default if omitted.
 		 */
 		domain?: string;
 		/**
