@@ -1,6 +1,9 @@
 trigger:
   branches:
     include: ['master', 'release/*']
+pr:
+  branches:
+    include: ['master', 'release/*']
 
 steps:
 - task: NodeTool@0
