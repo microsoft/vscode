@@ -384,7 +384,7 @@ export class Workbench extends Layout {
 
 		// Restore Zen Mode
 		if (this.state.zenMode.restore) {
-			this.toggleZenMode(true, true);
+			this.toggleZenMode(false, true);
 		}
 
 		// Restore Editor Center Mode
