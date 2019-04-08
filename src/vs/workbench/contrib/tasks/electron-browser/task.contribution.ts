@@ -1850,9 +1850,9 @@ class TaskService extends Disposable implements ITaskService {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.prompt(
 				Severity.Info,
-				nls.localize('TaskService.noWorkspace', "Tasks are only available on a workspace folder. Please follow the link to learn about Tasks."),
+				nls.localize('TaskService.noWorkspace', "Tasks are only available on a workspace folder."),
 				[{
-					label: nls.localize('learnTasks', "Tasks"),
+					label: nls.localize('TaskService.learnMore', "Learn More"),
 					run: () => window.open('https://code.visualstudio.com/docs/editor/tasks')
 				}]
 			);
