@@ -385,7 +385,7 @@ interface WorkspaceFolderConfigurationResult {
 	hasErrors: boolean;
 }
 
-interface TaskCustomizationTelementryEvent {
+interface TaskCustomizationTelemetryEvent {
 	properties: string[];
 }
 
@@ -1105,7 +1105,7 @@ class TaskService extends Disposable implements ITaskService {
 			return Promise.resolve(undefined);
 		}
 		return promise.then(() => {
-			let event: TaskCustomizationTelementryEvent = {
+			let event: TaskCustomizationTelemetryEvent = {
 				properties: properties ? Object.getOwnPropertyNames(properties) : []
 			};
 			/* __GDPR__
@@ -2050,7 +2050,7 @@ class TaskService extends Disposable implements ITaskService {
 			this.showQuickPick(tasks ? tasks : this.tasks(),
 				nls.localize('TaskService.pickRunTask', 'Select the task to run'),
 				{
-					label: nls.localize('TaslService.noEntryToRun', 'No task to run found. Configure Tasks...'),
+					label: nls.localize('TaskService.noEntryToRun', 'No task to run found. Configure Tasks...'),
 					task: null
 				},
 				true).
@@ -2205,7 +2205,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 		let runQuickPick = (promise?: Promise<Task[]>) => {
 			this.showQuickPick(promise || this.getActiveTasks(),
-				nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
+				nls.localize('TaskService.taskToTerminate', 'Select task to terminate'),
 				{
 					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
 					task: null
@@ -2261,7 +2261,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 		let runQuickPick = (promise?: Promise<Task[]>) => {
 			this.showQuickPick(promise || this.getActiveTasks(),
-				nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
+				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
 				{
 					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
 					task: null
