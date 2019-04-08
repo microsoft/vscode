@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
 import * as ExtensionsActions from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/node/extensionsWorkbenchService';
 import {
@@ -1122,9 +1122,9 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test ReloadAction when extension is uninstalled', async () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.a'), extensionLocation: URI.file('pub.a') }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.a'), extensionLocation: URI.file('pub.a'), version: '1.0.0' }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
+		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
@@ -1144,7 +1144,7 @@ suite('ExtensionsActions Test', () => {
 	test('Test ReloadAction when extension is uninstalled and installed', () => {
 		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ identifier: new ExtensionIdentifier('pub.a'), version: '1.0.0', extensionLocation: URI.file('pub.a') }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.get(IExtensionsWorkbenchService).onChange(() => testObject.update());
+		instantiationService.createInstance(ExtensionContainers, [testObject]);
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()

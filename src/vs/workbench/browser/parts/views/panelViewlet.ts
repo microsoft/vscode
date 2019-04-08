@@ -66,6 +66,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar;
 	private headerContainer: HTMLElement;
+	private titleContainer: HTMLElement;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -141,7 +142,12 @@ export abstract class ViewletPanel extends Panel implements IView {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		append(container, $('h3.title', undefined, title));
+		this.titleContainer = append(container, $('h3.title', undefined, title));
+	}
+
+	protected updateTitle(title: string): void {
+		this.titleContainer.textContent = title;
+		this._onDidChangeTitleArea.fire();
 	}
 
 	focus(): void {

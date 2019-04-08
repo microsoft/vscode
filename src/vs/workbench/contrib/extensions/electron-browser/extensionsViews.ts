@@ -9,7 +9,7 @@ import { assign } from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
-import { SortBy, SortOrder, IQueryOptions, IExtensionTipsService, IExtensionRecommendation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { SortBy, SortOrder, IQueryOptions, IExtensionTipsService, IExtensionRecommendation, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -45,6 +45,9 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import product from 'vs/platform/product/node/product';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -73,7 +76,7 @@ export class ExtensionsListView extends ViewletPanel {
 	private queryRequest: { query: string, request: CancelablePromise<IPagedModel<IExtension>> } | null;
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@INotificationService protected notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -98,7 +101,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	renderHeaderTitle(container: HTMLElement): void {
-		super.renderHeaderTitle(container, this.options.title);
+		super.renderHeaderTitle(container, this.title);
 
 		this.badgeContainer = append(container, $('.count-badge-wrapper'));
 		this.badge = new CountBadge(this.badgeContainer);
@@ -741,8 +744,8 @@ export class ExtensionsListView extends ViewletPanel {
 		return /@installed|@outdated|@enabled|@disabled/i.test(query);
 	}
 
-	static isGroupByServersExtensionsQuery(query: string): boolean {
-		return !!Query.parse(query).groupBy;
+	static isServerExtensionsQuery(query: string): boolean {
+		return /@installed|@outdated/i.test(query);
 	}
 
 	static isRecommendedExtensionsQuery(query: string): boolean {
@@ -774,10 +777,39 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 }
 
-export class GroupByServerExtensionsView extends ExtensionsListView {
+function getServerLabel(server: IExtensionManagementServer, labelService: ILabelService, workbenchEnvironmentService: IWorkbenchEnvironmentService): string {
+	return workbenchEnvironmentService.configuration.remoteAuthority === server.authority ? labelService.getHostLabel(REMOTE_HOST_SCHEME, server.authority) : server.label;
+}
+
+export class ServerExtensionsView extends ExtensionsListView {
+
+	constructor(
+		server: IExtensionManagementServer,
+		options: IViewletViewOptions,
+		@INotificationService notificationService: INotificationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IExtensionService extensionService: IExtensionService,
+		@IEditorService editorService: IEditorService,
+		@IExtensionTipsService tipsService: IExtensionTipsService,
+		@IModeService modeService: IModeService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IExperimentService experimentService: IExperimentService,
+		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@ILabelService labelService: ILabelService,
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService
+	) {
+		options.title = getServerLabel(server, labelService, workbenchEnvironmentService);
+		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, modeService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService);
+		this.disposables.push(labelService.onDidChangeFormatters(() => this.updateTitle(getServerLabel(server, labelService, workbenchEnvironmentService))));
+	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		query = query.replace(/@group:server/g, '').trim();
 		query = query ? query : '@installed';
 		if (!ExtensionsListView.isInstalledExtensionsQuery(query) && !ExtensionsListView.isBuiltInExtensionsQuery(query)) {
 			query = query += ' @installed';

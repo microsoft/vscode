@@ -15,7 +15,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
-import { IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -55,6 +55,11 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
 import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IFileIconTheme, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isEqual } from 'vs/base/common/resources';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -231,6 +236,75 @@ export class InstallAction extends ExtensionAction {
 			});
 		}
 		return null;
+	}
+}
+
+export class RemoteInstallAction extends ExtensionAction {
+
+	private static INSTALL_LABEL = localize('install', "Install");
+	private static readonly Class = 'extension-action prominent install';
+
+	private disposables: IDisposable[] = [];
+	private _runningExtensions: IExtensionDescription[] = [];
+	private get runningExtensions(): IExtensionDescription[] { return this._runningExtensions; }
+	private set runningExtensions(runningExtensions: IExtensionDescription[]) { this._runningExtensions = runningExtensions; this.update(); }
+
+	constructor(
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionService private readonly extensionService: IExtensionService
+	) {
+		super(`extensions.remoteinstall`, RemoteInstallAction.INSTALL_LABEL, RemoteInstallAction.Class, false);
+		this.labelService.onDidChangeFormatters(() => this.updateLabel(), this, this.disposables);
+		this.updateLabel();
+		this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this, this.disposables);
+		this.updateRunningExtensions();
+		this.update();
+	}
+
+	private updateRunningExtensions(): void {
+		this.extensionService.getExtensions().then(runningExtensions => this.runningExtensions = runningExtensions);
+	}
+
+	private updateLabel(): void {
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		if (remoteAuthority) {
+			const host = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.environmentService.configuration.remoteAuthority) || localize('remote', "Remote");
+			this.label = `${RemoteInstallAction.INSTALL_LABEL} (${host})`;
+		}
+	}
+
+	async update(): Promise<void> {
+		this.enabled = false;
+		if (this.environmentService.configuration.remoteAuthority
+			&& this.extension && this.extension.local && this.extension.type === ExtensionType.User && this.extension.state === ExtensionState.Installed
+			&& !this.runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))
+			&& !isUIExtension(this.extension.local.manifest, this.configurationService)
+			&& this.extensionManagementServerService.localExtensionManagementServer === this.extensionManagementServerService.getExtensionManagementServer(this.extension.local.location)
+			&& this.extensionsWorkbenchService.canInstall(this.extension)
+		) {
+			this.enabled = true;
+		}
+	}
+
+	async run(): Promise<any> {
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			this.extensionsWorkbenchService.open(this.extension);
+			alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
+			if (this.extension.gallery) {
+				return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(this.extension.gallery)
+					.then(null, err => {
+						console.error(err);
+						return promptDownloadManually(this.extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", this.extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+					});
+			}
+		}
 	}
 }
 
@@ -1057,20 +1131,21 @@ export class ReloadAction extends ExtensionAction {
 		if (local && local.manifest && local.manifest.contributes && local.manifest.contributes.localizations && local.manifest.contributes.localizations.length > 0) {
 			return;
 		}
-		this.computeReloadState(installed);
+		this.computeReloadState(local);
 		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
 	}
 
-	private computeReloadState(installed: IExtension): void {
+	private computeReloadState(local: ILocalExtension | undefined): void {
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const isDisabled = this.extension.local ? !this.extensionEnablementService.isEnabled(this.extension.local) : false;
 		const isEnabled = this.extension.local ? this.extensionEnablementService.isEnabled(this.extension.local) : false;
 		const runningExtension = this.runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
 
-		if (installed && installed.local) {
+		if (local) {
 			if (runningExtension) {
-				const isDifferentVersionRunning = this.extension.version !== runningExtension.version;
-				if (isDifferentVersionRunning && !isDisabled) {
+				const isSameExtensionRunning = isEqual(local.location, runningExtension.extensionLocation);
+				const isSameVersionRunning = isSameExtensionRunning && this.extension.version === runningExtension.version;
+				if (!isSameVersionRunning && !isDisabled) {
 					if (!(this.extension.local && this.extensionService.canAddExtension(toExtensionDescription(this.extension.local)))) {
 						// Requires reload to run the updated extension
 						this.enabled = true;
@@ -1079,7 +1154,7 @@ export class ReloadAction extends ExtensionAction {
 					}
 					return;
 				}
-				if (isDisabled) {
+				if (isDisabled && isSameExtensionRunning) {
 					// Requires reload to disable the extension
 					this.enabled = true;
 					this.label = localize('reloadRequired', "Reload Required");
@@ -1099,7 +1174,6 @@ export class ReloadAction extends ExtensionAction {
 					}
 				}
 			}
-			return;
 		}
 
 		if (isUninstalled && runningExtension) {
