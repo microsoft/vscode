@@ -940,7 +940,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			if (extension.local) {
 				const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
 				if (enablementState !== extension.enablementState) {
-					extension.enablementState = enablementState;
+					(extension as Extension).enablementState = enablementState;
 					this._onChange.fire(extension);
 				}
 			}

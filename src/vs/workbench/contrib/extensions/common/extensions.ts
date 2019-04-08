@@ -32,38 +32,38 @@ export const enum ExtensionState {
 }
 
 export interface IExtension {
-	type?: ExtensionType;
-	state: ExtensionState;
-	name: string;
-	displayName: string;
-	identifier: IExtensionIdentifier;
-	publisher: string;
-	publisherDisplayName: string;
-	version: string;
-	latestVersion: string;
-	description: string;
-	url?: string;
-	repository?: string;
-	iconUrl: string;
-	iconUrlFallback: string;
-	licenseUrl?: string;
-	installCount?: number;
-	rating?: number;
-	ratingCount?: number;
-	outdated: boolean;
-	enablementState: EnablementState;
-	dependencies: string[];
-	extensionPack: string[];
-	telemetryData: any;
-	preview: boolean;
+	readonly type?: ExtensionType;
+	readonly state: ExtensionState;
+	readonly name: string;
+	readonly displayName: string;
+	readonly identifier: IExtensionIdentifier;
+	readonly publisher: string;
+	readonly publisherDisplayName: string;
+	readonly version: string;
+	readonly latestVersion: string;
+	readonly description: string;
+	readonly url?: string;
+	readonly repository?: string;
+	readonly iconUrl: string;
+	readonly iconUrlFallback: string;
+	readonly licenseUrl?: string;
+	readonly installCount?: number;
+	readonly rating?: number;
+	readonly ratingCount?: number;
+	readonly outdated: boolean;
+	readonly enablementState: EnablementState;
+	readonly dependencies: string[];
+	readonly extensionPack: string[];
+	readonly telemetryData: any;
+	readonly preview: boolean;
 	getManifest(token: CancellationToken): Promise<IExtensionManifest | null>;
 	getReadme(token: CancellationToken): Promise<string>;
 	hasReadme(): boolean;
 	getChangelog(token: CancellationToken): Promise<string>;
 	hasChangelog(): boolean;
-	local?: ILocalExtension;
+	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
-	isMalicious: boolean;
+	readonly isMalicious: boolean;
 }
 
 export interface IExtensionDependencies {
