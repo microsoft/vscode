@@ -211,6 +211,8 @@ export class ExtensionEditor extends BaseEditor {
 
 	createEditor(parent: HTMLElement): void {
 		const root = append(parent, $('.extension-editor'));
+		root.tabIndex = 0; // this is required for the focus tracker on the editor
+		root.style.outline = 'none';
 		this.header = append(root, $('.header'));
 
 		this.iconContainer = append(this.header, $('.icon-container'));
@@ -528,19 +530,20 @@ export class ExtensionEditor extends BaseEditor {
 			.then(renderBody)
 			.then(removeEmbeddedSVGs)
 			.then(body => {
-				const wbeviewElement = this.instantiationService.createInstance(WebviewElement,
+				const webviewElement = this.instantiationService.createInstance(WebviewElement,
 					{
 						enableFindWidget: true,
 					},
 					{
 						svgWhiteList: this.extensionsWorkbenchService.allowedBadgeProviders
 					});
-				wbeviewElement.mountTo(this.content);
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, wbeviewElement);
+				webviewElement.mountTo(this.content);
+				this.contentDisposables.push(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webviewElement);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
-				wbeviewElement.contents = body;
+				webviewElement.contents = body;
 
-				wbeviewElement.onDidClickLink(link => {
+				this.contentDisposables.push(webviewElement.onDidClickLink(link => {
 					if (!link) {
 						return;
 					}
@@ -548,9 +551,9 @@ export class ExtensionEditor extends BaseEditor {
 					if (['http', 'https', 'mailto'].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesAction.ID)) {
 						this.openerService.open(link);
 					}
-				}, null, this.contentDisposables);
-				this.contentDisposables.push(wbeviewElement);
-				return wbeviewElement;
+				}, null, this.contentDisposables));
+				this.contentDisposables.push(webviewElement);
+				return webviewElement;
 			})
 			.then(undefined, () => {
 				const p = append(this.content, $('p.nocontent'));
