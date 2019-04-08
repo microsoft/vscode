@@ -80,7 +80,12 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			this._register(this.remoteUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onRemoteUserConfigurationChanged(userConfiguration)));
 		}
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(configurationCache, this.configurationFileService));
-		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
+		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => {
+			this.onWorkspaceConfigurationChanged();
+			if (this.workspaceConfiguration.loaded) {
+				this.releaseWorkspaceBarrier();
+			}
+		}));
 
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidSchemaChange(e => this.registerConfigurationSchemas()));
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
@@ -538,9 +543,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			} else {
 				this.triggerConfigurationChange(workspaceConfigurationChangeEvent, ConfigurationTarget.WORKSPACE);
 			}
-		}
-		if (this.workspaceConfiguration.loaded) {
-			this.releaseWorkspaceBarrier();
 		}
 		return Promise.resolve(undefined);
 	}
