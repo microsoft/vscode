@@ -43,7 +43,7 @@ import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/act
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IEditor } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
-import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -1041,6 +1041,37 @@ export class SearchView extends ViewletPanel {
 	toggleRegex(): void {
 		this.searchWidget.searchInput.setRegex(!this.searchWidget.searchInput.getRegex());
 		this.onQueryChanged(true);
+	}
+
+	setSearchParameters(args: IFindInFilesArgs = {}): void {
+		if (typeof args.isCaseSensitive === 'boolean') {
+			this.searchWidget.searchInput.setCaseSensitive(args.isCaseSensitive);
+		}
+		if (typeof args.matchWholeWord === 'boolean') {
+			this.searchWidget.searchInput.setWholeWords(args.matchWholeWord);
+		}
+		if (typeof args.isRegex === 'boolean') {
+			this.searchWidget.searchInput.setRegex(args.isRegex);
+		}
+		if (typeof args.filesToInclude === 'string') {
+			this.searchIncludePattern.setValue(String(args.filesToInclude));
+		}
+		if (typeof args.filesToExclude === 'string') {
+			this.searchExcludePattern.setValue(String(args.filesToExclude));
+		}
+		if (typeof args.query === 'string') {
+			this.searchWidget.searchInput.setValue(args.query);
+		}
+		if (typeof args.replace === 'string') {
+			this.searchWidget.replaceInput.value = args.replace;
+		} else {
+			if (this.searchWidget.replaceInput.value !== '') {
+				this.searchWidget.replaceInput.value = '';
+			}
+		}
+		if (typeof args.triggerSearch === 'boolean' && args.triggerSearch) {
+			this.onQueryChanged(true);
+		}
 	}
 
 	toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
