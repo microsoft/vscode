@@ -4556,8 +4556,8 @@ declare module 'vscode' {
 		readonly alignment: StatusBarAlignment;
 
 		/**
-		 * The priority of this item. Higher value means the item should
-		 * be shown more to the left.
+		 * The priority of this item. Higher value (the lower the number the higher the priority) 
+		 * means the item should be shown more to the left.
 		 */
 		readonly priority?: number;
 
