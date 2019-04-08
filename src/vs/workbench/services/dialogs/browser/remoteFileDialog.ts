@@ -23,6 +23,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { RemoteFileDialogContext } from 'vs/workbench/common/contextkeys';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -388,16 +389,16 @@ export class RemoteFileDialog {
 	private setAutoComplete(startingValue: string, startingBasename: string, quickPickItem: FileQuickPickItem, force: boolean = false): boolean {
 		const itemBasename = (quickPickItem.label === '..') ? quickPickItem.label : resources.basename(quickPickItem.uri);
 		const itemPathLabel = (itemBasename === '..') ? this.pathAppend(this.currentFolder, itemBasename) : this.pathFromUri(quickPickItem.uri);
-		if (this.trimTrailingSlash(this.filePickBox.value) !== itemPathLabel) {
-			// Either foce the autocomplete, or the old value should be one smaller than the new value and match the new value.
-			if (!force && (itemBasename.length >= startingBasename.length) && (itemBasename.substr(0, startingBasename.length).toLowerCase() === startingBasename.toLowerCase())) {
+		if (!equalsIgnoreCase(this.trimTrailingSlash(this.filePickBox.value), itemPathLabel)) {
+			// Either force the autocomplete, or the old value should be one smaller than the new value and match the new value.
+			if (!force && (itemBasename.length >= startingBasename.length + 1) && equalsIgnoreCase(itemBasename.substr(0, startingBasename.length), startingBasename)) {
 				this.userValue = startingValue;
 				const autoCompleteValue = itemBasename.substr(startingBasename.length);
 				this.autoComplete = startingValue + autoCompleteValue;
 				this.insertText(this.autoComplete, autoCompleteValue);
 				this.filePickBox.valueSelection = [startingValue.length, this.filePickBox.value.length];
 				return true;
-			} else if (force) {
+			} else if (force && (quickPickItem.label !== this.autoComplete)) {
 				this.userValue = this.pathFromUri(this.currentFolder, true);
 				this.autoComplete = this.pathAppend(this.currentFolder, itemBasename);
 				this.filePickBox.valueSelection = [this.userValue.length, this.filePickBox.value.length];
