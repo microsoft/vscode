@@ -208,6 +208,11 @@ export interface IEditorGroupsService {
 	readonly whenRestored: Promise<void>;
 
 	/**
+	 * Find out if the editor group service has editors to restore from a previous session.
+	 */
+	readonly willRestoreEditors: boolean;
+
+	/**
 	 * Get all groups that are currently visible in the editor area optionally
 	 * sorted by being most recent active or grid order. Will sort by creation
 	 * time by default (oldest group first).
