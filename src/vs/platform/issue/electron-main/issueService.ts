@@ -16,6 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
+import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -53,8 +54,12 @@ export class IssueService implements IIssueService {
 				processesMap[localize('local', "Local")] = await listProcesses(mainPid);
 				(await this.launchService.getRemoteDiagnostics({ includeProcesses: true }))
 					.forEach(data => {
-						if (data.processes) {
-							processesMap[data.hostName] = data.processes;
+						if (isRemoteDiagnosticError(data)) {
+							processesMap[data.hostName] = data;
+						} else {
+							if (data.processes) {
+								processesMap[data.hostName] = data.processes;
+							}
 						}
 					});
 			} catch (e) {

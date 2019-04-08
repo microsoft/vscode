@@ -17,6 +17,7 @@ import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 
 let mapPidToWindowTitle = new Map<number, string>();
@@ -138,6 +139,46 @@ function updateSectionCollapsedState(shouldExpand: boolean, body: HTMLElement, t
 	}
 }
 
+function renderProcessFetchError(sectionName: string, errorMessage: string) {
+	const container = document.getElementById('process-list');
+	if (!container) {
+		return;
+	}
+
+	const body = document.createElement('tbody');
+
+	renderProcessGroupHeader(sectionName, body, container);
+
+	const errorRow = document.createElement('tr');
+	const data = document.createElement('td');
+	data.textContent = errorMessage;
+	data.className = 'error';
+	data.colSpan = 4;
+	errorRow.appendChild(data);
+
+	body.appendChild(errorRow);
+	container.appendChild(body);
+}
+
+function renderProcessGroupHeader(sectionName: string, body: HTMLElement, container: HTMLElement) {
+	const headerRow = document.createElement('tr');
+	const data = document.createElement('td');
+	data.textContent = sectionName;
+	data.colSpan = 4;
+	headerRow.appendChild(data);
+
+	const twistie = document.createElement('img');
+	updateSectionCollapsedState(!collapsedStateCache.get(sectionName), body, twistie, sectionName);
+	data.prepend(twistie);
+
+	listeners.push(addDisposableListener(data, 'click', (e) => {
+		const isHidden = body.classList.contains('hidden');
+		updateSectionCollapsedState(isHidden, body, twistie, sectionName);
+	}));
+
+	container.appendChild(headerRow);
+}
+
 function renderTableSection(sectionName: string, processList: FormattedProcessItem[], renderManySections: boolean, sectionIsLocal: boolean): void {
 	const container = document.getElementById('process-list');
 	if (!container) {
@@ -150,22 +191,7 @@ function renderTableSection(sectionName: string, processList: FormattedProcessIt
 	const body = document.createElement('tbody');
 
 	if (renderManySections) {
-		const headerRow = document.createElement('tr');
-		const data = document.createElement('td');
-		data.textContent = sectionName;
-		data.colSpan = 4;
-		headerRow.appendChild(data);
-
-		const twistie = document.createElement('img');
-		updateSectionCollapsedState(!collapsedStateCache.get(sectionName), body, twistie, sectionName);
-		data.prepend(twistie);
-
-		listeners.push(addDisposableListener(data, 'click', (e) => {
-			const isHidden = body.classList.contains('hidden');
-			updateSectionCollapsedState(isHidden, body, twistie, sectionName);
-		}));
-
-		container.appendChild(headerRow);
+		renderProcessGroupHeader(sectionName, body, container);
 	}
 
 	processList.forEach(p => {
@@ -206,7 +232,7 @@ function renderTableSection(sectionName: string, processList: FormattedProcessIt
 	container.appendChild(body);
 }
 
-function updateProcessInfo(processLists: { [key: string]: ProcessItem }): void {
+function updateProcessInfo(processLists: { [key: string]: ProcessItem | IRemoteDiagnosticError }): void {
 	const container = document.getElementById('process-list');
 	if (!container) {
 		return;
@@ -228,7 +254,12 @@ function updateProcessInfo(processLists: { [key: string]: ProcessItem }): void {
 	const hasMultipleMachines = Object.keys(processLists).length > 1;
 	Object.keys(processLists).forEach((key, i) => {
 		const isLocal = i === 0;
-		renderTableSection(key, getProcessList(processLists[key], isLocal), hasMultipleMachines, isLocal);
+		const processItem = processLists[key];
+		if (isRemoteDiagnosticError(processItem)) {
+			renderProcessFetchError(key, processItem.errorMessage);
+		} else {
+			renderTableSection(key, getProcessList(processItem, isLocal), hasMultipleMachines, isLocal);
+		}
 	});
 }
 
@@ -354,7 +385,7 @@ export function startup(data: ProcessExplorerData): void {
 		windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
 	});
 
-	ipcRenderer.on('vscode:listProcessesResponse', (_event: Event, processRoots: { [key: string]: ProcessItem }) => {
+	ipcRenderer.on('vscode:listProcessesResponse', (_event: Event, processRoots: { [key: string]: ProcessItem | IRemoteDiagnosticError }) => {
 		updateProcessInfo(processRoots);
 		requestProcessList(0);
 	});
