@@ -109,7 +109,7 @@ const presentation: IJSONSchema = {
 				nls.localize('JsonSchema.tasks.presentation.revealProblem.never', 'Never reveals the problems panel when this task is executed.'),
 			],
 			default: 'never',
-			description: nls.localize('JsonSchema.tasks.presentation.revealProblem', 'Controls whether the problems panel is revealed when running this task or not. Takes precedence over option \"reveal\". Default is \"onProblem\".')
+			description: nls.localize('JsonSchema.tasks.presentation.revealProblem', 'Controls whether the problems panel is revealed when running this task or not. Takes precedence over option \"reveal\". Default is \"never\".')
 		},
 		reveal: {
 			type: 'string',

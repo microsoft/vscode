@@ -654,8 +654,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					let revealProblemPanel = terminal && (revealProblem === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0);
 					if (revealProblemPanel) {
 						this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
-					}
-					if (terminal && !revealProblemPanel && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
+					} else if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
 						(startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
@@ -689,8 +688,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblem === RevealProblemKind.Always);
 		if (showProblemPanel) {
 			this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
-		}
-		if (task.command.presentation && !showProblemPanel && (task.command.presentation.reveal === RevealKind.Always)) {
+		} else if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
 			this.terminalService.setActiveInstance(terminal);
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}

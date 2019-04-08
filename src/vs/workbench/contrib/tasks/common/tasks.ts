@@ -125,7 +125,7 @@ export enum RevealKind {
 	 * Only brings the terminal to front if a problem is detected executing the task
 	 * e.g. the task couldn't be started,
 	 * the task ended with an exit code other than zero,
-	 * or the problem matcher finding an error.
+	 * or the problem matcher found an error.
 	 */
 	Silent = 2,
 
@@ -226,7 +226,7 @@ export interface PresentationOptions {
 
 	/**
 	 * Controls whether the problems pane is revealed when running this task or not.
-	 * Defaults to `RevealProblemKind.OnProblem`.
+	 * Defaults to `RevealProblemKind.Never`.
 	 */
 	revealProblem: RevealProblemKind;
 
@@ -266,7 +266,7 @@ export interface PresentationOptions {
 
 export namespace PresentationOptions {
 	export const defaults: PresentationOptions = {
-		echo: true, reveal: RevealKind.Always, revealProblem: RevealProblemKind.OnProblem, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, revealProblem: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
 	};
 }
 
