@@ -16,7 +16,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
-import { ProcessItem } from 'vs/base/common/processes';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -47,13 +46,22 @@ export class IssueService implements IIssueService {
 		});
 
 		ipcMain.on('vscode:listProcesses', async (event: Event) => {
-			const mainPid = await this.launchService.getMainProcessId();
-			const rootProcess = await listProcesses(mainPid);
-			const remoteProcesses = (await this.launchService.getRemoteDiagnostics({ includeProcesses: true }))
-				.map(data => data.processes)
-				.filter((x): x is ProcessItem => !!x);
+			const processesMap = {};
 
-			event.sender.send('vscode:listProcessesResponse', [rootProcess, ...remoteProcesses]);
+			try {
+				const mainPid = await this.launchService.getMainProcessId();
+				processesMap[localize('local', "Local")] = await listProcesses(mainPid);
+				(await this.launchService.getRemoteDiagnostics({ includeProcesses: true }))
+					.forEach(data => {
+						if (data.processes) {
+							processesMap[data.hostName] = data.processes;
+						}
+					});
+			} catch (e) {
+				this.logService.error(`Listing processes failed: ${e}`);
+			}
+
+			event.sender.send('vscode:listProcessesResponse', processesMap);
 		});
 
 		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Event) => {
