@@ -408,10 +408,8 @@ suite('Editor Contrib - Line Operations', () => {
 					assert.deepEqual(editor.getSelections()!.toString(), [
 						/** primary cursor */
 						new Selection(1, 1, 1, 12),
-						new Selection(2, 1, 2, 12),
-						new Selection(3, 1, 3, 12),
-						new Selection(4, 1, 4, 12),
-						new Selection(6, 1, 6, 12)
+						new Selection(2, 1, 2, 36),
+						new Selection(4, 1, 4, 12)
 					].toString(), '002');
 
 					/** primary cursor */

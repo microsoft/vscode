@@ -696,8 +696,7 @@ export class JoinLinesAction extends EditorAction {
 	}
 
 	private _getLinesToJoin(editor: IActiveCodeEditor): IJoinLinesOperation[] {
-
-		// Construct join operations
+		// Construct Join operations
 		let operations: IJoinLinesOperation[] = editor.getSelections().map((s) => {
 
 			let endLineNumber = s.endLineNumber;
@@ -713,7 +712,7 @@ export class JoinLinesAction extends EditorAction {
 			};
 		});
 
-		// Sort join operations
+		// Sort Join operations
 		operations.sort((a, b) => {
 			if (a.startLineNumber === b.startLineNumber) {
 				return a.endLineNumber - b.endLineNumber;
@@ -721,7 +720,7 @@ export class JoinLinesAction extends EditorAction {
 			return a.startLineNumber - b.startLineNumber;
 		});
 
-		// Merge join operations which are adjacent or overlapping
+		// Merge Join operations which are adjacent or overlapping
 		let mergedOperations: IJoinLinesOperation[] = [];
 		let previousOperation = operations[0];
 		for (let i = 1; i < operations.length; i++) {
@@ -746,34 +745,34 @@ export class JoinLinesAction extends EditorAction {
 		}
 		let model = editor.getModel();
 
-		let opss = this._getLinesToJoin(editor);
+		let removeLines = this._getLinesToJoin(editor);
 		let ops: IIdentifiedSingleEditOperation[] = [];
 		let conString: String[] = [];
 		let cursorState: Selection[] = [];
 
-		for (let i = 0; i < opss.length; i++) {
-			if (opss[i].startLineNumber === opss[i].endLineNumber && opss[i].selectionStartColumn === opss[i].positionColumn) {
-				const range = this.joinLines(opss[i].startLineNumber, model, editor);
-				if (range && i < opss.length) {
+		for (let i = 0; i < removeLines.length; i++) {
+			if (removeLines[i].startLineNumber === removeLines[i].endLineNumber && removeLines[i].selectionStartColumn === removeLines[i].positionColumn) {
+				const range = this.joinLines(removeLines[i].startLineNumber, model, editor);
+				if (range && i < removeLines.length) {
 					let string: String[] = [];
-					string.push(model.getLineContent(opss[i].startLineNumber).trim());
-					string.push(model.getLineContent(opss[i].startLineNumber + 1).trim());
+					string.push(model.getLineContent(removeLines[i].startLineNumber).trim());
+					string.push(model.getLineContent(removeLines[i].startLineNumber + 1).trim());
 					ops.push(range);
-					conString.push(string.join(' ') + ' ');
+					conString.push(string.join(' '));
 				} else {
 
 				}
 			} else {
 				let string: String[] = [];
-				for (let line = opss[i].startLineNumber; line < opss[i].endLineNumber; line++) {
+				for (let line = removeLines[i].startLineNumber; line < removeLines[i].endLineNumber; line++) {
 					const range = this.joinLines(line, model, editor);
-					if (range && line < opss[i].endLineNumber) {
+					if (range && line < removeLines[i].endLineNumber) {
 						string.push(model.getLineContent(line).trim());
 						ops.push(range);
 					}
 				}
-				if (opss[i].endLineNumber <= model.getLineCount()) {
-					string.push(model.getLineContent(opss[i].endLineNumber));
+				if (removeLines[i].endLineNumber <= model.getLineCount()) {
+					string.push(model.getLineContent(removeLines[i].endLineNumber).trim());
 				}
 				conString.push(string.join(' ') + ' ');
 			}
@@ -785,17 +784,22 @@ export class JoinLinesAction extends EditorAction {
 		}
 
 		let linesDeleted = 0;
-		for (let i = 0; i < opss.length; i++) {
-			const op = opss[i];
+		for (let i = 0; i < removeLines.length; i++) {
+			const op = removeLines[i];
 
 			let startLineNumber = op.startLineNumber;
 			let endLineNumber = op.endLineNumber;
 
+			if (endLineNumber === startLineNumber && endLineNumber < model.getLineCount()) {
+				endLineNumber += 1;
+			}
+
+			let start = model.getLineFirstNonWhitespaceColumn(startLineNumber);
 			if (endLineNumber < model.getLineCount()) {
-				cursorState.push(new Selection(startLineNumber - linesDeleted, 1, startLineNumber - linesDeleted, conString[i].length));
-				linesDeleted += (op.endLineNumber - op.startLineNumber);
+				cursorState.push(new Selection(startLineNumber - linesDeleted, start, startLineNumber - linesDeleted, start + conString[i].length));
+				linesDeleted += (endLineNumber - startLineNumber);
 			} else {
-				cursorState.push(new Selection(startLineNumber - linesDeleted, op.selectionStartColumn, startLineNumber - linesDeleted, op.selectionStartColumn));
+				cursorState.push(new Selection(startLineNumber - linesDeleted, start, startLineNumber - linesDeleted, start + conString[conString.length - 1].length));
 			}
 		}
 
