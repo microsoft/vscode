@@ -1,3 +1,7 @@
+trigger:
+  branches:
+    include: ['master', 'release/*']
+
 steps:
 - task: NodeTool@0
   inputs:
