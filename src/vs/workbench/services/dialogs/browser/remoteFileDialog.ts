@@ -277,6 +277,7 @@ export class RemoteFileDialog {
 			if (this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
 				this.options.availableFileSystems.shift();
 			}
+			this.options.defaultUri = undefined;
 			if (this.requiresTrailing) {
 				return this.fileDialogService.showSaveDialog(this.options).then(result => {
 					return result;
