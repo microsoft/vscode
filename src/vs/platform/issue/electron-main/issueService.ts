@@ -47,18 +47,24 @@ export class IssueService implements IIssueService {
 		});
 
 		ipcMain.on('vscode:listProcesses', async (event: Event) => {
-			const processesMap = {};
+			const processes = [];
 
 			try {
 				const mainPid = await this.launchService.getMainProcessId();
-				processesMap[localize('local', "Local")] = await listProcesses(mainPid);
+				processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(mainPid) });
 				(await this.launchService.getRemoteDiagnostics({ includeProcesses: true }))
 					.forEach(data => {
 						if (isRemoteDiagnosticError(data)) {
-							processesMap[data.hostName] = data;
+							processes.push({
+								name: data.hostName,
+								rootProcess: data
+							});
 						} else {
 							if (data.processes) {
-								processesMap[data.hostName] = data.processes;
+								processes.push({
+									name: data.hostName,
+									rootProcess: data.processes
+								});
 							}
 						}
 					});
@@ -66,7 +72,7 @@ export class IssueService implements IIssueService {
 				this.logService.error(`Listing processes failed: ${e}`);
 			}
 
-			event.sender.send('vscode:listProcessesResponse', processesMap);
+			event.sender.send('vscode:listProcessesResponse', processes);
 		});
 
 		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Event) => {

@@ -232,7 +232,7 @@ function renderTableSection(sectionName: string, processList: FormattedProcessIt
 	container.appendChild(body);
 }
 
-function updateProcessInfo(processLists: { [key: string]: ProcessItem | IRemoteDiagnosticError }): void {
+function updateProcessInfo(processLists: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]): void {
 	const container = document.getElementById('process-list');
 	if (!container) {
 		return;
@@ -252,13 +252,12 @@ function updateProcessInfo(processLists: { [key: string]: ProcessItem | IRemoteD
 	container.append(tableHead);
 
 	const hasMultipleMachines = Object.keys(processLists).length > 1;
-	Object.keys(processLists).forEach((key, i) => {
+	processLists.forEach((remote, i) => {
 		const isLocal = i === 0;
-		const processItem = processLists[key];
-		if (isRemoteDiagnosticError(processItem)) {
-			renderProcessFetchError(key, processItem.errorMessage);
+		if (isRemoteDiagnosticError(remote.rootProcess)) {
+			renderProcessFetchError(remote.name, remote.rootProcess.errorMessage);
 		} else {
-			renderTableSection(key, getProcessList(processItem, isLocal), hasMultipleMachines, isLocal);
+			renderTableSection(remote.name, getProcessList(remote.rootProcess, isLocal), hasMultipleMachines, isLocal);
 		}
 	});
 }
@@ -385,7 +384,7 @@ export function startup(data: ProcessExplorerData): void {
 		windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
 	});
 
-	ipcRenderer.on('vscode:listProcessesResponse', (_event: Event, processRoots: { [key: string]: ProcessItem | IRemoteDiagnosticError }) => {
+	ipcRenderer.on('vscode:listProcessesResponse', (_event: Event, processRoots: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]) => {
 		updateProcessInfo(processRoots);
 		requestProcessList(0);
 	});
