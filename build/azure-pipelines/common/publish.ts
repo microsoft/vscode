@@ -64,7 +64,7 @@ interface Asset {
 	platform: string;
 	type: string;
 	url: string;
-	mooncakeUrl: string;
+	mooncakeUrl?: string;
 	hash: string;
 	sha256hash: string;
 	size: number;
@@ -187,40 +187,18 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	const blobService = azure.createBlobService(storageAccount, process.env['AZURE_STORAGE_ACCESS_KEY_2']!)
 		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
-	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY']!, `${storageAccount}.blob.core.chinacloudapi.cn`)
-		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
+	await assertContainer(blobService, quality);
 
-	// mooncake is fussy and far away, this is needed!
-	mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+	const blobExists = await doesAssetExist(blobService, quality, blobName);
 
-	await Promise.all([
-		assertContainer(blobService, quality),
-		assertContainer(mooncakeBlobService, quality)
-	]);
-
-	const [blobExists, moooncakeBlobExists] = await Promise.all([
-		doesAssetExist(blobService, quality, blobName),
-		doesAssetExist(mooncakeBlobService, quality, blobName)
-	]);
-
-	const promises: Array<Promise<void>> = [];
-
-	if (!blobExists) {
-		promises.push(uploadBlob(blobService, quality, blobName, file));
-	}
-
-	if (!moooncakeBlobExists) {
-		promises.push(uploadBlob(mooncakeBlobService, quality, blobName, file));
-	}
-
-	if (promises.length === 0) {
+	if (blobExists) {
 		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
 		return;
 	}
 
 	console.log('Uploading blobs to Azure storage...');
 
-	await Promise.all(promises);
+	await uploadBlob(blobService, quality, blobName, file);
 
 	console.log('Blobs successfully uploaded.');
 
@@ -232,7 +210,6 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		platform: platform,
 		type: type,
 		url: `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`,
-		mooncakeUrl: `${process.env['MOONCAKE_CDN_URL']}/${quality}/${blobName}`,
 		hash: sha1hash,
 		sha256hash,
 		size

@@ -78,7 +78,6 @@ steps:
     VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
     AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
     node build/azure-pipelines/common/publish.js \
       "$(VSCODE_QUALITY)" \
       darwin \
