@@ -30,7 +30,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { isEqualOrParent, isEqual, joinPath, dirname, extname, basename } from 'vs/base/common/resources';
+import { isEqualOrParent, isEqual, joinPath, dirname, extname, basename, toLocalResource } from 'vs/base/common/resources';
 import { posix } from 'vs/base/common/path';
 import { getConfirmMessage, IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -570,7 +570,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 					// Untitled with associated file path don't need to prompt
 					if (this.untitledEditorService.hasAssociatedFilePath(untitled)) {
-						targetUri = this.untitledToAssociatedFileResource(untitled);
+						targetUri = toLocalResource(untitled, this.environmentService.configuration.remoteAuthority);
 					}
 
 					// Otherwise ask user
@@ -605,18 +605,6 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 			return Promise.all(untitledSaveAsPromises).then(() => result);
 		});
-	}
-
-	private untitledToAssociatedFileResource(untitled: URI): URI {
-		const authority = this.environmentService.configuration.remoteAuthority;
-		if (authority) {
-			let path = untitled.path;
-			if (path && path[0] !== posix.sep) {
-				path = posix.sep + path;
-			}
-			return untitled.with({ scheme: Schemas.vscodeRemote, authority, path });
-		}
-		return untitled.with({ scheme: Schemas.file });
 	}
 
 	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
@@ -762,7 +750,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 			// path. This can happen if the file was created after the untitled file was opened.
 			// See https://github.com/Microsoft/vscode/issues/67946
 			let confirmWrite: Promise<boolean>;
-			if (sourceModel instanceof UntitledEditorModel && sourceModel.hasAssociatedFilePath && targetExists && isEqual(target, this.untitledToAssociatedFileResource(sourceModel.getResource()))) {
+			if (sourceModel instanceof UntitledEditorModel && sourceModel.hasAssociatedFilePath && targetExists && isEqual(target, toLocalResource(sourceModel.getResource(), this.environmentService.configuration.remoteAuthority))) {
 				confirmWrite = this.confirmOverwrite(target);
 			} else {
 				confirmWrite = Promise.resolve(true);

@@ -311,13 +311,15 @@ export class ResourceGlobMatcher {
 	}
 }
 
-export function toLocalResource(resource: URI, remoteAuthority: string | undefined): URI {
-	let scheme: string;
-	if (remoteAuthority) {
-		scheme = Schemas.vscodeRemote;
-	} else {
-		scheme = Schemas.file;
+export function toLocalResource(resource: URI, authority: string | undefined): URI {
+	if (authority) {
+		let path = resource.path;
+		if (path && path[0] !== paths.posix.sep) {
+			path = paths.posix.sep + path;
+		}
+
+		return resource.with({ scheme: Schemas.vscodeRemote, authority, path });
 	}
 
-	return resource.with({ scheme });
+	return resource.with({ scheme: Schemas.file });
 }
