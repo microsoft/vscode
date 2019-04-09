@@ -19,7 +19,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
-	type?: 'none' | 'info' | 'error' | 'question' | 'warning';
+	type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
 }
 
 export interface IDialogStyles extends IButtonStyles {
@@ -128,6 +128,9 @@ export class Dialog extends Disposable {
 					break;
 				case 'warning':
 					addClass(this.iconElement, 'icon-warning');
+					break;
+				case 'pending':
+					addClass(this.iconElement, 'icon-pending');
 					break;
 				case 'none':
 				case 'info':
