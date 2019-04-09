@@ -516,6 +516,30 @@ import product from 'vs/platform/product/node/product';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
+			},
+			'window.scrollableTabsEnable': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': nls.localize('window.scrollableTabs', "If enabled, using the scroll wheel on the tab bar will switch tabs. If disabled, using the scroll wheel on the tab bar will have no effect."),
+			},
+			'window.scrollableTabsReverse': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': nls.localize('window.scrollableTabsReverse', "If enabled, moving the scroll wheel upwards or left will switch to the tab on the right, rather than the left."),
+			},
+			'window.scrollableTabsWrap': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': nls.localize('window.scrollableTabsWrap', "If enabled, scrolling past the last tab will wrap to the first tab, and scrolling before the first tab will wrap to the last tab."),
+			},
+			'window.scrollableTabsForced': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': nls.localize('window.scrollableTabsForced', "If enabled, always change tabs when scrolling, even if the tab list is overflowing. If disabled, don't change tabs when the tab list is overflowing."),
 			}
 		}
 	});

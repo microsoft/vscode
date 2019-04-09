@@ -112,6 +112,11 @@ export const tocData: ITOCEntry = {
 					id: 'window/newWindow',
 					label: localize('newWindow', "New Window"),
 					settings: ['window.*newwindow*']
+				},
+				{
+					id: 'window/tabScrolling',
+					label: localize('scrollableTabs', "Scrollable Tabs"),
+					settings: ['window.scrollableTabs*']
 				}
 			]
 		},
