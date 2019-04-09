@@ -2500,9 +2500,44 @@ export class MaliciousStatusLabelAction extends ExtensionAction {
 	}
 }
 
-export class SystemDisabledStatusLabelAction extends ExtensionAction {
+export class SystemDisabledLabelAction extends ExtensionAction {
 
 	private static readonly Class = 'disable-status';
+
+	updateWhenCounterExtensionChanges: boolean = true;
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		private readonly warningAction: SystemDisabledWarningAction,
+	) {
+		super('extensions.systemDisabledLabel', warningAction.tooltip, `${SystemDisabledLabelAction.Class} hide`, false);
+		warningAction.onDidChange(() => this.update(), this, this.disposables);
+	}
+
+	update(): void {
+		this.enabled = this.warningAction.enabled;
+		if (this.enabled) {
+			this.class = SystemDisabledLabelAction.Class;
+			this.label = this.warningAction.tooltip;
+		} else {
+			this.class = `${SystemDisabledLabelAction.Class} hide`;
+			this.label = '';
+		}
+	}
+
+	run(): Promise<any> {
+		return Promise.resolve(null);
+	}
+
+	dispose(): void {
+		dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+export class SystemDisabledWarningAction extends ExtensionAction {
+
+	private static readonly Class = 'disable-warning';
 
 	updateWhenCounterExtensionChanges: boolean = true;
 	private disposables: IDisposable[] = [];
@@ -2514,13 +2549,14 @@ export class SystemDisabledStatusLabelAction extends ExtensionAction {
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensions.install', localize('disabled', "Disabled"), `${SystemDisabledStatusLabelAction.Class} hide`, false);
+		super('extensions.install', '', `${SystemDisabledWarningAction.Class} hide`, false);
 		this.labelService.onDidChangeFormatters(() => this.update(), this, this.disposables);
 		this.update();
 	}
 
 	update(): void {
-		this.class = `${SystemDisabledStatusLabelAction.Class} hide`;
+		this.enabled = false;
+		this.class = `${SystemDisabledWarningAction.Class} hide`;
 		this.tooltip = '';
 		if (this.extension && this.extension.local) {
 			if (
@@ -2531,11 +2567,12 @@ export class SystemDisabledStatusLabelAction extends ExtensionAction {
 				// Extension does not exist in remote
 				&& !this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
 			) {
-				this.class = `${SystemDisabledStatusLabelAction.Class}`;
+				this.enabled = true;
+				this.class = `${SystemDisabledWarningAction.Class}`;
 				const host = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.workbenchEnvironmentService.configuration.remoteAuthority) || localize('remote', "Remote");
-				this.label = localize('disabled workspace Extension', "Disabled because the window is connected to remote server and only UI extensions from local server are enabled.", host, host);
+				this.tooltip = localize('disabled workspace Extension', "Disabled because the window is connected to remote server and only UI extensions from local server are enabled.", host, host);
 				if (this.extensionsWorkbenchService.canInstall(this.extension)) {
-					this.label = `${this.label} ${localize('Install in remote server', "Install it in '{0}' server to enable.", host)}`;
+					this.tooltip = `${this.tooltip} ${localize('Install in remote server', "Install it in '{0}' server to enable.", host)}`;
 				}
 				return;
 			}

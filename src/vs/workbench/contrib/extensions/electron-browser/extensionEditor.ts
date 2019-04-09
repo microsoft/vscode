@@ -28,7 +28,7 @@ import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/electron-browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, SystemDisabledStatusLabelAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, SystemDisabledLabelAction, SystemDisabledWarningAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -368,6 +368,7 @@ export class ExtensionEditor extends BaseEditor {
 		];
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const combinedInstallAction = this.instantiationService.createInstance(CombinedInstallAction);
+		const systemDisabledWarningAction = this.instantiationService.createInstance(SystemDisabledWarningAction);
 		const actions = [
 			reloadAction,
 			this.instantiationService.createInstance(StatusLabelAction),
@@ -378,7 +379,8 @@ export class ExtensionEditor extends BaseEditor {
 			this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
 			this.instantiationService.createInstance(RemoteInstallAction),
 			combinedInstallAction,
-			this.instantiationService.createInstance(SystemDisabledStatusLabelAction),
+			systemDisabledWarningAction,
+			this.instantiationService.createInstance(SystemDisabledLabelAction, systemDisabledWarningAction),
 			this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
 		];
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
