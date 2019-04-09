@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
+import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensionHostStarter';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';

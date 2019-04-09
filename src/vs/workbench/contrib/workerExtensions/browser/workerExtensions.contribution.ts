@@ -7,45 +7,70 @@ import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchCo
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensionHostStarter';
 
-class WorkerExtensionHost extends Disposable implements IWorkbenchContribution {
+export class ExtensionHostWebWorker extends Disposable implements IExtensionHostStarter {
 
-	readonly protocol: IMessagePassingProtocol;
+	private _protocol?: IMessagePassingProtocol;
+	private readonly _onDidCrashed = new Emitter<[number, string | null]>();
 
-	constructor() {
-		super();
+	readonly onCrashed: Event<[number, string | null]> = this._onDidCrashed.event;
 
-		const emitter = new Emitter<VSBuffer>();
-		const worker = new DefaultWorkerFactory('WorkerExtensionHost').create(
-			'vs/workbench/contrib/workerExtensions/worker/extensionHostWorker',
-			data => {
-				if (data instanceof ArrayBuffer) {
-					emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
-				} else {
-					console.warn('UNKNOWN data received', data);
+	start(): Promise<IMessagePassingProtocol> {
+
+		if (!this._protocol) {
+
+			const emitter = new Emitter<VSBuffer>();
+			const worker = new DefaultWorkerFactory('WorkerExtensionHost').create(
+				'vs/workbench/contrib/workerExtensions/worker/extensionHostWorker', data => {
+					if (data instanceof ArrayBuffer) {
+						emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
+					} else {
+						console.warn('UNKNOWN data received', data);
+					}
+				}, err => {
+					this._onDidCrashed.fire([81, err]);
+					console.error(err);
 				}
-			},
-			err => console.error(err)
-		);
+			);
 
-		this.protocol = {
-			onMessage: emitter.event,
-			send: vsbuf => {
-				const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-				worker.postMessage(data, [data]);
-			}
-		};
+			this._protocol = {
+				onMessage: emitter.event,
+				send: vsbuf => {
+					const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
+					worker.postMessage(data, [data]);
+				}
+			};
 
-		//
-		this._register(worker);
-		this._register(emitter);
+			//
+			this._register(worker);
+			this._register(emitter);
+		}
 
 		// this.protocol.send(VSBuffer.fromString('HELLO from Main'));
 		// this.protocol.onMessage(buff => console.log(buff.toString()));
+		return Promise.resolve(this._protocol);
+	}
+
+	getInspectPort(): number | undefined {
+		return undefined;
+	}
+}
+
+
+
+class WorkerExtensionHost extends Disposable implements IWorkbenchContribution {
+
+	constructor() {
+		super();
+		new ExtensionHostWebWorker().start().then(protocol => {
+			protocol.send(VSBuffer.fromString('HELLO from Main'));
+			protocol.onMessage(buff => console.log(buff.toString()));
+		});
 	}
 }
 

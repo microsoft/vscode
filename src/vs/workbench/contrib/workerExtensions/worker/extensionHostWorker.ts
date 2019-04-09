@@ -40,7 +40,7 @@ class ExtensionWorker implements IRequestHandler {
 
 export function create(postMessage: (message: any, transfer?: Transferable[]) => any): IRequestHandler {
 	const res = new ExtensionWorker(postMessage);
-	// res.protocol.onMessage(buff => console.log(buff.toString()));
-	// res.protocol.send(VSBuffer.fromString('HELLO from WORKER'));
+	res.protocol.onMessage(buff => console.log(buff.toString()));
+	res.protocol.send(VSBuffer.fromString('HELLO from WORKER'));
 	return res;
 }
