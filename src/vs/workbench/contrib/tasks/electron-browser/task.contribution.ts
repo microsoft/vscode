@@ -1973,6 +1973,9 @@ class TaskService extends Disposable implements ITaskService {
 			if ((entries.length === 0) && defaultEntry) {
 				entries.push(defaultEntry);
 			}
+			else if (selectedEntry) {
+				entries.push(selectedEntry);
+			}
 			return entries;
 		}), {
 				placeHolder,
@@ -2195,16 +2198,27 @@ class TaskService extends Disposable implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
+		if (arg === 'terminateAll') {
+			this.terminateAll();
+			return;
+		}
 		let runQuickPick = (promise?: Promise<Task[]>) => {
 			this.showQuickPick(promise || this.getActiveTasks(),
 				nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
 				{
 					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
-					task: null
+					task: undefined
 				},
-				false, true
+				false, true,
+				{
+					label: nls.localize('TaskService.terminateAllRunningTasks', 'All running tasks'),
+					task: null
+				}
 			).then(task => {
 				if (task === undefined || task === null) {
+					if (task === null) {
+						this.terminateAll();
+					}
 					return;
 				}
 				this.terminate(task);
