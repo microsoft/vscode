@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare var Buffer: any;
-const hasBuffer = (typeof Buffer !== 'undefined');
+export const hasBuffer = (typeof Buffer !== 'undefined');
 
 let textEncoder: TextEncoder | null;
 let textDecoder: TextDecoder | null;
@@ -20,6 +20,11 @@ export class VSBuffer {
 	}
 
 	public static wrap(actual: Uint8Array): VSBuffer {
+		if (hasBuffer && !(Buffer.isBuffer(actual))) {
+			// https://nodejs.org/dist/latest-v10.x/docs/api/buffer.html#buffer_class_method_buffer_from_arraybuffer_byteoffset_length
+			// Create a zero-copy Buffer wrapper around the ArrayBuffer pointed to by the Uint8Array
+			actual = Buffer.from(actual.buffer, actual.byteOffset, actual.byteLength);
+		}
 		return new VSBuffer(actual);
 	}
 

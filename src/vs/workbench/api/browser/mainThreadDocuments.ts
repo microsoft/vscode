@@ -17,6 +17,8 @@ import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocum
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextFileService, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { toLocalResource } from 'vs/base/common/resources';
 
 export class BoundModelReferenceCollection {
 
@@ -69,6 +71,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private readonly _textFileService: ITextFileService;
 	private readonly _fileService: IFileService;
 	private readonly _untitledEditorService: IUntitledEditorService;
+	private readonly _environmentService: IWorkbenchEnvironmentService;
 
 	private _toDispose: IDisposable[];
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
@@ -85,12 +88,14 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		this._modelService = modelService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
+		this._environmentService = environmentService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
 		this._modelIsSynced = {};
@@ -214,10 +219,10 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	private _handleUntitledScheme(uri: URI): Promise<boolean> {
-		const asFileUri = uri.with({ scheme: Schemas.file });
-		return this._fileService.resolve(asFileUri).then(stats => {
+		const asLocalUri = toLocalResource(uri, this._environmentService.configuration.remoteAuthority);
+		return this._fileService.resolve(asLocalUri).then(stats => {
 			// don't create a new file ontop of an existing file
-			return Promise.reject(new Error('file already exists on disk'));
+			return Promise.reject(new Error('file already exists'));
 		}, err => {
 			return this._doCreateUntitled(uri).then(resource => !!resource);
 		});

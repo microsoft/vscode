@@ -253,7 +253,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		const model = editor.getModel();
 		const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
 		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
-		if (pick) {
+		if (typeof pick === 'number') {
 			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick], editor, FormattingMode.Explicit, CancellationToken.None);
 		}
 		logFormatterTelemetry(telemetryService, 'document', provider, typeof pick === 'number' && provider[pick] || undefined);
@@ -291,7 +291,7 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 
 		const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
-		if (pick) {
+		if (typeof pick === 'number') {
 			await instaService.invokeFunction(formatDocumentRangeWithProvider, provider[pick], editor, range, CancellationToken.None);
 		}
 

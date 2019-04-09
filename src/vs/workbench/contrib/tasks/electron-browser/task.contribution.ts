@@ -467,6 +467,7 @@ class TaskService extends Disposable implements ITaskService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IOutputService private readonly outputService: IOutputService,
+		@IPanelService private readonly panelService: IPanelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -1353,7 +1354,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 		if (this.executionEngine === ExecutionEngine.Terminal) {
 			this._taskSystem = new TerminalTaskSystem(
-				this.terminalService, this.outputService, this.markerService,
+				this.terminalService, this.outputService, this.panelService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
 				this.contextService, this._environmentService,
 				TaskService.OutputChannelId,
