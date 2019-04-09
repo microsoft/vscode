@@ -17,6 +17,7 @@ import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { EventType, $, removeNode } from 'vs/base/browser/dom';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { domEvent } from 'vs/base/browser/event';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface IContextMenuHandlerOptions {
 	blockMouse: boolean;
@@ -83,6 +84,25 @@ export class ContextMenuHandler {
 				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
+				domEvent(window, EventType.MOUSE_DOWN)((e: MouseEvent) => {
+					let event = new StandardMouseEvent(e);
+					let element: HTMLElement | null = event.target;
+
+					// Don't do anything as we are likely creating a context menu
+					if (event.rightButton) {
+						return;
+					}
+
+					while (element) {
+						if (element === container) {
+							return;
+						}
+
+						element = element.parentElement;
+					}
+
+					this.contextViewService.hideContextView(true);
+				}, null, menuDisposables);
 
 				return combinedDisposable([...menuDisposables, menu]);
 			},
