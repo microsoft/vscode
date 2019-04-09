@@ -993,36 +993,32 @@ export class CheckForUpdatesAction extends Action {
 	}
 
 	private checkUpdatesAndNotify(): void {
-		this.extensionsWorkbenchService.queryLocal().then(
-			extensions => {
-				const outdatedExtensions = extensions.filter(ext => ext.outdated === true);
-				if (!outdatedExtensions.length) {
-					this.notificationService.info(localize('noUpdatesAvailable', "All Extensions are up to date."));
-					return;
-				}
+		const outdated = this.extensionsWorkbenchService.outdated;
+		if (!outdated.length) {
+			this.notificationService.info(localize('noUpdatesAvailable', "All Extensions are up to date."));
+			return;
+		}
 
-				let msgAvailableExtensions = outdatedExtensions.length === 1 ? localize('singleUpdateAvailable', "An extension update is available.") : localize('updatesAvailable', "{0} extension updates are available.", outdatedExtensions.length);
+		let msgAvailableExtensions = outdated.length === 1 ? localize('singleUpdateAvailable', "An extension update is available.") : localize('updatesAvailable', "{0} extension updates are available.", outdated.length);
 
-				const disabledExtensionsCount = outdatedExtensions.filter(ext => ext.enablementState === EnablementState.Disabled || ext.enablementState === EnablementState.WorkspaceDisabled).length;
-				if (disabledExtensionsCount) {
-					if (outdatedExtensions.length === 1) {
-						msgAvailableExtensions = localize('singleDisabledUpdateAvailable', "An update to an extension which is disabled is available.");
-					} else if (disabledExtensionsCount === 1) {
-						msgAvailableExtensions = localize('updatesAvailableOneDisabled', "{0} extension updates are available. One of them is for a disabled extension.", outdatedExtensions.length);
-					} else if (disabledExtensionsCount === outdatedExtensions.length) {
-						msgAvailableExtensions = localize('updatesAvailableAllDisabled', "{0} extension updates are available. All of them are for disabled extensions.", outdatedExtensions.length);
-					} else {
-						msgAvailableExtensions = localize('updatesAvailableIncludingDisabled', "{0} extension updates are available. {1} of them are for disabled extensions.", outdatedExtensions.length, disabledExtensionsCount);
-					}
-				}
-
-				this.viewletService.openViewlet(VIEWLET_ID, true)
-					.then(viewlet => viewlet as IExtensionsViewlet)
-					.then(viewlet => viewlet.search(''));
-
-				this.notificationService.info(msgAvailableExtensions);
+		const disabledExtensionsCount = outdated.filter(ext => ext.enablementState === EnablementState.Disabled || ext.enablementState === EnablementState.WorkspaceDisabled).length;
+		if (disabledExtensionsCount) {
+			if (outdated.length === 1) {
+				msgAvailableExtensions = localize('singleDisabledUpdateAvailable', "An update to an extension which is disabled is available.");
+			} else if (disabledExtensionsCount === 1) {
+				msgAvailableExtensions = localize('updatesAvailableOneDisabled', "{0} extension updates are available. One of them is for a disabled extension.", outdated.length);
+			} else if (disabledExtensionsCount === outdated.length) {
+				msgAvailableExtensions = localize('updatesAvailableAllDisabled', "{0} extension updates are available. All of them are for disabled extensions.", outdated.length);
+			} else {
+				msgAvailableExtensions = localize('updatesAvailableIncludingDisabled', "{0} extension updates are available. {1} of them are for disabled extensions.", outdated.length, disabledExtensionsCount);
 			}
-		);
+		}
+
+		this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet.search(''));
+
+		this.notificationService.info(msgAvailableExtensions);
 	}
 
 	run(): Promise<any> {
@@ -1101,16 +1097,12 @@ export class UpdateAllAction extends Action {
 		this.update();
 	}
 
-	private get outdated(): IExtension[] {
-		return this.extensionsWorkbenchService.local.filter(e => e.outdated && e.state !== ExtensionState.Installing);
-	}
-
 	private update(): void {
-		this.enabled = this.outdated.length > 0;
+		this.enabled = this.extensionsWorkbenchService.outdated.length > 0;
 	}
 
 	run(): Promise<any> {
-		return Promise.all(this.outdated.map(e => this.install(e)));
+		return Promise.all(this.extensionsWorkbenchService.outdated.map(e => this.install(e)));
 	}
 
 	private install(extension: IExtension): Promise<any> {
