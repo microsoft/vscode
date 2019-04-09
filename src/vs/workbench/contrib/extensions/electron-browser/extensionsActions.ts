@@ -1500,10 +1500,11 @@ export class ClearExtensionsInputAction extends Action {
 		id: string,
 		label: string,
 		onSearchChange: Event<string>,
+		value: string,
 		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, 'clear-extensions', true);
-		this.enabled = false;
+		this.onSearchChange(value);
 		onSearchChange(this.onSearchChange, this, this.disposables);
 	}
 
