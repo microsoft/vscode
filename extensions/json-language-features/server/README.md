@@ -142,7 +142,7 @@ For that, install the `json-language-server` npm module:
 
 `npm install -g json-language-server`
 
-Start the language server with the `json-language-server` command. Use a command line argument to specify the prefered communication channel:
+Start the language server with the `json-language-server` command. Use a command line argument to specify the preferred communication channel:
 
 ```
 json-language-server --node-ipc

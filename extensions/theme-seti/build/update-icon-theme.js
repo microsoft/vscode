@@ -10,7 +10,7 @@ let fs = require('fs');
 let https = require('https');
 let url = require('url');
 
-// list of languagesIs not shipped with VSCode. The information is used to associate an icon with a langauge association
+// list of languagesIs not shipped with VSCode. The information is used to associate an icon with a language association
 let nonBuiltInLanguages = { // { fileNames, extensions }
 	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
 	"argdown": { extensions: ['ad', 'adown', 'argdown', 'argdn'] },

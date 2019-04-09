@@ -65,7 +65,7 @@ function doWrapping(individualLines: boolean, args: any) {
 	let currentValue = '';
 	const helper = getEmmetHelper();
 
-	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
+	// Fetch general information for the successive expansions. i.e. the ranges to replace and its contents
 	let rangesToReplace: PreviewRangesWithContent[] = editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.compareTo(b.start); }).map(selection => {
 		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
 		if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
@@ -160,7 +160,7 @@ function doWrapping(individualLines: boolean, args: any) {
 					newPreviewStart = lastNewPreviewRange.end.character + (oldPreviewRange.start.character - lastOldPreviewRange.end.character);
 				}
 				else if (expandedTextLines.length === 1) {
-					// If the expandedText is single line, add the length of preceeding text as it will not be included in line length.
+					// If the expandedText is single line, add the length of preceding text as it will not be included in line length.
 					newPreviewEnd += oldPreviewRange.start.character;
 				}
 
