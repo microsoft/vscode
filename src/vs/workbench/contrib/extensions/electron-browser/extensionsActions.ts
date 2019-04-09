@@ -2570,7 +2570,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				this.enabled = true;
 				this.class = `${SystemDisabledWarningAction.Class}`;
 				const host = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.workbenchEnvironmentService.configuration.remoteAuthority) || localize('remote', "Remote");
-				this.tooltip = localize('disabled workspace Extension', "Disabled because the window is connected to remote server and only UI extensions from local server are enabled.", host, host);
+				this.tooltip = localize('disabled workspace Extension', "This extension is disabled because it cannot run in a window connected to the remote server.", host, host);
 				if (this.extensionsWorkbenchService.canInstall(this.extension)) {
 					this.tooltip = `${this.tooltip} ${localize('Install in remote server', "Install it in '{0}' server to enable.", host)}`;
 				}
