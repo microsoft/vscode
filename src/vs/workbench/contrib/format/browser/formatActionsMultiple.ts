@@ -36,7 +36,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 	static configName = 'editor.defaultFormatter';
 
-	static extensionIds: string[] = [];
+	static extensionIds: (string | null)[] = [];
 	static extensionDescriptions: string[] = [];
 
 	constructor(
@@ -60,6 +60,10 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 		DefaultFormatter.extensionIds.length = 0;
 		DefaultFormatter.extensionDescriptions.length = 0;
+
+		DefaultFormatter.extensionIds.push(null);
+		DefaultFormatter.extensionDescriptions.push(nls.localize('nullFormatterDescription', "None"));
+
 		for (const extension of extensions) {
 			if (extension.main) {
 				DefaultFormatter.extensionIds.push(extension.identifier.value);
@@ -157,7 +161,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[DefaultFormatter.configName]: {
 			description: nls.localize('formatter.default', "Defines a default formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
-			type: 'string',
+			type: ['string', 'null'],
 			default: null,
 			enum: DefaultFormatter.extensionIds,
 			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
