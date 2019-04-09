@@ -12,7 +12,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionItem, StatusLabelAction, RemoteInstallAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/electron-browser/extensionsWidgets';
@@ -54,7 +54,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -132,6 +133,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
 		removeClass(data.element, 'loading');
+
+		if (extension.state !== ExtensionState.Uninstalled && !extension.server) {
+			// Get the extension if it is installed and has no server information
+			extension = this.extensionsWorkbenchService.local.filter(e => e.server === extension.server && areSameExtensions(e.identifier, extension.identifier))[0] || extension;
+		}
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
 

@@ -502,7 +502,7 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private getExtensionState(extension: Extension): ExtensionState {
+	getExtensionState(extension: Extension): ExtensionState {
 		if (extension.gallery && this.installing.some(e => !!e.gallery && areSameExtensions(e.gallery.identifier, extension.gallery!.identifier))) {
 			return ExtensionState.Installing;
 		}
@@ -680,7 +680,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (installed) {
 			return installed;
 		}
-		const extension = new Extension(this.galleryService, ext => ExtensionState.Uninstalled, undefined, undefined, gallery, this.telemetryService, this.logService, this.fileService);
+		const extension = new Extension(this.galleryService, ext => this.getExtensionState(ext), undefined, undefined, gallery, this.telemetryService, this.logService, this.fileService);
 		if (maliciousExtensionSet.has(extension.identifier.id)) {
 			extension.isMalicious = true;
 		}
@@ -700,6 +700,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}
 		return null;
+	}
+
+	private getExtensionState(extension: Extension): ExtensionState {
+		if (this.remoteExtensions) {
+			const state = this.remoteExtensions.getExtensionState(extension);
+			if (state !== ExtensionState.Uninstalled) {
+				return state;
+			}
+		}
+		return this.localExtensions.getExtensionState(extension);
 	}
 
 	checkForUpdates(): Promise<void> {
