@@ -14,7 +14,6 @@ export const IsRemoteContext = new RawContextKey<boolean>('isRemote', false);
 export const HasMacNativeTabsContext = new RawContextKey<boolean>('hasMacNativeTabs', false);
 
 export const SupportsWorkspacesContext = new RawContextKey<boolean>('supportsWorkspaces', true);
-export const SupportsOpenFileFolderContext = new RawContextKey<boolean>('supportsOpenFileFolder', isMacintosh);
 
 export const IsDevelopmentContext = new RawContextKey<boolean>('isDevelopment', false);
 
