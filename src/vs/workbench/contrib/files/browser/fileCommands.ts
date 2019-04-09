@@ -40,6 +40,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 // Commands
 
@@ -97,7 +99,8 @@ function save(
 	fileService: IFileService,
 	untitledEditorService: IUntitledEditorService,
 	textFileService: ITextFileService,
-	editorGroupService: IEditorGroupsService
+	editorGroupService: IEditorGroupsService,
+	environmentService: IWorkbenchEnvironmentService
 ): Promise<any> {
 
 	function ensureForcedSave(options?: ISaveOptions): ISaveOptions {
@@ -134,8 +137,12 @@ function save(
 			// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
 			let savePromise: Promise<URI | undefined>;
 			if (!isSaveAs && resource.scheme === Schemas.untitled && untitledEditorService.hasAssociatedFilePath(resource)) {
-				savePromise = textFileService.save(resource, options).then((result) => {
+				savePromise = textFileService.save(resource, options).then(result => {
 					if (result) {
+						if (environmentService.configuration.remoteAuthority) {
+							return resource.with({ scheme: REMOTE_HOST_SCHEME });
+						}
+
 						return resource.with({ scheme: Schemas.file });
 					}
 
@@ -153,7 +160,7 @@ function save(
 				savePromise = textFileService.saveAs(resource, undefined, options);
 			}
 
-			return savePromise.then((target) => {
+			return savePromise.then(target => {
 				if (!target || target.toString() === resource.toString()) {
 					return false; // save canceled or same resource used
 				}
@@ -221,7 +228,7 @@ function saveAll(saveAllArguments: any, editorService: IEditorService, untitledE
 	});
 
 	// Save all
-	return textFileService.saveAll(saveAllArguments).then((result) => {
+	return textFileService.saveAll(saveAllArguments).then(result => {
 		groupIdToUntitledResourceInput.forEach((inputs, groupId) => {
 			// Update untitled resources to the saved ones, so we open the proper files
 			inputs.forEach(i => {
@@ -512,7 +519,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			resource = getResourceForCommand(resourceOrObject, accessor.get(IListService), editorService);
 		}
 
-		return save(resource, true, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
+		return save(resource, true, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService), accessor.get(IWorkbenchEnvironmentService));
 	}
 });
 
@@ -527,7 +534,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		if (resources.length === 1) {
 			// If only one resource is selected explictly call save since the behavior is a bit different than save all #41841
-			return save(resources[0], false, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
+			return save(resources[0], false, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService), accessor.get(IWorkbenchEnvironmentService));
 		}
 		return saveAll(resources, editorService, accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
 	}
@@ -544,7 +551,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		const resource = toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource) {
-			return save(resource, false, { skipSaveParticipants: true }, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService));
+			return save(resource, false, { skipSaveParticipants: true }, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService), accessor.get(IWorkbenchEnvironmentService));
 		}
 
 		return undefined;

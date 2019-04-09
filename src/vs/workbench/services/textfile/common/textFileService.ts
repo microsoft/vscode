@@ -31,6 +31,7 @@ import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream 
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { isEqualOrParent, isEqual, joinPath, dirname, extname, basename } from 'vs/base/common/resources';
+import { posix } from 'vs/base/common/path';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { getConfirmMessage, IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -611,8 +612,8 @@ export class TextFileService extends Disposable implements ITextFileService {
 		const authority = this.environmentService.configuration.remoteAuthority;
 		if (authority) {
 			let path = untitled.path;
-			if (path && path[0] !== '/') {
-				path = '/' + path;
+			if (path && path[0] !== posix.sep) {
+				path = posix.sep + path;
 			}
 			return untitled.with({ scheme: REMOTE_HOST_SCHEME, authority, path });
 		}
@@ -812,7 +813,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 			return joinPath(lastActiveFolder, untitledFileName);
 		}
 
-		return schemeFilter === Schemas.file ? URI.file(untitledFileName) : URI.from({ scheme: schemeFilter, authority: remoteAuthority, path: '/' + untitledFileName });
+		return schemeFilter === Schemas.file ? URI.file(untitledFileName) : URI.from({ scheme: schemeFilter, authority: remoteAuthority, path: posix.sep + untitledFileName });
 	}
 
 	revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
