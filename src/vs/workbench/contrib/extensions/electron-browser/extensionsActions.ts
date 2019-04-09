@@ -2516,7 +2516,7 @@ export class MaliciousStatusLabelAction extends ExtensionAction {
 	}
 }
 
-export class DisabledStatusLabelAction extends ExtensionAction {
+export class SystemDisabledStatusLabelAction extends ExtensionAction {
 
 	private static readonly Class = 'disable-status';
 
@@ -2530,13 +2530,13 @@ export class DisabledStatusLabelAction extends ExtensionAction {
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensions.install', localize('disabled', "Disabled"), `${DisabledStatusLabelAction.Class} hide`, false);
+		super('extensions.install', localize('disabled', "Disabled"), `${SystemDisabledStatusLabelAction.Class} hide`, false);
 		this.labelService.onDidChangeFormatters(() => this.update(), this, this.disposables);
 		this.update();
 	}
 
 	update(): void {
-		this.class = `${DisabledStatusLabelAction.Class} hide`;
+		this.class = `${SystemDisabledStatusLabelAction.Class} hide`;
 		this.tooltip = '';
 		if (this.extension && this.extension.local) {
 			if (
@@ -2547,7 +2547,7 @@ export class DisabledStatusLabelAction extends ExtensionAction {
 				// Extension does not exist in remote
 				&& !this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
 			) {
-				this.class = `${DisabledStatusLabelAction.Class}`;
+				this.class = `${SystemDisabledStatusLabelAction.Class}`;
 				const host = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.workbenchEnvironmentService.configuration.remoteAuthority) || localize('remote', "Remote");
 				this.label = localize('disabled workspace Extension', "Disabled because the window is connected to remote server and only UI extensions from local server are enabled.", host, host);
 				if (this.extensionsWorkbenchService.canInstall(this.extension)) {
