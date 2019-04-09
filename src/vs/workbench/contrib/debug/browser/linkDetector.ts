@@ -138,7 +138,7 @@ export class LinkDetector {
 
 	private onLinkClick(event: IMouseEvent, resource: uri, line: number, column: number = 0): void {
 		const selection = window.getSelection();
-		if (selection.type === 'Range') {
+		if (!selection || selection.type === 'Range') {
 			return; // do not navigate when user is selecting
 		}
 

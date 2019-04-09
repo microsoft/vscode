@@ -36,7 +36,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 		readable.pipe(new class extends Writable {
 
 			private _decodeStream: NodeJS.ReadWriteStream;
-			private _decodeStreamConstruction: Promise<any>;
+			private _decodeStreamConstruction: Promise<void>;
 			private _buffer: Buffer[] = [];
 			private _bytesBuffered = 0;
 

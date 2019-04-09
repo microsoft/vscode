@@ -19,7 +19,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { registerEditorAction, EditorAction, IEditorCommandMenuOptions } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -145,7 +145,7 @@ export class ShowAllCommandsAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): Promise<void> {
+	run(): Promise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
@@ -174,7 +174,7 @@ export class ClearCommandHistoryAction extends Action {
 		super(id, label);
 	}
 
-	run(context?: any): Promise<void> {
+	run(): Promise<void> {
 		const commandHistoryLength = resolveCommandHistory(this.configurationService);
 		if (commandHistoryLength > 0) {
 			commandHistory = new LRUCache<string, number>(commandHistoryLength);
@@ -196,7 +196,7 @@ class CommandPaletteEditorAction extends EditorAction {
 			menuOpts: {
 				group: 'z_commands',
 				order: 1
-			} as IEditorCommandMenuOptions
+			}
 		});
 	}
 
@@ -377,7 +377,8 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	private commandHistoryEnabled: boolean;
 	private commandsHistory: CommandsHistory;
-	private extensionsRegistered: boolean;
+
+	private waitedForExtensionsRegistered: boolean;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -391,7 +392,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		this.commandsHistory = this.instantiationService.createInstance(CommandsHistory);
 
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.extensionsRegistered = true);
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.waitedForExtensionsRegistered = true);
 
 		this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration());
 		this.updateConfiguration();
@@ -402,7 +403,7 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
-		if (this.extensionsRegistered) {
+		if (this.waitedForExtensionsRegistered) {
 			return this.doGetResults(searchValue, token);
 		}
 
@@ -410,7 +411,11 @@ export class CommandsHandler extends QuickOpenHandler {
 		// a chance to register so that the complete set of commands shows up as result
 		// We do not want to delay functionality beyond that time though to keep the commands
 		// functional.
-		return Promise.race([timeout(800), this.extensionService.whenInstalledExtensionsRegistered().then(() => undefined)]).then(() => this.doGetResults(searchValue, token));
+		return Promise.race([timeout(800), this.extensionService.whenInstalledExtensionsRegistered().then(() => undefined)]).then(() => {
+			this.waitedForExtensionsRegistered = true;
+
+			return this.doGetResults(searchValue, token);
+		});
 	}
 
 	private doGetResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {

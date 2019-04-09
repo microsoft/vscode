@@ -53,7 +53,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private handleSettingsEditorOverride(): void {
 
 		// dispose any old listener we had
-		this.editorOpeningListener = dispose(this.editorOpeningListener);
+		dispose(this.editorOpeningListener);
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)) {
@@ -144,7 +144,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	}
 
 	dispose(): void {
-		this.editorOpeningListener = dispose(this.editorOpeningListener);
-		this.settingsListener = dispose(this.settingsListener);
+		dispose(this.editorOpeningListener);
+		dispose(this.settingsListener);
 	}
 }

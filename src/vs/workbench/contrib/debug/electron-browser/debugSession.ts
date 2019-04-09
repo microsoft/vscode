@@ -783,6 +783,7 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => {
+			this.initialized = true;
 			this._onDidEndAdapter.fire(event);
 		}));
 	}

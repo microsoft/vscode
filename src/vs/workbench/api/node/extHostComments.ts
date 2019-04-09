@@ -16,6 +16,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
+import { debounce } from 'vs/base/common/decorators';
 
 interface HandlerData<T> {
 
@@ -148,12 +149,25 @@ export class ExtHostComments implements ExtHostCommentsShape {
 	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): Promise<void> {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
-		if (!commentController || !commentController.emptyCommentThreadFactory) {
+		if (!commentController) {
+			return Promise.resolve();
+		}
+
+		if (!(commentController as any).emptyCommentThreadFactory && !(commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread)) {
 			return Promise.resolve();
 		}
 
 		const document = this._documents.getDocument(URI.revive(uriComponents));
-		return asPromise(() => commentController.emptyCommentThreadFactory!.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range))).then(() => Promise.resolve());
+		return asPromise(() => {
+			// TODO, remove this once GH PR stable deprecates `emptyCommentThreadFactory`.
+			if ((commentController as any).emptyCommentThreadFactory) {
+				return (commentController as any).emptyCommentThreadFactory!.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
+			}
+
+			if (commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread) {
+				return commentController.commentingRangeProvider.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
+			}
+		}).then(() => Promise.resolve());
 	}
 
 	registerWorkspaceCommentProvider(
@@ -360,10 +374,13 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		return this._resource;
 	}
 
+	private _onDidUpdateCommentThread = new Emitter<void>();
+	readonly onDidUpdateCommentThread = this._onDidUpdateCommentThread.event;
+
 	set range(range: vscode.Range) {
 		if (range.isEqual(this._range)) {
 			this._range = range;
-			this._proxy.$updateCommentThreadRange(this._commentController.handle, this.handle, extHostTypeConverter.Range.from(this._range));
+			this._onDidUpdateCommentThread.fire();
 		}
 	}
 
@@ -379,7 +396,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set label(label: string) {
 		this._label = label;
-		this._proxy.$updateCommentThreadLabel(this._commentController.handle, this.handle, this._label);
+		this._onDidUpdateCommentThread.fire();
 	}
 
 	get comments(): vscode.Comment[] {
@@ -387,8 +404,8 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	}
 
 	set comments(newComments: vscode.Comment[]) {
-		this._proxy.$updateComments(this._commentController.handle, this.handle, newComments.map(cmt => { return convertToModeComment(this._commentController, cmt, this._commandsConverter); }));
 		this._comments = newComments;
+		this._onDidUpdateCommentThread.fire();
 	}
 
 	private _acceptInputCommand: vscode.Command;
@@ -398,9 +415,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set acceptInputCommand(acceptInputCommand: vscode.Command) {
 		this._acceptInputCommand = acceptInputCommand;
-
-		const internal = this._commandsConverter.toInternal(acceptInputCommand);
-		this._proxy.$updateCommentThreadAcceptInputCommand(this._commentController.handle, this.handle, internal);
+		this._onDidUpdateCommentThread.fire();
 	}
 
 	private _additionalCommands: vscode.Command[] = [];
@@ -410,9 +425,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set additionalCommands(additionalCommands: vscode.Command[]) {
 		this._additionalCommands = additionalCommands;
-
-		const internals = additionalCommands.map(x => this._commandsConverter.toInternal(x));
-		this._proxy.$updateCommentThreadAdditionalCommands(this._commentController.handle, this.handle, internals);
+		this._onDidUpdateCommentThread.fire();
 	}
 
 	private _deleteCommand?: vscode.Command;
@@ -422,9 +435,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set deleteCommand(deleteCommand: vscode.Command) {
 		this._deleteCommand = deleteCommand;
-
-		const internal = this._commandsConverter.toInternal(deleteCommand);
-		this._proxy.$updateCommentThreadDeleteCommand(this._commentController.handle, this.handle, internal);
+		this._onDidUpdateCommentThread.fire();
 	}
 
 	private _collapseState?: vscode.CommentThreadCollapsibleState;
@@ -435,8 +446,10 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	set collapsibleState(newState: vscode.CommentThreadCollapsibleState) {
 		this._collapseState = newState;
-		this._proxy.$updateCommentThreadCollapsibleState(this._commentController.handle, this.handle, convertToCollapsibleState(newState));
+		this._onDidUpdateCommentThread.fire();
 	}
+
+	private _localDisposables: types.Disposable[];
 
 	constructor(
 		private _proxy: MainThreadCommentsShape,
@@ -452,12 +465,41 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this.handle,
 			this._threadId,
 			this._resource,
-			extHostTypeConverter.Range.from(this._range),
-			this._comments.map(comment => { return convertToModeComment(this._commentController, comment, this._commandsConverter); }),
-			this._acceptInputCommand ? this._commandsConverter.toInternal(this._acceptInputCommand) : undefined,
-			this._additionalCommands ? this._additionalCommands.map(x => this._commandsConverter.toInternal(x)) : [],
-			this._deleteCommand ? this._commandsConverter.toInternal(this._deleteCommand) : undefined,
-			this._collapseState!
+			extHostTypeConverter.Range.from(this._range)
+		);
+
+		this._localDisposables = [];
+
+		this._localDisposables.push(this.onDidUpdateCommentThread(() => {
+			this.eventuallyUpdateCommentThread();
+		}));
+
+		// set up comments after ctor to batch update events.
+		this.comments = _comments;
+	}
+
+	@debounce(100)
+	eventuallyUpdateCommentThread(): void {
+		const commentThreadRange = extHostTypeConverter.Range.from(this._range);
+		const label = this.label;
+		const comments = this._comments.map(cmt => { return convertToModeComment(this._commentController, cmt, this._commandsConverter); });
+		const acceptInputCommand = this._acceptInputCommand ? this._commandsConverter.toInternal(this._acceptInputCommand) : undefined;
+		const additionalCommands = this._additionalCommands ? this._additionalCommands.map(x => this._commandsConverter.toInternal(x)) : [];
+		const deleteCommand = this._deleteCommand ? this._commandsConverter.toInternal(this._deleteCommand) : undefined;
+		const collapsibleState = convertToCollapsibleState(this._collapseState);
+
+		this._proxy.$updateCommentThread(
+			this._commentController.handle,
+			this.handle,
+			this._threadId,
+			this._resource,
+			commentThreadRange,
+			label,
+			comments,
+			acceptInputCommand,
+			additionalCommands,
+			deleteCommand,
+			collapsibleState
 		);
 	}
 
@@ -472,6 +514,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	}
 
 	dispose() {
+		this._localDisposables.forEach(disposable => disposable.dispose());
 		this._proxy.$deleteCommentThread(
 			this._commentController.handle,
 			this.handle
@@ -528,8 +571,6 @@ class ExtHostCommentController implements vscode.CommentController {
 
 	private _threads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
 	commentingRangeProvider?: vscode.CommentingRangeProvider;
-	emptyCommentThreadFactory?: vscode.EmptyCommentThreadFactory;
-
 
 	private _commentReactionProvider?: vscode.CommentReactionProvider;
 
@@ -607,7 +648,7 @@ function convertFromCommentThread(commentThread: modes.CommentThread): vscode.Co
 		threadId: commentThread.threadId!,
 		resource: URI.parse(commentThread.resource!),
 		range: extHostTypeConverter.Range.to(commentThread.range),
-		comments: commentThread.comments.map(convertFromComment),
+		comments: commentThread.comments ? commentThread.comments.map(convertFromComment) : [],
 		collapsibleState: commentThread.collapsibleState
 	};
 }

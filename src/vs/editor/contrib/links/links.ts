@@ -19,7 +19,7 @@ import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeSti
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LinkProviderRegistry } from 'vs/editor/common/modes';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
-import { Link, getLinks } from 'vs/editor/contrib/links/getLinks';
+import { Link, getLinks, LinksList } from 'vs/editor/contrib/links/getLinks';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -157,7 +157,8 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private enabled: boolean;
 	private listenersToRemove: IDisposable[];
 	private readonly timeout: async.TimeoutTimer;
-	private computePromise: async.CancelablePromise<Link[]> | null;
+	private computePromise: async.CancelablePromise<LinksList> | null;
+	private activeLinksList: LinksList | null;
 	private activeLinkDecorationId: string | null;
 	private readonly openerService: IOpenerService;
 	private readonly notificationService: INotificationService;
@@ -210,6 +211,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 		this.timeout = new async.TimeoutTimer();
 		this.computePromise = null;
+		this.activeLinksList = null;
 		this.currentOccurrences = {};
 		this.activeLinkDecorationId = null;
 		this.beginCompute();
@@ -246,10 +248,15 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			return;
 		}
 
+		if (this.activeLinksList) {
+			this.activeLinksList.dispose();
+			this.activeLinksList = null;
+		}
+
 		this.computePromise = async.createCancelablePromise(token => getLinks(model, token));
 		try {
-			const links = await this.computePromise;
-			this.updateDecorations(links);
+			this.activeLinksList = await this.computePromise;
+			this.updateDecorations(this.activeLinksList.links);
 		} catch (err) {
 			onUnexpectedError(err);
 		} finally {
@@ -380,6 +387,9 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 	private stop(): void {
 		this.timeout.cancel();
+		if (this.activeLinksList) {
+			this.activeLinksList.dispose();
+		}
 		if (this.computePromise) {
 			this.computePromise.cancel();
 			this.computePromise = null;

@@ -133,7 +133,6 @@ steps:
     $Version = $PackageJson.version
     $Quality = "$env:VSCODE_QUALITY"
     $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(AZURE_STORAGE_ACCESS_KEY_2)"
-    $env:MOONCAKE_STORAGE_ACCESS_KEY = "$(MOONCAKE_STORAGE_ACCESS_KEY)"
     $env:AZURE_DOCUMENTDB_MASTERKEY = "$(AZURE_DOCUMENTDB_MASTERKEY)"
 
     $assetPlatform = if ("$(VSCODE_ARCH)" -eq "ia32") { "win32" } else { "win32-x64" }

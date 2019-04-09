@@ -6,10 +6,11 @@
 import * as assert from 'assert';
 import * as dom from 'vs/base/browser/dom';
 import { generateUuid } from 'vs/base/common/uuid';
-import { appendStylizedStringToContainer, handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
+import { appendStylizedStringToContainer, handleANSIOutput, calcANSI8bitColor } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { Color, RGBA } from 'vs/base/common/color';
 
 suite('Debug - ANSI Handling', () => {
 
@@ -182,6 +183,119 @@ suite('Debug - ANSI Handling', () => {
 
 	});
 
+	test('Expected single 8-bit color sequence operation', () => {
+		// Basic color codes specified with 8-bit color code format
+		for (let i = 0; i <= 7; i++) {
+			// Foreground codes should add standard classes
+			const fgStyle: string = 'code-foreground-' + (i + 30);
+			assertSingleSequenceElement('\x1b[38;5;' + i + 'm', (child) => {
+				assert(dom.hasClass(child, fgStyle));
+			});
+
+			// Background codes should add standard classes
+			const bgStyle: string = 'code-background-' + (i + 40);
+			assertSingleSequenceElement('\x1b[48;5;' + i + 'm', (child) => {
+				assert(dom.hasClass(child, bgStyle));
+			});
+		}
+
+		// Bright color codes specified with 8-bit color code format
+		for (let i = 8; i <= 15; i++) {
+			// Foreground codes should add standard classes
+			const fgStyle: string = 'code-foreground-' + (i - 8 + 90);
+			assertSingleSequenceElement('\x1b[38;5;' + i + 'm', (child) => {
+				assert(dom.hasClass(child, fgStyle));
+			});
+
+			// Background codes should add standard classes
+			const bgStyle: string = 'code-background-' + (i - 8 + 100);
+			assertSingleSequenceElement('\x1b[48;5;' + i + 'm', (child) => {
+				assert(dom.hasClass(child, bgStyle));
+			});
+		}
+
+		// 8-bit advanced colors
+		for (let i = 16; i <= 255; i++) {
+			const color = Color.Format.CSS.formatRGB(
+				new Color((calcANSI8bitColor(i) as RGBA))
+			);
+
+			// Foreground codes should add custom class and inline style
+			assertSingleSequenceElement('\x1b[38;5;' + i + 'm', (child) => {
+				assert(dom.hasClass(child, 'code-foreground-custom'));
+				assert(child.style.color === color);
+			});
+
+			// Background codes should add custom class and inline style
+			assertSingleSequenceElement('\x1b[48;5;' + i + 'm', (child) => {
+				assert(dom.hasClass(child, 'code-background-custom'));
+				assert(child.style.backgroundColor === color);
+			});
+		}
+
+		// Bad (nonexistent) color should not render
+		assertSingleSequenceElement('\x1b[48;5;300m', (child) => {
+			assert.equal(0, child.classList.length);
+		});
+
+		// Should ignore any codes after the ones needed to determine color
+		assertSingleSequenceElement('\x1b[48;5;100;42;77;99;4;24m', (child) => {
+			const color = Color.Format.CSS.formatRGB(
+				new Color((calcANSI8bitColor(100) as RGBA))
+			);
+			assert(dom.hasClass(child, 'code-background-custom'));
+			assert.equal(1, child.classList.length);
+			assert(child.style.backgroundColor === color);
+		});
+	});
+
+	test('Expected single 24-bit color sequence operation', () => {
+		// 24-bit advanced colors
+		for (let r = 0; r <= 255; r += 64) {
+			for (let g = 0; g <= 255; g += 64) {
+				for (let b = 0; b <= 255; b += 64) {
+					let cssColor: string = `rgb(${r},${g},${b})`;
+					// Foreground codes should add custom class and inline style
+					assertSingleSequenceElement(`\x1b[38;2;${r};${g};${b}m`, (child) => {
+						assert(dom.hasClass(child, 'code-foreground-custom'), 'DOM should have "code-foreground-custom" class for advanced ANSI colors.');
+						const styleBefore = child.style.color;
+						child.style.color = cssColor;
+						assert(styleBefore === child.style.color, `Incorrect inline color style found for ${cssColor} (found color: ${styleBefore}).`);
+					});
+
+					// Background codes should add custom class and inline style
+					assertSingleSequenceElement(`\x1b[48;2;${r};${g};${b}m`, (child) => {
+						assert(dom.hasClass(child, 'code-background-custom'), 'DOM should have "code-foreground-custom" class for advanced ANSI colors.');
+						const styleBefore = child.style.backgroundColor;
+						child.style.backgroundColor = cssColor;
+						assert(styleBefore === child.style.backgroundColor, `Incorrect inline color style found for ${cssColor} (found color: ${styleBefore}).`);
+					});
+				}
+			}
+		}
+
+		// Invalid color should not render
+		assertSingleSequenceElement('\x1b[38;2;4;4m', (child) => {
+			assert.equal(0, child.classList.length, `Invalid color code "38;2;4;4" should not add a class (classes found: ${child.classList}).`);
+			assert(child.style.color === '', `Invalid color code "38;2;4;4" should not add a custom color CSS (found color: ${child.style.color}).`);
+		});
+
+		// Bad (nonexistent) color should not render
+		assertSingleSequenceElement('\x1b[48;2;150;300;5m', (child) => {
+			assert.equal(0, child.classList.length, `Nonexistent color code "48;2;150;300;5" should not add a class (classes found: ${child.classList}).`);
+		});
+
+		// Should ignore any codes after the ones needed to determine color
+		assertSingleSequenceElement('\x1b[48;2;100;42;77;99;200;75m', (child) => {
+			assert(dom.hasClass(child, 'code-background-custom'), `Color code with extra (valid) items "48;2;100;42;77;99;200;75" should still treat initial part as valid code and add class "code-background-custom".`);
+			assert.equal(1, child.classList.length, `Color code with extra items "48;2;100;42;77;99;200;75" should add one and only one class. (classes found: ${child.classList}).`);
+			let styleBefore = child.style.backgroundColor;
+			child.style.backgroundColor = 'rgb(100,42,77)';
+			assert(child.style.backgroundColor === styleBefore, `Color code "48;2;100;42;77;99;200;75" should  style background-color as rgb(100,42,77).`);
+		});
+	});
+
+
 	/**
 	 * Assert that a given ANSI sequence produces the expected number of {@link HTMLSpanElement} children. For
 	 * each child, run the provided assertion.
@@ -189,10 +303,13 @@ suite('Debug - ANSI Handling', () => {
 	 * @param sequence The ANSI sequence to verify.
 	 * @param assertions A set of assertions to run on the resulting children.
 	 */
-	function assertMultipleSequenceElements(sequence: string, assertions: Array<(child: HTMLSpanElement) => void>): void {
+	function assertMultipleSequenceElements(sequence: string, assertions: Array<(child: HTMLSpanElement) => void>, elementsExpected?: number): void {
+		if (elementsExpected === undefined) {
+			elementsExpected = assertions.length;
+		}
 		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector);
-		assert.equal(assertions.length, root.children.length);
-		for (let i = 0; i < assertions.length; i++) {
+		assert.equal(elementsExpected, root.children.length);
+		for (let i = 0; i < elementsExpected; i++) {
 			const child: Node = root.children[i];
 			if (child instanceof HTMLSpanElement) {
 				assertions[i](child);
@@ -239,7 +356,31 @@ suite('Debug - ANSI Handling', () => {
 			(nothing) => {
 				assert.equal(0, nothing.classList.length);
 			},
-		]);
+		], 5);
+
+		// Different types of color codes still cancel each other
+		assertMultipleSequenceElements('\x1b[34msimple\x1b[38;2;100;100;100m24bit\x1b[38;5;3m8bitsimple\x1b[38;5;101m8bitadvanced', [
+			(simple) => {
+				assert.equal(1, simple.classList.length);
+				assert(dom.hasClass(simple, 'code-foreground-34'));
+			},
+			(adv24Bit) => {
+				assert.equal(1, adv24Bit.classList.length);
+				assert(dom.hasClass(adv24Bit, 'code-foreground-custom'));
+				let styleBefore = adv24Bit.style.color;
+				adv24Bit.style.color = 'rgb(100,100,100)';
+				assert(adv24Bit.style.color === styleBefore);
+			},
+			(adv8BitSimple) => {
+				assert.equal(1, adv8BitSimple.classList.length);
+				assert(dom.hasClass(adv8BitSimple, 'code-foreground-33'));
+				assert(adv8BitSimple.style.color === '');
+			},
+			(adv8BitAdvanced) => {
+				assert.equal(1, adv8BitAdvanced.classList.length);
+				assert(dom.hasClass(adv8BitAdvanced, 'code-foreground-custom'));
+			}
+		], 4);
 
 	});
 
@@ -292,8 +433,6 @@ suite('Debug - ANSI Handling', () => {
 			'\x1b[;m',
 			'\x1b[1;;m',
 			'\x1b[m',
-			// Unsupported colour codes
-			'\x1b[30;50m',
 			'\x1b[99m'
 		];
 
@@ -308,6 +447,42 @@ suite('Debug - ANSI Handling', () => {
 			assertEmptyOutput('\x1b[content' + terminator);
 		});
 
+	});
+
+	test('calcANSI8bitColor', () => {
+		// Invalid values
+		// Negative (below range), simple range, decimals
+		for (let i = -10; i <= 15; i += 0.5) {
+			assert(calcANSI8bitColor(i) === undefined, 'Values less than 16 passed to calcANSI8bitColor should return undefined.');
+		}
+		// In-range range decimals
+		for (let i = 16.5; i < 254; i += 1) {
+			assert(calcANSI8bitColor(i) === undefined, 'Floats passed to calcANSI8bitColor should return undefined.');
+		}
+		// Above range
+		for (let i = 256; i < 300; i += 0.5) {
+			assert(calcANSI8bitColor(i) === undefined, 'Values grather than 255 passed to calcANSI8bitColor should return undefined.');
+		}
+
+		// All valid colors
+		for (let red = 0; red <= 5; red++) {
+			for (let green = 0; green <= 5; green++) {
+				for (let blue = 0; blue <= 5; blue++) {
+					let colorOut: any = calcANSI8bitColor(16 + red * 36 + green * 6 + blue);
+					assert(colorOut.r === Math.round(red * (255 / 5)), 'Incorrect red value encountered for color');
+					assert(colorOut.g === Math.round(green * (255 / 5)), 'Incorrect green value encountered for color');
+					assert(colorOut.b === Math.round(blue * (255 / 5)), 'Incorrect balue value encountered for color');
+				}
+			}
+		}
+
+		// All grays
+		for (let i = 232; i <= 255; i++) {
+			let grayOut: any = calcANSI8bitColor(i);
+			assert(grayOut.r === grayOut.g);
+			assert(grayOut.r === grayOut.b);
+			assert(grayOut.r === Math.round((i - 232) / 23 * 255));
+		}
 	});
 
 });

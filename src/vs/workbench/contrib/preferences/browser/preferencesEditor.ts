@@ -170,7 +170,7 @@ export class PreferencesEditor extends BaseEditor {
 		this.sideBySidePreferencesWidget.layout(new DOM.Dimension(dimension.width, dimension.height - headerHeight));
 	}
 
-	getControl(): IEditorControl | null {
+	getControl(): IEditorControl | undefined {
 		return this.sideBySidePreferencesWidget.getControl();
 	}
 
@@ -890,8 +890,8 @@ class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
-	getControl(): IEditorControl | null {
-		return this.editablePreferencesEditor ? this.editablePreferencesEditor.getControl() : null;
+	getControl(): IEditorControl | undefined {
+		return this.editablePreferencesEditor ? this.editablePreferencesEditor.getControl() : undefined;
 	}
 
 	clearInput(): void {

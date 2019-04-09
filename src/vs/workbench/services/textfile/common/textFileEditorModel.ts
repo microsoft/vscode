@@ -23,7 +23,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ITextBufferFactory } from 'vs/editor/common/model';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { hash } from 'vs/base/common/hash';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isLinux } from 'vs/base/common/platform';
@@ -88,7 +88,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IHashService private readonly hashService: IHashService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super(modelService, modeService);
@@ -161,7 +160,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						return true;
 					}
 
-					return this.fileService.existsFile(this.resource).then(exists => !exists);
+					return this.fileService.exists(this.resource).then(exists => !exists);
 				});
 			} else {
 				checkOrphanedPromise = Promise.resolve(false);
@@ -215,7 +214,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Unset flags
 		const undo = this.setDirty(false);
 
-		let loadPromise: Promise<any>;
+		let loadPromise: Promise<unknown>;
 		if (soft) {
 			loadPromise = Promise.resolve();
 		} else {
@@ -734,7 +733,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this._onDidStateChange.fire(StateChange.SAVED);
 
 				// Telemetry
-				let telemetryPromise: Thenable<void>;
 				const settingsType = this.getTypeIfSettings();
 				if (settingsType) {
 					/* __GDPR__
@@ -743,22 +741,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						}
 					*/
 					this.telemetryService.publicLog('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
-
-					telemetryPromise = Promise.resolve();
 				} else {
-					telemetryPromise = this.getTelemetryData(options.reason).then(data => {
-						/* __GDPR__
+					/* __GDPR__
 							"filePUT" : {
 								"${include}": [
 									"${FileTelemetryData}"
 								]
 							}
 						*/
-						this.telemetryService.publicLog('filePUT', data);
-					});
+					this.telemetryService.publicLog('filePUT', this.getTelemetryData(options.reason));
 				}
-
-				return telemetryPromise;
 			}, error => {
 				if (!error) {
 					error = new Error('Unknown Save Error'); // TODO@remote we should never get null as error (https://github.com/Microsoft/vscode/issues/55051)
@@ -822,32 +814,30 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return '';
 	}
 
-	private getTelemetryData(reason: number | undefined): Thenable<object> {
-		return this.hashService.createSHA1(this.resource.fsPath).then(hashedPath => {
-			const ext = extname(this.resource);
-			const fileName = basename(this.resource);
-			const telemetryData = {
-				mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
-				ext,
-				path: hashedPath,
-				reason
-			};
+	private getTelemetryData(reason: number | undefined): object {
+		const ext = extname(this.resource);
+		const fileName = basename(this.resource);
+		const telemetryData = {
+			mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
+			ext,
+			path: hash(this.resource.fsPath),
+			reason
+		};
 
-			if (ext === '.json' && TextFileEditorModel.WHITELIST_JSON.indexOf(fileName) > -1) {
-				telemetryData['whitelistedjson'] = fileName;
+		if (ext === '.json' && TextFileEditorModel.WHITELIST_JSON.indexOf(fileName) > -1) {
+			telemetryData['whitelistedjson'] = fileName;
+		}
+
+		/* __GDPR__FRAGMENT__
+			"FileTelemetryData" : {
+				"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"whitelistedjson": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
-
-			/* __GDPR__FRAGMENT__
-				"FileTelemetryData" : {
-					"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"whitelistedjson": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			return telemetryData;
-		});
+		*/
+		return telemetryData;
 	}
 
 	private doTouch(versionId: number): Promise<void> {
@@ -916,7 +906,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private onSaveError(error: any): void {
+	private onSaveError(error: Error): void {
 
 		// Prepare handler
 		if (!TextFileEditorModel.saveErrorHandler) {
@@ -1149,7 +1139,7 @@ class DefaultSaveErrorHandler implements ISaveErrorHandler {
 
 	constructor(@INotificationService private readonly notificationService: INotificationService) { }
 
-	onSaveError(error: any, model: TextFileEditorModel): void {
+	onSaveError(error: Error, model: TextFileEditorModel): void {
 		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(model.getResource()), toErrorMessage(error, false)));
 	}
 }

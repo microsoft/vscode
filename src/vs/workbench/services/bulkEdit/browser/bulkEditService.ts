@@ -318,25 +318,25 @@ export class BulkEdit {
 
 			if (edit.newUri && edit.oldUri) {
 				// rename
-				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.existsFile(edit.newUri)) {
+				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.exists(edit.newUri)) {
 					continue; // not overwriting, but ignoring, and the target file exists
 				}
 				await this._textFileService.move(edit.oldUri, edit.newUri, options.overwrite);
 
 			} else if (!edit.newUri && edit.oldUri) {
 				// delete file
-				if (!options.ignoreIfNotExists || await this._fileService.existsFile(edit.oldUri)) {
+				if (await this._fileService.exists(edit.oldUri)) {
 					let useTrash = this._configurationService.getValue<boolean>('files.enableTrash');
-					if (useTrash && !(await this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash))) {
+					if (useTrash && !(this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash))) {
 						useTrash = false; // not supported by provider
 					}
-
 					await this._textFileService.delete(edit.oldUri, { useTrash, recursive: options.recursive });
+				} else if (!options.ignoreIfNotExists) {
+					throw new Error(`${edit.oldUri} does not exist and can not be deleted`);
 				}
-
 			} else if (edit.newUri && !edit.oldUri) {
 				// create file
-				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.existsFile(edit.newUri)) {
+				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.exists(edit.newUri)) {
 					continue; // not overwriting, but ignoring, and the target file exists
 				}
 				await this._textFileService.create(edit.newUri, undefined, { overwrite: options.overwrite });

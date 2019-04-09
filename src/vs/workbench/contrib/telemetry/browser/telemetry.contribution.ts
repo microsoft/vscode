@@ -12,7 +12,7 @@ import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/a
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { language } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
@@ -30,13 +30,13 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		@IEditorService editorService: IEditorService,
 		@IKeybindingService keybindingsService: IKeybindingService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IWindowService windowService: IWindowService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewletService viewletService: IViewletService
 	) {
 		super();
 
-		const { filesToOpen, filesToCreate, filesToDiff } = windowService.getConfiguration();
+		const { filesToOpen, filesToCreate, filesToDiff } = environmentService.configuration;
 		const activeViewlet = viewletService.getActiveViewlet();
 
 		/* __GDPR__

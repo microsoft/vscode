@@ -330,6 +330,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this._register(this.searchWidget.onDidChange(searchValue => {
 			clearInputAction.enabled = !!searchValue;
 			this.delayedFiltering.trigger(() => this.filterKeybindings());
+			this.updateSearchOptions();
 		}));
 		this._register(this.searchWidget.onEscape(() => this.recordKeysAction.checked = false));
 
@@ -344,6 +345,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			if (e.checked !== undefined) {
 				this.renderKeybindingsEntries(false);
 			}
+			this.updateSearchOptions();
 		}));
 
 		const recordKeysActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS);
@@ -364,6 +366,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.searchWidget.stopRecordingKeys();
 					this.searchWidget.focus();
 				}
+				this.updateSearchOptions();
 			}
 		}));
 
@@ -381,6 +384,17 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}));
 
 		this.actionBar.push([this.recordKeysAction, this.sortByPrecedenceAction, clearInputAction], { label: false, icon: true });
+	}
+
+	private updateSearchOptions(): void {
+		const keybindingsEditorInput = this.input as KeybindingsEditorInput;
+		if (keybindingsEditorInput) {
+			keybindingsEditorInput.searchOptions = {
+				searchValue: this.searchWidget.getValue(),
+				recordKeybindings: !!this.recordKeysAction.checked,
+				sortByPrecedence: !!this.sortByPrecedenceAction.checked
+			};
+		}
 	}
 
 	private createRecordingBadge(container: HTMLElement): HTMLElement {
@@ -482,6 +496,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			}, {});
 			await this.keybindingsEditorModel.resolve(editorActionsLabels);
 			this.renderKeybindingsEntries(false, preserveFocus);
+			if (input.searchOptions) {
+				this.recordKeysAction.checked = input.searchOptions.recordKeybindings;
+				this.sortByPrecedenceAction.checked = input.searchOptions.sortByPrecedence;
+				this.searchWidget.setValue(input.searchOptions.searchValue);
+			} else {
+				this.updateSearchOptions();
+			}
 		}
 	}
 
@@ -876,7 +897,7 @@ class ActionsColumn extends Column {
 	}
 
 	dispose(): void {
-		this.actionBar = dispose(this.actionBar);
+		dispose(this.actionBar);
 	}
 }
 

@@ -257,12 +257,16 @@ class DropOverlay extends Themable {
 		// Check for URI transfer
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
-			dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => targetGroup!.focus());
+			dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => {
+				if (targetGroup) {
+					targetGroup.focus();
+				}
+			});
 		}
 	}
 
 	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
-		if (draggedEditor && !(draggedEditor.editor as EditorInput).supportsSplitEditor()) {
+		if (draggedEditor && draggedEditor.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
 			return false;
 		}
 

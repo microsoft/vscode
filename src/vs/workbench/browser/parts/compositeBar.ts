@@ -73,6 +73,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this.visibleComposites = [];
 		this.compositeSizeInBar = new Map<string, number>();
 		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier>();
+		this.computeSizes(this.model.visibleItems);
 	}
 
 	getCompositeBarItems(): ICompositeBarItem[] {

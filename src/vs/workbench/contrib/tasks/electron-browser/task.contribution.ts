@@ -385,7 +385,7 @@ interface WorkspaceFolderConfigurationResult {
 	hasErrors: boolean;
 }
 
-interface TaskCustomizationTelementryEvent {
+interface TaskCustomizationTelemetryEvent {
 	properties: string[];
 }
 
@@ -486,6 +486,7 @@ class TaskService extends Disposable implements ITaskService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -1105,7 +1106,7 @@ class TaskService extends Disposable implements ITaskService {
 			return Promise.resolve(undefined);
 		}
 		return promise.then(() => {
-			let event: TaskCustomizationTelementryEvent = {
+			let event: TaskCustomizationTelemetryEvent = {
 				properties: properties ? Object.getOwnPropertyNames(properties) : []
 			};
 			/* __GDPR__
@@ -1355,7 +1356,7 @@ class TaskService extends Disposable implements ITaskService {
 			this._taskSystem = new TerminalTaskSystem(
 				this.terminalService, this.outputService, this.panelService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
-				this.contextService, this._windowService,
+				this.contextService, this._environmentService,
 				TaskService.OutputChannelId,
 				(workspaceFolder: IWorkspaceFolder) => {
 					if (!workspaceFolder) {
@@ -1878,7 +1879,14 @@ class TaskService extends Disposable implements ITaskService {
 
 	private canRunCommand(): boolean {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.notificationService.info(nls.localize('TaskService.noWorkspace', 'Tasks are only available on a workspace folder.'));
+			this.notificationService.prompt(
+				Severity.Info,
+				nls.localize('TaskService.noWorkspace', "Tasks are only available on a workspace folder."),
+				[{
+					label: nls.localize('TaskService.learnMore', "Learn More"),
+					run: () => window.open('https://code.visualstudio.com/docs/editor/tasks')
+				}]
+			);
 			return false;
 		}
 		return true;
@@ -2043,7 +2051,7 @@ class TaskService extends Disposable implements ITaskService {
 			this.showQuickPick(tasks ? tasks : this.tasks(),
 				nls.localize('TaskService.pickRunTask', 'Select the task to run'),
 				{
-					label: nls.localize('TaslService.noEntryToRun', 'No task to run found. Configure Tasks...'),
+					label: nls.localize('TaskService.noEntryToRun', 'No task to run found. Configure Tasks...'),
 					task: null
 				},
 				true).
@@ -2198,7 +2206,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 		let runQuickPick = (promise?: Promise<Task[]>) => {
 			this.showQuickPick(promise || this.getActiveTasks(),
-				nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
+				nls.localize('TaskService.taskToTerminate', 'Select task to terminate'),
 				{
 					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
 					task: null
@@ -2254,7 +2262,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 		let runQuickPick = (promise?: Promise<Task[]>) => {
 			this.showQuickPick(promise || this.getActiveTasks(),
-				nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
+				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
 				{
 					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
 					task: null
@@ -2319,7 +2327,7 @@ class TaskService extends Disposable implements ITaskService {
 		let openTaskFile = (workspaceFolder: IWorkspaceFolder): void => {
 			let resource = workspaceFolder.toResource('.vscode/tasks.json');
 			let configFileCreated = false;
-			this.fileService.resolveFile(resource).then((stat) => stat, () => undefined).then((stat) => {
+			this.fileService.resolve(resource).then((stat) => stat, () => undefined).then((stat) => {
 				if (stat) {
 					return stat.resource;
 				}
@@ -2376,7 +2384,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 
 		let stats = this.contextService.getWorkspace().folders.map<Promise<IFileStat | undefined>>((folder) => {
-			return this.fileService.resolveFile(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
+			return this.fileService.resolve(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
 		});
 
 		let createLabel = nls.localize('TaskService.createJsonFile', 'Create tasks.json file from template');
@@ -2702,6 +2710,7 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from '../common/jsonSchema_v1';
 import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,

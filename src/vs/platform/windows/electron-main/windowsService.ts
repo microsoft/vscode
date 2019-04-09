@@ -290,7 +290,6 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			cli: options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
 			forceNewWindow: options.forceNewWindow,
 			forceReuseWindow: options.forceReuseWindow,
-			forceOpenWorkspaceAsFile: options.forceOpenWorkspaceAsFile,
 			diffMode: options.diffMode,
 			addMode: options.addMode,
 			noRecentEntry: options.noRecentEntry,
@@ -380,6 +379,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			version = `${version} (${product.target} setup)`;
 		}
 
+		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
 		const detail = nls.localize('aboutDetail',
 			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
 			version,
@@ -389,7 +389,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			process.versions['chrome'],
 			process.versions['node'],
 			process.versions['v8'],
-			`${os.type()} ${os.arch()} ${os.release()}`
+			`${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
 		);
 
 		const ok = nls.localize('okButton', "OK");
@@ -420,7 +420,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 		// Catch file URLs
 		if (uri.authority === Schemas.file && !!uri.path) {
-			this.openFileForURI({ uri: URI.file(uri.fsPath) }); // using fsPath on a non-file URI...
+			this.openFileForURI({ fileUri: URI.file(uri.fsPath) }); // using fsPath on a non-file URI...
 			return true;
 		}
 

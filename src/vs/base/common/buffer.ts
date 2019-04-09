@@ -6,6 +6,9 @@
 declare var Buffer: any;
 const hasBuffer = (typeof Buffer !== 'undefined');
 
+let textEncoder: TextEncoder | null;
+let textDecoder: TextDecoder | null;
+
 export class VSBuffer {
 
 	public static alloc(byteLength: number): VSBuffer {
@@ -21,7 +24,14 @@ export class VSBuffer {
 	}
 
 	public static fromString(source: string): VSBuffer {
-		return new VSBuffer(Buffer.from(source));
+		if (hasBuffer) {
+			return new VSBuffer(Buffer.from(source));
+		} else {
+			if (!textEncoder) {
+				textEncoder = new TextEncoder();
+			}
+			return new VSBuffer(textEncoder.encode(source));
+		}
 	}
 
 	public static concat(buffers: VSBuffer[], totalLength?: number): VSBuffer {
@@ -52,7 +62,14 @@ export class VSBuffer {
 	}
 
 	public toString(): string {
-		return this.buffer.toString();
+		if (hasBuffer) {
+			return this.buffer.toString();
+		} else {
+			if (!textDecoder) {
+				textDecoder = new TextDecoder();
+			}
+			return textDecoder.decode(this.buffer);
+		}
 	}
 
 	public slice(start?: number, end?: number): VSBuffer {

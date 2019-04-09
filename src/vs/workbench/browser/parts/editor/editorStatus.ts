@@ -6,15 +6,15 @@
 import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
 import { $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import * as strings from 'vs/base/common/strings';
+import { format } from 'vs/base/common/strings';
 import { extname, basename } from 'vs/base/common/resources';
-import * as types from 'vs/base/common/types';
-import { URI as uri } from 'vs/base/common/uri';
+import { areFunctions, withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
@@ -84,7 +84,7 @@ function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport | nu
 
 	// File or Resource Editor
 	let encodingSupport = input as IFileEditorInput;
-	if (types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding)) {
+	if (areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding)) {
 		return encodingSupport;
 	}
 
@@ -454,18 +454,18 @@ export class EditorStatus implements IStatusbarItem {
 
 		if (info.selections.length === 1) {
 			if (info.charactersSelected) {
-				return strings.format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
+				return format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
 			}
 
-			return strings.format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
+			return format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
 		}
 
 		if (info.charactersSelected) {
-			return strings.format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
+			return format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
 		}
 
 		if (info.selections.length > 0) {
-			return strings.format(nlsMultiSelection, info.selections.length);
+			return format(nlsMultiSelection, info.selections.length);
 		}
 
 		return undefined;
@@ -533,7 +533,7 @@ export class EditorStatus implements IStatusbarItem {
 
 	private updateStatusBar(): void {
 		const activeControl = this.editorService.activeControl;
-		const activeCodeEditor = activeControl ? types.withNullAsUndefined(getCodeEditor(activeControl.getControl())) : undefined;
+		const activeCodeEditor = activeControl ? withNullAsUndefined(getCodeEditor(activeControl.getControl())) : undefined;
 
 		// Update all states
 		this.onScreenReaderModeChange(activeCodeEditor);
@@ -766,10 +766,10 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onResourceEncodingChange(resource: uri): void {
+	private onResourceEncodingChange(resource: URI): void {
 		const activeControl = this.editorService.activeControl;
 		if (activeControl) {
-			const activeResource = toResource(activeControl.input, { supportSideBySide: true });
+			const activeResource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
 			if (activeResource && activeResource.toString() === resource.toString()) {
 				return this.onEncodingChange(<IBaseEditor>activeControl); // only update if the encoding changed for the active resource
 			}
@@ -847,7 +847,7 @@ export class ChangeModeAction extends Action {
 		}
 
 		const textModel = activeTextEditorWidget.getModel();
-		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: true }) : null;
+		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 
 		let hasLanguageSupport = !!resource;
 		if (resource && resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource)) {
@@ -873,14 +873,14 @@ export class ChangeModeAction extends Action {
 			}
 
 			// construct a fake resource to be able to show nice icons if any
-			let fakeResource: uri | undefined;
+			let fakeResource: URI | undefined;
 			const extensions = this.modeService.getExtensions(lang);
 			if (extensions && extensions.length) {
-				fakeResource = uri.file(extensions[0]);
+				fakeResource = URI.file(extensions[0]);
 			} else {
 				const filenames = this.modeService.getFilenames(lang);
 				if (filenames && filenames.length) {
-					fakeResource = uri.file(filenames[0]);
+					fakeResource = URI.file(filenames[0]);
 				}
 			}
 
@@ -971,7 +971,7 @@ export class ChangeModeAction extends Action {
 			let languageSelection: ILanguageSelection | undefined;
 			if (pick === autoDetectMode) {
 				if (textModel) {
-					const resource = toResource(activeEditor, { supportSideBySide: true });
+					const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 					if (resource) {
 						languageSelection = this.modeService.createByFilepathOrFirstLine(resource.fsPath, textModel.getLineContent(1));
 					}
@@ -989,7 +989,7 @@ export class ChangeModeAction extends Action {
 		});
 	}
 
-	private configureFileAssociation(resource: uri): void {
+	private configureFileAssociation(resource: URI): void {
 		const extension = extname(resource);
 		const base = basename(resource);
 		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(base);
@@ -1187,7 +1187,7 @@ export class ChangeEncodingAction extends Action {
 				return undefined;
 			}
 
-			const resource = toResource(activeControl!.input, { supportSideBySide: true });
+			const resource = toResource(activeControl!.input, { supportSideBySide: SideBySideEditor.MASTER });
 
 			return timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
@@ -1200,7 +1200,7 @@ export class ChangeEncodingAction extends Action {
 				.then((guessedEncoding: string) => {
 					const isReopenWithEncoding = (action === reopenWithEncodingPick);
 
-					const configuredEncoding = this.textResourceConfigurationService.getValue(types.withNullAsUndefined(resource), 'files.encoding');
+					const configuredEncoding = this.textResourceConfigurationService.getValue(withNullAsUndefined(resource), 'files.encoding');
 
 					let directMatchIndex: number | undefined;
 					let aliasMatchIndex: number | undefined;

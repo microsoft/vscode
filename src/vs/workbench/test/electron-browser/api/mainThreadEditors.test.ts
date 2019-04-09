@@ -113,7 +113,8 @@ suite('MainThreadEditors', () => {
 				getActivePanel() {
 					return null;
 				}
-			}
+			},
+			TestEnvironmentService
 		);
 
 		editors = new MainThreadTextEditors(

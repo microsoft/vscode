@@ -32,6 +32,7 @@ import '../browser/mainThreadExtensionService';
 import '../browser/mainThreadFileSystem';
 import '../browser/mainThreadFileSystemEventService';
 import '../browser/mainThreadHeapService';
+import '../browser/mainThreadKeytar';
 import '../browser/mainThreadLanguageFeatures';
 import '../browser/mainThreadLanguages';
 import '../browser/mainThreadLogService';

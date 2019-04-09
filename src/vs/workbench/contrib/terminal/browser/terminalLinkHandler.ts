@@ -305,7 +305,7 @@ export class TerminalLinkHandler {
 				uri = URI.file(linkUrl);
 			}
 
-			return this._fileService.resolveFile(uri).then(stat => {
+			return this._fileService.resolve(uri).then(stat => {
 				if (stat.isDirectory) {
 					return null;
 				}

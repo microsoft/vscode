@@ -211,7 +211,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 		if (this.editor.getSelections().length > 1) {
 			return;
 		}
-		this._instantiationService.invokeFunction(formatDocumentRangeWithSelectedProvider, this.editor, range, FormattingMode.Explicit, CancellationToken.None).catch(onUnexpectedError);
+		this._instantiationService.invokeFunction(formatDocumentRangeWithSelectedProvider, this.editor, range, FormattingMode.Silent, CancellationToken.None).catch(onUnexpectedError);
 	}
 }
 

@@ -175,34 +175,6 @@ export function equals(one: any, other: any): boolean {
 	return true;
 }
 
-function arrayToHash(array: string[]): { [name: string]: true } {
-	const result: any = {};
-	for (const e of array) {
-		result[e] = true;
-	}
-	return result;
-}
-
-/**
- * Given an array of strings, returns a function which, given a string
- * returns true or false whether the string is in that array.
- */
-export function createKeywordMatcher(arr: string[], caseInsensitive: boolean = false): (str: string) => boolean {
-	if (caseInsensitive) {
-		arr = arr.map(function (x) { return x.toLowerCase(); });
-	}
-	const hash = arrayToHash(arr);
-	if (caseInsensitive) {
-		return function (word) {
-			return hash[word.toLowerCase()] !== undefined && hash.hasOwnProperty(word.toLowerCase());
-		};
-	} else {
-		return function (word) {
-			return hash[word] !== undefined && hash.hasOwnProperty(word);
-		};
-	}
-}
-
 /**
  * Calls JSON.Stringify with a replacer to break apart any circular references.
  * This prevents JSON.stringify from throwing the exception

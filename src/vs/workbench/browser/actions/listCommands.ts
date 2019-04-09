@@ -80,7 +80,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, arg2) => focusDown(accessor, arg2)
 });
 
-function expandMultiSelection(focused: List<any> | PagedList<any> | ITree | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any>, previousFocus: any): void {
+function expandMultiSelection(focused: List<unknown> | PagedList<unknown> | ITree | ObjectTree<unknown, unknown> | DataTree<unknown, unknown, unknown> | AsyncDataTree<unknown, unknown, unknown>, previousFocus: unknown): void {
 
 	// List
 	if (focused instanceof List || focused instanceof PagedList) {
@@ -625,7 +625,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const selection = tree.getSelection();
 
 			// Which element should be considered to start selecting all?
-			let start: any | undefined = undefined;
+			let start: unknown | undefined = undefined;
 
 			if (focus.length > 0 && (selection.length === 0 || selection.indexOf(focus[0]) === -1)) {
 				start = focus[0];
@@ -636,7 +636,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			}
 
 			// What is the scope of select all?
-			let scope: any | undefined = undefined;
+			let scope: unknown | undefined = undefined;
 
 			if (!start) {
 				scope = undefined;
@@ -651,8 +651,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				}
 			}
 
-			const newSelection: any[] = [];
-			const visit = (node: ITreeNode<any, any>) => {
+			const newSelection: unknown[] = [];
+			const visit = (node: ITreeNode<unknown, unknown>) => {
 				for (const child of node.children) {
 					if (child.visible) {
 						newSelection.push(child.element);

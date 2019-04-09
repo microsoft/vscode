@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService, IFileStat, IResolveFileResult, IContent } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
@@ -196,7 +196,7 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
 	const path = workspaceUri.path;
 	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-	return fileService.existsFile(uri).then(exists => {
+	return fileService.exists(uri).then(exists => {
 		if (!exists) {
 			return [];
 		}
@@ -217,7 +217,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWindowService private readonly windowService: IWindowService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -229,7 +229,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	private report(): void {
 
 		// Workspace Stats
-		this.resolveWorkspaceTags(this.windowService.getConfiguration(), rootFiles => this.handleWorkspaceFiles(rootFiles))
+		this.resolveWorkspaceTags(this.environmentService.configuration, rootFiles => this.handleWorkspaceFiles(rootFiles))
 			.then(tags => this.reportWorkspaceTags(tags), error => onUnexpectedError(error));
 
 		// Cloud Stats
@@ -364,7 +364,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			return Promise.resolve(tags);
 		}
 
-		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
+		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
@@ -437,7 +437,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			function getFilePromises(filename: string, fileService: IFileService, contentHandler: (content: IContent) => void): Promise<void>[] {
 				return !nameSet.has(filename) ? [] : (folders as URI[]).map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
-					return fileService.existsFile(uri).then(exists => {
+					return fileService.exists(uri).then(exists => {
 						if (!exists) {
 							return undefined;
 						}
@@ -558,7 +558,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
-				run: () => this.windowService.openWindow([{ uri: joinPath(folder, workspaceFile), typeHint: 'file' }])
+				run: () => this.windowService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
 			}, doNotShowAgain]);
 		}
 
@@ -571,7 +571,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
 						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
 							if (pick) {
-								this.windowService.openWindow([{ uri: joinPath(folder, pick.label), typeHint: 'file' }]);
+								this.windowService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
 							}
 						});
 				}
@@ -620,7 +620,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-			return this.fileService.existsFile(uri).then(exists => {
+			return this.fileService.exists(uri).then(exists => {
 				if (!exists) {
 					return [];
 				}
@@ -666,7 +666,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			const path = workspaceUri.path;
 			return workspaceUri.with({ path: `${path !== '/' ? path : ''}/node_modules` });
 		});
-		return this.fileService.resolveFiles(uris.map(resource => ({ resource }))).then(
+		return this.fileService.resolveAll(uris.map(resource => ({ resource }))).then(
 			results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 				const referencesAzure = WorkspaceStats.searchArray(names, /azure/i);
@@ -689,7 +689,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return Promise.all(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
-			return this.fileService.existsFile(uri).then(exists => {
+			return this.fileService.exists(uri).then(exists => {
 				if (!exists) {
 					return false;
 				}

@@ -38,6 +38,7 @@ declare namespace monaco {
 	}
 
 	export class CancellationTokenSource {
+		constructor(parent?: CancellationToken);
 		readonly token: CancellationToken;
 		cancel(): void;
 		dispose(): void;
@@ -5252,11 +5253,16 @@ declare namespace monaco.languages {
 		url?: Uri | string;
 	}
 
+	export interface ILinksList {
+		links: ILink[];
+		dispose?(): void;
+	}
+
 	/**
 	 * A provider of links.
 	 */
 	export interface LinkProvider {
-		provideLinks(model: editor.ITextModel, token: CancellationToken): ProviderResult<ILink[]>;
+		provideLinks(model: editor.ITextModel, token: CancellationToken): ProviderResult<ILinksList>;
 		resolveLink?: (link: ILink, token: CancellationToken) => ProviderResult<ILink>;
 	}
 

@@ -34,6 +34,9 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IAction, Action } from 'vs/base/common/actions';
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
+import { IQuickInputService, QuickPickInput, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 export const ID = 'editor.contrib.review';
 
@@ -61,7 +64,7 @@ class CommentingRangeDecoration {
 		return this._decorationId;
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _range: IRange, private _reply: modes.Command | undefined, commentingOptions: ModelDecorationOptions, private commentingRangesInfo?: modes.CommentingRanges) {
+	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, private _reply: modes.Command | undefined, commentingOptions: ModelDecorationOptions, private commentingRangesInfo?: modes.CommentingRanges) {
 		const startLineNumber = _range.startLineNumber;
 		const endLineNumber = _range.endLineNumber;
 		let commentingRangeDecorations = [{
@@ -78,9 +81,10 @@ class CommentingRangeDecoration {
 		}
 	}
 
-	public getCommentAction(): { replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined } {
+	public getCommentAction(): { replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined } {
 		return {
 			extensionId: this._extensionId,
+			label: this._label,
 			replyCommand: this._reply,
 			ownerId: this._ownerId,
 			commentingRangesInfo: this.commentingRangesInfo
@@ -120,11 +124,11 @@ class CommentingRangeDecorator {
 		for (const info of commentInfos) {
 			if (Array.isArray(info.commentingRanges)) {
 				info.commentingRanges.forEach(range => {
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, range, info.reply, this.decorationOptions));
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, info.reply, this.decorationOptions));
 				});
 			} else {
 				(info.commentingRanges ? info.commentingRanges.ranges : []).forEach(range => {
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, range, (info.commentingRanges as modes.CommentingRanges).newCommentThreadCommand, this.decorationOptions, info.commentingRanges as modes.CommentingRanges));
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, (info.commentingRanges as modes.CommentingRanges).newCommentThreadCommand, this.decorationOptions, info.commentingRanges as modes.CommentingRanges));
 				});
 			}
 		}
@@ -136,14 +140,15 @@ class CommentingRangeDecorator {
 	}
 
 	public getMatchedCommentAction(line: number) {
+		let result = [];
 		for (const decoration of this.commentingRangeDecorations) {
 			const range = decoration.getActiveRange();
 			if (range && range.startLineNumber <= line && line <= range.endLineNumber) {
-				return decoration.getCommentAction();
+				result.push(decoration.getCommentAction());
 			}
 		}
 
-		return null;
+		return result;
 	}
 
 	public dispose(): void {
@@ -164,7 +169,7 @@ export class ReviewController implements IEditorContribution {
 	private _commentingRangeSpaceReserved = false;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
 	private _addInProgress: boolean;
-	private _emptyThreadsToAddQueue: number[] = [];
+	private _emptyThreadsToAddQueue: [number, IEditorMouseEvent | undefined][] = [];
 	private _computeCommentingRangePromise: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingCommentCache: { [key: number]: { [key: string]: string } };
@@ -178,6 +183,7 @@ export class ReviewController implements IEditorContribution {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		this.editor = editor;
 		this.globalToDispose = [];
@@ -265,9 +271,15 @@ export class ReviewController implements IEditorContribution {
 		if (commentThreadWidget.length === 1) {
 			commentThreadWidget[0].reveal(commentId);
 		} else if (fetchOnceIfNotExist) {
-			this.beginCompute().then(_ => {
-				this.revealCommentThread(threadId, commentId, false);
-			});
+			if (this._computePromise) {
+				this._computePromise.then(_ => {
+					this.revealCommentThread(threadId, commentId, false);
+				});
+			} else {
+				this.beginCompute().then(_ => {
+					this.revealCommentThread(threadId, commentId, false);
+				});
+			}
 		}
 	}
 
@@ -541,11 +553,11 @@ export class ReviewController implements IEditorContribution {
 
 		if (e.target.element.className.indexOf('comment-diff-added') >= 0) {
 			const lineNumber = e.target.position!.lineNumber;
-			this.addOrToggleCommentAtLine(lineNumber);
+			this.addOrToggleCommentAtLine(lineNumber, e);
 		}
 	}
 
-	public async addOrToggleCommentAtLine(lineNumber: number): Promise<void> {
+	public async addOrToggleCommentAtLine(lineNumber: number, e: IEditorMouseEvent | undefined): Promise<void> {
 		// If an add is already in progress, queue the next add and process it after the current one finishes to
 		// prevent empty comment threads from being added to the same line.
 		if (!this._addInProgress) {
@@ -557,29 +569,98 @@ export class ReviewController implements IEditorContribution {
 				this.processNextThreadToAdd();
 				return;
 			} else {
-				this.addCommentAtLine(lineNumber);
+				this.addCommentAtLine(lineNumber, e);
 			}
 		} else {
-			this._emptyThreadsToAddQueue.push(lineNumber);
+			this._emptyThreadsToAddQueue.push([lineNumber, e]);
 		}
 	}
 
 	private processNextThreadToAdd(): void {
 		this._addInProgress = false;
-		const lineNumber = this._emptyThreadsToAddQueue.shift();
-		if (lineNumber) {
-			this.addOrToggleCommentAtLine(lineNumber);
+		const info = this._emptyThreadsToAddQueue.shift();
+		if (info) {
+			this.addOrToggleCommentAtLine(info[0], info[1]);
 		}
 	}
 
-	public addCommentAtLine(lineNumber: number): Promise<void> {
-		const newCommentInfo = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
-		if (!newCommentInfo || !this.editor.hasModel()) {
+	public addCommentAtLine(lineNumber: number, e: IEditorMouseEvent | undefined): Promise<void> {
+		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
+		if (!newCommentInfos.length || !this.editor.hasModel()) {
 			return Promise.resolve();
 		}
 
-		const { replyCommand, ownerId, extensionId, commentingRangesInfo } = newCommentInfo;
+		if (newCommentInfos.length > 1) {
+			if (e) {
+				const anchor = { x: e.event.posx, y: e.event.posy };
 
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => this.getContextMenuActions(newCommentInfos, lineNumber),
+					getActionsContext: () => newCommentInfos.length ? newCommentInfos[0] : undefined,
+					onHide: () => { this._addInProgress = false; }
+				});
+
+				return Promise.resolve();
+			} else {
+				const picks = this.getCommentProvidersQuickPicks(newCommentInfos);
+				return this.quickInputService.pick(picks, { placeHolder: nls.localize('pickCommentService', "Select Comment Provider"), matchOnDescription: true }).then(pick => {
+					if (!pick) {
+						return;
+					}
+
+					const commentInfos = newCommentInfos.filter(info => info.ownerId === pick.id);
+
+					if (commentInfos.length) {
+						const { replyCommand, ownerId, extensionId, commentingRangesInfo } = commentInfos[0];
+						this.addCommentAtLine2(lineNumber, replyCommand, ownerId, extensionId, commentingRangesInfo);
+					}
+				}).then(() => {
+					this._addInProgress = false;
+				});
+			}
+		} else {
+			const { replyCommand, ownerId, extensionId, commentingRangesInfo } = newCommentInfos[0]!;
+			this.addCommentAtLine2(lineNumber, replyCommand, ownerId, extensionId, commentingRangesInfo);
+		}
+
+		return Promise.resolve();
+	}
+
+	private getCommentProvidersQuickPicks(commentInfos: { replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined }[]) {
+		const picks: QuickPickInput[] = commentInfos.map((commentInfo) => {
+			const { ownerId, extensionId, label } = commentInfo;
+
+			return <IQuickPickItem>{
+				label: label || extensionId,
+				id: ownerId
+			};
+		});
+
+		return picks;
+	}
+
+	private getContextMenuActions(commentInfos: { replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined }[], lineNumber: number): (IAction | ContextSubMenu)[] {
+		const actions: (IAction | ContextSubMenu)[] = [];
+
+		commentInfos.forEach(commentInfo => {
+			const { replyCommand, ownerId, extensionId, label, commentingRangesInfo } = commentInfo;
+
+			actions.push(new Action(
+				'addCommentThread',
+				`${label || extensionId}`,
+				undefined,
+				true,
+				() => {
+					this.addCommentAtLine2(lineNumber, replyCommand, ownerId, extensionId, commentingRangesInfo);
+					return Promise.resolve();
+				}
+			));
+		});
+		return actions;
+	}
+
+	public addCommentAtLine2(lineNumber: number, replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined) {
 		if (commentingRangesInfo) {
 			let range = new Range(lineNumber, 1, lineNumber, 1);
 			if (commentingRangesInfo.newCommentThreadCommand) {
@@ -591,7 +672,7 @@ export class ReviewController implements IEditorContribution {
 					this._addInProgress = false;
 				}
 			} else if (commentingRangesInfo.newCommentThreadCallback) {
-				return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel().uri, range)
+				return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel()!.uri, range)
 					.then(_ => {
 						this.processNextThreadToAdd();
 					})
@@ -614,7 +695,6 @@ export class ReviewController implements IEditorContribution {
 
 		return Promise.resolve();
 	}
-
 
 	private setComments(commentInfos: ICommentInfo[]): void {
 		if (!this.editor) {
@@ -756,7 +836,7 @@ CommandsRegistry.registerCommand({
 		}
 
 		const position = activeEditor.getPosition();
-		return controller.addOrToggleCommentAtLine(position.lineNumber);
+		return controller.addOrToggleCommentAtLine(position.lineNumber, undefined);
 	}
 });
 

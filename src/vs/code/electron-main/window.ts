@@ -26,10 +26,11 @@ import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/
 import { getBackgroundColor } from 'vs/code/electron-main/theme';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { endsWith } from 'vs/base/common/strings';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
-	extensionDevelopmentPath?: string;
+	extensionDevelopmentPath?: string | string[];
 	isExtensionTestHost?: boolean;
 }
 
@@ -61,7 +62,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
 	private hiddenTitleBarStyle: boolean;
-	private showTimeoutHandle: any;
+	private showTimeoutHandle: NodeJS.Timeout;
 	private _id: number;
 	private _win: Electron.BrowserWindow;
 	private _lastFocusTime: number;
@@ -216,9 +217,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return !!this.config.extensionTestsPath;
 	}
 
-	get extensionDevelopmentPath(): string | undefined {
+	/*
+	get extensionDevelopmentPaths(): string | string[] | undefined {
 		return this.config.extensionDevelopmentPath;
 	}
+	*/
 
 	get config(): IWindowConfiguration {
 		return this.currentConfig;
@@ -311,9 +314,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
-		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details: any, cb: any) => {
+		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
 			this.marketplaceHeadersPromise.then(headers => {
 				const requestHeaders = objects.assign(details.requestHeaders, headers);
+				if (!this.configurationService.getValue('extensions.disableExperimentalAzureSearch')) {
+					requestHeaders['Cookie'] = `${requestHeaders['Cookie'] ? requestHeaders['Cookie'] + ';' : ''}EnableExternalSearchForVSCode=true`;
+				}
 				cb({ cancel: false, requestHeaders });
 			});
 		});
@@ -325,7 +331,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.webContents.session.webRequest.onBeforeRequest(null!, (details, callback) => {
 			if (details.url.indexOf('.svg') > 0) {
 				const uri = URI.parse(details.url);
-				if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
+				if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg')) {
 					return callback({ cancel: true });
 				}
 			}
@@ -333,8 +339,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return callback({});
 		});
 
-		this._win.webContents.session.webRequest.onHeadersReceived(null!, (details: any, callback: any) => {
-			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
+		this._win.webContents.session.webRequest.onHeadersReceived(null!, (details, callback) => {
+			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']);
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				return callback({ cancel: true });
 			}
@@ -1045,9 +1051,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			}
 
+			let title: string;
+			if (typeof item.title === 'string') {
+				title = item.title;
+			} else {
+				title = item.title.value;
+			}
+
 			return {
 				id: item.id,
-				label: !icon ? item.title as string : undefined,
+				label: !icon ? title : undefined,
 				icon
 			};
 		});

@@ -29,6 +29,20 @@
 			}
 		},
 		{
+			"type": "npm",
+			"script": "strict-initialization-watch",
+			"label": "TS - Strict Initialization",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": {
+				"base": "$tsc-watch",
+				"owner": "typescript-strict-initialization",
+				"applyTo": "allDocuments"
+			}
+		},
+		{
 			"type": "gulp",
 			"task": "tslint",
 			"label": "Run tslint",

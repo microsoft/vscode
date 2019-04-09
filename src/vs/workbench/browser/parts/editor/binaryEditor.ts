@@ -40,7 +40,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	private metadata: string | undefined;
 	private binaryContainer: HTMLElement;
 	private scrollbar: DomScrollableElement;
-	private resourceViewerContext: ResourceViewerContext;
+	private resourceViewerContext: ResourceViewerContext | undefined;
 
 	constructor(
 		id: string,
@@ -127,7 +127,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 		// Clear Resource Viewer
 		clearNode(this.binaryContainer);
-		this.resourceViewerContext = dispose(this.resourceViewerContext);
+		dispose(this.resourceViewerContext);
+		this.resourceViewerContext = undefined;
 
 		super.clearInput();
 	}
@@ -149,7 +150,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	dispose(): void {
 		this.binaryContainer.remove();
 
-		this.resourceViewerContext = dispose(this.resourceViewerContext);
+		dispose(this.resourceViewerContext);
+		this.resourceViewerContext = undefined;
 
 		super.dispose();
 	}

@@ -67,13 +67,21 @@ export interface IStatusbarService {
 	_serviceBrand: any;
 
 	/**
-	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned IDisposable
-	 * to remove the statusbar entry.
+	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
+	 * to update or remove the statusbar entry.
 	 */
-	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority?: number): IDisposable;
+	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
 
 	/**
 	 * Prints something to the status bar area with optional auto dispose and delay.
 	 */
 	setStatusMessage(message: string, autoDisposeAfter?: number, delayBy?: number): IDisposable;
+}
+
+export interface IStatusbarEntryAccessor extends IDisposable {
+
+	/**
+	 * Allows to update an existing status bar entry.
+	 */
+	update(properties: IStatusbarEntry): void;
 }

@@ -49,9 +49,12 @@ import { IRemoteConsoleLog } from 'vs/base/common/console';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
+	appName: string;
 	appRoot?: URI;
+	appLanguage: string;
+	appUriScheme: string;
 	appSettingsHome?: URI;
-	extensionDevelopmentLocationURI?: URI;
+	extensionDevelopmentLocationURI?: URI | URI[];
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 	userHome: URI;
@@ -68,6 +71,7 @@ export interface IWorkspaceData extends IStaticWorkspaceData {
 }
 
 export interface IInitData {
+	version: string;
 	commit?: string;
 	parentPid: number;
 	environment: IEnvironment;
@@ -123,16 +127,10 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$registerCommentController(handle: number, id: string, label: string): void;
 	$unregisterCommentController(handle: number): void;
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, comments: modes.Comment[], acceptInputCommand: modes.Command | undefined, additionalCommands: modes.Command[], deleteCommand: modes.Command | undefined, collapseState: modes.CommentThreadCollapsibleState): modes.CommentThread2 | undefined;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange): modes.CommentThread2 | undefined;
+	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, label: string, comments: modes.Comment[], acceptInputCommand: modes.Command | undefined, additionalCommands: modes.Command[], deleteCommand: modes.Command | undefined, collapseState: modes.CommentThreadCollapsibleState): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
-	$updateComments(handle: number, commentThreadHandle: number, comments: modes.Comment[]): void;
 	$setInputValue(handle: number, input: string): void;
-	$updateCommentThreadAcceptInputCommand(handle: number, commentThreadHandle: number, acceptInputCommand: modes.Command): void;
-	$updateCommentThreadAdditionalCommands(handle: number, commentThreadHandle: number, additionalCommands: modes.Command[]): void;
-	$updateCommentThreadDeleteCommand(handle: number, commentThreadHandle: number, deleteCommand: modes.Command): void;
-	$updateCommentThreadCollapsibleState(handle: number, commentThreadHandle: number, collapseState: modes.CommentThreadCollapsibleState): void;
-	$updateCommentThreadRange(handle: number, commentThreadHandle: number, range: IRange): void;
-	$updateCommentThreadLabel(handle: number, commentThreadHandle: number, label: string): void;
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
 	$unregisterDocumentCommentProvider(handle: number): void;
 	$registerWorkspaceCommentProvider(handle: number, extensionId: ExtensionIdentifier): void;
@@ -259,6 +257,13 @@ export interface MainThreadConsoleShape extends IDisposable {
 	$logExtensionHostMessage(msg: IRemoteConsoleLog): void;
 }
 
+export interface MainThreadKeytarShape extends IDisposable {
+	$getPassword(service: string, account: string): Promise<string | null>;
+	$setPassword(service: string, account: string, password: string): Promise<void>;
+	$deletePassword(service: string, account: string): Promise<boolean>;
+	$findPassword(service: string): Promise<string | null>;
+}
+
 export interface ISerializedRegExp {
 	pattern: string;
 	flags?: string;
@@ -310,8 +315,8 @@ export interface ISerializedDocumentFilter {
 }
 
 export interface ISerializedSignatureHelpProviderMetadata {
-	readonly triggerCharacters: ReadonlyArray<string>;
-	readonly retriggerCharacters: ReadonlyArray<string>;
+	readonly triggerCharacters: readonly string[];
+	readonly retriggerCharacters: readonly string[];
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
@@ -335,7 +340,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportsResolveInitialValues: boolean): void;
 	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean): void;
 	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], metadata: ISerializedSignatureHelpProviderMetadata): void;
-	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[], supportsResolve: boolean): void;
 	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerFoldingRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerSelectionRangeProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
@@ -854,14 +859,29 @@ export class IdObject {
 	}
 }
 
-export interface SuggestionDto extends modes.CompletionItem {
-	_id: number;
-	_parentId: number;
+export interface SuggestDataDto {
+	a/* label */: string;
+	b/* kind */: modes.CompletionItemKind;
+	c/* detail */?: string;
+	d/* documentation */?: string | IMarkdownString;
+	e/* sortText */?: string;
+	f/* filterText */?: string;
+	g/* preselect */?: boolean;
+	h/* insertText */?: string;
+	i/* insertTextRules */?: modes.CompletionItemInsertTextRule;
+	j/* range */?: IRange;
+	k/* commitCharacters */?: string[];
+	l/* additionalTextEdits */?: ISingleEditOperation[];
+	m/* command */?: modes.Command;
+	// not-standard
+	x?: ChainedCacheId;
 }
 
-export interface SuggestResultDto extends IdObject {
-	suggestions: SuggestionDto[];
-	incomplete?: boolean;
+export interface SuggestResultDto {
+	x?: number;
+	a: IRange;
+	b: SuggestDataDto[];
+	c?: boolean;
 }
 
 export interface LocationDto {
@@ -936,7 +956,16 @@ export interface CodeActionDto {
 	isPreferred?: boolean;
 }
 
-export interface LinkDto extends ObjectIdentifier {
+export type CacheId = number;
+export type ChainedCacheId = [CacheId, CacheId];
+
+export interface LinksListDto {
+	id?: CacheId;
+	links: LinkDto[];
+}
+
+export interface LinkDto {
+	cacheId?: ChainedCacheId;
 	range: IRange;
 	url?: string | UriComponents;
 }
@@ -962,7 +991,7 @@ export interface CallHierarchyDto {
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeLensDto[]>;
-	$resolveCodeLens(handle: number, resource: UriComponents, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined>;
+	$resolveCodeLens(handle: number, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined>;
 	$provideCodeInsets(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeInsetDto[] | undefined>;
 	$resolveCodeInset(handle: number, resource: UriComponents, symbol: CodeInsetDto, token: CancellationToken): Promise<CodeInsetDto>;
 	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
@@ -982,11 +1011,12 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<WorkspaceEditDto | undefined>;
 	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined>;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<SuggestResultDto | undefined>;
-	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Promise<modes.CompletionItem>;
+	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: ChainedCacheId, token: CancellationToken): Promise<SuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp | undefined>;
-	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinkDto[] | undefined>;
-	$resolveDocumentLink(handle: number, link: LinkDto, token: CancellationToken): Promise<LinkDto | undefined>;
+	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinksListDto | undefined>;
+	$resolveDocumentLink(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<LinkDto | undefined>;
+	$releaseDocumentLinks(handle: number, id: number): void;
 	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Promise<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined>;
@@ -1187,6 +1217,7 @@ export const MainContext = {
 	MainThreadTextEditors: createMainId<MainThreadTextEditorsShape>('MainThreadTextEditors'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
 	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews'),
+	MainThreadKeytar: createMainId<MainThreadKeytarShape>('MainThreadKeytar'),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages'),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService'),

@@ -125,7 +125,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 		// Separator
 		if (entry instanceof Separator) {
-			return { type: 'separator' } as IContextMenuItem;
+			return { type: 'separator' };
 		}
 
 		// Submenu
@@ -133,7 +133,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			return {
 				label: unmnemonicLabel(entry.label),
 				submenu: this.createMenu(delegate, entry.entries, onHide)
-			} as IContextMenuItem;
+			};
 		}
 
 		// Normal Menu Item

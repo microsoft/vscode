@@ -1046,9 +1046,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getLinks(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		let [first] = value;
+		let { links } = await getLinks(model, CancellationToken.None);
+		assert.equal(links.length, 1);
+		let [first] = links;
 		assert.equal(first.url, 'foo:bar#3');
 		assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
 	});
@@ -1068,9 +1068,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getLinks(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		let [first] = value;
+		let { links } = await getLinks(model, CancellationToken.None);
+		assert.equal(links.length, 1);
+		let [first] = links;
 		assert.equal(first.url, 'foo:bar#3');
 		assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
 	});

@@ -191,7 +191,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				workspaceFolders[0].uri.with({ path: detildifiedQuery }) :
 				URI.file(detildifiedQuery);
 
-			return this.fileService.resolveFile(resource).then(
+			return this.fileService.resolve(resource).then(
 				stat => stat.isDirectory ? undefined : resource,
 				error => undefined);
 		}

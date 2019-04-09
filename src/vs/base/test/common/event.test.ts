@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Event, Emitter, EventBufferer, EventMultiplexer, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
+import { Event, Emitter, EventBufferer, EventMultiplexer, AsyncEmitter, IWaitUntil, PauseableEmitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as Errors from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
@@ -328,6 +328,133 @@ suite('AsyncEmitter', function () {
 			}
 		}));
 		assert.ok(done);
+	});
+});
+
+suite('PausableEmitter', function () {
+
+	test('basic', function () {
+		const data: number[] = [];
+		const emitter = new PauseableEmitter<number>();
+
+		emitter.event(e => data.push(e));
+		emitter.fire(1);
+		emitter.fire(2);
+
+		assert.deepEqual(data, [1, 2]);
+	});
+
+	test('pause/resume - no merge', function () {
+		const data: number[] = [];
+		const emitter = new PauseableEmitter<number>();
+
+		emitter.event(e => data.push(e));
+		emitter.fire(1);
+		emitter.fire(2);
+		assert.deepEqual(data, [1, 2]);
+
+		emitter.pause();
+		emitter.fire(3);
+		emitter.fire(4);
+		assert.deepEqual(data, [1, 2]);
+
+		emitter.resume();
+		assert.deepEqual(data, [1, 2, 3, 4]);
+		emitter.fire(5);
+		assert.deepEqual(data, [1, 2, 3, 4, 5]);
+	});
+
+	test('pause/resume - merge', function () {
+		const data: number[] = [];
+		const emitter = new PauseableEmitter<number>({ merge: (a) => a.reduce((p, c) => p + c, 0) });
+
+		emitter.event(e => data.push(e));
+		emitter.fire(1);
+		emitter.fire(2);
+		assert.deepEqual(data, [1, 2]);
+
+		emitter.pause();
+		emitter.fire(3);
+		emitter.fire(4);
+		assert.deepEqual(data, [1, 2]);
+
+		emitter.resume();
+		assert.deepEqual(data, [1, 2, 7]);
+
+		emitter.fire(5);
+		assert.deepEqual(data, [1, 2, 7, 5]);
+	});
+
+	test('double pause/resume', function () {
+		const data: number[] = [];
+		const emitter = new PauseableEmitter<number>();
+
+		emitter.event(e => data.push(e));
+		emitter.fire(1);
+		emitter.fire(2);
+		assert.deepEqual(data, [1, 2]);
+
+		emitter.pause();
+		emitter.pause();
+		emitter.fire(3);
+		emitter.fire(4);
+		assert.deepEqual(data, [1, 2]);
+
+		emitter.resume();
+		assert.deepEqual(data, [1, 2]);
+
+		emitter.resume();
+		assert.deepEqual(data, [1, 2, 3, 4]);
+
+		emitter.resume();
+		assert.deepEqual(data, [1, 2, 3, 4]);
+	});
+
+	test('resume, no pause', function () {
+		const data: number[] = [];
+		const emitter = new PauseableEmitter<number>();
+
+		emitter.event(e => data.push(e));
+		emitter.fire(1);
+		emitter.fire(2);
+		assert.deepEqual(data, [1, 2]);
+
+		emitter.resume();
+		emitter.fire(3);
+		assert.deepEqual(data, [1, 2, 3]);
+	});
+
+	test('nested pause', function () {
+		const data: number[] = [];
+		const emitter = new PauseableEmitter<number>();
+
+		let once = true;
+		emitter.event(e => {
+			data.push(e);
+
+			if (once) {
+				emitter.pause();
+				once = false;
+			}
+		});
+		emitter.event(e => {
+			data.push(e);
+		});
+
+		emitter.pause();
+		emitter.fire(1);
+		emitter.fire(2);
+		assert.deepEqual(data, []);
+
+		emitter.resume();
+		assert.deepEqual(data, [1, 1]); // paused after first event
+
+		emitter.resume();
+		assert.deepEqual(data, [1, 1, 2, 2]); // remaing event delivered
+
+		emitter.fire(3);
+		assert.deepEqual(data, [1, 1, 2, 2, 3, 3]);
+
 	});
 });
 
@@ -777,4 +904,5 @@ suite('Event utils', () => {
 
 		listener.dispose();
 	});
+
 });

@@ -12,7 +12,7 @@ import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selec
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -192,9 +192,10 @@ export class StartDebugActionItem implements IActionItem {
 export class FocusSessionActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
-		@IDebugService protected debugService: IDebugService,
+		@IDebugService protected readonly debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
 
@@ -234,6 +235,9 @@ export class FocusSessionActionItem extends SelectActionItem {
 	}
 
 	protected getSessions(): ReadonlyArray<IDebugSession> {
-		return this.debugService.getModel().getSessions();
+		const hideSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').hideSubSessions;
+		const sessions = this.debugService.getModel().getSessions();
+
+		return hideSubSessions ? sessions.filter(s => !s.parentSession) : sessions;
 	}
 }

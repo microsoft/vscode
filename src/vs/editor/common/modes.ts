@@ -460,6 +460,11 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
+
+	/**
+	 * @internal
+	 */
+	[key: string]: any;
 }
 
 export interface CompletionList {
@@ -996,11 +1001,16 @@ export interface ILink {
 	range: IRange;
 	url?: URI | string;
 }
+
+export interface ILinksList {
+	links: ILink[];
+	dispose?(): void;
+}
 /**
  * A provider of links.
  */
 export interface LinkProvider {
-	provideLinks(model: model.ITextModel, token: CancellationToken): ProviderResult<ILink[]>;
+	provideLinks(model: model.ITextModel, token: CancellationToken): ProviderResult<ILinksList>;
 	resolveLink?: (link: ILink, token: CancellationToken) => ProviderResult<ILink>;
 }
 
@@ -1265,19 +1275,19 @@ export interface CommentThread2 {
 	resource: string | null;
 	range: IRange;
 	label: string;
-	comments: Comment[];
-	onDidChangeComments: Event<Comment[]>;
+	comments: Comment[] | undefined;
+	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	acceptInputCommand?: Command;
-	additionalCommands: Command[];
+	additionalCommands?: Command[];
 	deleteCommand?: Command;
-	onDidChangeAcceptInputCommand: Event<Command>;
-	onDidChangeAdditionalCommands: Event<Command[]>;
+	onDidChangeAcceptInputCommand: Event<Command | undefined>;
+	onDidChangeAdditionalCommands: Event<Command[] | undefined>;
 	onDidChangeRange: Event<IRange>;
 	onDidChangeLabel: Event<string>;
-	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState>;
+	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
 }
 
 /**
@@ -1299,7 +1309,7 @@ export interface CommentThread {
 	threadId: string | null;
 	resource: string | null;
 	range: IRange;
-	comments: Comment[];
+	comments: Comment[] | undefined;
 	collapsibleState?: CommentThreadCollapsibleState;
 	reply?: Command;
 }

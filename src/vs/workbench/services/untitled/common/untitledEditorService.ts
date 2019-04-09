@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import * as arrays from 'vs/base/common/arrays';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
@@ -107,7 +107,7 @@ export interface IUntitledEditorService {
 
 export class UntitledEditorService extends Disposable implements IUntitledEditorService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private mapResourceToInput = new ResourceMap<UntitledEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
@@ -126,7 +126,8 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 	}
@@ -187,10 +188,10 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	}
 
 	createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledEditorInput {
-
 		if (resource) {
-			// Massage resource if it comes with a file:// scheme
-			if (resource.scheme === Schemas.file) {
+
+			// Massage resource if it comes with known file based resource
+			if (this.fileService.canHandleResource(resource)) {
 				hasAssociatedFilePath = true;
 				resource = resource.with({ scheme: Schemas.untitled }); // ensure we have the right scheme
 			}

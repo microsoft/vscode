@@ -42,6 +42,11 @@ const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
 			// e.g.  *-----*/|
 			beforeText: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$/,
 			action: { indentAction: vscode.IndentAction.None, removeText: 1 },
+		},
+		{
+			beforeText: /^\s*(\bcase\s.+:|\bdefault:)$/,
+			afterText: /^(?!\s*(\bcase\b|\bdefault\b))/,
+			action: { indentAction: vscode.IndentAction.Indent },
 		}
 	]
 };
@@ -52,14 +57,25 @@ const jsxTagsLanguageConfiguration: vscode.LanguageConfiguration = {
 	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
 	onEnterRules: [
 		{
-			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 			afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
 			action: { indentAction: vscode.IndentAction.IndentOutdent }
 		},
 		{
-			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 			action: { indentAction: vscode.IndentAction.Indent }
-		}
+		},
+		{
+			// `beforeText` only applies to tokens of a given language. Since we are dealing with jsx-tags,
+			// make sure we apply to the closing `>` of a tag.
+			beforeText: /^>$/,
+			afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+			action: { indentAction: vscode.IndentAction.IndentOutdent }
+		},
+		{
+			beforeText: /^>$/,
+			action: { indentAction: vscode.IndentAction.Indent }
+		},
 	],
 };
 

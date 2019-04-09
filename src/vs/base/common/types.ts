@@ -159,27 +159,6 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 	}
 }
 
-/**
- * Creates a new object of the provided class and will call the constructor with
- * any additional argument supplied.
- */
-export function create(ctor: Function, ...args: any[]): any {
-	if (isNativeClass(ctor)) {
-		return new (ctor as any)(...args);
-	} else {
-		const obj = Object.create(ctor.prototype);
-		ctor.apply(obj, args);
-		return obj;
-	}
-}
-
-// https://stackoverflow.com/a/32235645/1499159
-function isNativeClass(thing: any): boolean {
-	return typeof thing === 'function'
-		&& thing.hasOwnProperty('prototype')
-		&& !thing.hasOwnProperty('arguments');
-}
-
 export function getAllPropertyNames(obj: object): string[] {
 	let res: string[] = [];
 	let proto = Object.getPrototypeOf(obj);

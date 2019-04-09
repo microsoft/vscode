@@ -120,7 +120,7 @@ export class ContextView extends Disposable {
 
 	setContainer(container: HTMLElement | null): void {
 		if (this.container) {
-			this.toDisposeOnSetContainer = dispose(this.toDisposeOnSetContainer);
+			dispose(this.toDisposeOnSetContainer);
 			this.container.removeChild(this.view);
 			this.container = null;
 		}

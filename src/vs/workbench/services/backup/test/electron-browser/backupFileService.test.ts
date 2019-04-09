@@ -12,17 +12,20 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri } from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel, hashPath } from 'vs/workbench/services/backup/node/backupFileService';
-import { FileService } from 'vs/workbench/services/files/node/fileService';
+import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { TestContextService, TestTextResourceConfigurationService, TestLifecycleService, TestEnvironmentService, TestStorageService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestTextResourceConfigurationService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { snapshotToString } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 
 const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');
@@ -37,28 +40,35 @@ const fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
 const barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
 const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
 
-class TestBackupWindowService extends TestWindowService {
+class TestBackupEnvironmentService extends WorkbenchEnvironmentService {
 
 	private config: IWindowConfiguration;
 
 	constructor(workspaceBackupPath: string) {
-		super();
+		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
 
 		this.config = Object.create(null);
 		this.config.backupPath = workspaceBackupPath;
 	}
 
-	getConfiguration(): IWindowConfiguration {
+	get configuration(): IWindowConfiguration {
 		return this.config;
 	}
 }
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService(new TestContextService(new Workspace(workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
-		const windowService = new TestBackupWindowService(workspaceBackupPath);
+		const fileService = new FileService2(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+		fileService.setLegacyService(new LegacyFileService(
+			fileService,
+			new TestContextService(new Workspace(workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))),
+			TestEnvironmentService,
+			new TestTextResourceConfigurationService(),
+		));
+		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
 
-		super(windowService, fileService);
+		super(environmentService, fileService);
 	}
 
 	public toBackupResource(resource: Uri): Uri {
@@ -73,7 +83,7 @@ suite('BackupFileService', () => {
 		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 
 		// Delete any existing backups completely and then re-create it.
-		return pfs.del(backupHome, os.tmpdir()).then(() => {
+		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE).then(() => {
 			return pfs.mkdirp(backupHome).then(() => {
 				return pfs.writeFile(workspacesJsonPath, '');
 			});
@@ -81,7 +91,7 @@ suite('BackupFileService', () => {
 	});
 
 	teardown(() => {
-		return pfs.del(backupHome, os.tmpdir());
+		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
 
 	suite('hashPath', () => {

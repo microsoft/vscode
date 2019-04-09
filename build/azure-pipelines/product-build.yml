@@ -63,3 +63,17 @@ jobs:
     vmImage: macOS 10.13
   steps:
   - template: darwin/product-build-darwin.yml
+
+- job: Mooncake
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  condition: true
+  dependsOn:
+  - Windows
+  - Windows32
+  - Linux
+  - LinuxSnap
+  - Linux32
+  - macOS
+  steps:
+  - template: sync-mooncake.yml

@@ -11,9 +11,9 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { IRecent } from 'vs/platform/history/common/history';
 
 // -----------------------------------------------------------------
@@ -51,7 +51,8 @@ export class OpenFolderAPICommand {
 		}
 		const options: IOpenSettings = { forceNewWindow: arg.forceNewWindow, noRecentEntry: arg.noRecentEntry };
 		uri = URI.revive(uri);
-		return executor.executeCommand('_files.windowOpen', [{ uri }], options);
+		const uriToOpen: IURIToOpen = hasWorkspaceFileExtension(uri.path) ? { workspaceUri: uri } : { folderUri: uri };
+		return executor.executeCommand('_files.windowOpen', [uriToOpen], options);
 	}
 }
 CommandsRegistry.registerCommand({

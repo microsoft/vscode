@@ -228,7 +228,7 @@ class FileDataSource implements IAsyncDataSource<IWorkspace | URI, IWorkspaceFol
 		} else {
 			uri = element.resource;
 		}
-		return this._fileService.resolveFile(uri).then(stat => {
+		return this._fileService.resolve(uri).then(stat => {
 			for (const child of stat.children || []) {
 				this._parents.set(stat, child);
 			}
