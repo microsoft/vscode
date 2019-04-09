@@ -784,7 +784,7 @@ export class ExtensionsListView extends ViewletPanel {
 }
 
 function getServerLabel(server: IExtensionManagementServer, labelService: ILabelService, workbenchEnvironmentService: IWorkbenchEnvironmentService): string {
-	return workbenchEnvironmentService.configuration.remoteAuthority === server.authority ? labelService.getHostLabel(REMOTE_HOST_SCHEME, server.authority) : server.label;
+	return workbenchEnvironmentService.configuration.remoteAuthority === server.authority ? labelService.getHostLabel(REMOTE_HOST_SCHEME, server.authority) || server.label : server.label;
 }
 
 export class ServerExtensionsView extends ExtensionsListView {
