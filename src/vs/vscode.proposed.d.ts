@@ -812,28 +812,28 @@ declare module 'vscode' {
 		/**
 		 * The id of the comment
 		 */
-		commentId: string;
+		readonly commentId: string;
 
 		/**
 		 * The text of the comment
 		 */
-		body: MarkdownString;
+		readonly body: MarkdownString;
 
 		/**
 		 * Optional label describing the [Comment](#Comment)
 		 * Label will be rendered next to userName if exists.
 		 */
-		label?: string;
+		readonly label?: string;
 
 		/**
 		 * The display name of the user who created the comment
 		 */
-		userName: string;
+		readonly userName: string;
 
 		/**
 		 * The icon path for the user who created the comment
 		 */
-		userIconPath?: Uri;
+		readonly userIconPath?: Uri;
 
 		/**
 		 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
@@ -869,17 +869,17 @@ declare module 'vscode' {
 		/**
 		 * The command to be executed if the comment is selected in the Comments Panel
 		 */
-		selectCommand?: Command;
+		readonly selectCommand?: Command;
 
 		/**
 		 * The command to be executed when users try to save the edits to the comment
 		 */
-		editCommand?: Command;
+		readonly editCommand?: Command;
 
 		/**
 		 * The command to be executed when users try to delete the comment
 		 */
-		deleteCommand?: Command;
+		readonly deleteCommand?: Command;
 
 		/**
 		 * Deprecated
