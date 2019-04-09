@@ -24,7 +24,6 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { once } from 'vs/base/common/functional';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 /**
  * Explorer viewlet id.
@@ -199,7 +198,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 
 	private toSavedFileResource(resource: URI): URI {
 		if (this.environmentService.configuration.remoteAuthority) {
-			return resource.with({ scheme: REMOTE_HOST_SCHEME }); // assume file on disk is remote
+			return resource.with({ scheme: Schemas.vscodeRemote }); // assume file on disk is remote
 		}
 
 		return resource.with({ scheme: Schemas.file });

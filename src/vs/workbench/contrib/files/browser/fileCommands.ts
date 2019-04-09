@@ -41,7 +41,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 // Commands
 
@@ -140,7 +139,7 @@ function save(
 				savePromise = textFileService.save(resource, options).then(result => {
 					if (result) {
 						if (environmentService.configuration.remoteAuthority) {
-							return resource.with({ scheme: REMOTE_HOST_SCHEME });
+							return resource.with({ scheme: Schemas.vscodeRemote });
 						}
 
 						return resource.with({ scheme: Schemas.file });

@@ -32,7 +32,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { isEqualOrParent, isEqual, joinPath, dirname, extname, basename } from 'vs/base/common/resources';
 import { posix } from 'vs/base/common/path';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { getConfirmMessage, IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -615,7 +614,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 			if (path && path[0] !== posix.sep) {
 				path = posix.sep + path;
 			}
-			return untitled.with({ scheme: REMOTE_HOST_SCHEME, authority, path });
+			return untitled.with({ scheme: Schemas.vscodeRemote, authority, path });
 		}
 		return untitled.with({ scheme: Schemas.file });
 	}
@@ -800,7 +799,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 	private suggestFileName(untitledResource: URI): URI {
 		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource);
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		const schemeFilter = remoteAuthority ? REMOTE_HOST_SCHEME : Schemas.file;
+		const schemeFilter = remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 
 		const lastActiveFile = this.historyService.getLastActiveFile(schemeFilter);
 		if (lastActiveFile) {
