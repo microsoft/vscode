@@ -50,6 +50,7 @@ export interface ParsedArgs {
 	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
+	'locate-extension'?: string | string[];
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
