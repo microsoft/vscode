@@ -204,8 +204,8 @@ export class SimpleWorkerClient<T> extends Disposable {
 		));
 
 		this._protocol = new SimpleWorkerProtocol({
-			sendMessage: (msg: string): void => {
-				this._worker.postMessage(msg);
+			sendMessage: (msg: any, transfer?: Transferable[]): void => {
+				this._worker.postMessage(msg, transfer);
 			},
 			handleMessage: (method: string, args: any[]): Promise<any> => {
 				// Intentionally not supporting worker -> main requests
