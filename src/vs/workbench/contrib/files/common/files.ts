@@ -24,6 +24,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { once } from 'vs/base/common/functional';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { toLocalResource } from 'vs/base/common/resources';
 
 /**
  * Explorer viewlet id.
@@ -145,7 +146,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	}
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
-		const savedFileResource = this.toSavedFileResource(resource);
+		const savedFileResource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
 
 		// Make sure our file from disk is resolved up to date
 		return this.resolveEditorModel(resource).then(codeEditorModel => {
@@ -173,7 +174,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	private resolveEditorModel(resource: URI, createAsNeeded?: true): Promise<ITextModel>;
 	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Promise<ITextModel | null>;
 	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
-		const savedFileResource = this.toSavedFileResource(resource);
+		const savedFileResource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
 
 		return this.textFileService.resolveTextContent(savedFileResource).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
@@ -194,14 +195,6 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 
 			return codeEditorModel;
 		});
-	}
-
-	private toSavedFileResource(resource: URI): URI {
-		if (this.environmentService.configuration.remoteAuthority) {
-			return resource.with({ scheme: Schemas.vscodeRemote }); // assume file on disk is remote
-		}
-
-		return resource.with({ scheme: Schemas.file });
 	}
 
 	dispose(): void {

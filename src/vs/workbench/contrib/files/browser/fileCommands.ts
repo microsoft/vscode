@@ -38,7 +38,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { basename } from 'vs/base/common/resources';
+import { basename, toLocalResource } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -138,11 +138,7 @@ function save(
 			if (!isSaveAs && resource.scheme === Schemas.untitled && untitledEditorService.hasAssociatedFilePath(resource)) {
 				savePromise = textFileService.save(resource, options).then(result => {
 					if (result) {
-						if (environmentService.configuration.remoteAuthority) {
-							return resource.with({ scheme: Schemas.vscodeRemote });
-						}
-
-						return resource.with({ scheme: Schemas.file });
+						return toLocalResource(resource, environmentService.configuration.remoteAuthority);
 					}
 
 					return undefined;
