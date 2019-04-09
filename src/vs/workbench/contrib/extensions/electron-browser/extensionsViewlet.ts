@@ -53,7 +53,7 @@ import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IsRemoteContext } from 'vs/workbench/common/contextkeys';
+import { RemoteAuthorityContext as RemoteAuthorityContext } from 'vs/workbench/common/contextkeys';
 import { ViewContainerViewlet, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -134,7 +134,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id,
 			name: viewIdNameMappings[id],
 			ctorDescriptor: { ctor: EnabledExtensionsView },
-			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), IsRemoteContext.toNegated()),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), RemoteAuthorityContext.isEqualTo('')),
 			weight: 40,
 			canToggleVisibility: true,
 			order: 1
@@ -149,7 +149,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id,
 			name: viewIdNameMappings[id],
 			ctorDescriptor: { ctor: DisabledExtensionsView },
-			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), IsRemoteContext.toNegated()),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), RemoteAuthorityContext.isEqualTo('')),
 			weight: 10,
 			canToggleVisibility: true,
 			order: 3,
@@ -165,7 +165,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id,
 			name: viewIdNameMappings[id],
 			ctorDescriptor: { ctor: ExtensionsListView },
-			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.not('hasInstalledExtensions'), IsRemoteContext.toNegated()),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.not('hasInstalledExtensions'), RemoteAuthorityContext.isEqualTo('')),
 			weight: 60,
 			order: 1
 		};
@@ -182,7 +182,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id: `extensions.${server.authority}.default`,
 			name: server.label,
 			ctorDescriptor: { ctor: ServerExtensionsView, arguments: [{ server }] },
-			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), IsRemoteContext),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), RemoteAuthorityContext.notEqualsTo('')),
 			weight: 100
 		}];
 	}
@@ -196,7 +196,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id,
 			name: viewIdNameMappings[id],
 			ctorDescriptor: { ctor: DefaultRecommendedExtensionsView },
-			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('defaultRecommendedExtensions'), IsRemoteContext.toNegated()),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('defaultRecommendedExtensions'), RemoteAuthorityContext.isEqualTo('')),
 			weight: 40,
 			order: 2,
 			canToggleVisibility: true
