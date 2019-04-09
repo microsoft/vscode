@@ -7,6 +7,7 @@ import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
+import { importWrappedScript } from 'vs/workbench/contrib/workerExtensions/worker/extensionLoader';
 
 class ExtensionWorker implements IRequestHandler {
 
@@ -42,5 +43,16 @@ export function create(postMessage: (message: any, transfer?: Transferable[]) =>
 	const res = new ExtensionWorker(postMessage);
 	res.protocol.onMessage(buff => console.log(buff.toString()));
 	res.protocol.send(VSBuffer.fromString('HELLO from WORKER'));
+
+	const source = `Object.defineProperty(exports, "__esModule", { value: true });
+const model = require('./model');
+const vscode = require('vscode');
+function activate() {
+\tconsole.log('HELLO');
+}
+exports.activate = activate;`;
+
+	importWrappedScript(source, 'somepath');
+
 	return res;
 }
