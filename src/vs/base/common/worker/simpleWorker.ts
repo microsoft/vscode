@@ -12,12 +12,12 @@ const INITIALIZE = '$initialize';
 
 export interface IWorker {
 	getId(): number;
-	postMessage(message: string): void;
+	postMessage(message: any, transfer?: Transferable[]): void;
 	dispose(): void;
 }
 
 export interface IWorkerCallback {
-	(message: string): void;
+	(message: any): void;
 }
 
 export interface IWorkerFactory {

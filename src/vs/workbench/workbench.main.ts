@@ -322,4 +322,6 @@ import 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
 
+import 'vs/workbench/contrib/workerExtensions/browser/workerExtensions.contribution';
+
 //#endregion
