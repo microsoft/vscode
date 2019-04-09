@@ -54,10 +54,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RemoteAuthorityContext as RemoteAuthorityContext } from 'vs/workbench/common/contextkeys';
-import { ViewContainerViewlet, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/node/extensionsWorkbenchService';
+import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -175,13 +172,13 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return [{
 			id: `extensions.${server.authority}.installed`,
 			name: server.label,
-			ctorDescriptor: { ctor: ServerExtensionsView, arguments: [{ server }] },
+			ctorDescriptor: { ctor: ServerExtensionsView, arguments: [server] },
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchServerExtensions')),
 			weight: 100
 		}, {
 			id: `extensions.${server.authority}.default`,
 			name: server.label,
-			ctorDescriptor: { ctor: ServerExtensionsView, arguments: [{ server }] },
+			ctorDescriptor: { ctor: ServerExtensionsView, arguments: [server] },
 			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), RemoteAuthorityContext.notEqualsTo('')),
 			weight: 100
 		}];
@@ -292,8 +289,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private disposables: IDisposable[] = [];
 	private searchViewletState: object;
 
-	private readonly scopedInstantiationServices: Map<IExtensionManagementServer, IInstantiationService> = new Map<IExtensionManagementServer, IInstantiationService>();
-
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -303,7 +298,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
@@ -340,20 +334,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				this.defaultRecommendedExtensionsContextKey.set(!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey));
 			}
 		}, this, this.disposables);
-
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			this.scopedInstantiationServices.set(this.extensionManagementServerService.localExtensionManagementServer, this.createScopedInstantiationService(this.extensionManagementServerService.localExtensionManagementServer));
-			this.scopedInstantiationServices.set(this.extensionManagementServerService.remoteExtensionManagementServer, this.createScopedInstantiationService(this.extensionManagementServerService.remoteExtensionManagementServer));
-		} else {
-			this.scopedInstantiationServices.set(this.extensionManagementServerService.localExtensionManagementServer, this.instantiationService);
-		}
-	}
-
-	private createScopedInstantiationService(server: IExtensionManagementServer): IInstantiationService {
-		const servicesCollection: ServiceCollection = new ServiceCollection();
-		servicesCollection.set(IExtensionManagementService, server.extensionManagementService);
-		servicesCollection.set(IExtensionsWorkbenchService, new SyncDescriptor(ExtensionsWorkbenchService));
-		return this.instantiationService.createChild(servicesCollection);
 	}
 
 	create(parent: HTMLElement): void {
@@ -524,15 +504,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				}
 				break;
 		}
-	}
-
-	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPanel {
-		if (viewDescriptor.ctorDescriptor.arguments && viewDescriptor.ctorDescriptor.arguments[0] && viewDescriptor.ctorDescriptor.arguments[0].server) {
-			const server = viewDescriptor.ctorDescriptor.arguments[0].server;
-			const instantiationService = this.scopedInstantiationServices.get(server) || this.instantiationService;
-			return instantiationService.createInstance(viewDescriptor.ctorDescriptor.ctor, server, options) as ViewletPanel;
-		}
-		return this.instantiationService.createInstance(viewDescriptor.ctorDescriptor.ctor, options) as ViewletPanel;
 	}
 
 	private count(): number {

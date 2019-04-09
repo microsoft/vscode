@@ -12,7 +12,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IExtension, IExtensionsWorkbenchService, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
 import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionItem, StatusLabelAction, RemoteInstallAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/electron-browser/extensionsWidgets';
@@ -53,7 +53,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		private extensionViewState: IExtensionsViewState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) { }
@@ -138,19 +137,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const updateEnablement = async () => {
 			const runningExtensions = await this.extensionService.getExtensions();
-			const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
-			if (installed && installed.local) {
-				const installedExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
-				const isSameExtensionRunning = runningExtensions.some(e => {
-					if (!areSameExtensions({ id: e.identifier.value }, extension.identifier)) {
-						return false;
-					}
-					const runningExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation);
-					if (!installedExtensionServer || !runningExtensionServer) {
-						return false;
-					}
-					return installedExtensionServer.authority === runningExtensionServer.authority;
-				});
+			if (extension.local) {
+				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, extension.identifier))[0];
+				const isSameExtensionRunning = runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
 				toggleClass(data.root, 'disabled', !isSameExtensionRunning);
 			} else {
 				removeClass(data.root, 'disabled');

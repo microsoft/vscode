@@ -222,11 +222,10 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 
 	render(): void {
 		this.clear();
-		if (!this.extension || !this.extension.local) {
+		if (!this.extension || !this.extension.local || !this.extension.server) {
 			return;
 		}
-		const server = this.extensionManagementServerService.getExtensionManagementServer(this.extension.local.location);
-		if (server === this.extensionManagementServerService.remoteExtensionManagementServer) {
+		if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
 			this.element = append(this.parent, $('div.extension-remote-badge'));
 			append(this.element, $('span.octicon.octicon-file-symlink-directory'));
 
