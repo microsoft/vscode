@@ -647,16 +647,14 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
 		if (this._environmentService.isExtensionDevelopment) {
-			const extDevLoc = this._environmentService.extensionDevelopmentLocationURI;
-			const extLocation = extension.extensionLocation;
-			if (Array.isArray(extDevLoc)) {
-				for (let p of extDevLoc) {
+			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
+			if (extDevLocs) {
+				const extLocation = extension.extensionLocation;
+				for (let p of extDevLocs) {
 					if (isEqualOrParent(extLocation, p)) {
 						return true;
 					}
 				}
-			} else if (extDevLoc) {
-				return isEqualOrParent(extLocation, extDevLoc);
 			}
 		}
 		return false;

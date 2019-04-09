@@ -124,10 +124,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private matchesExtDevLocations(resource: URI): boolean {
 
 		const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
-		if (Array.isArray(extDevLocs)) {
+		if (extDevLocs) {
 			return extDevLocs.some(extDevLoc => isEqual(extDevLoc, resource));
-		} else if (extDevLocs) {
-			return isEqual(extDevLocs, resource);
 		}
 		return false;
 	}

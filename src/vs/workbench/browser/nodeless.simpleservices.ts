@@ -253,7 +253,7 @@ export class SimpleEnvironmentService implements IWorkbenchEnvironmentService {
 	disableExtensions: boolean | string[];
 	builtinExtensionsPath: string;
 	extensionsPath: string;
-	extensionDevelopmentLocationURI?: URI | URI[];
+	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsPath?: string;
 	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch: IDebugParams;

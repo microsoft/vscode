@@ -54,7 +54,7 @@ export interface IEnvironment {
 	appLanguage: string;
 	appUriScheme: string;
 	appSettingsHome?: URI;
-	extensionDevelopmentLocationURI?: URI | URI[];
+	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 	userHome: URI;
