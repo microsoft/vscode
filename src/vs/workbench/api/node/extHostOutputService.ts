@@ -186,7 +186,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		} else {
 			const extHostOutputChannel = createExtHostOutputChannel(name, this._outputDir, this._proxy);
 			extHostOutputChannel.then(channel => channel._id.then(id => this._channels.set(id, channel)));
-			return <vscode.OutputChannel>{
+			return {
 				get name(): string {
 					return name;
 				},
