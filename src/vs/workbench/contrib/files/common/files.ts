@@ -23,6 +23,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { once } from 'vs/base/common/functional';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 /**
  * Explorer viewlet id.
@@ -138,12 +140,13 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileService private readonly fileService: IFileService,
 		@IModeService private readonly modeService: IModeService,
-		@IModelService private readonly modelService: IModelService
+		@IModelService private readonly modelService: IModelService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 	}
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
-		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
+		const savedFileResource = this.toSavedFileResource(resource);
 
 		// Make sure our file from disk is resolved up to date
 		return this.resolveEditorModel(resource).then(codeEditorModel => {
@@ -151,7 +154,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			// Make sure to keep contents on disk up to date when it changes
 			if (!this.fileWatcherDisposable) {
 				this.fileWatcherDisposable = this.fileService.onFileChanges(changes => {
-					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) {
+					if (changes.contains(savedFileResource, FileChangeType.UPDATED)) {
 						this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
 					}
 				});
@@ -171,20 +174,20 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	private resolveEditorModel(resource: URI, createAsNeeded?: true): Promise<ITextModel>;
 	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Promise<ITextModel | null>;
 	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
-		const fileOnDiskResource = resource.with({ scheme: Schemas.file });
+		const savedFileResource = this.toSavedFileResource(resource);
 
-		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {
+		return this.textFileService.resolveTextContent(savedFileResource).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (codeEditorModel) {
 				this.modelService.updateModel(codeEditorModel, content.value);
 			} else if (createAsNeeded) {
-				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
+				const fileOnDiskModel = this.modelService.getModel(savedFileResource);
 
 				let languageSelector: ILanguageSelection;
 				if (fileOnDiskModel) {
 					languageSelector = this.modeService.create(fileOnDiskModel.getModeId());
 				} else {
-					languageSelector = this.modeService.createByFilepathOrFirstLine(fileOnDiskResource.fsPath);
+					languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource.fsPath);
 				}
 
 				codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);
@@ -192,6 +195,14 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 
 			return codeEditorModel;
 		});
+	}
+
+	private toSavedFileResource(resource: URI): URI {
+		if (this.environmentService.configuration.remoteAuthority) {
+			return resource.with({ scheme: REMOTE_HOST_SCHEME }); // assume file on disk is remote
+		}
+
+		return resource.with({ scheme: Schemas.file });
 	}
 
 	dispose(): void {

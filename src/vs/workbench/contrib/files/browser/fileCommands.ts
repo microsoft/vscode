@@ -295,6 +295,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const instantiationService = accessor.get(IInstantiationService);
 		const textModelService = accessor.get(ITextModelService);
 		const editorService = accessor.get(IEditorService);
+		const fileService = accessor.get(IFileService);
 
 		// Register provider at first as needed
 		let registerEditorListener = false;
@@ -306,9 +307,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			providerDisposables.push(textModelService.registerTextModelContentProvider(COMPARE_WITH_SAVED_SCHEMA, provider));
 		}
 
-		// Open editor (only files supported)
+		// Open editor (only resources that can be handled by file service are supported)
 		const uri = getResourceForCommand(resource, accessor.get(IListService), editorService);
-		if (uri && uri.scheme === Schemas.file /* only files on disk supported for now */) {
+		if (uri && fileService.canHandleResource(uri)) {
 			const name = basename(uri);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
