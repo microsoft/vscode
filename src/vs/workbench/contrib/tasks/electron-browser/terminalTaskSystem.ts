@@ -164,7 +164,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	constructor(
 		private terminalService: ITerminalService,
 		private outputService: IOutputService,
-    private panelService: IPanelService,
+		private panelService: IPanelService,
 		private markerService: IMarkerService, private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
