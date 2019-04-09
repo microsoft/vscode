@@ -74,7 +74,7 @@ declare module ApplicationInsights {
          * Note that this method only applies to the default client. Disk-backed retry caching is disabled by default for additional clients.
          * For enable for additional clients, use client.channel.setUseDiskRetryCaching(true).
          * These cached events are stored in your system or user's temporary directory and access restricted to your user when possible.
-         * @param value if true events that occured while client is offline will be cached on disk
+         * @param value if true events that occurred while client is offline will be cached on disk
          * @param resendInterval The wait interval for resending cached events.
          * @param maxBytesOnDisk The maximum size (in bytes) that the created temporary directory for cache events can grow to, before caching is disabled.
          * @returns {Configuration} this class
@@ -165,7 +165,7 @@ declare module ApplicationInsights {
         /**
     * Enable or disable disk-backed retry caching to cache events when client is offline (enabled by default)
     * These cached events are stored in your system or user's temporary directory and access restricted to your user when possible.
-    * @param value if true events that occured while client is offline will be cached on disk
+    * @param value if true events that occurred while client is offline will be cached on disk
     * @param resendInterval The wait interval for resending cached events.
     * @param maxBytesOnDisk The maximum size (in bytes) that the created temporary directory for cache events can grow to, before caching is disabled.
     * @returns {Configuration} this class
