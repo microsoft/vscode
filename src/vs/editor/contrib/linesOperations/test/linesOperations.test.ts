@@ -434,7 +434,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 					joinLinesAction.run(null!, editor);
 					assert.equal(model.getLineContent(1), 'hello my dear world');
-					assert.deepEqual(editor.getSelection(), new Selection(1, 14, 1, 20));
+					assert.deepEqual(editor.getSelection(), new Selection(1, 1, 1, 20));
 
 					editor.trigger('keyboard', Handler.Undo, {});
 					assert.equal(model.getLineContent(1), 'hello my dear');
