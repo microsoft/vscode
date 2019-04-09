@@ -673,9 +673,9 @@
 		"GitHub.vscode-pull-request-github-insiders",
 		"Microsoft.vscode-nmake-tools",
 		"ms-vscode.remote-containers",
-		"ms-vscode.open-ssh-remote",
-		"ms-vscode.open-ssh-remote-edit",
-		"ms-vscode.open-ssh-remote-explorer",
+		"ms-vscode.remote-ssh",
+		"ms-vscode.remote-ssh-edit",
+		"ms-vscode.remote-ssh-explorer",
 		"ms-vscode.remote-wsl"
 	],
 	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
