@@ -161,6 +161,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _extHostContext: IMainContext;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _extHostConfiguration: ExtHostConfiguration;
+	private readonly _environment: IEnvironment;
 	private readonly _extHostLogService: ExtHostLogService;
 
 	private readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
@@ -186,6 +187,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		extHostContext: IMainContext,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
+		environment: IEnvironment,
 		extHostLogService: ExtHostLogService
 	) {
 		this._nativeExit = nativeExit;
@@ -193,6 +195,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._extHostContext = extHostContext;
 		this._extHostWorkspace = extHostWorkspace;
 		this._extHostConfiguration = extHostConfiguration;
+		this._environment = environment;
 		this._extHostLogService = extHostLogService;
 
 		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
@@ -244,7 +247,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			const configProvider = await this._extHostConfiguration.getConfigProvider();
 			const extensionPaths = await this.getExtensionPathIndex();
 			NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(this._extensionApiFactory, extensionPaths, this._registry, configProvider));
-			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar)));
+			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar), this._environment));
 
 			// Do this when extension service exists, but extensions are not being activated yet.
 			await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
