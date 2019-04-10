@@ -150,6 +150,9 @@ export interface IDebugSession extends ITreeElement {
 	readonly state: State;
 	readonly root: IWorkspaceFolder;
 	readonly parentSession: IDebugSession | undefined;
+	readonly subId: string | undefined;
+
+	setSubId(subId: string | undefined): void;
 
 	getLabel(): string;
 
