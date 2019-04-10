@@ -8,6 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 export interface IGetEnvironmentDataArguments {
 	language: string;
@@ -57,5 +58,9 @@ export class RemoteExtensionEnvironmentChannelClient {
 					syncExtensions: data.syncExtensions
 				};
 			});
+	}
+
+	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {
+		return this.channel.call<IDiagnosticInfo>('getDiagnosticInfo', options);
 	}
 }

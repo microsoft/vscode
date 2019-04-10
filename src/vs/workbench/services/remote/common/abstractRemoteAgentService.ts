@@ -17,6 +17,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } f
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
@@ -43,6 +44,16 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 			}
 		}
 		return bail ? this._environment : this._environment.then(undefined, () => null);
+	}
+
+	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> {
+		const connection = this.getConnection();
+		if (connection) {
+			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
+			return client.getDiagnosticInfo(options);
+		}
+
+		return Promise.resolve(undefined);
 	}
 }
 
