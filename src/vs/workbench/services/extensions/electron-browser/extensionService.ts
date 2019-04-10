@@ -35,6 +35,7 @@ import { Schemas } from 'vs/base/common/network';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
+import { WebWorkerExtensionHostStarter } from './webWorkerExtensionHostStarter';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -438,12 +439,20 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			autoStart = true;
 			extensions = this.getExtensions();
 		}
-
-		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._extensionHostLogsLocation);
-		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, null, initialActivationEvents);
-		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
-		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ target: extHostProcessManager, isResponsive: responsiveState === ResponsiveState.Responsive }); });
-		this._extensionHostProcessManagers.push(extHostProcessManager);
+		{
+			const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._extensionHostLogsLocation);
+			const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, null, initialActivationEvents);
+			extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
+			extHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ target: extHostProcessManager, isResponsive: responsiveState === ResponsiveState.Responsive }); });
+			this._extensionHostProcessManagers.push(extHostProcessManager);
+		}
+		{
+			const extHostWebWorkerWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, autoStart, extensions, this._extensionHostLogsLocation);
+			const extHostWebWorkerManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostWebWorkerWorker, null, initialActivationEvents);
+			extHostWebWorkerManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
+			extHostWebWorkerManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ target: extHostWebWorkerManager, isResponsive: responsiveState === ResponsiveState.Responsive }); });
+			this._extensionHostProcessManagers.push(extHostWebWorkerManager);
+		}
 	}
 
 	private _onExtensionHostCrashed(code: number, signal: string | null): void {

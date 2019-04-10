@@ -461,7 +461,7 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,node,electron-browser}/**",
+					"**/vs/base/**/{common,browser,worker,node,electron-browser}/**",
 					"**/vs/platform/**/{common,browser,node,electron-browser}/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
