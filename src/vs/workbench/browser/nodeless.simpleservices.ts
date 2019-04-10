@@ -57,6 +57,7 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Color, RGBA } from 'vs/base/common/color';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const workspaceResource = URI.from({
@@ -1433,5 +1434,18 @@ export class SimpleWorkspacesService implements IWorkspacesService {
 }
 
 registerSingleton(IWorkspacesService, SimpleWorkspacesService);
+
+//#endregion
+
+//#region remote
+
+class SimpleTunnelService implements ITunnelService {
+	_serviceBrand: any;
+	openTunnel(remotePort: number) {
+		return undefined;
+	}
+}
+
+registerSingleton(ITunnelService, SimpleTunnelService);
 
 //#endregion

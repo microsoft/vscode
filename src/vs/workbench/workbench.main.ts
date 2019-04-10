@@ -88,6 +88,8 @@ import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarServ
 import { IURLService } from 'vs/platform/url/common/url';
 import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 
+import 'vs/platform/remote/node/tunnelService';
+
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
