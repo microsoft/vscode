@@ -22,7 +22,7 @@ import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 
 import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export class ConfigurationResolverService extends AbstractVariableResolverService {
 
@@ -84,7 +84,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				}
 				return undefined;
 			}
-		}, windowService.getConfiguration().userEnv);
+		}, process.env as IProcessEnvironment);
 	}
 
 	public resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
