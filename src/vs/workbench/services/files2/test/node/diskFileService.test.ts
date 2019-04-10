@@ -15,11 +15,12 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
+import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 
 function getByName(root: IFileStat, name: string): IFileStat | null {
 	if (root.children === undefined) {
@@ -33,6 +34,28 @@ function getByName(root: IFileStat, name: string): IFileStat | null {
 	}
 
 	return null;
+}
+
+function toLineByLineReadable(content: string): VSBufferReadable {
+	let chunks = content.split('\n');
+	chunks = chunks.map((chunk, index) => {
+		if (index === 0) {
+			return chunk;
+		}
+
+		return '\n' + chunk;
+	});
+
+	return {
+		read(): VSBuffer | null {
+			const chunk = chunks.shift();
+			if (typeof chunk === 'string') {
+				return VSBuffer.fromString(chunk);
+			}
+
+			return null;
+		}
+	};
 }
 
 export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
@@ -775,6 +798,165 @@ suite('Disk File Service', () => {
 		} catch (error) {
 			assert.ok(error);
 		}
+	});
+
+	test('createFile2', async () => {
+		let event: FileOperationEvent;
+		disposables.push(service.onAfterOperation(e => event = e));
+
+		const contents = 'Hello World';
+		const resource = URI.file(join(testDir, 'test.txt'));
+		const fileStat = await service.createFile2(resource, VSBuffer.fromString(contents));
+		assert.equal(fileStat.name, 'test.txt');
+		assert.equal(existsSync(fileStat.resource.fsPath), true);
+		assert.equal(readFileSync(fileStat.resource.fsPath), contents);
+
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, resource.fsPath);
+		assert.equal(event!.operation, FileOperation.CREATE);
+		assert.equal(event!.target!.resource.fsPath, resource.fsPath);
+	});
+
+	test('createFile2 (does not overwrite by default)', async () => {
+		const contents = 'Hello World';
+		const resource = URI.file(join(testDir, 'test.txt'));
+
+		writeFileSync(resource.fsPath, ''); // create file
+
+		try {
+			await service.createFile2(resource, VSBuffer.fromString(contents));
+		}
+		catch (error) {
+			assert.ok(error);
+		}
+	});
+
+	test('createFile2 (allows to overwrite existing)', async () => {
+		let event: FileOperationEvent;
+		disposables.push(service.onAfterOperation(e => event = e));
+
+		const contents = 'Hello World';
+		const resource = URI.file(join(testDir, 'test.txt'));
+
+		writeFileSync(resource.fsPath, ''); // create file
+
+		const fileStat = await service.createFile2(resource, VSBuffer.fromString(contents), { overwrite: true });
+		assert.equal(fileStat.name, 'test.txt');
+		assert.equal(existsSync(fileStat.resource.fsPath), true);
+		assert.equal(readFileSync(fileStat.resource.fsPath), contents);
+
+		assert.ok(event!);
+		assert.equal(event!.resource.fsPath, resource.fsPath);
+		assert.equal(event!.operation, FileOperation.CREATE);
+		assert.equal(event!.target!.resource.fsPath, resource.fsPath);
+	});
+
+	test('writeFile', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+		await service.writeFile(resource, VSBuffer.fromString(newContent));
+
+		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile (large file)', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		const newContent = content.toString() + content.toString();
+
+		const fileStat = await service.writeFile(resource, VSBuffer.fromString(newContent));
+		assert.equal(fileStat.name, 'lorem.txt');
+
+		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile (readable)', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+		await service.writeFile(resource, toLineByLineReadable(newContent));
+
+		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile (large file - readable)', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		const newContent = content.toString() + content.toString();
+
+		const fileStat = await service.writeFile(resource, toLineByLineReadable(newContent));
+		assert.equal(fileStat.name, 'lorem.txt');
+
+		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile (file is created including parents)', async () => {
+		const resource = URI.file(join(testDir, 'other', 'newfile.txt'));
+
+		const content = 'File is created including parent';
+		const fileStat = await service.writeFile(resource, VSBuffer.fromString(content));
+		assert.equal(fileStat.name, 'newfile.txt');
+
+		assert.equal(readFileSync(resource.fsPath), content);
+	});
+
+	test('writeFile (error when folder is encountered)', async () => {
+		const resource = URI.file(testDir);
+
+		let error: Error | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString('File is created including parent'));
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+	});
+
+	test('writeFile (no error when providing up to date etag)', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const stat = await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
+
+		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile (error when writing to file that has been updated meanwhile)', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const stat = await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
+
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: etag(0, 0), mtime: 0 });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.ok(error instanceof FileOperationError);
+		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
 	});
 
 	test('watch - file', done => {

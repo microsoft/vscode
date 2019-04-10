@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextSnapshot, IFileStat, IContent, IFileService, IResourceEncodings, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IStreamContent, IUpdateContentOptions, snapshotToString, ICreateFileOptions, IResourceEncoding, IFileStatWithMetadata, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { ITextSnapshot, IFileStat, IContent, IFileService, IResourceEncodings, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IStreamContent, IUpdateContentOptions, snapshotToString, ICreateFileOptions, IResourceEncoding, IFileStatWithMetadata, FileSystemProviderCapabilities, IWriteFileOptions } from 'vs/platform/files/common/files';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
@@ -62,6 +62,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAgentService, IRemoteAgentConnection } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 
 export const workspaceResource = URI.file(isWindows ? 'C:\\simpleWorkspace' : '/simpleWorkspace');
 
@@ -798,6 +799,10 @@ export class SimpleRemoteFileService implements IFileService {
 		});
 	}
 
+	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+		return this.updateContent(resource, bufferOrReadable.toString(), options);
+	}
+
 	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 
 	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<any> {
@@ -818,6 +823,10 @@ export class SimpleRemoteFileService implements IFileService {
 		}
 
 		return Promise.resolve(createFile(parent, basename(_resource.path)));
+	}
+
+	createFile2(_resource: URI, _content?: VSBuffer, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+		return this.createFile(_resource, undefined, _options);
 	}
 
 	createFolder(_resource: URI): Promise<IFileStatWithMetadata> {

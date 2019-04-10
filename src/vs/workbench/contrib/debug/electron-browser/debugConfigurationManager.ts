@@ -34,6 +34,7 @@ import { launchSchema, debuggersExtPoint, breakpointsExtPoint } from 'vs/workben
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -535,6 +536,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 		private configurationManager: ConfigurationManager,
 		public workspace: IWorkspaceFolder,
 		@IFileService private readonly fileService: IFileService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
@@ -574,7 +576,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 				}
 
 				created = true; // pin only if config file is created #8727
-				return this.fileService.updateContent(resource, content).then(() => {
+				return this.textFileService.update(resource, content).then(() => {
 					// convert string into IContent; see #32135
 					return content;
 				});

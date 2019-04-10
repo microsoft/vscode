@@ -19,7 +19,7 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import * as themes from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -37,7 +37,7 @@ class PartsSplash {
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
-		@IFileService private readonly _fileService: IFileService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@IBroadcastService private readonly _broadcastService: IBroadcastService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -78,15 +78,14 @@ class PartsSplash {
 			sideBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.SIDEBAR_PART)),
 			statusBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.STATUSBAR_PART)),
 		};
-		this._fileService.updateContent(
+		this._textFileService.update(
 			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),
 			JSON.stringify({
 				id: PartsSplash._splashElementId,
 				colorInfo,
 				layoutInfo,
 				baseTheme
-			}),
-			{ encoding: 'utf8' }
+			})
 		);
 
 		if (baseTheme !== this._lastBaseTheme || colorInfo.editorBackground !== this._lastBackground) {

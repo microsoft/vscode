@@ -95,6 +95,8 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { RunAutomaticTasks, AllowAutomaticTaskRunning, DisallowAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/electron-browser/runAutomaticTasks';
 
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
@@ -1079,7 +1081,7 @@ class TaskService extends Disposable implements ITaskService {
 			if (editorConfig.editor.insertSpaces) {
 				content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 			}
-			promise = this.fileService.createFile(workspaceFolder.toResource('.vscode/tasks.json'), content).then(() => { });
+			promise = this.textFileService.create(workspaceFolder.toResource('.vscode/tasks.json'), content).then(() => { });
 		} else {
 			// We have a global task configuration
 			if ((index === -1) && properties) {
@@ -2347,7 +2349,7 @@ class TaskService extends Disposable implements ITaskService {
 							"autoDetect" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 						}
 					*/
-					return this.fileService.createFile(resource, content).then((result): URI => {
+					return this.textFileService.create(resource, content).then((result): URI => {
 						this.telemetryService.publicLog(TaskService.TemplateTelemetryEventName, {
 							templateId: selection.id,
 							autoDetect: selection.autoDetect
@@ -2710,7 +2712,6 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from '../common/jsonSchema_v1';
 import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,

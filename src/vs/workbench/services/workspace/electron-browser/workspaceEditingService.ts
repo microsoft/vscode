@@ -31,6 +31,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -298,7 +299,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		// Read the contents of the workspace file, update it to new location and save it.
 		const raw = await this.fileSystemService.resolveContent(configPathURI);
 		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value, configPathURI, targetConfigPathURI);
-		await this.fileSystemService.createFile(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
+		await this.fileSystemService.createFile2(targetConfigPathURI, VSBuffer.fromString(newRawWorkspaceContents), { overwrite: true });
 	}
 
 	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): Promise<void> {

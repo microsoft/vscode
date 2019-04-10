@@ -211,7 +211,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		return this.fileService.exists(this.resource)
 			.then(exists => {
 				const EOL = this.configurationService.getValue('files', { overrideIdentifier: 'json' })['eol'];
-				const result: Promise<any> = exists ? Promise.resolve(null) : this.fileService.updateContent(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
+				const result: Promise<any> = exists ? Promise.resolve(null) : this.textFileService.update(this.resource, this.getEmptyContent(EOL));
 				return result.then(() => this.textModelResolverService.createModelReference(this.resource));
 			});
 	}
