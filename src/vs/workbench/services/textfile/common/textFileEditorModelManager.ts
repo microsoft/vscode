@@ -316,4 +316,10 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		model.dispose();
 	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.clear();
+	}
 }

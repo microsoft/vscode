@@ -39,14 +39,8 @@ import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export interface IBackupResult {
-	didBackup: boolean;
-}
-
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
- *
- * It also adds diagnostics and logging around file system operations.
  */
 export class TextFileService extends Disposable implements ITextFileService {
 
@@ -62,6 +56,8 @@ export class TextFileService extends Disposable implements ITextFileService {
 	get onWillMove(): Event<IWillMoveEvent> { return this._onWillMove.event; }
 
 	private _models: TextFileEditorModelManager;
+	get models(): ITextFileEditorModelManager { return this._models; }
+
 	private currentFilesAssociationConfig: { [key: string]: string; };
 	private configuredAutoSaveDelay?: number;
 	private configuredAutoSaveOnFocusChange: boolean;
@@ -90,7 +86,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 	) {
 		super();
 
-		this._models = instantiationService.createInstance(TextFileEditorModelManager);
+		this._models = this._register(instantiationService.createInstance(TextFileEditorModelManager));
 		this.autoSaveContext = AutoSaveContext.bindTo(contextKeyService);
 
 		const configuration = configurationService.getValue<IFilesConfiguration>();
@@ -101,127 +97,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 		this.registerListeners();
 	}
 
-	get models(): ITextFileEditorModelManager {
-		return this._models;
-	}
-
-	async resolve(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent> {
-		const streamContent = await this.fileService.resolveStreamContent(resource, options);
-		const value = await createTextBufferFactoryFromStream(streamContent.value);
-
-		return {
-			resource: streamContent.resource,
-			name: streamContent.name,
-			mtime: streamContent.mtime,
-			etag: streamContent.etag,
-			encoding: streamContent.encoding,
-			isReadonly: streamContent.isReadonly,
-			size: streamContent.size,
-			value
-		};
-	}
-
-	async promptForPath(resource: URI, defaultUri: URI): Promise<URI | undefined> {
-
-		// Help user to find a name for the file by opening it first
-		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } });
-
-		return this.fileDialogService.showSaveDialog(this.getSaveDialogOptions(defaultUri));
-	}
-
-	private getSaveDialogOptions(defaultUri: URI): ISaveDialogOptions {
-		const options: ISaveDialogOptions = {
-			defaultUri,
-			title: nls.localize('saveAsTitle', "Save As")
-		};
-
-		// Filters are only enabled on Windows where they work properly
-		if (!platform.isWindows) {
-			return options;
-		}
-
-		interface IFilter { name: string; extensions: string[]; }
-
-		// Build the file filter by using our known languages
-		const ext: string | undefined = defaultUri ? extname(defaultUri) : undefined;
-		let matchingFilter: IFilter | undefined;
-		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
-			const extensions = this.modeService.getExtensions(languageName);
-			if (!extensions || !extensions.length) {
-				return null;
-			}
-
-			const filter: IFilter = { name: languageName, extensions: extensions.slice(0, 10).map(e => trim(e, '.')) };
-
-			if (ext && extensions.indexOf(ext) >= 0) {
-				matchingFilter = filter;
-
-				return null; // matching filter will be added last to the top
-			}
-
-			return filter;
-		}));
-
-		// Filters are a bit weird on Windows, based on having a match or not:
-		// Match: we put the matching filter first so that it shows up selected and the all files last
-		// No match: we put the all files filter first
-		const allFilesFilter = { name: nls.localize('allFiles', "All Files"), extensions: ['*'] };
-		if (matchingFilter) {
-			filters.unshift(matchingFilter);
-			filters.unshift(allFilesFilter);
-		} else {
-			filters.unshift(allFilesFilter);
-		}
-
-		// Allow to save file without extension
-		filters.push({ name: nls.localize('noExt', "No Extension"), extensions: [''] });
-
-		options.filters = filters;
-
-		return options;
-	}
-
-	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment) {
-			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
-		}
-
-		const resourcesToConfirm = this.getDirty(resources);
-		if (resourcesToConfirm.length === 0) {
-			return ConfirmResult.DONT_SAVE;
-		}
-
-		const message = resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", basename(resourcesToConfirm[0]))
-			: getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length), resourcesToConfirm);
-
-		const buttons: string[] = [
-			resourcesToConfirm.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
-			nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
-			nls.localize('cancel', "Cancel")
-		];
-
-		const index = await this.dialogService.show(Severity.Warning, message, buttons, {
-			cancelId: 2,
-			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
-		});
-
-		switch (index) {
-			case 0: return ConfirmResult.SAVE;
-			case 1: return ConfirmResult.DONT_SAVE;
-			default: return ConfirmResult.CANCEL;
-		}
-	}
-
-	async confirmOverwrite(resource: URI): Promise<boolean> {
-		const confirm: IConfirmation = {
-			message: nls.localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
-			detail: nls.localize('irreversible', "A file or folder with the same name already exists in the folder {0}. Replacing it will overwrite its current contents.", basename(dirname(resource))),
-			primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-			type: 'warning'
-		};
-
-		return (await this.dialogService.confirm(confirm)).confirmed;
-	}
+	//#region event handling
 
 	private registerListeners(): void {
 
@@ -270,8 +146,8 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 		// If hot exit is enabled, backup dirty files and allow to exit without confirmation
 		if (this.isHotExitEnabled) {
-			return this.backupBeforeShutdown(dirty, this.models, reason).then(result => {
-				if (result.didBackup) {
+			return this.backupBeforeShutdown(dirty, this.models, reason).then(didBackup => {
+				if (didBackup) {
 					return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
 				}
 
@@ -289,7 +165,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 		return this.confirmBeforeShutdown();
 	}
 
-	private async backupBeforeShutdown(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): Promise<IBackupResult> {
+	private async backupBeforeShutdown(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager, reason: ShutdownReason): Promise<boolean> {
 		const windowCount = await this.windowsService.getWindowCount();
 
 		// When quit is requested skip the confirm callback and attempt to backup all workspaces.
@@ -327,12 +203,12 @@ export class TextFileService extends Disposable implements ITextFileService {
 		}
 
 		if (!doBackup) {
-			return { didBackup: false };
+			return false;
 		}
 
 		await this.backupAll(dirtyToBackup, textFileEditorModelManager);
 
-		return { didBackup: true };
+		return true;
 	}
 
 	private backupAll(dirtyToBackup: URI[], textFileEditorModelManager: ITextFileEditorModelManager): Promise<void> {
@@ -487,27 +363,129 @@ export class TextFileService extends Disposable implements ITextFileService {
 		}
 	}
 
-	getDirty(resources?: URI[]): URI[] {
+	//#endregion
 
-		// Collect files
-		const dirty = this.getDirtyFileModels(resources).map(m => m.getResource());
+	//#region primitives (resolve, create, move, delete, update)
 
-		// Add untitled ones
-		dirty.push(...this.untitledEditorService.getDirty(resources));
+	async resolve(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent> {
+		const streamContent = await this.fileService.resolveStreamContent(resource, options);
+		const value = await createTextBufferFactoryFromStream(streamContent.value);
 
-		return dirty;
+		return {
+			resource: streamContent.resource,
+			name: streamContent.name,
+			mtime: streamContent.mtime,
+			etag: streamContent.etag,
+			encoding: streamContent.encoding,
+			isReadonly: streamContent.isReadonly,
+			size: streamContent.size,
+			value
+		};
 	}
 
-	isDirty(resource?: URI): boolean {
+	async create(resource: URI, contents?: string, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata> {
+		const existingModel = this.models.get(resource);
 
-		// Check for dirty file
-		if (this._models.getAll(resource).some(model => model.isDirty())) {
-			return true;
+		const stat = await this.fileService.createFile(resource, contents, options);
+
+		// If we had an existing model for the given resource, load
+		// it again to make sure it is up to date with the contents
+		// we just wrote into the underlying resource by calling
+		// revert()
+		if (existingModel && !existingModel.isDisposed()) {
+			await existingModel.revert();
 		}
 
-		// Check for dirty untitled
-		return this.untitledEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
+		return stat;
 	}
+
+	update(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
+		return this.fileService.updateContent(resource, value, options);
+	}
+
+	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
+		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource, !platform.isLinux /* ignorecase */));
+
+		await this.revertAll(dirtyFiles, { soft: true });
+
+		return this.fileService.del(resource, options);
+	}
+
+	async move(source: URI, target: URI, overwrite?: boolean): Promise<void> {
+		const waitForPromises: Promise<unknown>[] = [];
+
+		// Event
+		this._onWillMove.fire({
+			oldResource: source,
+			newResource: target,
+			waitUntil(promise: Promise<unknown>) {
+				waitForPromises.push(promise.then(undefined, errors.onUnexpectedError));
+			}
+		});
+
+		// prevent async waitUntil-calls
+		Object.freeze(waitForPromises);
+
+		await Promise.all(waitForPromises);
+
+		// Handle target models if existing (if target URI is a folder, this can be multiple)
+		const dirtyTargetModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */));
+		if (dirtyTargetModels.length) {
+			await this.revertAll(dirtyTargetModels.map(targetModel => targetModel.getResource()), { soft: true });
+		}
+
+		// Handle dirty source models if existing (if source URI is a folder, this can be multiple)
+		const dirtySourceModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), source, !platform.isLinux /* ignorecase */));
+		const dirtyTargetModelUris: URI[] = [];
+		if (dirtySourceModels.length) {
+			await Promise.all(dirtySourceModels.map(async sourceModel => {
+				const sourceModelResource = sourceModel.getResource();
+				let targetModelResource: URI;
+
+				// If the source is the actual model, just use target as new resource
+				if (isEqual(sourceModelResource, source, !platform.isLinux /* ignorecase */)) {
+					targetModelResource = target;
+				}
+
+				// Otherwise a parent folder of the source is being moved, so we need
+				// to compute the target resource based on that
+				else {
+					targetModelResource = sourceModelResource.with({ path: joinPath(target, sourceModelResource.path.substr(source.path.length + 1)).path });
+				}
+
+				// Remember as dirty target model to load after the operation
+				dirtyTargetModelUris.push(targetModelResource);
+
+				// Backup dirty source model to the target resource it will become later
+				const snapshot = sourceModel.createSnapshot();
+				if (snapshot) {
+					await this.backupFileService.backupResource(targetModelResource, snapshot, sourceModel.getVersionId());
+				}
+			}));
+		}
+
+
+		// Soft revert the dirty source files if any
+		await this.revertAll(dirtySourceModels.map(dirtySourceModel => dirtySourceModel.getResource()), { soft: true });
+
+		// Rename to target
+		try {
+			await this.fileService.move(source, target, overwrite);
+
+			// Load models that were dirty before
+			await Promise.all(dirtyTargetModelUris.map(dirtyTargetModel => this.models.loadOrCreate(dirtyTargetModel)));
+		} catch (error) {
+
+			// In case of an error, discard any dirty target backups that were made
+			await Promise.all(dirtyTargetModelUris.map(dirtyTargetModel => this.backupFileService.discardResourceBackup(dirtyTargetModel)));
+
+			throw error;
+		}
+	}
+
+	//#endregion
+
+	//#region save/revert
 
 	async save(resource: URI, options?: ISaveOptions): Promise<boolean> {
 
@@ -526,6 +504,48 @@ export class TextFileService extends Disposable implements ITextFileService {
 		const result = await this.saveAll([resource], options);
 
 		return result.results.length === 1 && !!result.results[0].success;
+	}
+
+	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
+		if (this.environmentService.isExtensionDevelopment) {
+			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
+		}
+
+		const resourcesToConfirm = this.getDirty(resources);
+		if (resourcesToConfirm.length === 0) {
+			return ConfirmResult.DONT_SAVE;
+		}
+
+		const message = resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", basename(resourcesToConfirm[0]))
+			: getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length), resourcesToConfirm);
+
+		const buttons: string[] = [
+			resourcesToConfirm.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+			nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+			nls.localize('cancel', "Cancel")
+		];
+
+		const index = await this.dialogService.show(Severity.Warning, message, buttons, {
+			cancelId: 2,
+			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
+		});
+
+		switch (index) {
+			case 0: return ConfirmResult.SAVE;
+			case 1: return ConfirmResult.DONT_SAVE;
+			default: return ConfirmResult.CANCEL;
+		}
+	}
+
+	async confirmOverwrite(resource: URI): Promise<boolean> {
+		const confirm: IConfirmation = {
+			message: nls.localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
+			detail: nls.localize('irreversible', "A file or folder with the same name already exists in the folder {0}. Replacing it will overwrite its current contents.", basename(dirname(resource))),
+			primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+			type: 'warning'
+		};
+
+		return (await this.dialogService.confirm(confirm)).confirmed;
 	}
 
 	saveAll(includeUntitled?: boolean, options?: ISaveOptions): Promise<ITextFileOperationResult>;
@@ -596,6 +616,66 @@ export class TextFileService extends Disposable implements ITextFileService {
 		}));
 
 		return result;
+	}
+
+	protected async promptForPath(resource: URI, defaultUri: URI): Promise<URI | undefined> {
+
+		// Help user to find a name for the file by opening it first
+		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } });
+
+		return this.fileDialogService.showSaveDialog(this.getSaveDialogOptions(defaultUri));
+	}
+
+	private getSaveDialogOptions(defaultUri: URI): ISaveDialogOptions {
+		const options: ISaveDialogOptions = {
+			defaultUri,
+			title: nls.localize('saveAsTitle', "Save As")
+		};
+
+		// Filters are only enabled on Windows where they work properly
+		if (!platform.isWindows) {
+			return options;
+		}
+
+		interface IFilter { name: string; extensions: string[]; }
+
+		// Build the file filter by using our known languages
+		const ext: string | undefined = defaultUri ? extname(defaultUri) : undefined;
+		let matchingFilter: IFilter | undefined;
+		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
+			const extensions = this.modeService.getExtensions(languageName);
+			if (!extensions || !extensions.length) {
+				return null;
+			}
+
+			const filter: IFilter = { name: languageName, extensions: extensions.slice(0, 10).map(e => trim(e, '.')) };
+
+			if (ext && extensions.indexOf(ext) >= 0) {
+				matchingFilter = filter;
+
+				return null; // matching filter will be added last to the top
+			}
+
+			return filter;
+		}));
+
+		// Filters are a bit weird on Windows, based on having a match or not:
+		// Match: we put the matching filter first so that it shows up selected and the all files last
+		// No match: we put the all files filter first
+		const allFilesFilter = { name: nls.localize('allFiles', "All Files"), extensions: ['*'] };
+		if (matchingFilter) {
+			filters.unshift(matchingFilter);
+			filters.unshift(allFilesFilter);
+		} else {
+			filters.unshift(allFilesFilter);
+		}
+
+		// Allow to save file without extension
+		filters.push({ name: nls.localize('noExt', "No Extension"), extensions: [''] });
+
+		options.filters = filters;
+
+		return options;
 	}
 
 	private async doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
@@ -848,105 +928,31 @@ export class TextFileService extends Disposable implements ITextFileService {
 		return { results: mapResourceToResult.values() };
 	}
 
-	async create(resource: URI, contents?: string, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata> {
-		const existingModel = this.models.get(resource);
+	getDirty(resources?: URI[]): URI[] {
 
-		const stat = await this.fileService.createFile(resource, contents, options);
+		// Collect files
+		const dirty = this.getDirtyFileModels(resources).map(m => m.getResource());
 
-		// If we had an existing model for the given resource, load
-		// it again to make sure it is up to date with the contents
-		// we just wrote into the underlying resource by calling
-		// revert()
-		if (existingModel && !existingModel.isDisposed()) {
-			await existingModel.revert();
-		}
+		// Add untitled ones
+		dirty.push(...this.untitledEditorService.getDirty(resources));
 
-		return stat;
+		return dirty;
 	}
 
-	update(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
-		return this.fileService.updateContent(resource, value, options);
-	}
+	isDirty(resource?: URI): boolean {
 
-	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
-		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource, !platform.isLinux /* ignorecase */));
-
-		await this.revertAll(dirtyFiles, { soft: true });
-
-		return this.fileService.del(resource, options);
-	}
-
-	async move(source: URI, target: URI, overwrite?: boolean): Promise<void> {
-		const waitForPromises: Promise<unknown>[] = [];
-
-		// Event
-		this._onWillMove.fire({
-			oldResource: source,
-			newResource: target,
-			waitUntil(promise: Promise<unknown>) {
-				waitForPromises.push(promise.then(undefined, errors.onUnexpectedError));
-			}
-		});
-
-		// prevent async waitUntil-calls
-		Object.freeze(waitForPromises);
-
-		await Promise.all(waitForPromises);
-
-		// Handle target models if existing (if target URI is a folder, this can be multiple)
-		const dirtyTargetModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */));
-		if (dirtyTargetModels.length) {
-			await this.revertAll(dirtyTargetModels.map(targetModel => targetModel.getResource()), { soft: true });
+		// Check for dirty file
+		if (this._models.getAll(resource).some(model => model.isDirty())) {
+			return true;
 		}
 
-		// Handle dirty source models if existing (if source URI is a folder, this can be multiple)
-		const dirtySourceModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), source, !platform.isLinux /* ignorecase */));
-		const dirtyTargetModelUris: URI[] = [];
-		if (dirtySourceModels.length) {
-			await Promise.all(dirtySourceModels.map(async sourceModel => {
-				const sourceModelResource = sourceModel.getResource();
-				let targetModelResource: URI;
-
-				// If the source is the actual model, just use target as new resource
-				if (isEqual(sourceModelResource, source, !platform.isLinux /* ignorecase */)) {
-					targetModelResource = target;
-				}
-
-				// Otherwise a parent folder of the source is being moved, so we need
-				// to compute the target resource based on that
-				else {
-					targetModelResource = sourceModelResource.with({ path: joinPath(target, sourceModelResource.path.substr(source.path.length + 1)).path });
-				}
-
-				// Remember as dirty target model to load after the operation
-				dirtyTargetModelUris.push(targetModelResource);
-
-				// Backup dirty source model to the target resource it will become later
-				const snapshot = sourceModel.createSnapshot();
-				if (snapshot) {
-					await this.backupFileService.backupResource(targetModelResource, snapshot, sourceModel.getVersionId());
-				}
-			}));
-		}
-
-
-		// Soft revert the dirty source files if any
-		await this.revertAll(dirtySourceModels.map(dirtySourceModel => dirtySourceModel.getResource()), { soft: true });
-
-		// Rename to target
-		try {
-			await this.fileService.move(source, target, overwrite);
-
-			// Load models that were dirty before
-			await Promise.all(dirtyTargetModelUris.map(dirtyTargetModel => this.models.loadOrCreate(dirtyTargetModel)));
-		} catch (error) {
-
-			// In case of an error, discard any dirty target backups that were made
-			await Promise.all(dirtyTargetModelUris.map(dirtyTargetModel => this.backupFileService.discardResourceBackup(dirtyTargetModel)));
-
-			throw error;
-		}
+		// Check for dirty untitled
+		return this.untitledEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
 	}
+
+	//#endregion
+
+	//#region config
 
 	getAutoSaveMode(): AutoSaveMode {
 		if (this.configuredAutoSaveOnFocusChange) {
@@ -975,6 +981,8 @@ export class TextFileService extends Disposable implements ITextFileService {
 	get isHotExitEnabled(): boolean {
 		return !this.environmentService.isExtensionDevelopment && this.configuredHotExit !== HotExitConfiguration.OFF;
 	}
+
+	//#endregion
 
 	dispose(): void {
 
