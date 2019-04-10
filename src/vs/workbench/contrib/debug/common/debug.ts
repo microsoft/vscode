@@ -568,7 +568,10 @@ export interface ITerminalSettings {
 	external: {
 		windowsExec: string,
 		osxExec: string,
-		linuxExec: string
+		linuxExec: string,
+		linux: {
+			pressAnyKeyToContinue: boolean
+		}
 	};
 	integrated: {
 		shell: {

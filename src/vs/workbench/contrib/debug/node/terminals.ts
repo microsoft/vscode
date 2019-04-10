@@ -186,6 +186,8 @@ class LinuxTerminalService extends TerminalLauncher {
 	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): Promise<number | undefined> {
 
 		const terminalConfig = configuration.external;
+		const pressAnyKeyToContinue = terminalConfig.linux.pressAnyKeyToContinue;
+		// const pressAnyKeyToContinue = (envVars['VSCODE_TERMLAUNCHER_WAIT'] !== undefined);
 		const execThenable: Promise<string> = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 
 		return new Promise<number | undefined>((c, e) => {
@@ -202,7 +204,7 @@ class LinuxTerminalService extends TerminalLauncher {
 				termArgs.push('bash');
 				termArgs.push('-c');
 
-				const bashCommand = `${quote(args)}; echo; read -p "${LinuxTerminalService.WAIT_MESSAGE}" -n1;`;
+				const bashCommand = `${quote(args)}` + (pressAnyKeyToContinue ? `; echo; read -p "${LinuxTerminalService.WAIT_MESSAGE}" -n1;` : ``);
 				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 
 				// merge environment variables into a copy of the process.env

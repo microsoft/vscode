@@ -74,6 +74,11 @@ getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 				description: nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
 				default: defaultTerminalLinux,
 				scope: ConfigurationScope.APPLICATION
+			},
+			'terminal.external.linux.pressAnyKeyToContinue': {
+				description: nls.localize('terminal.external.linux.pressAnyKeyToContinue', "Controls whether to ask to press any key to continue."),
+				type: 'boolean',
+				default: false
 			}
 		}
 	});
