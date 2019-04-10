@@ -514,48 +514,47 @@ export function getClientArea(element: HTMLElement): Dimension {
 	throw new Error('Unable to figure out browser width and height');
 }
 
-const sizeUtils = {
+class SizeUtils {
 
-	getBorderLeftWidth: function (element: HTMLElement): number {
+	static getBorderLeftWidth(element: HTMLElement): number {
 		return getDimension(element, 'border-left-width', 'borderLeftWidth');
-	},
-	getBorderRightWidth: function (element: HTMLElement): number {
+	}
+	static getBorderRightWidth(element: HTMLElement): number {
 		return getDimension(element, 'border-right-width', 'borderRightWidth');
-	},
-	getBorderTopWidth: function (element: HTMLElement): number {
+	}
+	static getBorderTopWidth(element: HTMLElement): number {
 		return getDimension(element, 'border-top-width', 'borderTopWidth');
-	},
-	getBorderBottomWidth: function (element: HTMLElement): number {
+	}
+	static getBorderBottomWidth(element: HTMLElement): number {
 		return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
-	},
+	}
 
-	getPaddingLeft: function (element: HTMLElement): number {
+	static getPaddingLeft(element: HTMLElement): number {
 		return getDimension(element, 'padding-left', 'paddingLeft');
-	},
-	getPaddingRight: function (element: HTMLElement): number {
+	}
+	static getPaddingRight(element: HTMLElement): number {
 		return getDimension(element, 'padding-right', 'paddingRight');
-	},
-	getPaddingTop: function (element: HTMLElement): number {
+	}
+	static getPaddingTop(element: HTMLElement): number {
 		return getDimension(element, 'padding-top', 'paddingTop');
-	},
-	getPaddingBottom: function (element: HTMLElement): number {
+	}
+	static getPaddingBottom(element: HTMLElement): number {
 		return getDimension(element, 'padding-bottom', 'paddingBottom');
-	},
+	}
 
-	getMarginLeft: function (element: HTMLElement): number {
+	static getMarginLeft(element: HTMLElement): number {
 		return getDimension(element, 'margin-left', 'marginLeft');
-	},
-	getMarginTop: function (element: HTMLElement): number {
+	}
+	static getMarginTop(element: HTMLElement): number {
 		return getDimension(element, 'margin-top', 'marginTop');
-	},
-	getMarginRight: function (element: HTMLElement): number {
+	}
+	static getMarginRight(element: HTMLElement): number {
 		return getDimension(element, 'margin-right', 'marginRight');
-	},
-	getMarginBottom: function (element: HTMLElement): number {
+	}
+	static getMarginBottom(element: HTMLElement): number {
 		return getDimension(element, 'margin-bottom', 'marginBottom');
-	},
-	__commaSentinel: false
-};
+	}
+}
 
 // ----------------------------------------------------------------------------------------
 // Position & Dimension
@@ -594,8 +593,8 @@ export function getTopLeftOffset(element: HTMLElement): { left: number; top: num
 		}
 
 		if (element === offsetParent) {
-			left += sizeUtils.getBorderLeftWidth(element);
-			top += sizeUtils.getBorderTopWidth(element);
+			left += SizeUtils.getBorderLeftWidth(element);
+			top += SizeUtils.getBorderTopWidth(element);
 			top += element.offsetTop;
 			left += element.offsetLeft;
 			offsetParent = element.offsetParent;
@@ -686,33 +685,33 @@ export const StandardWindow: IStandardWindow = new class implements IStandardWin
 // Adapted from WinJS
 // Gets the width of the element, including margins.
 export function getTotalWidth(element: HTMLElement): number {
-	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
+	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
 	return element.offsetWidth + margin;
 }
 
 export function getContentWidth(element: HTMLElement): number {
-	let border = sizeUtils.getBorderLeftWidth(element) + sizeUtils.getBorderRightWidth(element);
-	let padding = sizeUtils.getPaddingLeft(element) + sizeUtils.getPaddingRight(element);
+	let border = SizeUtils.getBorderLeftWidth(element) + SizeUtils.getBorderRightWidth(element);
+	let padding = SizeUtils.getPaddingLeft(element) + SizeUtils.getPaddingRight(element);
 	return element.offsetWidth - border - padding;
 }
 
 export function getTotalScrollWidth(element: HTMLElement): number {
-	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
+	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
 	return element.scrollWidth + margin;
 }
 
 // Adapted from WinJS
 // Gets the height of the content of the specified element. The content height does not include borders or padding.
 export function getContentHeight(element: HTMLElement): number {
-	let border = sizeUtils.getBorderTopWidth(element) + sizeUtils.getBorderBottomWidth(element);
-	let padding = sizeUtils.getPaddingTop(element) + sizeUtils.getPaddingBottom(element);
+	let border = SizeUtils.getBorderTopWidth(element) + SizeUtils.getBorderBottomWidth(element);
+	let padding = SizeUtils.getPaddingTop(element) + SizeUtils.getPaddingBottom(element);
 	return element.offsetHeight - border - padding;
 }
 
 // Adapted from WinJS
 // Gets the height of the element, including its margins.
 export function getTotalHeight(element: HTMLElement): number {
-	let margin = sizeUtils.getMarginTop(element) + sizeUtils.getMarginBottom(element);
+	let margin = SizeUtils.getMarginTop(element) + SizeUtils.getMarginBottom(element);
 	return element.offsetHeight + margin;
 }
 
