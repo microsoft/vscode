@@ -467,14 +467,6 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 	return document.defaultView!.getComputedStyle(el, null);
 }
 
-// Adapted from WinJS
-// Converts a CSS positioning string for the specified element to pixels.
-const convertToPixels: (element: HTMLElement, value: string) => number = (function () {
-	return function (element: HTMLElement, value: string): number {
-		return parseFloat(value) || 0;
-	};
-})();
-
 export function getClientArea(element: HTMLElement): Dimension {
 
 	// Try with DOM clientWidth / clientHeight
@@ -501,6 +493,12 @@ export function getClientArea(element: HTMLElement): Dimension {
 }
 
 class SizeUtils {
+	// Adapted from WinJS
+	// Converts a CSS positioning string for the specified element to pixels.
+	private static convertToPixels(element: HTMLElement, value: string): number {
+		return parseFloat(value) || 0;
+	}
+
 	private static getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
 		let computedStyle: CSSStyleDeclaration = getComputedStyle(element);
 		let value = '0';
@@ -512,7 +510,7 @@ class SizeUtils {
 				value = (<any>computedStyle).getAttribute(jsPropertyName);
 			}
 		}
-		return convertToPixels(element, value);
+		return SizeUtils.convertToPixels(element, value);
 	}
 
 	static getBorderLeftWidth(element: HTMLElement): number {
