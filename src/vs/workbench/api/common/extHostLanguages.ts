@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadLanguagesShape, IMainContext } from '../common/extHost.protocol';
+import { MainContext, MainThreadLanguagesShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
-import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 
 export class ExtHostLanguages {
 

@@ -6,11 +6,11 @@
 import { asPromise } from 'vs/base/common/async';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
-import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
-import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
-import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from '../common/extHost.protocol';
+import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from './extHost.protocol';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';

@@ -8,10 +8,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
-import { ExtHostTextEditor } from 'vs/workbench/api/node/extHostTextEditor';
-import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Disposable } from 'vs/workbench/api/node/extHostTypes';
+import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
+import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
+import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 

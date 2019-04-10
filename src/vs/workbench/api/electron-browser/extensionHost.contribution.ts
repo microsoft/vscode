@@ -54,7 +54,7 @@ import '../browser/mainThreadWorkspace';
 import '../browser/mainThreadComments';
 import '../browser/mainThreadTask';
 import './mainThreadWebview';
-import 'vs/workbench/api/node/apiCommands';
+import 'vs/workbench/api/common/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 
