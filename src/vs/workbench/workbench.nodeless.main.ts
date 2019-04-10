@@ -93,6 +93,8 @@ import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common
 import { IBroadcastService, NullBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
+import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 import 'vs/workbench/browser/nodeless.simpleservices';
 import 'vs/platform/dialogs/browser/dialogService';
@@ -102,7 +104,6 @@ import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 // import 'vs/workbench/services/textMate/electron-browser/textMateService';
-import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 // import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
 // import 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/decorations/browser/decorationsService';
@@ -171,6 +172,7 @@ registerSingleton(IHeapService, NullHeapService);
 registerSingleton(IBroadcastService, NullBroadcastService);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(ITextFileService, TextFileService);
+registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 
 //#endregion
 
