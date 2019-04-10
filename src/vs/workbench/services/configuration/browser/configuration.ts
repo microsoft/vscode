@@ -11,8 +11,8 @@ import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/l
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
-import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, IConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
+import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
+import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, IConfigurationFileService, MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -47,7 +47,7 @@ export class RemoteUserConfiguration extends Disposable {
 			if (environment) {
 				this._userConfiguration.dispose();
 				this._userConfigurationDisposable.dispose();
-				this._userConfiguration = this._register(new UserConfiguration(environment.appSettingsPath, this._configurationFileService));
+				this._userConfiguration = this._register(new UserConfiguration(environment.settingsPath, MACHINE_SCOPES, this._configurationFileService));
 				this._userConfigurationDisposable = this._register(this._userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
 				this._userConfiguration.initialize().then(configurationModel => this.onDidUserConfigurationChange(configurationModel));
 			}
@@ -62,6 +62,10 @@ export class RemoteUserConfiguration extends Disposable {
 		return this._userConfiguration.reload();
 	}
 
+	reprocess(): ConfigurationModel {
+		return this._userConfiguration.reprocess();
+	}
+
 	private onDidUserConfigurationChange(configurationModel: ConfigurationModel): void {
 		this.updateCache(configurationModel);
 		this._onDidChangeConfiguration.fire(configurationModel);
@@ -74,6 +78,7 @@ export class RemoteUserConfiguration extends Disposable {
 
 export class UserConfiguration extends Disposable {
 
+	private readonly parser: ConfigurationModelParser;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
@@ -83,10 +88,12 @@ export class UserConfiguration extends Disposable {
 
 	constructor(
 		private readonly configurationResource: URI,
+		private readonly scopes: ConfigurationScope[] | undefined,
 		private readonly configurationFileService: IConfigurationFileService
 	) {
 		super();
 
+		this.parser = new ConfigurationModelParser(this.configurationResource.toString(), this.scopes);
 		this._register(configurationFileService.onFileChanges(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 		this._register(toDisposable(() => {
@@ -127,12 +134,16 @@ export class UserConfiguration extends Disposable {
 	async reload(): Promise<ConfigurationModel> {
 		try {
 			const content = await this.configurationFileService.resolveContent(this.configurationResource);
-			const parser = new ConfigurationModelParser(this.configurationResource.toString());
-			parser.parse(content);
-			return parser.configurationModel;
+			this.parser.parseContent(content);
+			return this.parser.configurationModel;
 		} catch (e) {
 			return new ConfigurationModel();
 		}
+	}
+
+	reprocess(): ConfigurationModel {
+		this.parser.parse();
+		return this.parser.configurationModel;
 	}
 
 	private async onWatchStarted(currentModel: ConfigurationModel): Promise<void> {
@@ -200,6 +211,10 @@ class CachedUserConfiguration extends Disposable {
 
 	initialize(): Promise<ConfigurationModel> {
 		return this.reload();
+	}
+
+	reprocess(): ConfigurationModel {
+		return this.configurationModel;
 	}
 
 	async reload(): Promise<ConfigurationModel> {
@@ -371,7 +386,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable implements IWork
 				errors.onUnexpectedError(error);
 			}
 		}
-		this.workspaceConfigurationModelParser.parse(contents);
+		this.workspaceConfigurationModelParser.parseContent(contents);
 		this.consolidate();
 	}
 
@@ -449,7 +464,7 @@ class CachedWorkspaceConfiguration extends Disposable implements IWorkspaceConfi
 			const key = this.getKey(workspaceIdentifier);
 			const contents = await this.configurationCache.read(key);
 			this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(key.key);
-			this.workspaceConfigurationModelParser.parse(contents);
+			this.workspaceConfigurationModelParser.parseContent(contents);
 			this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel);
 		} catch (e) {
 		}
@@ -503,7 +518,7 @@ export interface IFolderConfiguration extends IDisposable {
 
 class FileServiceBasedFolderConfiguration extends Disposable implements IFolderConfiguration {
 
-	private _folderSettingsModelParser: FolderSettingsModelParser;
+	private _folderSettingsModelParser: ConfigurationModelParser;
 	private _standAloneConfigurations: ConfigurationModel[];
 	private _cache: ConfigurationModel;
 
@@ -518,7 +533,7 @@ class FileServiceBasedFolderConfiguration extends Disposable implements IFolderC
 
 		this.configurationNames = [FOLDER_SETTINGS_NAME /*First one should be settings */, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY];
 		this.configurationResources = this.configurationNames.map(name => resources.joinPath(this.configurationFolder, `${name}.json`));
-		this._folderSettingsModelParser = new FolderSettingsModelParser(FOLDER_SETTINGS_PATH, WorkbenchState.WORKSPACE === workbenchState ? [ConfigurationScope.RESOURCE] : [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE]);
+		this._folderSettingsModelParser = new ConfigurationModelParser(FOLDER_SETTINGS_PATH, WorkbenchState.WORKSPACE === workbenchState ? FOLDER_SCOPES : WORKSPACE_SCOPES);
 		this._standAloneConfigurations = [];
 		this._cache = new ConfigurationModel();
 
@@ -544,17 +559,17 @@ class FileServiceBasedFolderConfiguration extends Disposable implements IFolderC
 
 		// reset
 		this._standAloneConfigurations = [];
-		this._folderSettingsModelParser.parse('');
+		this._folderSettingsModelParser.parseContent('');
 
 		// parse
 		if (configurationContents[0]) {
-			this._folderSettingsModelParser.parse(configurationContents[0]);
+			this._folderSettingsModelParser.parseContent(configurationContents[0]);
 		}
 		for (let index = 1; index < configurationContents.length; index++) {
 			const contents = configurationContents[index];
 			if (contents) {
 				const standAloneConfigurationModelParser = new StandaloneConfigurationModelParser(this.configurationResources[index].toString(), this.configurationNames[index]);
-				standAloneConfigurationModelParser.parse(contents);
+				standAloneConfigurationModelParser.parseContent(contents);
 				this._standAloneConfigurations.push(standAloneConfigurationModelParser.configurationModel);
 			}
 		}
@@ -567,7 +582,7 @@ class FileServiceBasedFolderConfiguration extends Disposable implements IFolderC
 
 	reprocess(): ConfigurationModel {
 		const oldContents = this._folderSettingsModelParser.configurationModel.contents;
-		this._folderSettingsModelParser.reprocess();
+		this._folderSettingsModelParser.parse();
 		if (!equals(oldContents, this._folderSettingsModelParser.configurationModel.contents)) {
 			this.consolidate();
 		}

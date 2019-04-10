@@ -138,7 +138,7 @@ export class ConfigurationEditingService {
 		this.queue = new Queue<void>();
 		remoteAgentService.getEnvironment().then(environment => {
 			if (environment) {
-				this.remoteSettingsResource = environment.appSettingsPath;
+				this.remoteSettingsResource = environment.settingsPath;
 			}
 		});
 	}

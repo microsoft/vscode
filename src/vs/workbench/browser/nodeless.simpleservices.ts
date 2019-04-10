@@ -243,6 +243,8 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	appSettingsHome: string = '/nodeless/settings';
 	appSettingsPath: string = '/nodeless/settings/settings.json';
 	appKeybindingsPath: string = '/nodeless/settings/keybindings.json';
+	machineSettingsHome: string;
+	machineSettingsPath: string;
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;
 	globalStorageHome: string;
