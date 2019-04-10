@@ -105,7 +105,7 @@ import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/output/node/outputChannelModelService';
 import 'vs/workbench/services/configuration/common/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import 'vs/workbench/services/textfile/common/textFileService';
+import 'vs/workbench/services/textfile/node/textFileService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import 'vs/workbench/services/backup/node/backupFileService';

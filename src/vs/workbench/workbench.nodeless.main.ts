@@ -91,6 +91,8 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
 import { IBroadcastService, NullBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 
 import 'vs/workbench/browser/nodeless.simpleservices';
 import 'vs/platform/dialogs/browser/dialogService';
@@ -112,7 +114,7 @@ import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/output/common/outputChannelModelService';
 import 'vs/workbench/services/configuration/common/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import 'vs/workbench/services/textfile/common/textFileService';
+// import 'vs/workbench/services/textfile/node/textFileService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 // import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 // import 'vs/workbench/services/backup/node/backupFileService';
@@ -167,8 +169,8 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IURLService, RelayURLService);
 registerSingleton(IHeapService, NullHeapService);
 registerSingleton(IBroadcastService, NullBroadcastService);
-
 registerSingleton(IContextMenuService, ContextMenuService);
+registerSingleton(ITextFileService, TextFileService);
 
 //#endregion
 

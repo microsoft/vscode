@@ -37,7 +37,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -994,5 +993,3 @@ export class TextFileService extends Disposable implements ITextFileService {
 		super.dispose();
 	}
 }
-
-registerSingleton(ITextFileService, TextFileService);
