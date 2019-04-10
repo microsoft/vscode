@@ -3329,7 +3329,7 @@ declare module 'vscode' {
 		/**
 		 * A string that should be used when comparing this item
 		 * with other items. When `falsy` the [label](#CompletionItem.label)
-		 * is used.
+		 * is used. The string will be converted to lower case when comparing.
 		 */
 		sortText?: string;
 
