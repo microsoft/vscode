@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtensionActivationError, MissingDependencyError } from 'vs/workbench/services/extensions/common/extensions';
 

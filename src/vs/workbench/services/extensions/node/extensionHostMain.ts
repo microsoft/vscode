@@ -15,7 +15,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfigurati
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 

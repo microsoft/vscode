@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('RPCProtocol', () => {
