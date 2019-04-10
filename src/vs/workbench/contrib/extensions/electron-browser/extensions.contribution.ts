@@ -244,8 +244,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.experimental.showGroupByServerAsDefault': {
 				type: 'boolean',
-				description: localize('extensions.experimental.showGroupByServerAsDefault', "When enabled, extensions viewlet shows installed extension grouped by server as default view. This setting is experimental and subjected to be removed."),
-				default: true
+				description: localize('extensions.experimental.showGroupByServerAsDefault', "When enabled, extensions viewlet shows installed extension grouped by server as default view."),
+				default: true,
+				deprecationMessage: localize('extensions.experimental.showGroupByServerAsDefault.deprecated', "This setting is experimental and subjected to be removed."),
 			}
 		}
 	});
