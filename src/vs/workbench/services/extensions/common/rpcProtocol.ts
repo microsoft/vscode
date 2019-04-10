@@ -739,7 +739,6 @@ class MessageIO {
 	}
 
 	private static _serializeReplyOKVSBuffer(req: number, res: VSBuffer): VSBuffer {
-
 		let len = 0;
 		len += MessageBuffer.sizeVSBuffer(res);
 
@@ -809,10 +808,10 @@ const enum MessageType {
 	Cancel = 6,
 	ReplyOKEmpty = 7,
 	ReplyOKBuffer = 8,
-	ReplyOKVSBuffer = 8,
-	ReplyOKJSON = 9,
-	ReplyErrError = 10,
-	ReplyErrEmpty = 11,
+	ReplyOKVSBuffer = 9,
+	ReplyOKJSON = 10,
+	ReplyErrError = 11,
+	ReplyErrEmpty = 12,
 }
 
 const enum ArgType {

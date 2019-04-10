@@ -16,6 +16,7 @@ import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/modes/linkComputer';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 class FsLinkProvider {
 
@@ -229,14 +230,12 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return Promise.resolve(this.getProvider(handle).readDirectory(URI.revive(resource)));
 	}
 
-	$readFile(handle: number, resource: UriComponents): Promise<Buffer> {
-		return Promise.resolve(this.getProvider(handle).readFile(URI.revive(resource))).then(data => {
-			return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-		});
+	$readFile(handle: number, resource: UriComponents): Promise<VSBuffer> {
+		return Promise.resolve(this.getProvider(handle).readFile(URI.revive(resource))).then(data => VSBuffer.wrap(data));
 	}
 
-	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: files.FileWriteOptions): Promise<void> {
-		return Promise.resolve(this.getProvider(handle).writeFile(URI.revive(resource), content, opts));
+	$writeFile(handle: number, resource: UriComponents, content: VSBuffer, opts: files.FileWriteOptions): Promise<void> {
+		return Promise.resolve(this.getProvider(handle).writeFile(URI.revive(resource), content.buffer, opts));
 	}
 
 	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): Promise<void> {
@@ -288,23 +287,23 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return Promise.resolve(provider.close(fd));
 	}
 
-	$read(handle: number, fd: number, pos: number, length: number): Promise<Buffer> {
+	$read(handle: number, fd: number, pos: number, length: number): Promise<VSBuffer> {
 		const provider = this.getProvider(handle);
 		if (!provider.read) {
 			throw new Error('FileSystemProvider does not implement "read"');
 		}
-		const data = Buffer.allocUnsafe(length);
-		return Promise.resolve(provider.read(fd, pos, data, 0, length)).then(read => {
+		const data = VSBuffer.alloc(length);
+		return Promise.resolve(provider.read(fd, pos, data.buffer, 0, length)).then(read => {
 			return data.slice(0, read); // don't send zeros
 		});
 	}
 
-	$write(handle: number, fd: number, pos: number, data: Buffer): Promise<number> {
+	$write(handle: number, fd: number, pos: number, data: VSBuffer): Promise<number> {
 		const provider = this.getProvider(handle);
 		if (!provider.write) {
 			throw new Error('FileSystemProvider does not implement "write"');
 		}
-		return Promise.resolve(provider.write(fd, pos, data, 0, data.length));
+		return Promise.resolve(provider.write(fd, pos, data.buffer, 0, data.byteLength));
 	}
 
 	private getProvider(handle: number): vscode.FileSystemProvider {

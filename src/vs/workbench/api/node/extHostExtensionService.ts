@@ -31,6 +31,7 @@ import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { realpath } from 'vs/base/node/extpath';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -752,13 +753,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return n;
 	}
 
-	public async $test_up(b: Buffer): Promise<number> {
-		return b.length;
+	public async $test_up(b: VSBuffer): Promise<number> {
+		return b.byteLength;
 	}
 
-	public async $test_down(size: number): Promise<Buffer> {
-		const b = Buffer.alloc(size, Math.random() % 256);
-		return b;
+	public async $test_down(size: number): Promise<VSBuffer> {
+		return VSBuffer.wrap(Buffer.alloc(size, Math.random() % 256));
 	}
 
 }
