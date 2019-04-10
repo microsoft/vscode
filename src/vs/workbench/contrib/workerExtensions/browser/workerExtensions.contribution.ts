@@ -51,8 +51,8 @@ export class ExtensionHostWebWorker extends Disposable implements IExtensionHost
 			this._register(emitter);
 		}
 
-		// this.protocol.send(VSBuffer.fromString('HELLO from Main'));
-		// this.protocol.onMessage(buff => console.log(buff.toString()));
+		// this._protocol.send(VSBuffer.fromString('HELLO from Main'));
+		// this._protocol.onMessage(buff => console.log(buff.toString()));
 		return Promise.resolve(this._protocol);
 	}
 
