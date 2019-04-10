@@ -16,7 +16,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, IInitData, IMainContext, MainContext, MainThreadKeytarShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IInitData, IMainContext, MainContext, MainThreadKeytarShape, IEnvironment, MainThreadWindowShape, MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -66,6 +66,7 @@ import { originalFSPath } from 'vs/base/common/resources';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { values } from 'vs/base/common/collections';
+import { endsWith } from 'vs/base/common/strings';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -872,34 +873,59 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 }
 
+interface LoadFunction {
+	(request: string, parent: { filename: string; }, isMain: any): any;
+}
+
 interface INodeModuleFactory {
-	readonly nodeModuleName: string;
-	load(request: string, parent: { filename: string; }): any;
+	readonly nodeModuleName: string | string[];
+	load(request: string, parent: { filename: string; }, isMain: any, original: LoadFunction): any;
+	alternaiveModuleName?(name: string): string | undefined;
 }
 
 export class NodeModuleRequireInterceptor {
 	public static INSTANCE = new NodeModuleRequireInterceptor();
 
 	private readonly _factories: Map<string, INodeModuleFactory>;
+	private readonly _alternatives: ((moduleName: string) => string | undefined)[];
 
 	constructor() {
 		this._factories = new Map<string, INodeModuleFactory>();
-		this._installInterceptor(this._factories);
+		this._alternatives = [];
+		this._installInterceptor(this._factories, this._alternatives);
 	}
 
-	private _installInterceptor(factories: Map<string, INodeModuleFactory>): void {
+	private _installInterceptor(factories: Map<string, INodeModuleFactory>, alternatives: ((moduleName: string) => string | undefined)[]): void {
 		const node_module = <any>require.__$__nodeRequire('module');
 		const original = node_module._load;
 		node_module._load = function load(request: string, parent: { filename: string; }, isMain: any) {
+			for (let alternativeModuleName of alternatives) {
+				let alternative = alternativeModuleName(request);
+				if (alternative) {
+					request = alternative;
+					break;
+				}
+			}
 			if (!factories.has(request)) {
 				return original.apply(this, arguments);
 			}
-			return factories.get(request)!.load(request, parent);
+			return factories.get(request)!.load(request, parent, isMain, original);
 		};
 	}
 
 	public register(interceptor: INodeModuleFactory): void {
-		this._factories.set(interceptor.nodeModuleName, interceptor);
+		if (Array.isArray(interceptor.nodeModuleName)) {
+			for (let moduleName of interceptor.nodeModuleName) {
+				this._factories.set(moduleName, interceptor);
+			}
+		} else {
+			this._factories.set(interceptor.nodeModuleName, interceptor);
+		}
+		if (typeof interceptor.alternaiveModuleName === 'function') {
+			this._alternatives.push((moduleName) => {
+				return interceptor.alternaiveModuleName!(moduleName);
+			});
+		}
 	}
 }
 
@@ -949,11 +975,24 @@ interface IKeytarModule {
 }
 
 export class KeytarNodeModuleFactory implements INodeModuleFactory {
-	public readonly nodeModuleName = 'keytar';
+	public readonly nodeModuleName: string = 'keytar';
 
+	private alternativeNames: Set<string> | undefined;
 	private _impl: IKeytarModule;
 
-	constructor(mainThreadKeytar: MainThreadKeytarShape) {
+	constructor(mainThreadKeytar: MainThreadKeytarShape, environment: IEnvironment) {
+		if (environment.appRoot) {
+			let appRoot = environment.appRoot.fsPath;
+			if (process.platform === 'win32') {
+				appRoot = appRoot.replace(/\\/g, '/');
+			}
+			if (appRoot[appRoot.length - 1] === '/') {
+				appRoot = appRoot.substr(0, appRoot.length - 1);
+			}
+			this.alternativeNames = new Set();
+			this.alternativeNames.add(`${appRoot}/node_modules.asar/keytar`);
+			this.alternativeNames.add(`${appRoot}/node_modules/keytar`);
+		}
 		this._impl = {
 			getPassword: (service: string, account: string): Promise<string | null> => {
 				return mainThreadKeytar.$getPassword(service, account);
@@ -972,5 +1011,101 @@ export class KeytarNodeModuleFactory implements INodeModuleFactory {
 
 	public load(request: string, parent: { filename: string; }): any {
 		return this._impl;
+	}
+
+	public alternaiveModuleName(name: string): string | undefined {
+		const length = name.length;
+		// We need at least something like: `?/keytar` which requires
+		// more than 7 characters.
+		if (length <= 7 || !this.alternativeNames) {
+			return undefined;
+		}
+		const sep = length - 7;
+		if ((name.charAt(sep) === '/' || name.charAt(sep) === '\\') && endsWith(name, 'keytar')) {
+			name = name.replace(/\\/g, '/');
+			if (this.alternativeNames.has(name)) {
+				return 'keytar';
+			}
+		}
+		return undefined;
+	}
+}
+
+interface OpenOptions {
+	wait: boolean;
+	app: string | string[];
+}
+
+interface IOriginalOpen {
+	(target: string, options?: OpenOptions): Thenable<any>;
+}
+
+interface IOpenModule {
+	(target: string, options?: OpenOptions): Thenable<void>;
+}
+
+export class OpenNodeModuleFactory implements INodeModuleFactory {
+
+	public readonly nodeModuleName: string[] = ['open', 'opn'];
+
+	private _extensionId: string | undefined;
+	private _original: IOriginalOpen;
+	private _impl: IOpenModule;
+
+	constructor(mainThreadWindow: MainThreadWindowShape, private _mainThreadTelemerty: MainThreadTelemetryShape, private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>) {
+		this._impl = (target, options) => {
+			const uri: URI = URI.parse(target);
+			// If we have options use the original method.
+			if (options) {
+				return this.callOriginal(target, options);
+			}
+			if (uri.scheme === 'http' || uri.scheme === 'https') {
+				return mainThreadWindow.$openUri(uri);
+			} else if (uri.scheme === 'mailto') {
+				return mainThreadWindow.$openUri(uri);
+			}
+			return this.callOriginal(target, options);
+		};
+	}
+
+	public load(request: string, parent: { filename: string; }, isMain: any, original: LoadFunction): any {
+		// get extension id from filename and api for extension
+		const extension = this._extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
+		if (extension) {
+			this._extensionId = extension.identifier.value;
+			this.sendShimmingTelemetry();
+		}
+
+		this._original = original(request, parent, isMain);
+		return this._impl;
+	}
+
+	private callOriginal(target: string, options: OpenOptions | undefined): Thenable<any> {
+		this.sendNoForwardTelemetry();
+		return this._original(target, options);
+	}
+
+	private sendShimmingTelemetry(): void {
+		if (!this._extensionId) {
+			return;
+		}
+		/* __GDPR__
+			"shimming.open" : {
+				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this._mainThreadTelemerty.$publicLog('shimming.open', { extension: this._extensionId });
+	}
+
+	private sendNoForwardTelemetry(): void {
+		if (!this._extensionId) {
+			return;
+		}
+		/* __GDPR__
+			"shimming.open.call.noForward" : {
+				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this._mainThreadTelemerty.$publicLog('shimming.open.call.noForward', { extension: this._extensionId });
 	}
 }
