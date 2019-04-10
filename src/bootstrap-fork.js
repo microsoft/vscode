@@ -11,6 +11,10 @@ const bootstrap = require('./bootstrap');
 // Enable ASAR in our forked processes
 bootstrap.enableASARSupport();
 
+if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
+	bootstrap.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+}
+
 // Configure: pipe logging to parent process
 if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 	pipeLoggingToParent();
