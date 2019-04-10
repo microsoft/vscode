@@ -7,8 +7,8 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
-import { IResolveContentOptions, ITextSnapshot, IBaseStatWithMetadata } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IResolveContentOptions, ITextSnapshot, IBaseStatWithMetadata, IWriteTextFileOptions, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -265,16 +265,17 @@ export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
 export interface IWillMoveEvent {
 	oldResource: URI;
 	newResource: URI;
+
 	waitUntil(p: Promise<unknown>): void;
 }
 
 export interface ITextFileService extends IDisposable {
-	_serviceBrand: any;
 
+	_serviceBrand: ServiceIdentifier<any>;
+
+	readonly onWillMove: Event<IWillMoveEvent>;
 	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
 	readonly onFilesAssociationChange: Event<void>;
-
-	onWillMove: Event<IWillMoveEvent>;
 
 	readonly isHotExitEnabled: boolean;
 
@@ -282,11 +283,6 @@ export interface ITextFileService extends IDisposable {
 	 * Access to the manager of text file editor models providing further methods to work with them.
 	 */
 	readonly models: ITextFileEditorModelManager;
-
-	/**
-	 * Resolve the contents of a file identified by the resource.
-	 */
-	resolveTextContent(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent>;
 
 	/**
 	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.
@@ -349,7 +345,17 @@ export interface ITextFileService extends IDisposable {
 	 * Create a file. If the file exists it will be overwritten with the contents if
 	 * the options enable to overwrite.
 	 */
-	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): Promise<void>;
+	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
+
+	/**
+	 * Resolve the contents of a file identified by the resource.
+	 */
+	resolve(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent>;
+
+	/**
+	 * Update a file with given contents.
+	 */
+	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.

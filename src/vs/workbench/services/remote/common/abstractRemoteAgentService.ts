@@ -17,6 +17,8 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } f
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { Emitter } from 'vs/base/common/event';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
@@ -44,9 +46,22 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		}
 		return bail ? this._environment : this._environment.then(undefined, () => null);
 	}
+
+	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> {
+		const connection = this.getConnection();
+		if (connection) {
+			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
+			return client.getDiagnosticInfo(options);
+		}
+
+		return Promise.resolve(undefined);
+	}
 }
 
 export class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection {
+
+	private readonly _onReconnecting = this._register(new Emitter<void>());
+	public readonly onReconnecting = this._onReconnecting.event;
 
 	readonly remoteAuthority: string;
 	private _connection: Promise<Client<RemoteAgentConnectionContext>> | null;
@@ -79,12 +94,18 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	}
 
 	private async _createConnection(): Promise<Client<RemoteAgentConnectionContext>> {
+		let firstCall = true;
 		const options: IConnectionOptions = {
 			isBuilt: this._environmentService.isBuilt,
 			commit: this._commit,
 			webSocketFactory: this._webSocketFactory,
 			addressProvider: {
 				getAddress: async () => {
+					if (firstCall) {
+						firstCall = false;
+					} else {
+						this._onReconnecting.fire(undefined);
+					}
 					const { host, port } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
 					return { host, port };
 				}

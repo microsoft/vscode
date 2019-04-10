@@ -186,7 +186,7 @@ export class TextFileEditor extends BaseTextEditor {
 					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
 							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, () => {
-								return this.fileService.updateContent(input.getResource(), '').then(() => this.editorService.openEditor({
+								return this.textFileService.create(input.getResource()).then(() => this.editorService.openEditor({
 									resource: input.getResource(),
 									options: {
 										pinned: true // new file gets pinned by default

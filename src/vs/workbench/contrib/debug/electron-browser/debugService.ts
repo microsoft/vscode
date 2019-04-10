@@ -439,9 +439,9 @@ export class DebugService implements IDebugService {
 			}
 
 			this.viewModel.firstSessionStart = false;
-			const hideSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').hideSubSessions;
+			const showSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 			const sessions = this.model.getSessions();
-			const shownSessions = hideSubSessions ? sessions.filter(s => !s.parentSession) : sessions;
+			const shownSessions = showSubSessions ? sessions : sessions.filter(s => !s.parentSession);
 			if (shownSessions.length > 1) {
 				this.viewModel.setMultiSessionView(true);
 			}

@@ -250,15 +250,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		let iconThemeSetting = this.configurationService.getValue<string | null>(ICON_THEME_SETTING);
 
-		const extDevLoc = this.environmentService.extensionDevelopmentLocationURI;
+		const extDevLocs = this.environmentService.extensionDevelopmentLocationURI;
 		let uri: URI | undefined;
-		if (Array.isArray(extDevLoc)) {
+		if (extDevLocs && extDevLocs.length > 0) {
 			// if there are more than one ext dev paths, use first
-			if (extDevLoc.length > 0) {
-				uri = extDevLoc[0];
-			}
-		} else {
-			uri = extDevLoc;
+			uri = extDevLocs[0];
 		}
 
 		return Promise.all([

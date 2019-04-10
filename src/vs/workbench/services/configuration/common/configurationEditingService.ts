@@ -375,7 +375,7 @@ export class ConfigurationEditingService {
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		const exists = await this.fileService.exists(resource);
 		if (!exists) {
-			await this.fileService.updateContent(resource, '{}', { encoding: 'utf8' });
+			await this.textFileService.write(resource, '{}');
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}

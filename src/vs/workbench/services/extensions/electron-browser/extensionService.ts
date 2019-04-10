@@ -26,8 +26,8 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, ProfileSession, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser, schema } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { CachedExtensionScanner, Logger } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/electron-browser/extensionHostProcessManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -647,16 +647,14 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
 		if (this._environmentService.isExtensionDevelopment) {
-			const extDevLoc = this._environmentService.extensionDevelopmentLocationURI;
-			const extLocation = extension.extensionLocation;
-			if (Array.isArray(extDevLoc)) {
-				for (let p of extDevLoc) {
+			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
+			if (extDevLocs) {
+				const extLocation = extension.extensionLocation;
+				for (let p of extDevLocs) {
 					if (isEqualOrParent(extLocation, p)) {
 						return true;
 					}
 				}
-			} else if (extDevLoc) {
-				return isEqualOrParent(extLocation, extDevLoc);
 			}
 		}
 		return false;

@@ -8,8 +8,8 @@ import * as crypto from 'crypto';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri } from 'vs/base/common/uri';
 import { ResourceQueue } from 'vs/base/common/async';
-import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, ITextSnapshot } from 'vs/platform/files/common/files';
+import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
+import { IFileService, ITextSnapshot, TextSnapshotReadable } from 'vs/platform/files/common/files';
 import { readToMatchingString } from 'vs/base/node/stream';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
@@ -27,27 +27,6 @@ export interface IBackupFilesModel {
 	remove(resource: Uri): void;
 	count(): number;
 	clear(): void;
-}
-
-export class BackupSnapshot implements ITextSnapshot {
-	private preambleHandled: boolean;
-
-	constructor(private snapshot: ITextSnapshot, private preamble: string) { }
-
-	read(): string | null {
-		let value = this.snapshot.read();
-		if (!this.preambleHandled) {
-			this.preambleHandled = true;
-
-			if (typeof value === 'string') {
-				value = this.preamble + value;
-			} else {
-				value = this.preamble;
-			}
-		}
-
-		return value;
-	}
 }
 
 export class BackupFilesModel implements IBackupFilesModel {
@@ -232,7 +211,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 				const preamble = `${resource.toString()}${BackupFileServiceImpl.META_MARKER}`;
 
 				// Update content with value
-				return this.fileService.updateContent(backupResource, new BackupSnapshot(content, preamble), BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
+				return this.fileService.writeFile(backupResource, new TextSnapshotReadable(content, preamble)).then(() => model.add(backupResource, versionId));
 			});
 		});
 	}

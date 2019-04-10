@@ -176,7 +176,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
 		const savedFileResource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
 
-		return this.textFileService.resolveTextContent(savedFileResource).then(content => {
+		return this.textFileService.resolve(savedFileResource).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (codeEditorModel) {
 				this.modelService.updateModel(codeEditorModel, content.value);

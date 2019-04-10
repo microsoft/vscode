@@ -13,7 +13,7 @@ import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchStateContext, IsRemoteContext } from 'vs/workbench/common/contextkeys';
+import { WorkbenchStateContext, RemoteAuthorityContext } from 'vs/workbench/common/contextkeys';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -428,7 +428,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						title: { value: label, original: `Preferences: Open User Settings (${hostLabel})` },
 						category: nls.localize('preferencesCategory', "Preferences")
 					},
-					when: IsRemoteContext
+					when: RemoteAuthorityContext.notEqualsTo('')
 				});
 			});
 	}

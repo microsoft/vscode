@@ -98,7 +98,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			}
 		}));
 		const storageKey = 'peekViewLayout';
-		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
+		const data = LayoutData.fromJSON(this._storageService.get(storageKey, StorageScope.GLOBAL, '{}'));
 		this._widget = this._instantiationService.createInstance(ReferenceWidget, this._editor, this._defaultTreeKeyboardSupport, data);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);

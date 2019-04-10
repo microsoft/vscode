@@ -7,7 +7,7 @@ import * as paths from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as assert from 'assert';
-import { FileOperation, FileOperationEvent, IContent, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, ICreateFileOptions, IContentData, ITextSnapshot, ILegacyFileService, IFileStatWithMetadata, IFileService, IFileSystemProvider, etag } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IContent, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IWriteTextFileOptions, ICreateFileOptions, IContentData, ITextSnapshot, ILegacyFileService, IFileStatWithMetadata, IFileService, IFileSystemProvider, etag } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
 import * as objects from 'vs/base/common/objects';
 import { timeout } from 'vs/base/common/async';
@@ -382,7 +382,7 @@ export class LegacyFileService extends Disposable implements ILegacyFileService 
 
 	//#region File Writing
 
-	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
+	updateContent(resource: uri, value: string | ITextSnapshot, options: IWriteTextFileOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		if (options.writeElevated) {
 			return this.doUpdateContentElevated(resource, value, options);
 		}
@@ -390,7 +390,7 @@ export class LegacyFileService extends Disposable implements ILegacyFileService 
 		return this.doUpdateContent(resource, value, options);
 	}
 
-	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
+	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IWriteTextFileOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file for writing
@@ -501,12 +501,12 @@ export class LegacyFileService extends Disposable implements ILegacyFileService 
 		});
 	}
 
-	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
+	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IWriteTextFileOptions = Object.create(null)): Promise<IFileStatWithMetadata> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file for writing
 		return this.checkFileBeforeWriting(absolutePath, options, options.overwriteReadonly /* ignore readonly if we overwrite readonly, this is handled via sudo later */).then(exists => {
-			const writeOptions: IUpdateContentOptions = objects.assign(Object.create(null), options);
+			const writeOptions: IWriteTextFileOptions = objects.assign(Object.create(null), options);
 			writeOptions.writeElevated = false;
 			writeOptions.encoding = this._encoding.getWriteEncoding(resource, options.encoding).encoding;
 
@@ -602,7 +602,7 @@ export class LegacyFileService extends Disposable implements ILegacyFileService 
 
 	//#region Helpers
 
-	private checkFileBeforeWriting(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): Promise<boolean /* exists */> {
+	private checkFileBeforeWriting(absolutePath: string, options: IWriteTextFileOptions = Object.create(null), ignoreReadonly?: boolean): Promise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then(exists => {
 			if (exists) {
 				return pfs.stat(absolutePath).then(stat => {
@@ -656,7 +656,7 @@ export class LegacyFileService extends Disposable implements ILegacyFileService 
 		});
 	}
 
-	private readOnlyError<T>(options: IUpdateContentOptions): Promise<T> {
+	private readOnlyError<T>(options: IWriteTextFileOptions): Promise<T> {
 		return Promise.reject(new FileOperationError(
 			nls.localize('fileReadOnlyError', "File is Read Only"),
 			FileOperationResult.FILE_READ_ONLY,

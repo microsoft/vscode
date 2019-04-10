@@ -12,15 +12,15 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createApiFactory, IExtensionApiFactory, NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory } from 'vs/workbench/api/node/extHost.api.impl';
+import { createApiFactory, IExtensionApiFactory, NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory, OpenNodeModuleFactory } from 'vs/workbench/api/node/extHost.api.impl';
 import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IStaticWorkspaceData } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionMemento, IExtensionModule, HostExtension } from 'vs/workbench/api/node/extHostExtensionActivator';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
+import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionMemento, IExtensionModule, HostExtension } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
+import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
+import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
@@ -31,6 +31,7 @@ import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { realpath } from 'vs/base/node/extpath';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -161,6 +162,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _extHostContext: IMainContext;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _extHostConfiguration: ExtHostConfiguration;
+	private readonly _environment: IEnvironment;
 	private readonly _extHostLogService: ExtHostLogService;
 
 	private readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
@@ -186,6 +188,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		extHostContext: IMainContext,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
+		environment: IEnvironment,
 		extHostLogService: ExtHostLogService
 	) {
 		this._nativeExit = nativeExit;
@@ -193,6 +196,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._extHostContext = extHostContext;
 		this._extHostWorkspace = extHostWorkspace;
 		this._extHostConfiguration = extHostConfiguration;
+		this._environment = environment;
 		this._extHostLogService = extHostLogService;
 
 		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
@@ -244,7 +248,14 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			const configProvider = await this._extHostConfiguration.getConfigProvider();
 			const extensionPaths = await this.getExtensionPathIndex();
 			NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(this._extensionApiFactory, extensionPaths, this._registry, configProvider));
-			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar)));
+			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar), this._environment));
+			if (this._initData.remoteAuthority) {
+				NodeModuleRequireInterceptor.INSTANCE.register(new OpenNodeModuleFactory(
+					this._extHostContext.getProxy(MainContext.MainThreadWindow),
+					this._extHostContext.getProxy(MainContext.MainThreadTelemetry),
+					extensionPaths
+				));
+			}
 
 			// Do this when extension service exists, but extensions are not being activated yet.
 			await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
@@ -601,7 +612,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	private _doHandleExtensionTests(): Promise<void> {
-		const { extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
+		const { extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
 		if (!(extensionDevelopmentLocationURI && extensionTestsLocationURI && extensionTestsLocationURI.scheme === Schemas.file)) {
 			return Promise.resolve(undefined);
 		}
@@ -752,13 +763,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return n;
 	}
 
-	public async $test_up(b: Buffer): Promise<number> {
-		return b.length;
+	public async $test_up(b: VSBuffer): Promise<number> {
+		return b.byteLength;
 	}
 
-	public async $test_down(size: number): Promise<Buffer> {
-		const b = Buffer.alloc(size, Math.random() % 256);
-		return b;
+	public async $test_down(size: number): Promise<VSBuffer> {
+		return VSBuffer.wrap(Buffer.alloc(size, Math.random() % 256));
 	}
 
 }

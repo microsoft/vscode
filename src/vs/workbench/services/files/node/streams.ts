@@ -127,7 +127,7 @@ function createSimpleReadable(provider: IFileSystemProvider, resource: URI, posi
 				return;
 			}
 			this._readOperation = provider.readFile!(resource).then(data => {
-				this.push(data.slice(position));
+				this.push(Buffer.from(data.buffer, data.byteOffset, data.byteLength).slice(position));
 				this.push(null);
 			}, err => {
 				this.emit('error', err);
