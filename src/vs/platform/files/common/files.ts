@@ -127,7 +127,7 @@ export interface IFileService {
 	/**
 	 * @deprecated use writeFile instead
 	 */
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata>;
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Updates the content replacing its previous value.
@@ -766,7 +766,7 @@ export interface IWriteFileOptions {
 	etag?: string;
 }
 
-export interface IUpdateContentOptions extends IWriteFileOptions {
+export interface IWriteTextFileOptions extends IWriteFileOptions {
 
 	/**
 	 * The encoding to use when updating a file.
@@ -824,7 +824,7 @@ export interface ICreateFileOptions {
 }
 
 export class FileOperationError extends Error {
-	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IResolveContentOptions & IUpdateContentOptions & ICreateFileOptions) {
+	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IResolveContentOptions & IWriteTextFileOptions & ICreateFileOptions) {
 		super(message);
 	}
 
@@ -1159,7 +1159,7 @@ export interface ILegacyFileService extends IDisposable {
 
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
 
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata>;
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
 }

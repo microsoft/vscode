@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
-import { IResolveContentOptions, ITextSnapshot, IBaseStatWithMetadata, IUpdateContentOptions, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { IResolveContentOptions, ITextSnapshot, IBaseStatWithMetadata, IWriteTextFileOptions, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
@@ -355,7 +355,7 @@ export interface ITextFileService extends IDisposable {
 	/**
 	 * Update a file with given contents.
 	 */
-	write(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata>;
+	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
