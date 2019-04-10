@@ -32,6 +32,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Event } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isWindows } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -136,13 +137,13 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 			const triedToMakeWriteable = isReadonly && fileOperationError.options && fileOperationError.options.overwriteReadonly;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 
-			// Save Elevated
-			if (isPermissionDenied || triedToMakeWriteable) {
+			// Save Elevated (TODO@remote cannot write elevated https://github.com/Microsoft/vscode/issues/48659)
+			if (resource.scheme === Schemas.file && (isPermissionDenied || triedToMakeWriteable)) {
 				actions.primary!.push(this.instantiationService.createInstance(SaveElevatedAction, model, triedToMakeWriteable));
 			}
 
-			// Overwrite
-			else if (isReadonly) {
+			// Overwrite (TODO@remote cannot overwrite readonly https://github.com/Microsoft/vscode/issues/48659)
+			else if (resource.scheme === Schemas.file && isReadonly) {
 				actions.primary!.push(this.instantiationService.createInstance(OverwriteReadonlyAction, model));
 			}
 
