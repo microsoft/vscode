@@ -10,21 +10,16 @@ import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/commo
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
-export interface ILogServiceCreateFn {
-	(): ILogService;
-}
-
 export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
 
 	private _logsPath: string;
 	readonly logFile: URI;
 
 	constructor(
-		logLevel: LogLevel,
+		delegate: ILogService,
 		logsPath: string,
-		factory: ILogServiceCreateFn
 	) {
-		super(factory());
+		super(delegate);
 		this._logsPath = logsPath;
 		this.logFile = URI.file(join(logsPath, `${ExtensionHostLogFileName}.log`));
 	}

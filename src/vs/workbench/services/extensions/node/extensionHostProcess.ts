@@ -11,10 +11,12 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/node/product';
-import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { IInitData, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { exit, ExtensionHostMain } from 'vs/workbench/services/extensions/node/extensionHostMain';
+import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services/extensions/node/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -34,6 +36,39 @@ import { VSBuffer } from 'vs/base/common/buffer';
 	};
 })();
 
+// custom process.exit logic...
+const nativeExit: IExitFn = process.exit.bind(process);
+function patchProcess(allowExit: boolean) {
+	process.exit = function (code?: number) {
+		if (allowExit) {
+			nativeExit(code);
+		} else {
+			const err = new Error('An extension called process.exit() and this was prevented.');
+			console.warn(err.stack);
+		}
+	} as (code?: number) => never;
+
+	process.crash = function () {
+		const err = new Error('An extension called process.crash() and this was prevented.');
+		console.warn(err.stack);
+	};
+}
+
+// use IPC messages to forward console-calls
+function patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
+	// The console is already patched to use `process.send()`
+	const nativeProcessSend = process.send!;
+	process.send = (...args: any[]) => {
+		if (args.length === 0 || !args[0] || args[0].type !== '__$console') {
+			return nativeProcessSend.apply(process, args);
+		}
+
+		mainThreadConsole.$logExtensionHostMessage(args[0]);
+	};
+}
+
+const createLogService: ILogServiceFn = initData => createSpdLogService(ExtensionHostLogFileName, initData.logLevel, initData.logsLocation.fsPath);
+
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;
 	initData: IInitData;
@@ -42,7 +77,7 @@ interface IRendererConnection {
 // This calls exit directly in case the initialization is not finished and we need to exit
 // Otherwise, if initialization completed we go to extensionHostMain.terminate()
 let onTerminate = function () {
-	exit();
+	nativeExit();
 };
 
 function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
@@ -149,7 +184,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 			if (rendererCommit && myCommit) {
 				// Running in the built version where commits are defined
 				if (rendererCommit !== myCommit) {
-					exit(55);
+					nativeExit(55);
 				}
 			}
 
@@ -224,8 +259,13 @@ createExtHostProtocol().then(protocol => {
 	// connect to main side
 	return connectToRenderer(protocol);
 }).then(renderer => {
+	const { initData } = renderer;
 	// setup things
-	const extensionHostMain = new ExtensionHostMain(renderer.protocol, renderer.initData);
+	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
+
+	const extensionHostMain = new ExtensionHostMain(renderer.protocol, initData, nativeExit, patchPatchedConsole, createLogService);
+
+	// rewrite onTerminate-function to be a proper shutdown
 	onTerminate = () => extensionHostMain.terminate();
 }).catch(err => console.error(err));
 
