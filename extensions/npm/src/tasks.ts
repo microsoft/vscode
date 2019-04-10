@@ -194,6 +194,11 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 
 	const prePostScripts = getPrePostScripts(scripts);
 	Object.keys(scripts).forEach(each => {
+		// Hide manage scripts on NPM SCRIPTS exproler.
+		if (/^[#:-]build-/.test(each)) {
+			return;
+		}
+
 		const task = createTask(each, `run ${each}`, folder!, packageJsonUri);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
