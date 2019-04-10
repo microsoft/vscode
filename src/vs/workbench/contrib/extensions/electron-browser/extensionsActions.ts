@@ -1131,9 +1131,7 @@ export class ReloadAction extends ExtensionAction {
 
 	updateWhenCounterExtensionChanges: boolean = true;
 	private disposables: IDisposable[] = [];
-	private _runningExtensions: IExtensionDescription[] = [];
-	private get runningExtensions(): IExtensionDescription[] { return this._runningExtensions; }
-	private set runningExtensions(runningExtensions: IExtensionDescription[]) { this._runningExtensions = runningExtensions; this.update(); }
+	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -1150,13 +1148,13 @@ export class ReloadAction extends ExtensionAction {
 	}
 
 	private updateRunningExtensions(): void {
-		this.extensionService.getExtensions().then(runningExtensions => this.runningExtensions = runningExtensions);
+		this.extensionService.getExtensions().then(runningExtensions => { this._runningExtensions = runningExtensions; this.update(); });
 	}
 
 	update(): void {
 		this.enabled = false;
 		this.tooltip = '';
-		if (!this.extension) {
+		if (!this.extension || !this._runningExtensions) {
 			return;
 		}
 		const state = this.extension.state;
@@ -1171,8 +1169,11 @@ export class ReloadAction extends ExtensionAction {
 	}
 
 	private computeReloadState(): void {
+		if (!this._runningExtensions) {
+			return;
+		}
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
-		const runningExtension = this.runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
 
 		if (isUninstalled) {
 			if (runningExtension) {
@@ -2547,24 +2548,32 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 
 	updateWhenCounterExtensionChanges: boolean = true;
 	private disposables: IDisposable[] = [];
+	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super('extensions.install', '', `${SystemDisabledWarningAction.Class} hide`, false);
 		this.labelService.onDidChangeFormatters(() => this.update(), this, this.disposables);
+		this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this, this.disposables);
+		this.updateRunningExtensions();
 		this.update();
+	}
+
+	private updateRunningExtensions(): void {
+		this.extensionService.getExtensions().then(runningExtensions => { this._runningExtensions = runningExtensions; this.update(); });
 	}
 
 	update(): void {
 		this.enabled = false;
 		this.class = `${SystemDisabledWarningAction.Class} hide`;
 		this.tooltip = '';
-		if (this.extension && this.extension.local) {
+		if (this.extension && this.extension.local && this._runningExtensions) {
 			if (
 				// Remote Window
 				this.workbenchEnvironmentService.configuration.remoteAuthority
