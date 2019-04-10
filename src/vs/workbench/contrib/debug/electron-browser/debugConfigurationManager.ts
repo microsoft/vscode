@@ -576,7 +576,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 				}
 
 				created = true; // pin only if config file is created #8727
-				return this.textFileService.update(resource, content).then(() => {
+				return this.textFileService.write(resource, content).then(() => {
 					// convert string into IContent; see #32135
 					return content;
 				});

@@ -399,8 +399,10 @@ export class TextFileService extends Disposable implements ITextFileService {
 		return stat;
 	}
 
-	update(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
-		return this.fileService.updateContent(resource, value, options);
+	async write(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata> {
+		const stat = await this.fileService.updateContent(resource, value, options);
+
+		return stat;
 	}
 
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
@@ -802,7 +804,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 			// create target model adhoc if file does not exist yet
 			if (!targetExists) {
-				await this.update(target, '');
+				await this.create(target, '');
 			}
 
 			targetModel = await this.models.loadOrCreate(target);

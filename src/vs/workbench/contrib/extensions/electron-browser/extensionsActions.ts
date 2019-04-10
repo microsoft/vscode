@@ -2134,7 +2134,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		return Promise.resolve(this.fileService.resolveContent(extensionsFileResource)).then(content => {
 			return { created: false, extensionsFileResource, content: content.value };
 		}, err => {
-			return this.textFileService.update(extensionsFileResource, ExtensionsConfigurationInitialContent).then(() => {
+			return this.textFileService.write(extensionsFileResource, ExtensionsConfigurationInitialContent).then(() => {
 				return { created: true, extensionsFileResource, content: ExtensionsConfigurationInitialContent };
 			});
 		});

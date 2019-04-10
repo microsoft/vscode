@@ -355,7 +355,7 @@ export interface ITextFileService extends IDisposable {
 	/**
 	 * Update a file with given contents.
 	 */
-	update(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata>;
+	write(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.

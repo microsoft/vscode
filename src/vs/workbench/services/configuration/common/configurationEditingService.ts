@@ -29,7 +29,6 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { VSBuffer } from 'vs/base/common/buffer';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -376,7 +375,7 @@ export class ConfigurationEditingService {
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		const exists = await this.fileService.exists(resource);
 		if (!exists) {
-			await this.fileService.writeFile(resource, VSBuffer.fromString('{}'));
+			await this.textFileService.write(resource, '{}');
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}

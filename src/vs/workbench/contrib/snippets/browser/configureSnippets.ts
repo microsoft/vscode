@@ -139,7 +139,7 @@ async function createSnippetFile(scope: string, defaultPath: URI, windowService:
 		return undefined;
 	}
 
-	await textFileService.update(resource, [
+	await textFileService.write(resource, [
 		'{',
 		'\t// Place your ' + scope + ' snippets here. Each snippet is defined under a snippet name and has a scope, prefix, body and ',
 		'\t// description. Add comma separated ids of the languages where the snippet is applicable in the scope field. If scope ',
@@ -185,7 +185,7 @@ async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileS
 		'\t// }',
 		'}'
 	].join('\n');
-	await textFileService.update(URI.file(pick.filepath), contents);
+	await textFileService.write(URI.file(pick.filepath), contents);
 }
 
 CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {

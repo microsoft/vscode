@@ -78,7 +78,7 @@ class PartsSplash {
 			sideBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.SIDEBAR_PART)),
 			statusBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.STATUSBAR_PART)),
 		};
-		this._textFileService.update(
+		this._textFileService.write(
 			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),
 			JSON.stringify({
 				id: PartsSplash._splashElementId,

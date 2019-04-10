@@ -20,7 +20,6 @@ import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/se
 import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { VSBuffer } from 'vs/base/common/buffer';
 
 export class JSONEditingService implements IJSONEditingService {
 
@@ -87,7 +86,7 @@ export class JSONEditingService implements IJSONEditingService {
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		const exists = await this.fileService.exists(resource);
 		if (!exists) {
-			await this.fileService.writeFile(resource, VSBuffer.fromString('{}'));
+			await this.textFileService.write(resource, '{}');
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}

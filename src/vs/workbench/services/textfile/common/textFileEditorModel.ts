@@ -703,12 +703,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Save to Disk
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
-			this.logService.trace(`doSave(${versionId}) - before updateContent()`, this.resource);
+			this.logService.trace(`doSave(${versionId}) - before write()`, this.resource);
 			const snapshot = this.createSnapshot();
 			if (!snapshot) {
 				throw new Error('Invalid snapshot');
 			}
-			return this.saveSequentializer.setPending(newVersionId, this.textFileService.update(this.lastResolvedDiskStat.resource, snapshot, {
+			return this.saveSequentializer.setPending(newVersionId, this.textFileService.write(this.lastResolvedDiskStat.resource, snapshot, {
 				overwriteReadonly: options.overwriteReadonly,
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: this.lastResolvedDiskStat.mtime,
@@ -716,7 +716,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				etag: this.lastResolvedDiskStat.etag,
 				writeElevated: options.writeElevated
 			}).then(stat => {
-				this.logService.trace(`doSave(${versionId}) - after updateContent()`, this.resource);
+				this.logService.trace(`doSave(${versionId}) - after write()`, this.resource);
 
 				// Update dirty state unless model has changed meanwhile
 				if (versionId === this.versionId) {
@@ -849,7 +849,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			throw new Error('invalid snapshot');
 		}
 
-		return this.saveSequentializer.setPending(versionId, this.textFileService.update(this.lastResolvedDiskStat.resource, snapshot, {
+		return this.saveSequentializer.setPending(versionId, this.textFileService.write(this.lastResolvedDiskStat.resource, snapshot, {
 			mtime: this.lastResolvedDiskStat.mtime,
 			encoding: this.getEncoding(),
 			etag: this.lastResolvedDiskStat.etag
