@@ -20,7 +20,6 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 
@@ -29,7 +28,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	static INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
 
 	constructor(
-		@IWindowService windowService: IWindowService,
+		processEnvironment: IProcessEnvironment,
 		@IEditorService editorService: IEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -84,7 +83,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				}
 				return undefined;
 			}
-		}, process.env as IProcessEnvironment);
+		}, processEnvironment ? processEnvironment : process.env as IProcessEnvironment);
 	}
 
 	public resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
