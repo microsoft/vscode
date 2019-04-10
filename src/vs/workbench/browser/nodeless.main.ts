@@ -20,6 +20,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService3 } from 'vs/workbench/services/files2/browser/fileService2';
+import { Schemas } from 'vs/base/common/network';
 
 class CodeRendererMain extends Disposable {
 
@@ -84,7 +85,7 @@ class CodeRendererMain extends Disposable {
 		if (connection) {
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
 			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
-			fileService.registerProvider('vscode-remote', remoteFileSystemProvider);
+			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
 		return { serviceCollection, logService };

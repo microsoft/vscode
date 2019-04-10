@@ -61,7 +61,7 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const workspaceResource = URI.from({
-	scheme: 'vscode-remote',
+	scheme: Schemas.vscodeRemote,
 	authority: document.location.host,
 	path: (<any>self).USER_HOME_DIR || '/'
 });
