@@ -32,6 +32,7 @@ import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { realpath } from 'vs/base/node/extpath';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -189,7 +190,9 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
 		environment: IEnvironment,
-		extHostLogService: ExtHostLogService
+		extHostLogService: ExtHostLogService,
+		schemeTransformer: ISchemeTransformer | null,
+		outputChannelName: string
 	) {
 		this._nativeExit = nativeExit;
 		this._initData = initData;
@@ -230,7 +233,17 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._extensionPathIndex = null;
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		this._extensionApiFactory = createApiFactory(this._initData, this._extHostContext, this._extHostWorkspace, this._extHostConfiguration, this, this._extHostLogService, this._storage);
+		this._extensionApiFactory = createApiFactory(
+			this._initData,
+			this._extHostContext,
+			this._extHostWorkspace,
+			this._extHostConfiguration,
+			this,
+			this._extHostLogService,
+			this._storage,
+			schemeTransformer,
+			outputChannelName
+		);
 
 		this._resolvers = Object.create(null);
 

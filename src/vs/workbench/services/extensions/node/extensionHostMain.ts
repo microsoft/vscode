@@ -19,6 +19,7 @@ import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -46,10 +47,18 @@ export class ExtensionHostMain {
 
 	private _searchRequestIdProvider: Counter;
 
-	constructor(protocol: IMessagePassingProtocol, initData: IInitData, exitFn: IExitFn, consolePatchFn: IConsolePatchFn, logServiceFn: ILogServiceFn) {
+	constructor(
+		protocol: IMessagePassingProtocol,
+		initData: IInitData,
+		exitFn: IExitFn,
+		consolePatchFn: IConsolePatchFn,
+		logServiceFn: ILogServiceFn,
+		uriTransformer: IURITransformer | null,
+		schemeTransformer: ISchemeTransformer | null,
+		outputChannelName: string
+	) {
 		this._isTerminating = false;
 		this._exitFn = exitFn;
-		const uriTransformer: IURITransformer | null = null;
 		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
@@ -69,7 +78,17 @@ export class ExtensionHostMain {
 		this._extHostLogService.trace('initData', initData);
 
 		const extHostConfiguraiton = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
-		this._extensionService = new ExtHostExtensionService(exitFn, initData, rpcProtocol, extHostWorkspace, extHostConfiguraiton, initData.environment, this._extHostLogService);
+		this._extensionService = new ExtHostExtensionService(
+			exitFn,
+			initData,
+			rpcProtocol,
+			extHostWorkspace,
+			extHostConfiguraiton,
+			initData.environment,
+			this._extHostLogService,
+			schemeTransformer,
+			outputChannelName
+		);
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
