@@ -193,7 +193,11 @@ export class Workbench extends Layout {
 			// TODO@Ben legacy file service
 			const fileService = accessor.get(IFileService) as any;
 			if (typeof fileService.setLegacyService === 'function') {
-				fileService.setLegacyService(accessor.get(ILegacyFileService));
+				try {
+					fileService.setLegacyService(accessor.get(ILegacyFileService));
+				} catch (error) {
+					//ignore, legacy file service might not be registered
+				}
 			}
 
 			// TODO@Sandeep debt around cyclic dependencies

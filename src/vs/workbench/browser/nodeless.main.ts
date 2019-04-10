@@ -8,8 +8,14 @@ import { domContentLoaded, addDisposableListener, EventType } from 'vs/base/brow
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { SimpleLogService } from 'vs/workbench/browser/nodeless.simpleservices';
+import { SimpleLogService, SimpleProductService, SimpleWorkbenchEnvironmentService } from 'vs/workbench/browser/nodeless.simpleservices';
 import { Workbench } from 'vs/workbench/browser/workbench';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IProductService } from 'vs/platform/product/common/product';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IFileService } from 'vs/platform/files/common/files';
+import { FileService3 } from 'vs/workbench/services/files2/browser/fileService2';
 
 class CodeRendererMain extends Disposable {
 
@@ -42,13 +48,30 @@ class CodeRendererMain extends Disposable {
 	private initServices(): { serviceCollection: ServiceCollection, logService: ILogService } {
 		const serviceCollection = new ServiceCollection();
 
-		const logService = new SimpleLogService();
-		serviceCollection.set(ILogService, logService);
-
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
 		// CONTRIBUTE IT VIA WORKBENCH.MAIN.TS AND registerSingleton().
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+		// Log
+		const logService = new SimpleLogService();
+		serviceCollection.set(ILogService, logService);
+
+		// Environment
+		const environmentService = new SimpleWorkbenchEnvironmentService();
+		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
+
+		// Product
+		const productService = new SimpleProductService();
+		serviceCollection.set(IProductService, productService);
+
+		// Remote
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
+		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+
+		// Files
+		const fileService = this._register(new FileService3(logService));
+		serviceCollection.set(IFileService, fileService);
 
 		return { serviceCollection, logService };
 	}

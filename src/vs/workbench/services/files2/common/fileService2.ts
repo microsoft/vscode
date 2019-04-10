@@ -129,7 +129,7 @@ export class FileService2 extends Disposable implements IFileService {
 		return !!(provider && (provider.capabilities & capability));
 	}
 
-	private async withProvider(resource: URI): Promise<IFileSystemProvider> {
+	protected async withProvider(resource: URI): Promise<IFileSystemProvider> {
 
 		// Assert path is absolute
 		if (!isAbsolutePath(resource)) {
@@ -378,7 +378,7 @@ export class FileService2 extends Disposable implements IFileService {
 		return this.joinOnLegacy.then(legacy => legacy.resolveContent(resource, options));
 	}
 
-	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent> {
+	async resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent> {
 		return this.joinOnLegacy.then(legacy => legacy.resolveStreamContent(resource, options));
 	}
 
@@ -836,7 +836,7 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 	}
 
-	private throwIfFileSystemIsReadonly(provider: IFileSystemProvider): IFileSystemProvider {
+	protected throwIfFileSystemIsReadonly(provider: IFileSystemProvider): IFileSystemProvider {
 		if (provider.capabilities & FileSystemProviderCapabilities.Readonly) {
 			throw new FileOperationError(localize('err.readonly', "Resource can not be modified."), FileOperationResult.FILE_PERMISSION_DENIED);
 		}
