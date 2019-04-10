@@ -230,7 +230,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.showSubSessionsInToolBar': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showSubSessionsInToolBar' }, "Controls whether the debug sub-sessions are shown in the debug tool bar. When this setting is disabled the stop command on a sub session will also stop the parent session."),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showSubSessionsInToolBar' }, "Controls whether the debug sub-sessions are shown in the debug tool bar. When this setting is false the stop command on a sub-session will also stop the parent session."),
 			default: false
 		},
 		'debug.console.fontSize': {
