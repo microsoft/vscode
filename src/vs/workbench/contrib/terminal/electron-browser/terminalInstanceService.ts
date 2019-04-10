@@ -12,6 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
+import * as typeAheadAddon from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
 
 let Terminal: typeof XTermTerminal;
 
@@ -35,6 +36,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/search/search'));
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/webLinks/webLinks'));
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/winptyCompat/winptyCompat'));
+			Terminal.applyAddon(typeAheadAddon);
 			// Localize strings
 			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');
 			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
