@@ -87,6 +87,8 @@ import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { TunnelService } from 'vs/workbench/services/remote/node/tunnelService';
 
 import 'vs/platform/remote/node/tunnelService';
 
@@ -159,6 +161,7 @@ registerSingleton(IIssueService, IssueService);
 registerSingleton(IWorkspacesService, WorkspacesService);
 registerSingleton(IMenubarService, MenubarService);
 registerSingleton(IURLService, RelayURLService);
+registerSingleton(ITunnelService, TunnelService, true);
 
 //#endregion
 
