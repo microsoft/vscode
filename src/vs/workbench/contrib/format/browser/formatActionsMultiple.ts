@@ -127,7 +127,8 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		const picks = formatter.map((formatter, index) => {
 			return <IIndexedPick>{
 				index,
-				label: formatter.displayName || formatter.extensionId || '?'
+				label: formatter.displayName || formatter.extensionId || '?',
+				description: formatter.extensionId && formatter.extensionId.value
 			};
 		});
 		const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
