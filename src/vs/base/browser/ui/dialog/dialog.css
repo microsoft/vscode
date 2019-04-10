@@ -15,6 +15,10 @@
 	align-items: center;
 }
 
+.monaco-workbench .dialog-modal-block.dimmed {
+	background: rgba(0, 0, 0, 0.3);
+}
+
 /** Dialog: Container */
 .monaco-workbench .dialog-box {
 	display: flex;

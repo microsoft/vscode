@@ -40,7 +40,7 @@ export class Dialog extends Disposable {
 
 	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
 		super();
-		this.modal = this.container.appendChild($('.dialog-modal-block'));
+		this.modal = this.container.appendChild($(`.dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
 		this.element = this.modal.appendChild($('.dialog-box'));
 		hide(this.element);
 
