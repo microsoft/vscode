@@ -13,11 +13,13 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IEnvironment, IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
+import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
@@ -70,7 +72,7 @@ export class ExtensionHostMain {
 		this._patchPatchedConsole(rpcProtocol.getProxy(MainContext.MainThreadConsole));
 
 		// services
-		this._extHostLogService = new ExtHostLogService(initData.logLevel, initData.logsLocation.fsPath);
+		this._extHostLogService = new ExtHostLogService(initData.logLevel, initData.logsLocation.fsPath, () => createSpdLogService(ExtensionHostLogFileName, initData.logLevel, initData.logsLocation.fsPath));
 		this.disposables.push(this._extHostLogService);
 
 		this._searchRequestIdProvider = new Counter();

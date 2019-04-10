@@ -16,7 +16,7 @@ import { createApiFactory, IExtensionApiFactory, NodeModuleRequireInterceptor, V
 import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IStaticWorkspaceData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionMemento, IExtensionModule, HostExtension } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
+import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';

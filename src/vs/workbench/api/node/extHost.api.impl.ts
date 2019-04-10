@@ -37,7 +37,7 @@ import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFi
 import { ExtHostHeapService } from 'vs/workbench/api/common/extHostHeapService';
 import { ExtHostLanguageFeatures, ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
+import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostMessageService } from 'vs/workbench/api/common/extHostMessageService';
 import { ExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
 import { LogOutputChannelFactory } from 'vs/workbench/api/node/extHostOutputService';
