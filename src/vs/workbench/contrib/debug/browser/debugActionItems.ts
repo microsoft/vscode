@@ -235,9 +235,9 @@ export class FocusSessionActionItem extends SelectActionItem {
 	}
 
 	protected getSessions(): ReadonlyArray<IDebugSession> {
-		const hideSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').hideSubSessions;
+		const showSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 		const sessions = this.debugService.getModel().getSessions();
 
-		return hideSubSessions ? sessions.filter(s => !s.parentSession) : sessions;
+		return showSubSessions ? sessions : sessions.filter(s => !s.parentSession);
 	}
 }
