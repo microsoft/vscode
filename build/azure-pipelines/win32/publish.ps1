@@ -15,7 +15,7 @@ $ServerZip = "$Repo\.build\vscode-server-win32-$Arch.zip"
 $Build = "$Root\VSCode-win32-$Arch"
 
 # Create server archive
-Compress-Archive -Path $Server -DestinationPath $ServerZip
+exec { .\node_modules\7zip\7zip-lite\7z.exe a -tzip $ServerZip $Server -r }
 
 # get version
 $PackageJson = Get-Content -Raw -Path "$Build\resources\app\package.json" | ConvertFrom-Json
