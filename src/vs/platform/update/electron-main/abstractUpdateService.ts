@@ -77,25 +77,25 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		// Start checking for updates after 30 seconds
-		this.scheduleCheckForUpdates(30 * 1000, updateMode).then(undefined, err => this.logService.error(err));
+		if (updateMode === 'start') {
+			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
+			this.checkForUpdates(null);
+		} else {
+			// Create schedule after checking for updates in 30 seconds
+			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+		}
 	}
 
 	private getProductQuality(updateMode: string): string | undefined {
 		return updateMode === 'none' ? undefined : product.quality;
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000, updateMode: string): Promise<void> {
+	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
 		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
 			.then(() => {
-				if (updateMode === 'start') {
-					this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
-					return;
-				} else {
-					// Check again after 1 hour
-					return this.scheduleCheckForUpdates(60 * 60 * 1000, updateMode);
-				}
+				// Check again after 1 hour
+				return this.scheduleCheckForUpdates(60 * 60 * 1000);
 			});
 	}
 
