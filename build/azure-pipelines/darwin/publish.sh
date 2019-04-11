@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 # remove pkg from archive
 zip -d ../VSCode-darwin.zip "*.pkg"
