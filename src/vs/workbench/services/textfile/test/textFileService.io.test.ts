@@ -359,4 +359,22 @@ suite('Files - TextFileService i/o', () => {
 		const resolved = await service.resolve(resource, { encoding: 'cp1252' });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.LF).createSnapshot(false)), content);
 	});
+
+	test('write - ensure BOM in empty file - content as string', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await service.write(resource, '', { encoding: UTF8_with_bom });
+
+		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
+		assert.equal(detectedEncoding, UTF8);
+	});
+
+	test('write - ensure BOM in empty file - content as snapshot', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await service.write(resource, TextModel.createFromString('').createSnapshot(), { encoding: UTF8_with_bom });
+
+		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
+		assert.equal(detectedEncoding, UTF8);
+	});
 });
