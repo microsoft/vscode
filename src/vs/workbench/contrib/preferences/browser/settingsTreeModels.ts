@@ -13,13 +13,14 @@ import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/prefere
 import { ITOCEntry, knownAcronyms } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
 	tagFilters?: Set<string>;
-	extensionFilter?: string;
+	extensionFilters?: Set<string>;
 	filterToCategory?: SettingsTreeGroupElement;
 }
 
@@ -230,8 +231,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		return true;
 	}
 
-	matchesExtension(extension?: string): boolean {
-		if (!extension) {
+	matchesAnyExtension(extensionFilters?: Set<string>): boolean {
+		if (!extensionFilters || !extensionFilters.size) {
 			return true;
 		}
 
@@ -239,14 +240,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return false;
 		}
 
-		let extensionQuery = extension.toLowerCase();
-
-		if (this.setting.extensionInfo.id.toLowerCase().indexOf(extensionQuery) >= 0) {
-			return true;
-		}
-
-		if (this.setting.extensionInfo.displayName && this.setting.extensionInfo.displayName.toLowerCase().indexOf(extensionQuery) >= 0) {
-			return true;
+		for (let extensionId of extensionFilters) {
+			if (extensionId.toLowerCase() === this.setting.extensionInfo.id.toLowerCase()) {
+				return true;
+			}
 		}
 
 		return false;
@@ -517,7 +514,7 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
 		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget) && child.matchesExtension(this._viewState.extensionFilter));
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget) && child.matchesAnyExtension(this._viewState.extensionFilters));
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();
@@ -550,14 +547,14 @@ export class SearchResultModel extends SettingsTreeModel {
 export interface IParsedQuery {
 	tags: string[];
 	query: string;
-	extensionFilter?: string;
+	extensionFilters: string[];
 }
 
 const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 const extensionRegex = /(^|\s)@ext:("([^"]*)"|[^"]\S*)?/g;
 export function parseQuery(query: string): IParsedQuery {
 	const tags: string[] = [];
-	let extension: string | undefined;
+	let extensions: string[] = [];
 	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
 		tags.push(tag || quotedTag);
 		return '';
@@ -569,7 +566,10 @@ export function parseQuery(query: string): IParsedQuery {
 	});
 
 	query = query.replace(extensionRegex, (_, __, quotedExtensionId, extensionId) => {
-		extension = extensionId || quotedExtensionId;
+		let extensionIdQuery: string = extensionId || quotedExtensionId;
+		if (extensionIdQuery) {
+			extensions.push(...extensionIdQuery.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s)));
+		}
 		return '';
 	});
 
@@ -577,7 +577,7 @@ export function parseQuery(query: string): IParsedQuery {
 
 	return {
 		tags,
-		extensionFilter: extension,
+		extensionFilters: extensions,
 		query
 	};
 }

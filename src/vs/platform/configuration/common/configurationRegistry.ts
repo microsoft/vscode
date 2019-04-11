@@ -97,7 +97,6 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 
 export interface IConfigurationExtensionInfo {
 	id: string;
-	displayName?: string;
 }
 
 export interface IConfigurationNode {

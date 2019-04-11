@@ -1036,19 +1036,19 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private triggerSearch(query: string): Promise<void> {
 		this.viewState.tagFilters = new Set<string>();
-		this.viewState.extensionFilter = undefined;
+		this.viewState.extensionFilters = new Set<string>();
 		if (query) {
 			const parsedQuery = parseQuery(query);
 			query = parsedQuery.query;
 			parsedQuery.tags.forEach(tag => this.viewState.tagFilters!.add(tag));
-			this.viewState.extensionFilter = parsedQuery.extensionFilter;
+			parsedQuery.extensionFilters.forEach(extensionId => this.viewState.extensionFilters!.add(extensionId));
 		}
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
 			return this.triggerFilterPreferences(query);
 		} else {
-			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || this.viewState.extensionFilter || !query) {
+			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || (this.viewState.extensionFilters && this.viewState.extensionFilters.size) || !query) {
 				this.searchResultModel = this.createFilterModel();
 			} else {
 				this.searchResultModel = null;
@@ -1080,6 +1080,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.refreshTOCTree();
+			this.tocTree.expandAll();
 		}
 
 		return Promise.resolve();

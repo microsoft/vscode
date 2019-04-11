@@ -116,6 +116,7 @@ suite('SettingsTree', () => {
 			'',
 			<IParsedQuery>{
 				tags: [],
+				extensionFilters: [],
 				query: ''
 			});
 
@@ -172,6 +173,7 @@ suite('SettingsTree', () => {
 			'query has @ for some reason',
 			<IParsedQuery>{
 				tags: [],
+				extensionFilters: [],
 				query: 'query has @ for some reason'
 			});
 	});
