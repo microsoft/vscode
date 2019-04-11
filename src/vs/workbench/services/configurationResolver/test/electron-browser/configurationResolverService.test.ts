@@ -75,21 +75,23 @@ suite('Configuration Resolver Service', () => {
 		}
 	});
 
-	test('substitute one env variable', () => {
-		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc \\VSCode\\workspaceLocation Value for key1 xyz');
-		} else {
-			assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc /VSCode/workspaceLocation Value for key1 xyz');
-		}
-	});
+	// https://github.com/Microsoft/vscode/issues/72029
+	// test('substitute one env variable', () => {
+	// 	if (platform.isWindows) {
+	// 		assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc \\VSCode\\workspaceLocation Value for key1 xyz');
+	// 	} else {
+	// 		assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc /VSCode/workspaceLocation Value for key1 xyz');
+	// 	}
+	// });
 
-	test('substitute many env variable', () => {
-		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService!.resolve(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
-		} else {
-			assert.strictEqual(configurationResolverService!.resolve(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation Value for key1 - Value for key2');
-		}
-	});
+	// https://github.com/Microsoft/vscode/issues/72029
+	// test('substitute many env variable', () => {
+	// 	if (platform.isWindows) {
+	// 		assert.strictEqual(configurationResolverService!.resolve(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
+	// 	} else {
+	// 		assert.strictEqual(configurationResolverService!.resolve(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation Value for key1 - Value for key2');
+	// 	}
+	// });
 
 	// test('substitute keys and values in object', () => {
 	// 	const myObject = {
@@ -102,14 +104,14 @@ suite('Configuration Resolver Service', () => {
 	// 	});
 	// });
 
-
-	test('substitute one env variable using platform case sensitivity', () => {
-		if (platform.isWindows) {
-			assert.strictEqual(configurationResolverService!.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - Value for key1');
-		} else {
-			assert.strictEqual(configurationResolverService!.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ');
-		}
-	});
+	// https://github.com/Microsoft/vscode/issues/72029
+	// test('substitute one env variable using platform case sensitivity', () => {
+	// 	if (platform.isWindows) {
+	// 		assert.strictEqual(configurationResolverService!.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - Value for key1');
+	// 	} else {
+	// 		assert.strictEqual(configurationResolverService!.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ');
+	// 	}
+	// });
 
 	test('substitute one configuration variable', () => {
 		let configurationService: IConfigurationService = new MockConfigurationService({
@@ -144,47 +146,49 @@ suite('Configuration Resolver Service', () => {
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo bar xyz');
 	});
 
-	test('substitute one env variable and a configuration variable', () => {
-		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar'
-				}
-			}
-		});
+	// https://github.com/Microsoft/vscode/issues/72029
+	// test('substitute one env variable and a configuration variable', () => {
+	// 	let configurationService: IConfigurationService;
+	// 	configurationService = new MockConfigurationService({
+	// 		editor: {
+	// 			fontFamily: 'foo'
+	// 		},
+	// 		terminal: {
+	// 			integrated: {
+	// 				fontFamily: 'bar'
+	// 			}
+	// 		}
+	// 	});
 
-		let service = new ConfigurationResolverService(windowService, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(), quickInputService);
-		if (platform.isWindows) {
-			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for key1 xyz');
-		} else {
-			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo /VSCode/workspaceLocation Value for key1 xyz');
-		}
-	});
+	// 	let service = new ConfigurationResolverService(windowService, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(), quickInputService);
+	// 	if (platform.isWindows) {
+	// 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for key1 xyz');
+	// 	} else {
+	// 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo /VSCode/workspaceLocation Value for key1 xyz');
+	// 	}
+	// });
 
-	test('substitute many env variable and a configuration variable', () => {
-		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar'
-				}
-			}
-		});
+	// https://github.com/Microsoft/vscode/issues/72029
+	// test('substitute many env variable and a configuration variable', () => {
+	// 	let configurationService: IConfigurationService;
+	// 	configurationService = new MockConfigurationService({
+	// 		editor: {
+	// 			fontFamily: 'foo'
+	// 		},
+	// 		terminal: {
+	// 			integrated: {
+	// 				fontFamily: 'bar'
+	// 			}
+	// 		}
+	// 	});
 
-		let service = new ConfigurationResolverService(windowService, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(), quickInputService);
-		if (platform.isWindows) {
-			assert.strictEqual(service.resolve(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
-		} else {
-			assert.strictEqual(service.resolve(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar /VSCode/workspaceLocation - /VSCode/workspaceLocation Value for key1 - Value for key2');
-		}
-	});
+	// 	let service = new ConfigurationResolverService(windowService, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService(), quickInputService);
+	// 	if (platform.isWindows) {
+	// 		assert.strictEqual(service.resolve(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
+	// 	} else {
+	// 		assert.strictEqual(service.resolve(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar /VSCode/workspaceLocation - /VSCode/workspaceLocation Value for key1 - Value for key2');
+	// 	}
+	// });
 
 	test('mixed types of configuration variables', () => {
 		let configurationService: IConfigurationService;
@@ -339,31 +343,33 @@ suite('Configuration Resolver Service', () => {
 		});
 	});
 
-	test('a command variable that relies on resolved env vars', () => {
+	// https://github.com/Microsoft/vscode/issues/72029
+	// test('a command variable that relies on resolved env vars', () => {
 
-		const configuration = {
-			'name': 'Attach to Process',
-			'type': 'node',
-			'request': 'attach',
-			'processId': '${command:commandVariable1}',
-			'value': '${env:key1}'
-		};
-		const commandVariables = Object.create(null);
-		commandVariables['commandVariable1'] = 'command1';
+	// 	const configuration = {
+	// 		'name': 'Attach to Process',
+	// 		'type': 'node',
+	// 		'request': 'attach',
+	// 		'processId': '${command:commandVariable1}',
+	// 		'value': '${env:key1}'
+	// 	};
+	// 	const commandVariables = Object.create(null);
+	// 	commandVariables['commandVariable1'] = 'command1';
 
-		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
+	// 	return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
 
-			assert.deepEqual(result, {
-				'name': 'Attach to Process',
-				'type': 'node',
-				'request': 'attach',
-				'processId': 'Value for key1',
-				'value': 'Value for key1'
-			});
+	// 		assert.deepEqual(result, {
+	// 			'name': 'Attach to Process',
+	// 			'type': 'node',
+	// 			'request': 'attach',
+	// 			'processId': 'Value for key1',
+	// 			'value': 'Value for key1'
+	// 		});
 
-			assert.equal(1, mockCommandService.callCount);
-		});
-	});
+	// 		assert.equal(1, mockCommandService.callCount);
+	// 	});
+	// });
+
 	test('a single prompt input variable', () => {
 
 		const configuration = {
