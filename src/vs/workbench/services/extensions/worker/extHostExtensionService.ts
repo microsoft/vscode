@@ -19,7 +19,7 @@ import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionA
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationError, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
@@ -147,6 +147,11 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	private async _initialize(): Promise<void> {
+
+		// globally define the vscode module and share that
+		// for all extensions
+		define('vscode', this._extensionApiFactory(nullExtensionDescription, this._registry, await this._extHostConfiguration.getConfigProvider()));
+
 		try {
 			// const configProvider = await this._extHostConfiguration.getConfigProvider();
 			// const extensionPaths = await this.getExtensionPathIndex();
@@ -381,7 +386,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			try {
 				activationTimesBuilder.activateCallStart();
 				logService.trace(`ExtensionService#_callActivateOptional ${extensionId.value}`);
-				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(global, [context]);
+				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(undefined, [context]);
 				activationTimesBuilder.activateCallStop();
 
 				activationTimesBuilder.activateResolveStart();
@@ -681,19 +686,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 }
 
-function loadCommonJSModule<T>(logService: ILogService, modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
-	// let r: T | null = null;
-	// activationTimesBuilder.codeLoadingStart();
-	// logService.info(`ExtensionService#loadCommonJSModule ${modulePath}`);
-	// try {
-	// 	r = require.__$__nodeRequire<T>(modulePath);
-	// } catch (e) {
-	// 	return Promise.reject(e);
-	// } finally {
-	// 	activationTimesBuilder.codeLoadingStop();
-	// }
-	// return Promise.resolve(r);
-	return Promise.reject('cannot');
+async function loadCommonJSModule<T>(logService: ILogService, modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+
+	const exports = Object.create(null);
+	self['exports'] = exports;
+	importScripts(modulePath);
+	return exports;
 }
 
 function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): any {

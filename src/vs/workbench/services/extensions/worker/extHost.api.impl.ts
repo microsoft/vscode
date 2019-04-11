@@ -156,7 +156,7 @@ export function createApiFactory(
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol, extHostDocuments);
 
 	// Register an output channel for exthost log
-	extHostOutputService.createOutputChannelFromLogFile(outputChannelName, extHostLogService.logFile);
+	// extHostOutputService.createOutputChannelFromLogFile(outputChannelName, extHostLogService.logFile); // < todo@joh
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
