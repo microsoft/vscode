@@ -20,6 +20,9 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { exists } from 'vs/base/node/pfs';
+import { realpath } from 'vs/base/node/extpath';
+import { IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -270,10 +273,19 @@ createExtHostProtocol().then(protocol => {
 	const schemeTransformer: ISchemeTransformer | null = null;
 	const outputChannelName = nls.localize('extension host Log', "Extension Host");
 
+
+	// host abstraction
+	const hostUtils = new class NodeHost implements IHostUtils {
+		exit(code: number) { nativeExit(code); }
+		exists(path: string) { return exists(path); }
+		realpath(path: string) { return realpath(path); }
+	};
+
+
 	const extensionHostMain = new ExtensionHostMain(
 		renderer.protocol,
 		initData,
-		nativeExit,
+		hostUtils,
 		patchPatchedConsole,
 		createLogService,
 		uriTransformer,
