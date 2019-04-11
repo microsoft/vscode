@@ -195,8 +195,6 @@ class SaturationBox extends Disposable {
 	}
 
 	private paint(): void {
-		const hsva = this.model.color.hsva;
-		const saturatedColor = new Color(new HSVA(hsva.h, 1, 1, 1));
 		const ctx = this.canvas.getContext('2d')!;
 
 		const whiteGradient = ctx.createLinearGradient(0, 0, this.canvas.width, 0);
@@ -209,7 +207,7 @@ class SaturationBox extends Disposable {
 		blackGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
 
 		ctx.rect(0, 0, this.canvas.width, this.canvas.height);
-		ctx.fillStyle = Color.Format.CSS.format(saturatedColor)!;
+		ctx.fillStyle = Color.Format.CSS.format(this.model.color)!;
 		ctx.fill();
 		ctx.fillStyle = whiteGradient;
 		ctx.fill();
