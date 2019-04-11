@@ -242,11 +242,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensionsCloseExtensionDetailsOnViewChange', "When enabled, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
 				default: false
 			},
-			'extensions.experimental.showGroupByServerAsDefault': {
+			'extensions.showInstalledExtensionsByDefault': {
 				type: 'boolean',
-				description: localize('extensions.experimental.showGroupByServerAsDefault', "When enabled, extensions viewlet shows installed extension grouped by server as default view."),
-				default: true,
-				deprecationMessage: localize('extensions.experimental.showGroupByServerAsDefault.deprecated', "This setting is experimental and subjected to be removed."),
+				description: localize('extensions.showInstalledExtensionsByDefault', "When enabled, extensions view shows installed extensions view by default."),
+				default: false
 			}
 		}
 	});

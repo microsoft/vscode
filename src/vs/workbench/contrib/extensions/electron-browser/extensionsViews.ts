@@ -235,7 +235,7 @@ export class ExtensionsListView extends ViewletPanel {
 		if (ids.length) {
 			return this.queryByIds(ids, options, token);
 		}
-		if (ExtensionsListView.isInstalledExtensionsQuery(query.value) || /@builtin/.test(query.value)) {
+		if (ExtensionsListView.isLocalExtensionsQuery(query.value) || /@builtin/.test(query.value)) {
 			return this.queryLocal(query, options);
 		}
 		return this.queryGallery(query, options, token);
@@ -763,12 +763,28 @@ export class ExtensionsListView extends ViewletPanel {
 		return /^\s*@builtin\s*$/i.test(query);
 	}
 
-	static isInstalledExtensionsQuery(query: string): boolean {
-		return /@installed|@outdated|@enabled|@disabled/i.test(query);
+	static isLocalExtensionsQuery(query: string): boolean {
+		return this.isInstalledExtensionsQuery(query)
+			|| this.isOutdatedExtensionsQuery(query)
+			|| this.isEnabledExtensionsQuery(query)
+			|| this.isDisabledExtensionsQuery(query)
+			|| this.isBuiltInExtensionsQuery(query);
 	}
 
-	static isServerExtensionsQuery(query: string): boolean {
-		return /@installed|@outdated/i.test(query);
+	static isInstalledExtensionsQuery(query: string): boolean {
+		return /@installed/i.test(query);
+	}
+
+	static isOutdatedExtensionsQuery(query: string): boolean {
+		return /@outdated/i.test(query);
+	}
+
+	static isEnabledExtensionsQuery(query: string): boolean {
+		return /@enabled/i.test(query);
+	}
+
+	static isDisabledExtensionsQuery(query: string): boolean {
+		return /@disabled/i.test(query);
 	}
 
 	static isRecommendedExtensionsQuery(query: string): boolean {
@@ -800,8 +816,12 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 }
 
-function getServerLabel(server: IExtensionManagementServer, labelService: ILabelService, workbenchEnvironmentService: IWorkbenchEnvironmentService): string {
-	return workbenchEnvironmentService.configuration.remoteAuthority === server.authority ? labelService.getHostLabel(REMOTE_HOST_SCHEME, server.authority) || server.label : server.label;
+function getViewTitleForServer(viewTitle: string, server: IExtensionManagementServer, labelService: ILabelService, workbenchEnvironmentService: IWorkbenchEnvironmentService): string {
+	const serverLabel = workbenchEnvironmentService.configuration.remoteAuthority === server.authority ? labelService.getHostLabel(REMOTE_HOST_SCHEME, server.authority) || server.label : server.label;
+	if (viewTitle && workbenchEnvironmentService.configuration.remoteAuthority) {
+		return `${serverLabel} - ${viewTitle}`;
+	}
+	return viewTitle ? viewTitle : serverLabel;
 }
 
 export class ServerExtensionsView extends ExtensionsListView {
@@ -828,15 +848,16 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService
 	) {
-		options.title = getServerLabel(server, labelService, workbenchEnvironmentService);
+		const viewTitle = options.title;
+		options.title = getViewTitleForServer(viewTitle, server, labelService, workbenchEnvironmentService);
 		options.server = server;
 		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, modeService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService);
-		this.disposables.push(labelService.onDidChangeFormatters(() => this.updateTitle(getServerLabel(server, labelService, workbenchEnvironmentService))));
+		this.disposables.push(labelService.onDidChangeFormatters(() => this.updateTitle(getViewTitleForServer(viewTitle, server, labelService, workbenchEnvironmentService))));
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query ? query : '@installed';
-		if (!ExtensionsListView.isInstalledExtensionsQuery(query) && !ExtensionsListView.isBuiltInExtensionsQuery(query)) {
+		if (!ExtensionsListView.isLocalExtensionsQuery(query) && !ExtensionsListView.isBuiltInExtensionsQuery(query)) {
 			query = query += ' @installed';
 		}
 		return super.show(query.trim());

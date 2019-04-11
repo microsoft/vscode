@@ -155,14 +155,14 @@ suite('ExtensionsListView Tests', () => {
 
 	test('Test query types', () => {
 		assert.equal(ExtensionsListView.isBuiltInExtensionsQuery('@builtin'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@installed'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@enabled'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@disabled'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@outdated'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@installed searchText'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@enabled searchText'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@disabled searchText'), true);
-		assert.equal(ExtensionsListView.isInstalledExtensionsQuery('@outdated searchText'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@installed'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@enabled'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@disabled'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@outdated'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@installed searchText'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@enabled searchText'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@disabled searchText'), true);
+		assert.equal(ExtensionsListView.isLocalExtensionsQuery('@outdated searchText'), true);
 	});
 
 	test('Test empty query equates to sort by install count', () => {
