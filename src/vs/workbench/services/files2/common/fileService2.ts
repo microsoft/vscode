@@ -15,6 +15,7 @@ import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable } from 'vs/base/common/buffer';
+import { Queue } from 'vs/base/common/async';
 
 export class FileService2 extends Disposable implements IFileService {
 
@@ -664,12 +665,10 @@ export class FileService2 extends Disposable implements IFileService {
 	}
 
 	private toWatchKey(provider: IFileSystemProvider, resource: URI, options: IWatchOptions): string {
-		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
-
 		return [
-			isPathCaseSensitive ? resource.toString() : resource.toString().toLowerCase(), 	// lowercase path is the provider is case insensitive
-			String(options.recursive),														// use recursive: true | false as part of the key
-			options.excludes.join()															// use excludes as part of the key
+			this.toMapKey(provider, resource), 	// lowercase path if the provider is case insensitive
+			String(options.recursive),			// use recursive: true | false as part of the key
+			options.excludes.join()				// use excludes as part of the key
 		].join();
 	}
 
@@ -684,7 +683,39 @@ export class FileService2 extends Disposable implements IFileService {
 
 	//#region Helpers
 
+	private writeQueues: Map<string, Queue<void>> = new Map();
+
+	private ensureWriteQueue(provider: IFileSystemProvider, resource: URI): Queue<void> {
+		// ensure to never write to the same resource without finishing
+		// the one write. this ensures a write finishes consistently
+		// (even with error) before another write is done.
+		const queueKey = this.toMapKey(provider, resource);
+		let writeQueue = this.writeQueues.get(queueKey);
+		if (!writeQueue) {
+			writeQueue = new Queue<void>();
+			this.writeQueues.set(queueKey, writeQueue);
+
+			const onFinish = Event.once(writeQueue.onFinished);
+			onFinish(() => {
+				this.writeQueues.delete(queueKey);
+				dispose(writeQueue);
+			});
+		}
+
+		return writeQueue;
+	}
+
+	private toMapKey(provider: IFileSystemProvider, resource: URI): string {
+		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+
+		return isPathCaseSensitive ? resource.toString() : resource.toString().toLowerCase();
+	}
+
 	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, readable: VSBufferReadable): Promise<void> {
+		return this.ensureWriteQueue(provider, resource).queue(() => this.doWriteBufferedQueued(provider, resource, readable));
+	}
+
+	private async doWriteBufferedQueued(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, readable: VSBufferReadable): Promise<void> {
 
 		// open handle
 		const handle = await provider.open(resource, { create: true });
@@ -726,6 +757,9 @@ export class FileService2 extends Disposable implements IFileService {
 	}
 
 	private async doPipeBuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
+		return this.ensureWriteQueue(targetProvider, target).queue(() => this.doPipeBufferedQueued(sourceProvider, source, targetProvider, target));
+	}
+	private async doPipeBufferedQueued(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
 		let sourceHandle: number | undefined = undefined;
 		let targetHandle: number | undefined = undefined;
 
@@ -772,6 +806,10 @@ export class FileService2 extends Disposable implements IFileService {
 	}
 
 	private async doPipeUnbufferedToBuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
+		return this.ensureWriteQueue(targetProvider, target).queue(() => this.doPipeUnbufferedToBufferedQueued(sourceProvider, source, targetProvider, target));
+	}
+
+	private async doPipeUnbufferedToBufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
 
 		// Open handle
 		const targetHandle = await targetProvider.open(target, { create: true });

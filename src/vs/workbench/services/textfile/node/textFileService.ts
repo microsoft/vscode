@@ -50,15 +50,6 @@ export class NodeTextFileService extends TextFileService {
 		return this.fileService.createFile(resource, this.getEncodedReadable(value || '', encoding, addBOM), options);
 	}
 
-	private getEncodedReadable(value: string | ITextSnapshot, encoding: string, addBOM: boolean): VSBufferReadable {
-		const readable = this.toNodeReadable(value);
-		const encoder = encodeStream(encoding, { addBOM });
-
-		const encodedReadable = readable.pipe(encoder);
-
-		return this.toBufferReadable(encodedReadable, encoding, addBOM);
-	}
-
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
 
 		// check for overwriteReadonly property (only supported for local file://)
@@ -88,6 +79,15 @@ export class NodeTextFileService extends TextFileService {
 
 		// otherwise save with encoding
 		return this.fileService.writeFile(resource, this.getEncodedReadable(value, encoding, addBOM), options);
+	}
+
+	private getEncodedReadable(value: string | ITextSnapshot, encoding: string, addBOM: boolean): VSBufferReadable {
+		const readable = this.toNodeReadable(value);
+		const encoder = encodeStream(encoding, { addBOM });
+
+		const encodedReadable = readable.pipe(encoder);
+
+		return this.toBufferReadable(encodedReadable, encoding, addBOM);
 	}
 
 	private toNodeReadable(value: string | ITextSnapshot): Readable {

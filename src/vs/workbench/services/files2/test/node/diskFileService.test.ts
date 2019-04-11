@@ -875,6 +875,20 @@ suite('Disk File Service', () => {
 		assert.equal(readFileSync(resource.fsPath), newContent);
 	});
 
+	test('writeFile (large file) - multiple parallel writes queue up', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		const newContent = content.toString() + content.toString();
+
+		await Promise.all(['0', '00', '000', '0000', '00000'].map(async offset => {
+			const fileStat = await service.writeFile(resource, VSBuffer.fromString(offset + newContent));
+			assert.equal(fileStat.name, 'lorem.txt');
+		}));
+
+		assert.equal(readFileSync(resource.fsPath).toString(), '00000' + newContent);
+	});
+
 	test('writeFile (readable)', async () => {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
