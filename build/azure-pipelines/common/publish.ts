@@ -155,9 +155,6 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		// Insiders: nightly build from master
 		(quality === 'insider' && /^master$|^refs\/heads\/master$/.test(sourceBranch) && /Project Collection Service Accounts|Microsoft.VisualStudio.Services.TFS/.test(queuedBy)) ||
 
-		// WSL: nightly build from remote-hackathon
-		(quality === 'wsl' && /^remote-hackathon$|^refs\/heads\/remote-hackathon$/.test(sourceBranch) && /Project Collection Service Accounts|Microsoft.VisualStudio.Services.TFS/.test(queuedBy)) ||
-
 		// Exploration: any build from electron-4.0.x branch
 		(quality === 'exploration' && /^electron-4.0.x$|^refs\/heads\/electron-4.0.x$/.test(sourceBranch))
 	);

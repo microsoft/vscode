@@ -42,19 +42,8 @@
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
 	"typescript.preferences.quoteStyle": "single",
-	"gitBranch.base": "vscode-distro/master",
+	"gitBranch.base": "vscode-distro/distro",
 	"gitBranch.diffGroups": [
-		{
-			"name": "⛔DO NOT TAKE TO DISTRO [LEAKAGE CONCERN]",
-			"files": [
-				".dockerignore",
-				".github/classifier.yml",
-				".github/endgame/insiders.yml",
-				".github/new_release.yml",
-				".github/similarity.yml",
-				"build/azure-pipelines/common/publish.ts",
-			]
-		},
 		{
 			"name": "⛔Build & Dev Scripts [LEAKAGE CONCERN]",
 			"files": [

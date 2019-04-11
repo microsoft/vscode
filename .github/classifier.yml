@@ -1,5 +1,5 @@
 {
-    perform: false,
+    perform: true,
     alwaysRequireAssignee: false,
     labelsRequiringAssignee: [],
     autoAssignees: {
