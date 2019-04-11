@@ -78,6 +78,10 @@ export class ExplorerItem {
 	private _isDirectoryResolved: boolean;
 	public isError: boolean;
 
+	public isVirtualDirectory: boolean;
+	public virtualDirectoryKey: string | null;
+	public parentVirtualDirectoryKey: string | null;
+
 	constructor(
 		public resource: URI,
 		private _parent: ExplorerItem | undefined,
@@ -88,6 +92,7 @@ export class ExplorerItem {
 		private _mtime?: number,
 	) {
 		this._isDirectoryResolved = false;
+		this.isVirtualDirectory = false;
 	}
 
 	get isDirectoryResolved(): boolean {

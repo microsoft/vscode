@@ -313,6 +313,15 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
 		},
+		'files.nesting.enabled': {
+			'type': 'boolean',
+			'description': nls.localize('fileNesting', "Enables file nesting based on naming"),
+			'default': false
+		},
+		'files.nesting.rules': {
+			'description': nls.localize('fileNestingRules', "File nesting rules. Property names are treated as globs. If a file matches a glob, then patterns are used to find files that should be nested under it."),
+			'type': 'object'
+		},
 		'files.defaultLanguage': {
 			'type': 'string',
 			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files.")

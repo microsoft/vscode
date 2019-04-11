@@ -50,6 +50,7 @@ import { values } from 'vs/base/common/map';
 import { first } from 'vs/base/common/arrays';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { equals } from 'vs/base/common/objects';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -63,6 +64,9 @@ export class ExplorerView extends ViewletPanel {
 	private readonlyContext: IContextKey<boolean>;
 	private rootContext: IContextKey<boolean>;
 	private resourceMoveableToTrash: IContextKey<boolean>;
+
+	private fileNestingRules: object;
+	private fileNestingEnabled: boolean;
 
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
@@ -158,6 +162,10 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	renderBody(container: HTMLElement): void {
+		// Update configuration
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
+		this.onConfigurationUpdated(configuration);
+
 		const treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
 		this.createTree(treeContainer);
 
@@ -192,10 +200,6 @@ export class ExplorerView extends ViewletPanel {
 		}));
 		this.disposables.push(this.explorerService.onDidSelectResource(e => this.onSelectResource(e.resource, e.reveal)));
 		this.disposables.push(this.explorerService.onDidCopyItems(e => this.onCopyItems(e.items, e.cut, e.previouslyCutItems)));
-
-		// Update configuration
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
-		this.onConfigurationUpdated(configuration);
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this.disposables.push(this.editorService.onDidActiveEditorChange(() => {
@@ -302,7 +306,8 @@ export class ExplorerView extends ViewletPanel {
 				filter: this.filter,
 				sorter: this.instantiationService.createInstance(FileSorter),
 				dnd: this.instantiationService.createInstance(FileDragAndDrop),
-				autoExpandSingleChildren: true
+				autoExpandSingleChildren: this.fileNestingEnabled ? false : true,
+				expandOnlyOnTwistieClick: this.fileNestingEnabled ? this.expandVirtualDirectoriesOnTwistie : false
 			}) as WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
 		this.disposables.push(this.tree);
 
@@ -347,10 +352,30 @@ export class ExplorerView extends ViewletPanel {
 		}, null, this.disposables);
 	}
 
+	private expandVirtualDirectoriesOnTwistie(element: any) {
+		if (element instanceof ExplorerItem) {
+			return (element as ExplorerItem).isVirtualDirectory;
+		}
+		return true;
+	}
+
 	// React on events
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
+
+		let fileNestingRules = configuration && configuration.files && configuration.files.nesting && configuration.files.nesting.rules || {};
+		let fileNestingEnabled = configuration && configuration.files && configuration.files.nesting && configuration.files.nesting.enabled;
+
+		if (this.fileNestingEnabled !== fileNestingEnabled) {
+			this.fileNestingEnabled = fileNestingEnabled;
+			needsRefresh = true;
+		}
+
+		if (!equals(this.fileNestingRules, fileNestingRules)) {
+			this.fileNestingRules = fileNestingRules;
+			needsRefresh = true;
+		}
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;

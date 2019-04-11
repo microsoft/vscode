@@ -903,6 +903,12 @@ export interface IFilesConfiguration {
 		eol: string;
 		enableTrash: boolean;
 		hotExit: string;
+		nesting: {
+			enabled: boolean;
+			rules: {
+				[glob: string]: string[];
+			};
+		};
 	};
 }
 
