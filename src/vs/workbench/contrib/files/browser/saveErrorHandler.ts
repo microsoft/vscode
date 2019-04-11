@@ -160,9 +160,9 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			if (isReadonly) {
 				if (triedToMakeWriteable) {
-					message = isWindows ? nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as Admin' to retry as administrator.", basename(resource)) : nls.localize('readonlySaveErrorSudo', "Failed to save '{0}': File is write protected. Select 'Overwrite as Sudo' to retry as superuser.", basename(resource));
+					message = isWindows ? nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is read-only. Select 'Overwrite as Admin' to retry as administrator.", basename(resource)) : nls.localize('readonlySaveErrorSudo', "Failed to save '{0}': File is read-only. Select 'Overwrite as Sudo' to retry as superuser.", basename(resource));
 				} else {
-					message = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", basename(resource));
+					message = nls.localize('readonlySaveError', "Failed to save '{0}': File is read-only. Select 'Overwrite' to attempt to make it writeable.", basename(resource));
 				}
 			} else if (isPermissionDenied) {
 				message = isWindows ? nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", basename(resource)) : nls.localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", basename(resource));
