@@ -241,8 +241,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				if (!this._environmentService.isBuilt && !this._environmentService.configuration.remoteAuthority || this._isExtensionDevHost) {
 					startupTimeoutHandle = setTimeout(() => {
 						const msg = this._isExtensionDevDebugBrk
-							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
-							: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+							? nls.localize('extensionHost.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
+							: nls.localize('extensionHost.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
 						this._notificationService.prompt(Severity.Warning, msg,
 							[{
@@ -457,7 +457,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		this._lastExtensionHostError = errorMessage;
 
-		this._notificationService.error(nls.localize('extensionHostProcess.error', "Error from the extension host: {0}", errorMessage));
+		this._notificationService.error(nls.localize('extensionHost.error', "Error from the extension host: {0}", errorMessage));
 	}
 
 	private _onExtHostProcessExit(code: number, signal: string): void {
