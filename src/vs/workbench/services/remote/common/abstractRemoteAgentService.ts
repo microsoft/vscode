@@ -125,7 +125,7 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 	) {
 		// Let's cover the case where connecting to fetch the remote extension info fails
 		remoteAgentService.getEnvironment(true)
-			.then(undefined, err => notificationService.error(nls.localize('connectionError', "Failed to connect to the remote extension host agent (Error: {0})", err ? err.message : '')));
+			.then(undefined, err => notificationService.error(nls.localize('connectionError', "Failed to connect to the remote extension host server (Error: {0})", err ? err.message : '')));
 	}
 
 }
