@@ -31,6 +31,7 @@ steps:
     $ErrorActionPreference = "Stop"
     $env:VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)"
     exec { npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-min" }
+    exec { npm run gulp -- "vscode-reh-win32-$(VSCODE_ARCH)-min" }
     exec { npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
   name: build
 
@@ -52,7 +53,7 @@ steps:
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
     ConnectedServiceName: 'ESRP CodeSign'
-    FolderPath: '$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)'
+    FolderPath: '$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)'
     Pattern: '*.dll,*.exe,*.node'
     signConfigType: inlineSignParams
     inlineOperation: |
@@ -123,6 +124,12 @@ steps:
     .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(ESRP_AUTH_CERTIFICATE) -AuthCertificateKey $(ESRP_AUTH_CERTIFICATE_KEY)
   displayName: Import ESRP Auth Certificate
 
+- task: ArchiveFiles@2
+  displayName: 'Create Server Archive'
+  inputs:
+    rootFolderOrFile: '..\vscode-reh-win32-$(VSCODE_ARCH)'
+    archiveFile: '.build\vscode-server-win32-$(VSCODE_ARCH).zip'
+
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
@@ -133,6 +140,7 @@ steps:
     $SystemExe = "$Repo\.build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe"
     $UserExe = "$Repo\.build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe"
     $Zip = "$Repo\.build\win32-$(VSCODE_ARCH)\archive\VSCode-win32-$(VSCODE_ARCH).zip"
+    $ServerZip = "$Repo\.build\vscode-server-win32-$(VSCODE_ARCH).zip"
     $Build = "$Root\VSCode-win32-$(VSCODE_ARCH)"
 
     # get version
@@ -147,6 +155,7 @@ steps:
     exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform-archive" archive "VSCode-win32-$(VSCODE_ARCH)-$Version.zip" $Version true $Zip }
     exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform" setup "VSCodeSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $SystemExe }
     exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform-user" setup "VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $UserExe }
+    exec { node build/azure-pipelines/common/publish.js $Quality "server-$global:assetPlatform" archive "vscode-server-win32-$(VSCODE_ARCH).zip" $Version true $ServerZip }
 
     # publish hockeyapp symbols
     $hockeyAppId = if ("$(VSCODE_ARCH)" -eq "ia32") { "$(VSCODE_HOCKEYAPP_ID_WIN32)" } else { "$(VSCODE_HOCKEYAPP_ID_WIN64)" }

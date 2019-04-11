@@ -42,6 +42,97 @@
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
 	"typescript.preferences.quoteStyle": "single",
+	"gitBranch.base": "remote-repo/master",
+	"gitBranch.diffGroups": [
+		{
+			"name": "⛔DO NOT TAKE TO DISTRO [LEAKAGE CONCERN]",
+			"files": [
+				".dockerignore",
+				".github/classifier.yml",
+				".github/endgame/insiders.yml",
+				".github/new_release.yml",
+				".github/similarity.yml",
+				"build/azure-pipelines/common/publish.ts",
+			]
+		},
+		{
+			"name": "⛔Build & Dev Scripts [LEAKAGE CONCERN]",
+			"files": [
+				".gitignore",
+				".vscode/launch.json",
+				".vscode/settings.json",
+				"build/azure-pipelines/darwin/product-build-darwin.yml",
+				"build/azure-pipelines/linux/product-build-linux.yml",
+				"build/azure-pipelines/product-build.yml",
+				"build/azure-pipelines/win32/product-build-win32.yml",
+				"build/npm/postinstall.js",
+				"build/lib/i18n.resources.json",
+				"package.json",
+				"scripts/code.sh",
+				"scripts/remoteExtensionAgent.bat",
+				"scripts/remoteExtensionAgent.sh",
+				"tslint.json",
+				"yarn.lock",
+			]
+		},
+		{
+			"name": "⛔Testing [LEAKAGE CONCERN]",
+			"files": [
+				"extensions/vscode-test-resolver/**",
+				"scripts/test-integration.bat",
+				"scripts/test-integration.sh",
+				"scripts/test-remote-integration.bat",
+				"scripts/test-remote-integration.sh",
+				"test/smoke/README.md",
+			]
+		},
+		{
+			"name": "⛔Client Side [LEAKAGE CONCERN]",
+			"files": [
+				"resources/linux/bin/code.sh",
+				"resources/win32/bin/code.sh",
+				"src/vs/workbench/contrib/remote/electron-browser/remote.contribution.ts",
+				"src/vs/workbench/contrib/remote/electron-browser/remoteAgentExtensionsInstaller.ts",
+				"src/vs/workbench/services/extensions/electron-browser/remoteExtensionHostClient.ts",
+				"src/vs/workbench/services/remote/node/tunnelService.ts",
+				"src/vs/workbench/workbench.main.ts",
+			]
+		},
+		{
+			"name": "⛔Server Side [LEAKAGE CONCERN]",
+			"files": [
+				"remote/**",
+				"resources/server/**",
+				"src/remoteCli.js",
+				"src/remoteExtensionHostAgent.js",
+			]
+		},
+		{
+			"name": "⛔Web Companion [LEAKAGE CONCERN]",
+			"files": [
+				"src/vs/code/browser/workbench/workbench.html",
+				"src/vs/code/browser/workbench/workbench.js",
+				"src/vs/platform/remote/browser/browserWebSocketFactory.ts",
+				"src/vs/workbench/services/remote/browser/remoteAgentServiceImpl.ts",
+			]
+		},
+		{
+			"name": "⛔🛑 Agent implementation [IP - DO NOT MERGE]",
+			"files": [
+				"src/vs/agent/**"
+			]
+		},
+		{
+			"name": "⛔🛑 Other [IP - DO NOT MERGE]",
+			"files": [
+				"build/gulpfile.reh.js",
+				"src/vs/platform/remote/common/remoteAgentConnection.ts",
+				"src/vs/workbench/api/node/extHost.api.impl.ts",
+				"src/vs/workbench/services/extensions/electron-browser/extensionService.ts",
+				"src/vs/workbench/services/extensions/node/remoteUriTransformer.ts",
+			]
+		}
+	],
 	"json.schemas": [
 		{
 			"fileMatch": [

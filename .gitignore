@@ -15,6 +15,9 @@ out-editor-min/
 out-monaco-editor-core/
 out-vscode/
 out-vscode-min/
+out-vscode-reh/
+out-vscode-reh-min/
+out-vscode-reh-pkg/
 build/node_modules
 coverage/
 test_data/

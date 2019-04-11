@@ -2,5 +2,5 @@
     insidersLabel: 'insiders',
     insidersColor: '006b75',
     action: 'add',
-    perform: true
+    perform: false
 }

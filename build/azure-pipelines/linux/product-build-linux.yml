@@ -31,7 +31,12 @@ steps:
 
 - script: |
     set -e
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
+    # Skip for 32-bit because nodejs.org does not publish Linux 32-bit builds for Node.js versions >=10.
+    if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
+        VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
+    else
+        VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min vscode-reh-linux-$(VSCODE_ARCH)-min
+    fi
   name: build
 
 - script: |
@@ -69,6 +74,34 @@ steps:
     AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
     node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_LINUX" archive-unsigned "$TARBALL_FILENAME" "$VERSION" true "$TARBALL_PATH"
+
+    if [[ "$(VSCODE_ARCH)" != "ia32" ]]; then
+        # Publish Remote Extension Host
+        REHBUILDNAME="vscode-reh-$PLATFORM_LINUX"
+        REHTARBALL_FILENAME="vscode-server-$PLATFORM_LINUX.tar.gz"
+        REHTARBALL_PATH="$ROOT/$REHTARBALL_FILENAME"
+
+        rm -rf $ROOT/vscode-server-*.tar.*
+        (cd $ROOT && tar -czf $REHTARBALL_PATH $REHBUILDNAME)
+
+        AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+        AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+        MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+        node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "server-$PLATFORM_LINUX" archive-unsigned "$REHTARBALL_FILENAME" "$VERSION" true "$REHTARBALL_PATH"
+
+        # Publish Remote Extension Host Pkg-packaged
+        # REHPKGBUILDNAME="vscode-reh-$PLATFORM_LINUX-pkg"
+        # REHPKGTARBALL_FILENAME="vscode-server-$PLATFORM_LINUX-pkg.tar.gz"
+        # REHPKGTARBALL_PATH="$ROOT/$REHPKGTARBALL_FILENAME"
+
+        # rm -rf $ROOT/vscode-server-*-pkg.tar.*
+        # (cd $ROOT && tar -czf $REHPKGTARBALL_PATH $REHPKGBUILDNAME)
+
+        # AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+        # AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+        # MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+        # node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "server-$PLATFORM_LINUX-pkg" archive-unsigned "$REHPKGTARBALL_FILENAME" "$VERSION" true "$REHPKGTARBALL_PATH"
+    fi
 
     # Publish hockeyapp symbols
     node build/azure-pipelines/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_LINUX64)"

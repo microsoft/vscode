@@ -27,6 +27,12 @@ yarn
 yarn smoketest --build PATH_TO_RELEASE_BUILD --stable-build PATH_TO_STABLE_BUILD
 ```
 
+### Run in test resolver
+
+```bash
+yarn smoketest --remote
+```
+
 ### Debug
 
 - `--verbose` logs all the low level driver calls made to Code;

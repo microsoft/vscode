@@ -30,10 +30,11 @@ steps:
     set -e
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
     AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    yarn gulp -- vscode-darwin-min
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
-    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    yarn gulp -- upload-vscode-sourcemaps
+    yarn gulp -- vscode-darwin-min vscode-reh-darwin-min
+    # TODO@vs-remote: DO NOT ADD SOURCEMAP TASK! (OTHERWISE SOURCES - VIA SOURCEMAPS - WILL BE PUBLIC)
+    # VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
+    # AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+    # yarn gulp -- upload-vscode-sourcemaps
   displayName: Build
 
 - script: |
@@ -92,12 +93,26 @@ steps:
       true \
       ../VSCode-darwin.zip
 
+    # publish Remote Extension Host
+    pushd ../vscode-reh-darwin && zip -r -X -y ../vscode-server-darwin.zip * && popd
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+    node build/azure-pipelines/common/publish.js \
+      "$(VSCODE_QUALITY)" \
+      server-darwin \
+      archive-unsigned \
+      "vscode-server-darwin.zip" \
+      $VERSION \
+      true \
+      ../vscode-server-darwin.zip
+
     # publish hockeyapp symbols
     node build/azure-pipelines/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_MACOS)"
 
     # upload configuration
-    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    yarn gulp -- upload-vscode-configuration
+    # AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+    # yarn gulp -- upload-vscode-configuration
   displayName: Publish
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0

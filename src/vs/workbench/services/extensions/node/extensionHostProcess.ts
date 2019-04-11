@@ -20,6 +20,7 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { createRemoteURITransformer } from 'vs/workbench/services/extensions/node/remoteUriTransformer';
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -266,9 +267,23 @@ createExtHostProtocol().then(protocol => {
 	// setup things
 	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
 
-	const uriTransformer: IURITransformer | null = null;
-	const schemeTransformer: ISchemeTransformer | null = null;
-	const outputChannelName = nls.localize('extension host Log', "Extension Host");
+	const uriTransformer: IURITransformer | null = initData.remoteAuthority ? createRemoteURITransformer(initData.remoteAuthority) : null;
+
+	let schemeTransformer: ISchemeTransformer | null = null;
+	if (initData.remoteAuthority) {
+		schemeTransformer = new class implements ISchemeTransformer {
+			transformOutgoing(scheme: string): string {
+				if (scheme === 'file') {
+					return 'vscode-remote';
+				} else if (scheme === 'vscode-local') {
+					return 'file';
+				}
+				return scheme;
+			}
+		};
+	}
+
+	const outputChannelName = initData.remoteAuthority ? nls.localize('remote extension host Log', "Remote Extension Host") : nls.localize('extension host Log', "Extension Host");
 
 	const extensionHostMain = new ExtensionHostMain(
 		renderer.protocol,

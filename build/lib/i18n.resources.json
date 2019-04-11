@@ -111,6 +111,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/remote",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/relauncher",
 			"project": "vscode-workbench"
 		},

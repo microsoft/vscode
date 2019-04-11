@@ -1,0 +1,70 @@
+{
+	"name": "vscode-test-resolver",
+	"description": "Test resolver for VS Code",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"enableProposedApi": true,
+	"private": true,
+	"engines": {
+		"vscode": "^1.25.0"
+	},
+	"extensionKind": "ui",
+	"scripts": {
+		"compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-test-resolver ./tsconfig.json"
+	},
+	"activationEvents": [
+		"onResolveRemoteAuthority:test",
+		"onCommand:remoteTest.newWindow",
+		"onCommand:remoteTest.showLog"
+	],
+	"main": "./out/extension",
+	"devDependencies": {
+		"@types/node": "^10.12.21",
+		"vscode": "1.1.5"
+	},
+	"contributes": {
+		"resourceLabelFormatters": [
+			{
+				"scheme": "vscode-remote",
+				"authority": "test+*",
+				"formatting": {
+					"label": "${path}",
+					"separator": "/",
+					"tildify": true,
+					"workspaceSuffix": "RemoteTest"
+				}
+			}
+		],
+		"commands": [
+			{
+				"title": "New Window",
+				"category": "Remote Test",
+				"command": "remoteTest.newWindow"
+			},
+			{
+				"title": "Show Log",
+				"category": "Remote Test",
+				"command": "remoteTest.showLog"
+			}
+		],
+		"menus": {
+			"statusBar/windowIndicator": [
+				{
+					"command": "remoteTest.showLog",
+					"when": "remoteAuthority =~ /^test\\+.*$/"
+				},
+				{
+					"command": "remoteTest.newWindow",
+					"when": "!remoteAuthority"
+				},
+				{
+					"command": "remoteTest.newWindow",
+					"when": "remoteAuthority =~ /^test\\+.*$/"
+				}
+			]
+		}
+	}
+
+
+}
