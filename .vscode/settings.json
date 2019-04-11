@@ -52,16 +52,12 @@
 				".vscode/settings.json",
 				"build/azure-pipelines/darwin/product-build-darwin.yml",
 				"build/azure-pipelines/linux/product-build-linux.yml",
-				"build/azure-pipelines/product-build.yml",
 				"build/azure-pipelines/win32/product-build-win32.yml",
-				"build/npm/postinstall.js",
 				"build/lib/i18n.resources.json",
-				"package.json",
-				"scripts/code.sh",
+				"build/npm/postinstall.js",
 				"scripts/remoteExtensionAgent.bat",
 				"scripts/remoteExtensionAgent.sh",
 				"tslint.json",
-				"yarn.lock",
 			]
 		},
 		{
@@ -78,8 +74,6 @@
 		{
 			"name": "⛔Client Side [LEAKAGE CONCERN]",
 			"files": [
-				"resources/linux/bin/code.sh",
-				"resources/win32/bin/code.sh",
 				"src/vs/workbench/contrib/remote/electron-browser/remote.contribution.ts",
 				"src/vs/workbench/contrib/remote/electron-browser/remoteAgentExtensionsInstaller.ts",
 				"src/vs/workbench/services/extensions/electron-browser/remoteExtensionHostClient.ts",
@@ -116,7 +110,6 @@
 			"files": [
 				"build/gulpfile.reh.js",
 				"src/vs/platform/remote/common/remoteAgentConnection.ts",
-				"src/vs/workbench/api/node/extHost.api.impl.ts",
 				"src/vs/workbench/services/extensions/electron-browser/extensionService.ts",
 				"src/vs/workbench/services/extensions/node/remoteUriTransformer.ts",
 			]
