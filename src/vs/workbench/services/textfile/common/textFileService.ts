@@ -382,7 +382,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 		};
 	}
 
-	async create(resource: URI, value?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 		const stat = await this.doCreate(resource, value, options);
 
 		// If we had an existing model for the given resource, load
@@ -397,7 +397,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 		return stat;
 	}
 
-	protected doCreate(resource: URI, value?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	protected doCreate(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 		return this.fileService.createFile(resource, toBufferOrReadable(value), options);
 	}
 

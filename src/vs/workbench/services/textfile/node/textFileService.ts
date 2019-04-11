@@ -16,7 +16,7 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, IDetectedEncodingResult, detectEncodingByBOM, encodeStream } from 'vs/base/node/encoding';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, IDetectedEncodingResult, detectEncodingByBOM, encodeStream, UTF8_BOM, UTF16be_BOM, UTF16le_BOM } from 'vs/base/node/encoding';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { joinPath, extname, isEqualOrParent } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -56,7 +56,7 @@ export class NodeTextFileService extends TextFileService {
 
 		const encodedReadable = readable.pipe(encoder);
 
-		return this.toBufferReadable(encodedReadable);
+		return this.toBufferReadable(encodedReadable, encoding, addBOM);
 	}
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
@@ -122,19 +122,50 @@ export class NodeTextFileService extends TextFileService {
 		});
 	}
 
-	private toBufferReadable(stream: NodeJS.ReadWriteStream): VSBufferReadable {
+	private toBufferReadable(stream: NodeJS.ReadWriteStream, encoding: string, addBOM: boolean): VSBufferReadable {
+		let bytesRead = 0;
+		let done = false;
+
 		return {
 			read(): VSBuffer | null {
-				const res = stream.read();
-				if (isUndefinedOrNull(res)) {
+				if (done) {
 					return null;
 				}
 
+				const res = stream.read();
+				if (isUndefinedOrNull(res)) {
+					done = true;
+
+					// If we are instructed to add a BOM but we detect that no
+					// bytes have been read, we must ensure to return the BOM
+					// ourselves so that we comply with the contract.
+					if (bytesRead === 0 && addBOM) {
+						switch (encoding) {
+							case UTF8:
+							case UTF8_with_bom:
+								return VSBuffer.wrap(Buffer.from(UTF8_BOM));
+							case UTF16be:
+								return VSBuffer.wrap(Buffer.from(UTF16be_BOM));
+							case UTF16le:
+								return VSBuffer.wrap(Buffer.from(UTF16le_BOM));
+						}
+					}
+
+					return null;
+				}
+
+				// Handle String
 				if (typeof res === 'string') {
+					bytesRead += res.length;
 					return VSBuffer.fromString(res);
 				}
 
-				return VSBuffer.wrap(res);
+				// Handle Buffer
+				else {
+					bytesRead += res.byteLength;
+					return VSBuffer.wrap(res);
+				}
+
 			}
 		};
 	}
