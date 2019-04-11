@@ -12,7 +12,7 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import { ExtHostExtensionService, IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
@@ -40,7 +40,7 @@ export interface ILogServiceFn {
 export class ExtensionHostMain {
 
 	private _isTerminating: boolean;
-	private readonly _exitFn: IExitFn;
+	private readonly _hostUtils: IHostUtils;
 	private readonly _extensionService: ExtHostExtensionService;
 	private readonly _extHostLogService: ExtHostLogService;
 	private disposables: IDisposable[] = [];
@@ -50,15 +50,15 @@ export class ExtensionHostMain {
 	constructor(
 		protocol: IMessagePassingProtocol,
 		initData: IInitData,
-		exitFn: IExitFn,
+		hostUtils: IHostUtils,
 		consolePatchFn: IConsolePatchFn,
 		logServiceFn: ILogServiceFn,
 		uriTransformer: IURITransformer | null,
 		schemeTransformer: ISchemeTransformer | null,
-		outputChannelName: string
+		outputChannelName: string,
 	) {
 		this._isTerminating = false;
-		this._exitFn = exitFn;
+		this._hostUtils = hostUtils;
 		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
@@ -79,7 +79,7 @@ export class ExtensionHostMain {
 
 		const extHostConfiguraiton = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
 		this._extensionService = new ExtHostExtensionService(
-			exitFn,
+			hostUtils,
 			initData,
 			rpcProtocol,
 			extHostWorkspace,
@@ -141,7 +141,7 @@ export class ExtensionHostMain {
 
 		// Give extensions 1 second to wrap up any async dispose, then exit in at most 4 seconds
 		setTimeout(() => {
-			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => this._exitFn());
+			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => this._hostUtils.exit());
 		}, 1000);
 	}
 
