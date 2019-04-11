@@ -78,14 +78,14 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 
 		// Start checking for updates after 30 seconds
-		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+		this.scheduleCheckForUpdates(30 * 1000, updateMode).then(undefined, err => this.logService.error(err));
 	}
 
 	private getProductQuality(updateMode: string): string | undefined {
 		return updateMode === 'none' ? undefined : product.quality;
 	}
 
-	private scheduleCheckForUpdates(updateMode: string, delay = 60 * 60 * 1000): Promise<void> {
+	private scheduleCheckForUpdates(delay = 60 * 60 * 1000, updateMode: string): Promise<void> {
 		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
 			.then(() => {
@@ -94,7 +94,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 					return;
 				} else {
 					// Check again after 1 hour
-					return this.scheduleCheckForUpdates(60 * 60 * 1000);
+					return this.scheduleCheckForUpdates(60 * 60 * 1000, updateMode);
 				}
 			});
 	}
