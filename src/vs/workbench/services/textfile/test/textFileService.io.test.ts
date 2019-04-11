@@ -31,6 +31,7 @@ import { NodeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workb
 import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { isWindows } from 'vs/base/common/platform';
 
 class ServiceAccessor {
 	constructor(
@@ -248,11 +249,11 @@ suite('Files - TextFileService i/o', () => {
 		const resolved = await service.resolve(resource);
 		assert.equal(resolved.encoding, encoding);
 
-		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.LF).createSnapshot(false)), expectedContent);
+		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), expectedContent);
 	}
 
 	test('write - use encoding (cp1252)', async () => {
-		await testEncodingKeepsData(URI.file(join(testDir, 'some_cp1252.txt')), 'cp1252', ['ObjectCount = LoadObjects("Öffentlicher Ordner");', '', 'Private = "Persönliche Information"', ''].join('\n'));
+		await testEncodingKeepsData(URI.file(join(testDir, 'some_cp1252.txt')), 'cp1252', ['ObjectCount = LoadObjects("Öffentlicher Ordner");', '', 'Private = "Persönliche Information"', ''].join(isWindows ? '\r\n' : '\n'));
 	});
 
 	test('write - use encoding (shiftjis)', async () => {
@@ -273,18 +274,18 @@ suite('Files - TextFileService i/o', () => {
 
 	async function testEncodingKeepsData(resource: URI, encoding: string, expected: string) {
 		let resolved = await service.resolve(resource, { encoding });
-		const content = snapshotToString(resolved.value.create(DefaultEndOfLine.LF).createSnapshot(false));
+		const content = snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false));
 		assert.equal(content, expected);
 
 		await service.write(resource, content, { encoding });
 
 		resolved = await service.resolve(resource, { encoding });
-		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.LF).createSnapshot(false)), content);
+		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
 
 		await service.write(resource, TextModel.createFromString(content).createSnapshot(), { encoding });
 
 		resolved = await service.resolve(resource, { encoding });
-		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.LF).createSnapshot(false)), content);
+		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
 	}
 
 	test('write - no encoding - content as string', async () => {
@@ -295,7 +296,7 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, content);
 
 		const resolved = await service.resolve(resource);
-		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.LF).createSnapshot(false)), content);
+		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
 	});
 
 	test('write - no encoding - content as snapshot', async () => {
@@ -306,7 +307,7 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, TextModel.createFromString(content).createSnapshot());
 
 		const resolved = await service.resolve(resource);
-		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.LF).createSnapshot(false)), content);
+		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
 	});
 
 	test('write - encoding preserved (UTF 16 LE) - content as string', async () => {
