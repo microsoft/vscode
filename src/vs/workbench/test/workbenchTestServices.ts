@@ -26,7 +26,7 @@ import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchS
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IWriteTextFileOptions, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncodings, IResourceEncoding, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncodings, IResourceEncoding, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -82,7 +82,7 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined);
@@ -984,7 +984,7 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	updateContent(resource: URI, _value: string | ITextSnapshot, _options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
+	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
 		return timeout(0).then(() => ({
 			resource,
 			etag: 'index.txt',
@@ -996,10 +996,6 @@ export class TestFileService implements IFileService {
 		}));
 	}
 
-	writeFile(resource: URI, bufferOrReadable: VSBuffer, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
-		return this.updateContent(resource, bufferOrReadable.toString(), options);
-	}
-
 	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return Promise.resolve(null!);
 	}
@@ -1008,11 +1004,7 @@ export class TestFileService implements IFileService {
 		throw new Error('not implemented');
 	}
 
-	createFile(_resource: URI, _content?: string, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		throw new Error('not implemented');
-	}
-
-	createFile2(_resource: URI, _content?: VSBuffer, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 		throw new Error('not implemented');
 	}
 

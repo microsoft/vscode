@@ -13,9 +13,9 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, DisabledLabelAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/electron-browser/extensionsWidgets';
+import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget } from 'vs/workbench/contrib/extensions/electron-browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -87,13 +87,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		});
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
-		const widgets = [
-			recommendationWidget,
-			badgeWidget,
-			this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version),
-			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
-			this.instantiationService.createInstance(RatingsWidget, ratings, true)
-		];
+		const systemDisabledWarningAction = this.instantiationService.createInstance(SystemDisabledWarningAction);
 		const actions = [
 			this.instantiationService.createInstance(StatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction),
@@ -101,10 +95,20 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(InstallAction),
 			this.instantiationService.createInstance(RemoteInstallAction),
 			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
-			this.instantiationService.createInstance(SystemDisabledWarningAction),
+			systemDisabledWarningAction,
 			this.instantiationService.createInstance(ManageExtensionAction)
 		];
-		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
+		const disabledLabelAction = this.instantiationService.createInstance(DisabledLabelAction, systemDisabledWarningAction);
+		const tooltipWidget = this.instantiationService.createInstance(TooltipWidget, root, disabledLabelAction, recommendationWidget);
+		const widgets = [
+			recommendationWidget,
+			badgeWidget,
+			tooltipWidget,
+			this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version),
+			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
+			this.instantiationService.createInstance(RatingsWidget, ratings, true)
+		];
+		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, disabledLabelAction]);
 
 		actionbar.push(actions, actionOptions);
 		const disposables = [...actions, ...widgets, actionbar, extensionContainers];
