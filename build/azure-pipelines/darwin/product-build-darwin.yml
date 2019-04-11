@@ -45,6 +45,11 @@ steps:
 
 - script: |
     set -e
+    ./scripts/test-integration.sh --build --tfs "Integration Tests"
+  displayName: Run integration tests
+
+- script: |
+    set -e
     pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin.zip * && popd
   displayName: Archive build
 

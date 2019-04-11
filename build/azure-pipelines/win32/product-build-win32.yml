@@ -40,7 +40,14 @@ steps:
     exec { npm run gulp -- "electron-$(VSCODE_ARCH)" }
     exec { .\scripts\test.bat --build --tfs "Unit Tests" }
     # yarn smoketest -- --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-  name: test
+  displayName: Unit tests
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    exec { npm run gulp -- "electron-$(VSCODE_ARCH)" }
+    exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+  displayName: Integration tests
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
