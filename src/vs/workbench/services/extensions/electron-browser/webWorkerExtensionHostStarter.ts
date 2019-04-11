@@ -35,7 +35,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string | null]> = this._onDidCrashed.event;
 
 	constructor(
-		private readonly _autoStart: boolean,
+		// private readonly _autoStart: boolean,
 		private readonly _extensions: Promise<IExtensionDescription[]>,
 		private readonly _extensionHostLogsLocation: URI,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -137,11 +137,11 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 					},
 					resolvedExtensions: [],
 					hostExtensions: [],
-					extensions: extensionDescriptions,
+					extensions: [], // < todo@joh extensionDescriptions,
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
 					logsLocation: this._extensionHostLogsLocation,
-					autoStart: this._autoStart
+					autoStart: true// < todo@joh this._autoStart
 				};
 				return r;
 			});

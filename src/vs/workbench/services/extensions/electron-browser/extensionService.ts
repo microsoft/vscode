@@ -447,7 +447,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			this._extensionHostProcessManagers.push(extHostProcessManager);
 		}
 		{
-			const extHostWebWorkerWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, autoStart, extensions, this._extensionHostLogsLocation);
+			const extHostWebWorkerWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, /* autoStart, */ extensions, this._extensionHostLogsLocation);
 			const extHostWebWorkerManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostWebWorkerWorker, null, initialActivationEvents);
 			extHostWebWorkerManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
 			extHostWebWorkerManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ target: extHostWebWorkerManager, isResponsive: responsiveState === ResponsiveState.Responsive }); });

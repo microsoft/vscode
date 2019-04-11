@@ -7,9 +7,11 @@ import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
-import { IExitFn } from 'vs/workbench/services/extensions/node/extensionHostMain';
 import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { IHostUtils } from 'vs/workbench/services/extensions/worker/extHostExtensionService';
+import { ExtensionHostMain } from 'vs/workbench/services/extensions/worker/extensionHostMain';
+import { ConsoleLogService } from 'vs/platform/log/common/log';
 
 // worker-self
 declare namespace self {
@@ -17,9 +19,21 @@ declare namespace self {
 }
 
 // do not allow extensions to call terminate
-const nativeTerminate: IExitFn = self.close.bind(self);
+const nativeClose = self.close.bind(self);
 self.close = () => console.trace('An extension called terminate and this was prevented');
-let onTerminate = nativeTerminate;
+let onTerminate = nativeClose;
+
+const hostUtil = new class implements IHostUtils {
+	exit(code?: number | undefined): void {
+		nativeClose();
+	}
+	async exists(path: string): Promise<boolean> {
+		return true;
+	}
+	async realpath(path: string): Promise<string> {
+		return path;
+	}
+};
 
 //todo@joh do not allow extensions to call postMessage and other globals...
 
@@ -87,11 +101,24 @@ export function create(postMessage: (message: any, transfer?: Transferable[]) =>
 	const res = new ExtensionWorker(postMessage);
 
 	connectToRenderer(res.protocol).then(data => {
-		console.log('INIT_DATA', data.initData);
+		// console.log('INIT_DATA', data.initData);
 
-		data.protocol.onMessage(msg => {
-			// console.log('SOME MSG', msg.toString());
-		});
+		// data.protocol.onMessage(msg => {
+		// 	// console.log('SOME MSG', msg.toString());
+		// });
+
+		const extHostMain = new ExtensionHostMain(
+			data.protocol,
+			data.initData,
+			hostUtil,
+			() => { },
+			() => new ConsoleLogService(),
+			null,
+			null,
+			'Extension Host - WebWorker'
+		);
+
+		onTerminate = () => extHostMain.terminate();
 	});
 
 	return res;

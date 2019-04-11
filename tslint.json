@@ -432,6 +432,19 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/services/**/worker/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/**/common/**",
+					"**/vs/platform/**/common/**",
+					"**/vs/editor/common/**",
+					"**/vs/workbench/**/common/**",
+					"**/vs/workbench/**/worker/**",
+					"**/vs/workbench/services/**/common/**",
+					"vscode"
+				]
+			},
+			{
 				"target": "**/vs/workbench/services/**/browser/**",
 				"restrictions": [
 					"vs/nls",
