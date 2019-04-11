@@ -422,6 +422,12 @@ export class RemoteFileDialog {
 	}
 
 	private setAutoComplete(startingValue: string, startingBasename: string, quickPickItem: FileQuickPickItem, force: boolean = false): boolean {
+		if (this.filePickBox.busy) {
+			// We're in the middle of something else. Doing an auto complete now can result jumbled or incorrect autocompletes.
+			this.userEnteredPathSegment = startingBasename;
+			this.autoCompletePathSegment = '';
+			return false;
+		}
 		const itemBasename = (quickPickItem.label === '..') ? quickPickItem.label : resources.basename(quickPickItem.uri);
 		// Either force the autocomplete, or the old value should be one smaller than the new value and match the new value.
 		if (!force && (itemBasename.length >= startingBasename.length) && equalsIgnoreCase(itemBasename.substr(0, startingBasename.length), startingBasename)) {
@@ -566,13 +572,13 @@ export class RemoteFileDialog {
 	}
 
 	private async updateItems(newFolder: URI, trailing?: string) {
+		this.filePickBox.busy = true;
 		this.userEnteredPathSegment = trailing ? trailing : '';
 		this.autoCompletePathSegment = '';
 		this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
 		const newValue = trailing ? this.pathFromUri(resources.joinPath(newFolder, trailing)) : this.pathFromUri(newFolder, true);
 		this.currentFolder = this.remoteUriFrom(this.pathFromUri(newFolder, true));
 		this.insertText(newValue, newValue);
-		this.filePickBox.busy = true;
 		return this.createItems(this.currentFolder).then(items => {
 			this.filePickBox.items = items;
 			if (this.allowFolderSelection) {
