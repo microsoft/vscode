@@ -191,5 +191,13 @@ suite('SettingsTree', () => {
 				extensionFilters: ['github.vscode-pull-request-github'],
 				query: ''
 			});
+
+		testParseQuery(
+			'@ext:github.vscode-pull-request-github,vscode.git',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: ['github.vscode-pull-request-github', 'vscode.git'],
+				query: ''
+			});
 	});
 });
