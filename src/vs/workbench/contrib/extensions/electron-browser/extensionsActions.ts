@@ -2584,13 +2584,14 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 			if (
 				// Local Workspace Extension
 				this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)
-				// Extension does not exist in remote
-				&& !this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
 			) {
 				this.enabled = true;
 				this.class = `${SystemDisabledWarningAction.Class}`;
 				this.tooltip = localize('disabled workspace Extension', "This extension from {0} server is disabled because it cannot run in a window connected to the remote server.", this.getServerLabel(this.extensionManagementServerService.localExtensionManagementServer));
-				if (this.extensionsWorkbenchService.canInstall(this.extension)) {
+				if (!this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
+					&& this.extensionsWorkbenchService.canInstall(this.extension)
+				) {
+					// Extension does not exist in remote
 					this.tooltip = `${this.tooltip} ${localize('Install in remote server', "Install it in {0} server to enable.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer))}`;
 				}
 				return;
