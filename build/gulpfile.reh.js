@@ -25,7 +25,6 @@ const flatmap = require('gulp-flatmap');
 const gunzip = require('gulp-gunzip');
 const untar = require('gulp-untar');
 const File = require('vinyl');
-const pkg = require('pkg');
 const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
@@ -387,8 +386,10 @@ function packagePkgTask(platform, arch, pkgTarget) {
 		const cwd = process.cwd();
 		const config = path.join(cwd, 'out-vscode-reh-pkg', 'pkg-package.vscode-reh-' + platform + '-' + arch + '.json');
 		process.chdir(folder);
-		return pkg.exec(['-t', pkgTarget, '-d', '-c', config, '-o', path.join(folder + '-pkg', platform === 'win32' ? 'vscode-reh.exe' : 'vscode-reh'), './out/remoteExtensionHostAgent.js'])
-			.then(() => process.chdir(cwd));
+		console.log(`TODO`, pkgTarget, config);
+		return null;
+		// return pkg.exec(['-t', pkgTarget, '-d', '-c', config, '-o', path.join(folder + '-pkg', platform === 'win32' ? 'vscode-reh.exe' : 'vscode-reh'), './out/remoteExtensionHostAgent.js'])
+		// 	.then(() => process.chdir(cwd));
 	};
 }
 
