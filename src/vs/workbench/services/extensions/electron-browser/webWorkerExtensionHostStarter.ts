@@ -53,11 +53,12 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 
 			const emitter = new Emitter<VSBuffer>();
 			const worker = new DefaultWorkerFactory('WorkerExtensionHost').create(
-				'vs/workbench/contrib/workerExtensions/worker/extensionHostWorker', data => {
+				'vs/workbench/services/extensions/worker/extensionHostWorker', data => {
 					if (data instanceof ArrayBuffer) {
 						emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
 					} else {
 						console.warn('UNKNOWN data received', data);
+						this._onDidCrashed.fire([77, 'UNKNOWN data received']);
 					}
 				}, err => {
 					this._onDidCrashed.fire([81, err]);
