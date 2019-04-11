@@ -149,7 +149,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(300);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
-		this.viewState = { settingsTarget: ConfigurationTarget.USER };
+		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
 		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
@@ -212,10 +212,10 @@ export class SettingsEditor2 extends BaseEditor {
 				if (!options) {
 					if (!this.viewState.settingsTarget) {
 						// Persist?
-						options = SettingsEditorOptions.create({ target: ConfigurationTarget.USER });
+						options = SettingsEditorOptions.create({ target: ConfigurationTarget.USER_LOCAL });
 					}
 				} else if (!options.target) {
-					options.target = ConfigurationTarget.USER;
+					options.target = ConfigurationTarget.USER_LOCAL;
 				}
 				this._setOptions(options);
 
@@ -406,8 +406,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
-		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
-		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
+		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
+		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
 	}
 
@@ -458,8 +458,10 @@ export class SettingsEditor2 extends BaseEditor {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
 		const options: ISettingsEditorOptions = { query };
-		if (currentSettingsTarget === ConfigurationTarget.USER) {
+		if (currentSettingsTarget === ConfigurationTarget.USER_LOCAL) {
 			return this.preferencesService.openGlobalSettings(true, options);
+		} else if (currentSettingsTarget === ConfigurationTarget.USER_REMOTE) {
+			return this.preferencesService.openRemoteSettings();
 		} else if (currentSettingsTarget === ConfigurationTarget.WORKSPACE) {
 			return this.preferencesService.openWorkspaceSettings(true, options);
 		} else {
@@ -615,8 +617,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
 			if (ConfigurationTargetToString(ConfigurationTarget.WORKSPACE) === element.scope.toUpperCase()) {
 				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.WORKSPACE);
-			} else if (ConfigurationTargetToString(ConfigurationTarget.USER) === element.scope.toUpperCase()) {
-				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER);
+			} else if (ConfigurationTargetToString(ConfigurationTarget.USER_LOCAL) === element.scope.toUpperCase()) {
+				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER_LOCAL);
+			} else if (ConfigurationTargetToString(ConfigurationTarget.USER_REMOTE) === element.scope.toUpperCase()) {
+				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER_REMOTE);
 			}
 
 			this.searchWidget.setValue(element.targetKey);
@@ -792,9 +796,10 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		const reportedTarget = props.settingsTarget === ConfigurationTarget.USER ? 'user' :
-			props.settingsTarget === ConfigurationTarget.WORKSPACE ? 'workspace' :
-				'folder';
+		const reportedTarget = props.settingsTarget === ConfigurationTarget.USER_LOCAL ? 'user' :
+			props.settingsTarget === ConfigurationTarget.USER_REMOTE ? 'user_remote' :
+				props.settingsTarget === ConfigurationTarget.WORKSPACE ? 'workspace' :
+					'folder';
 
 		const data = {
 			key: props.key,
