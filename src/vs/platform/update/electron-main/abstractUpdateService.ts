@@ -85,12 +85,17 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return updateMode === 'none' ? undefined : product.quality;
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
+	private scheduleCheckForUpdates(updateMode: string, delay = 60 * 60 * 1000): Promise<void> {
 		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
 			.then(() => {
-				// Check again after 1 hour
-				return this.scheduleCheckForUpdates(60 * 60 * 1000);
+				if (updateMode === 'start') {
+					this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
+					return;
+				} else {
+					// Check again after 1 hour
+					return this.scheduleCheckForUpdates(60 * 60 * 1000);
+				}
 			});
 	}
 
