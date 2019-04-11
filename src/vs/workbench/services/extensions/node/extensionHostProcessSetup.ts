@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -20,7 +19,6 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { createRemoteURITransformer } from 'vs/workbench/services/extensions/node/remoteUriTransformer';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
@@ -274,32 +272,17 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	}
 })();
 
-export async function startExtensionHostProcess(): Promise<void> {
+export async function startExtensionHostProcess(
+	uriTransformerFn: (initData: IInitData) => IURITransformer | null,
+	schemeTransformerFn: (initData: IInitData) => ISchemeTransformer | null,
+	outputChannelNameFn: (initData: IInitData) => string,
+): Promise<void> {
 
 	const protocol = await createExtHostProtocol();
 	const renderer = await connectToRenderer(protocol);
 	const { initData } = renderer;
 	// setup things
 	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
-
-	const uriTransformer: IURITransformer | null = initData.remoteAuthority ? createRemoteURITransformer(initData.remoteAuthority) : null;
-
-	let schemeTransformer: ISchemeTransformer | null = null;
-	if (initData.remoteAuthority) {
-		schemeTransformer = new class implements ISchemeTransformer {
-			transformOutgoing(scheme: string): string {
-				if (scheme === 'file') {
-					return 'vscode-remote';
-				} else if (scheme === 'vscode-local') {
-					return 'file';
-				}
-				return scheme;
-			}
-		};
-	}
-
-	const outputChannelName = initData.remoteAuthority ? nls.localize('remote extension host Log', "Remote Extension Host") : nls.localize('extension host Log', "Extension Host");
-
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {
@@ -315,9 +298,9 @@ export async function startExtensionHostProcess(): Promise<void> {
 		hostUtils,
 		patchPatchedConsole,
 		createLogService,
-		uriTransformer,
-		schemeTransformer,
-		outputChannelName
+		uriTransformerFn(initData),
+		schemeTransformerFn(initData),
+		outputChannelNameFn(initData)
 	);
 
 	// rewrite onTerminate-function to be a proper shutdown

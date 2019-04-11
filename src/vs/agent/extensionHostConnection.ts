@@ -76,7 +76,7 @@ export class ExtensionHostConnection {
 			console.log(JSON.stringify(nlsConfig, undefined, 4));
 			const opts = {
 				env: objects.mixin(objects.deepClone(process.env), {
-					AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
+					AMD_ENTRYPOINT: 'vs/agent/remoteExtensionHostProcess',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: true,
 					VSCODE_EXTHOST_WILL_SEND_SOCKET: true,

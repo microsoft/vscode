@@ -93,7 +93,7 @@ const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
 				exclude: ['vs/css', 'vs/nls']
 			},
 			{
-				name: 'vs/workbench/services/extensions/node/extensionHostProcess',
+				name: 'vs/agent/remoteExtensionHostProcess',
 				exclude: ['vs/css', 'vs/nls']
 			},
 			{
