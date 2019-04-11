@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+// import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import * as assert from 'assert';
@@ -17,7 +17,6 @@ import { TestEnvironmentService, TestContextService, TestTextResourceConfigurati
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { IEncodingOverride } from 'vs/workbench/services/files/node/encoding';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
@@ -51,153 +50,6 @@ suite('LegacyFileService', () => {
 	teardown(() => {
 		service.dispose();
 		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
-	});
-
-	test('updateContent - use encoding (UTF 16 BE)', function () {
-		const resource = uri.file(path.join(testDir, 'small.txt'));
-		const encoding = 'utf16be';
-
-		return service.resolveContent(resource).then(c => {
-			c.encoding = encoding;
-
-			return service.updateContent(c.resource, c.value, { encoding: encoding }).then(c => {
-				return encodingLib.detectEncodingByBOM(c.resource.fsPath).then((enc) => {
-					assert.equal(enc, encodingLib.UTF16be);
-
-					return service.resolveContent(resource).then(c => {
-						assert.equal(c.encoding, encoding);
-					});
-				});
-			});
-		});
-	});
-
-	test('updateContent - use encoding (UTF 16 BE, ITextSnapShot)', function () {
-		const resource = uri.file(path.join(testDir, 'small.txt'));
-		const encoding = 'utf16be';
-
-		return service.resolveContent(resource).then(c => {
-			c.encoding = encoding;
-
-			const model = TextModel.createFromString(c.value);
-
-			return service.updateContent(c.resource, model.createSnapshot(), { encoding: encoding }).then(c => {
-				return encodingLib.detectEncodingByBOM(c.resource.fsPath).then((enc) => {
-					assert.equal(enc, encodingLib.UTF16be);
-
-					return service.resolveContent(resource).then(c => {
-						assert.equal(c.encoding, encoding);
-
-						model.dispose();
-					});
-				});
-			});
-		});
-	});
-
-	test('updateContent - encoding preserved (UTF 16 LE)', function () {
-		const encoding = 'utf16le';
-		const resource = uri.file(path.join(testDir, 'some_utf16le.css'));
-
-		return service.resolveContent(resource).then(c => {
-			assert.equal(c.encoding, encoding);
-
-			c.value = 'Some updates';
-
-			return service.updateContent(c.resource, c.value, { encoding: encoding }).then(c => {
-				return encodingLib.detectEncodingByBOM(c.resource.fsPath).then((enc) => {
-					assert.equal(enc, encodingLib.UTF16le);
-
-					return service.resolveContent(resource).then(c => {
-						assert.equal(c.encoding, encoding);
-					});
-				});
-			});
-		});
-	});
-
-	test('updateContent - encoding preserved (UTF 16 LE, ITextSnapShot)', function () {
-		const encoding = 'utf16le';
-		const resource = uri.file(path.join(testDir, 'some_utf16le.css'));
-
-		return service.resolveContent(resource).then(c => {
-			assert.equal(c.encoding, encoding);
-
-			const model = TextModel.createFromString('Some updates');
-
-			return service.updateContent(c.resource, model.createSnapshot(), { encoding: encoding }).then(c => {
-				return encodingLib.detectEncodingByBOM(c.resource.fsPath).then((enc) => {
-					assert.equal(enc, encodingLib.UTF16le);
-
-					return service.resolveContent(resource).then(c => {
-						assert.equal(c.encoding, encoding);
-
-						model.dispose();
-					});
-				});
-			});
-		});
-	});
-
-	test('updateContent - UTF 8 BOMs', function () {
-
-		// setup
-		const _id = uuid.generateUuid();
-		const _testDir = path.join(parentDir, _id);
-		const _sourceDir = getPathFromAmdModule(require, './fixtures/service');
-		const resource = uri.file(path.join(testDir, 'index.html'));
-
-		const fileService = new FileService2(new NullLogService());
-		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-
-		const _service = new LegacyFileService(
-			fileService,
-			new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
-			TestEnvironmentService,
-			new TestTextResourceConfigurationService()
-		);
-
-		return pfs.copy(_sourceDir, _testDir).then(() => {
-			return pfs.readFile(resource.fsPath).then(data => {
-				assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
-
-				const model = TextModel.createFromString('Hello Bom');
-
-				// Update content: UTF_8 => UTF_8_BOM
-				return _service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8_with_bom }).then(() => {
-					return pfs.readFile(resource.fsPath).then(data => {
-						assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), encodingLib.UTF8);
-
-						// Update content: PRESERVE BOM when using UTF-8
-						model.setValue('Please stay Bom');
-						return _service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8 }).then(() => {
-							return pfs.readFile(resource.fsPath).then(data => {
-								assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), encodingLib.UTF8);
-
-								// Update content: REMOVE BOM
-								model.setValue('Go away Bom');
-								return _service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8, overwriteEncoding: true }).then(() => {
-									return pfs.readFile(resource.fsPath).then(data => {
-										assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
-
-										// Update content: BOM comes not back
-										model.setValue('Do not come back Bom');
-										return _service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8 }).then(() => {
-											return pfs.readFile(resource.fsPath).then(data => {
-												assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
-
-												model.dispose();
-												_service.dispose();
-											});
-										});
-									});
-								});
-							});
-						});
-					});
-				});
-			});
-		});
 	});
 
 	test('resolveContent - large file', function () {
@@ -263,17 +115,17 @@ suite('LegacyFileService', () => {
 		});
 	});
 
-	test('resolveContent - FILE_MODIFIED_SINCE', function () {
-		const resource = uri.file(path.join(testDir, 'index.html'));
+	// test('resolveContent - FILE_MODIFIED_SINCE', function () {
+	// 	const resource = uri.file(path.join(testDir, 'index.html'));
 
-		return service.resolveContent(resource).then(c => {
-			fs.writeFileSync(resource.fsPath, 'Updates Incoming!');
+	// 	return service.resolveContent(resource).then(c => {
+	// 		fs.writeFileSync(resource.fsPath, 'Updates Incoming!');
 
-			return service.updateContent(resource, c.value, { etag: c.etag, mtime: c.mtime - 1000 }).then(undefined, (e: FileOperationError) => {
-				assert.equal(e.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
-			});
-		});
-	});
+	// 		return service.updateContent(resource, c.value, { etag: c.etag, mtime: c.mtime - 1000 }).then(undefined, (e: FileOperationError) => {
+	// 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
+	// 		});
+	// 	});
+	// });
 
 	test('resolveContent - encoding picked up', function () {
 		const resource = uri.file(path.join(testDir, 'index.html'));

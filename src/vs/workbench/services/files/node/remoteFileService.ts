@@ -7,27 +7,15 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IDecodeStreamOptions, toDecodeStream, encodeStream } from 'vs/base/node/encoding';
+import { IDecodeStreamOptions, toDecodeStream } from 'vs/base/node/encoding';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileWriteOptions, FileSystemProviderCapabilities, IContent, ICreateFileOptions, IFileSystemProvider, IResolveContentOptions, IStreamContent, ITextSnapshot, IWriteTextFileOptions, ILegacyFileService, IFileService, toFileOperationResult, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IContent, IFileSystemProvider, IResolveContentOptions, IStreamContent, ILegacyFileService, IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
-import { createReadableOfProvider, createReadableOfSnapshot, createWritableOfProvider } from 'vs/workbench/services/files/node/streams';
+import { createReadableOfProvider } from 'vs/workbench/services/files/node/streams';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-
-class StringSnapshot implements ITextSnapshot {
-	private _value: string | null;
-	constructor(value: string) {
-		this._value = value;
-	}
-	read(): string | null {
-		let ret = this._value;
-		this._value = null;
-		return ret;
-	}
-}
 
 export class LegacyRemoteFileService extends LegacyFileService {
 
@@ -162,63 +150,6 @@ export class LegacyRemoteFileService extends LegacyFileService {
 	}
 
 	// --- saving
-
-	private static _throwIfFileSystemIsReadonly(provider: IFileSystemProvider): IFileSystemProvider {
-		if (provider.capabilities & FileSystemProviderCapabilities.Readonly) {
-			throw new FileOperationError(localize('err.readonly', "Resource can not be modified."), FileOperationResult.FILE_PERMISSION_DENIED);
-		}
-		return provider;
-	}
-
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
-		if (resource.scheme === Schemas.file) {
-			return super.createFile(resource, content, options);
-		} else {
-
-			return this._withProvider(resource).then(LegacyRemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-
-				return this.fileService.createFolder(resources.dirname(resource)).then(() => {
-					const { encoding } = this.encoding.getWriteEncoding(resource);
-					return this._writeFile(provider, resource, new StringSnapshot(content || ''), encoding, { create: true, overwrite: Boolean(options && options.overwrite) });
-				});
-
-			}).then(fileStat => {
-				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
-				return fileStat;
-			}, err => {
-				const message = localize('err.create', "Failed to create file {0}", resource.toString(false));
-				const result = toFileOperationResult(err);
-				throw new FileOperationError(message, result, options);
-			});
-		}
-	}
-
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-		if (resource.scheme === Schemas.file) {
-			return super.updateContent(resource, value, options);
-		} else {
-			return this._withProvider(resource).then(LegacyRemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-				return this.fileService.createFolder(resources.dirname(resource)).then(() => {
-					const snapshot = typeof value === 'string' ? new StringSnapshot(value) : value;
-					return this._writeFile(provider, resource, snapshot, options && options.encoding, { create: true, overwrite: true });
-				});
-			});
-		}
-	}
-
-	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string | undefined = undefined, options: FileWriteOptions): Promise<IFileStatWithMetadata> {
-		const readable = createReadableOfSnapshot(snapshot);
-		const { encoding, hasBOM } = this.encoding.getWriteEncoding(resource, preferredEncoding);
-		const encoder = encodeStream(encoding, { addBOM: hasBOM });
-		const target = createWritableOfProvider(provider, resource, options);
-		return new Promise((resolve, reject) => {
-			readable.pipe(encoder).pipe(target);
-			target.once('error', err => reject(err));
-			target.once('finish', (_: unknown) => resolve(undefined));
-		}).then(_ => {
-			return this.fileService.resolve(resource, { resolveMetadata: true }) as Promise<IFileStatWithMetadata>;
-		});
-	}
 
 	private static _asContent(content: IStreamContent): Promise<IContent> {
 		return new Promise<IContent>((resolve, reject) => {
