@@ -125,16 +125,16 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal((await readFile(resource.fsPath)).toString(), 'Hello World');
 	});
 
-	test('create - UTF 16 LE - no content', async () => {
-		const resource = URI.file(join(testDir, 'small_new.utf16le'));
+	// test('create - UTF 16 LE - no content', async () => {
+	// 	const resource = URI.file(join(testDir, 'small_new.utf16le'));
 
-		await service.create(resource);
+	// 	await service.create(resource);
 
-		assert.equal(await exists(resource.fsPath), true);
+	// 	assert.equal(await exists(resource.fsPath), true);
 
-		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF16le);
-	});
+	// 	const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
+	// 	assert.equal(detectedEncoding, UTF16le);
+	// });
 
 	test('create - UTF 16 LE - content provided', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf16le'));
@@ -147,16 +147,16 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(detectedEncoding, UTF16le);
 	});
 
-	test('create - UTF 8 BOM - no content', async () => {
-		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
+	// test('create - UTF 8 BOM - no content', async () => {
+	// 	const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create(resource);
+	// 	await service.create(resource);
 
-		assert.equal(await exists(resource.fsPath), true);
+	// 	assert.equal(await exists(resource.fsPath), true);
 
-		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
-	});
+	// 	const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
+	// 	assert.equal(detectedEncoding, UTF8);
+	// });
 
 	test('create - UTF 8 BOM - content provided', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
