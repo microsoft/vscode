@@ -10,9 +10,9 @@ import { Barrier } from 'vs/base/common/async';
 import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createApiFactory, IExtensionApiFactory, NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory, OpenNodeModuleFactory } from 'vs/workbench/api/node/extHost.api.impl';
+import { createApiFactory, IExtensionApiFactory } from 'vs/workbench/api/node/extHost.api.impl';
+import { NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory, OpenNodeModuleFactory } from 'vs/workbench/api/node/extHostRequireInterceptor';
 import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension } from 'vs/workbench/api/common/extHostExtensionActivator';
@@ -30,7 +30,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { realpath } from 'vs/base/node/extpath';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
@@ -40,11 +39,17 @@ interface ITestRunner {
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
 }
 
+export interface IHostUtils {
+	exit(code?: number): void;
+	exists(path: string): Promise<boolean>;
+	realpath(path: string): Promise<string>;
+}
+
 export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 7000;
 
-	private readonly _nativeExit: (code?: number) => void;
+	private readonly _hostUtils: IHostUtils;
 	private readonly _initData: IInitData;
 	private readonly _extHostContext: IMainContext;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
@@ -70,7 +75,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private _started: boolean;
 
 	constructor(
-		nativeExit: (code?: number) => void,
+		hostUtils: IHostUtils,
 		initData: IInitData,
 		extHostContext: IMainContext,
 		extHostWorkspace: ExtHostWorkspace,
@@ -80,7 +85,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		schemeTransformer: ISchemeTransformer | null,
 		outputChannelName: string
 	) {
-		this._nativeExit = nativeExit;
+		this._hostUtils = hostUtils;
 		this._initData = initData;
 		this._extHostContext = extHostContext;
 		this._extHostWorkspace = extHostWorkspace;
@@ -230,7 +235,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				if (!ext.main) {
 					return undefined;
 				}
-				return realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
+				return this._hostUtils.realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
 			});
 			this._extensionPathIndex = Promise.all(extensions).then(() => tree);
 		}
@@ -451,7 +456,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 		// find exact path
 		for (const { uri } of workspace.folders) {
-			if (await pfs.exists(path.join(URI.revive(uri).fsPath, fileName))) {
+			if (await this._hostUtils.exists(path.join(URI.revive(uri).fsPath, fileName))) {
 				// the file was found
 				return (
 					this._activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${fileName}`))
@@ -561,7 +566,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				return;
 			}
 
-			this._nativeExit(code);
+			this._hostUtils.exit(code);
 		}, 500);
 	}
 
@@ -645,12 +650,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			if (!extensionDescription) {
 				return;
 			}
-			const realpathValue = await realpath(extensionDescription.extensionLocation.fsPath);
+			const realpathValue = await this._hostUtils.realpath(extensionDescription.extensionLocation.fsPath);
 			trie.delete(URI.file(realpathValue).fsPath);
 		}));
 
 		await Promise.all(toAdd.map(async (extensionDescription) => {
-			const realpathValue = await realpath(extensionDescription.extensionLocation.fsPath);
+			const realpathValue = await this._hostUtils.realpath(extensionDescription.extensionLocation.fsPath);
 			trie.set(URI.file(realpathValue).fsPath, extensionDescription);
 		}));
 

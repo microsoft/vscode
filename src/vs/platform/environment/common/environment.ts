@@ -18,7 +18,6 @@ export interface ParsedArgs {
 	waitMarkerFilePath?: string;
 	diff?: boolean;
 	add?: boolean;
-	gitCredential?: string;
 	goto?: boolean;
 	'new-window'?: boolean;
 	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
