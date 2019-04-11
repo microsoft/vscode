@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export abstract class AbstractExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
 
@@ -35,7 +36,7 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 
 	append(value: string): void {
 		this.validate();
-		this._offset += value ? Buffer.from(value).byteLength : 0;
+		this._offset += value ? VSBuffer.fromString(value).byteLength : 0;
 	}
 
 	update(): void {
