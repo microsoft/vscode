@@ -126,7 +126,7 @@ export class BreadcrumbsWidget {
 			this._pendingLayout.dispose();
 		}
 		if (dim) {
-			// only meaure
+			// only measure
 			this._pendingLayout = this._updateDimensions(dim);
 		} else {
 			this._pendingLayout = this._updateScrollbar();
