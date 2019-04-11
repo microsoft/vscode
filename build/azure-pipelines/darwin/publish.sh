@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 # remove pkg from archive
 zip -d ../VSCode-darwin.zip "*.pkg"
@@ -14,6 +15,9 @@ node build/azure-pipelines/common/publish.js \
 	$VERSION \
 	true \
 	../VSCode-darwin.zip
+
+# package Remote Extension Host
+pushd ../vscode-reh-darwin && zip -r -X -y ../vscode-server-darwin.zip * && popd
 
 # publish Remote Extension Host
 node build/azure-pipelines/common/publish.js \
