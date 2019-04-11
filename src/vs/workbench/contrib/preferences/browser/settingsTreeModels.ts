@@ -19,6 +19,7 @@ export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
 	tagFilters?: Set<string>;
+	extensionFilter?: string;
 	filterToCategory?: SettingsTreeGroupElement;
 }
 
@@ -227,6 +228,28 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		return true;
+	}
+
+	matchesExtension(extension?: string): boolean {
+		if (!extension) {
+			return true;
+		}
+
+		if (!this.setting.extensionInfo) {
+			return false;
+		}
+
+		let extensionQuery = extension.toLowerCase();
+
+		if (this.setting.extensionInfo.id.toLowerCase().indexOf(extensionQuery) >= 0) {
+			return true;
+		}
+
+		if (this.setting.extensionInfo.displayName && this.setting.extensionInfo.displayName.toLowerCase().indexOf(extensionQuery) >= 0) {
+			return true;
+		}
+
+		return false;
 	}
 }
 
@@ -494,7 +517,7 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
 		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget));
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget) && child.matchesExtension(this._viewState.extensionFilter));
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();
@@ -527,11 +550,14 @@ export class SearchResultModel extends SettingsTreeModel {
 export interface IParsedQuery {
 	tags: string[];
 	query: string;
+	extensionFilter?: string;
 }
 
 const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
+const extensionRegex = /(^|\s)@ext:("([^"]*)"|[^"]\S*)?/g;
 export function parseQuery(query: string): IParsedQuery {
 	const tags: string[] = [];
+	let extension: string | undefined;
 	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
 		tags.push(tag || quotedTag);
 		return '';
@@ -542,10 +568,16 @@ export function parseQuery(query: string): IParsedQuery {
 		return '';
 	});
 
+	query = query.replace(extensionRegex, (_, __, quotedExtensionId, extensionId) => {
+		extension = extensionId || quotedExtensionId;
+		return '';
+	});
+
 	query = query.trim();
 
 	return {
 		tags,
+		extensionFilter: extension,
 		query
 	};
 }

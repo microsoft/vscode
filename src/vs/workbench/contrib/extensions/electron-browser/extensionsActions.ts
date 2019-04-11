@@ -59,6 +59,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -705,7 +706,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		]);
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
-		groups.push([this.instantiationService.createInstance(ExtensionInfoAction)]);
+		groups.push([this.instantiationService.createInstance(ExtensionInfoAction), this.instantiationService.createInstance(ExtensionSettingsAction)]);
 
 		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
 
@@ -810,6 +811,27 @@ export class ExtensionInfoAction extends ExtensionAction {
 		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 
 		clipboard.writeText(clipboardStr);
+		return Promise.resolve();
+	}
+}
+
+export class ExtensionSettingsAction extends ExtensionAction {
+
+	static readonly ID = 'extensions.extensionSettings';
+	static readonly LABEL = localize('extensionSettingsAction', "Configure Extension Settings");
+
+	constructor(
+		@IPreferencesService private readonly preferencesService: IPreferencesService
+	) {
+		super(ExtensionSettingsAction.ID, ExtensionSettingsAction.LABEL);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = !!this.extension;
+	}
+	run(): Promise<any> {
+		this.preferencesService.openSettings(false, `@ext:${this.extension.identifier.id}`);
 		return Promise.resolve();
 	}
 }
