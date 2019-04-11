@@ -367,6 +367,8 @@ export class ExplorerView extends ViewletPanel {
 		let fileNestingRules = configuration && configuration.files && configuration.files.nesting && configuration.files.nesting.rules || {};
 		let fileNestingEnabled = configuration && configuration.files && configuration.files.nesting && configuration.files.nesting.enabled;
 
+		let needsRefresh = false;
+
 		if (this.fileNestingEnabled !== fileNestingEnabled) {
 			this.fileNestingEnabled = fileNestingEnabled;
 			needsRefresh = true;
@@ -378,7 +380,6 @@ export class ExplorerView extends ViewletPanel {
 		}
 
 		// Push down config updates to components of viewer
-		let needsRefresh = false;
 		if (this.filter) {
 			needsRefresh = this.filter.updateConfiguration();
 		}

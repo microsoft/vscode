@@ -62,6 +62,9 @@ export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
 export class ExplorerDataSource extends Disposable implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
+	private nestingEnabled: boolean = false;
+	private nestingConfig: Map<string, string[]> = new Map<string, string[]>();
+
 	constructor(
 		@IProgressService private readonly progressService: IProgressService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -192,6 +195,33 @@ export class ExplorerDataSource extends Disposable implements IAsyncDataSource<E
 		this.progressService.showWhile(promise, this.layoutService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
 		return promise;
 	}
+
+	private onConfigurationChange(configuration: IFilesConfiguration): void {
+		this.nestingEnabled = configuration && configuration.files && configuration.files.nesting && configuration.files.nesting.enabled;
+
+		this.nestingConfig.clear();
+		let newNestingRules = configuration && configuration.files && configuration.files.nesting && configuration.files.nesting.rules;
+
+		if (newNestingRules) {
+			Object.keys(newNestingRules).forEach(element => {
+				this.nestingConfig.set(element, newNestingRules[element]);
+			});
+		}
+	}
+
+	private getParentName(item: string, parentPattern: string): any | null {
+		let parentNameMatch: any = item.match(parentPattern);//Incorrect definition
+
+		if (!parentNameMatch) {
+			return null;
+		}
+		let parentName = parentNameMatch.groups['basename'];
+		if (parentName) {
+			return { key: item, name: parentName };
+		}
+
+		return null;
+	}
 }
 
 export interface IFileTemplateData {
@@ -262,19 +292,6 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		else {
 			templateData.label.element.style.display = 'none';
 			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
-		}
-	}
-
-	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		this.nestingEnabled = configuration && configuration.files && configuration.files.nesting && configuration.files.nesting.enabled;
-
-		this.nestingConfig.clear();
-		let newNestingRules = configuration && configuration.files && configuration.files.nesting && configuration.files.nesting.rules;
-
-		if (newNestingRules) {
-			Object.keys(newNestingRules).forEach(element => {
-				this.nestingConfig.set(element, newNestingRules[element]);
-			});
 		}
 	}
 
