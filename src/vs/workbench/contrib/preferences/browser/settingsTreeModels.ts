@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isArray, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -13,7 +14,6 @@ import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/prefere
 import { ITOCEntry, knownAcronyms } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
