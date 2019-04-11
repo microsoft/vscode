@@ -30,7 +30,8 @@ steps:
     set -e
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
     AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    yarn gulp -- vscode-darwin-min vscode-reh-darwin-min
+    yarn gulp -- vscode-darwin-min
+    yarn gulp -- vscode-reh-darwin-min
     # TODO@vs-remote: DO NOT ADD SOURCEMAP TASK! (OTHERWISE SOURCES - VIA SOURCEMAPS - WILL BE PUBLIC)
     # VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
     # AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
@@ -111,8 +112,8 @@ steps:
     node build/azure-pipelines/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_MACOS)"
 
     # upload configuration
-    # AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    # yarn gulp -- upload-vscode-configuration
+    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+    yarn gulp -- upload-vscode-configuration
   displayName: Publish
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0

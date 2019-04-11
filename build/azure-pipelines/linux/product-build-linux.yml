@@ -31,11 +31,10 @@ steps:
 
 - script: |
     set -e
-    # Skip for 32-bit because nodejs.org does not publish Linux 32-bit builds for Node.js versions >=10.
-    if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
-        VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
-    else
-        VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min vscode-reh-linux-$(VSCODE_ARCH)-min
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
+
+    if [[ "$(VSCODE_ARCH)" != "ia32" ]]; then
+        VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-reh-linux-$(VSCODE_ARCH)-min
     fi
   name: build
 
