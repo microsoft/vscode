@@ -42,7 +42,7 @@
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
 	"typescript.preferences.quoteStyle": "single",
-	"gitBranch.base": "remote-repo/master",
+	"gitBranch.base": "vscode-distro/master",
 	"gitBranch.diffGroups": [
 		{
 			"name": "⛔DO NOT TAKE TO DISTRO [LEAKAGE CONCERN]",
@@ -130,6 +130,12 @@
 				"src/vs/workbench/api/node/extHost.api.impl.ts",
 				"src/vs/workbench/services/extensions/electron-browser/extensionService.ts",
 				"src/vs/workbench/services/extensions/node/remoteUriTransformer.ts",
+			]
+		},
+		{
+			"name": "⛔🛑 Quality [Icons & Licenses - DO NOT MERGE]",
+			"files": [
+				"quality/**"
 			]
 		}
 	],
