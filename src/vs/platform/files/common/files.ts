@@ -13,6 +13,7 @@ import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -126,7 +127,7 @@ export interface IFileService {
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata>;
+	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Moves the file/folder to a new path identified by the resource.
@@ -143,12 +144,12 @@ export interface IFileService {
 	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * Creates a new file with the given path. The returned promise
+	 * Creates a new file with the given path and optional contents. The returned promise
 	 * will have the stat model object as a result.
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
+	createFile(resource: URI, bufferOrReadable?: VSBuffer | VSBufferReadable, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
@@ -650,28 +651,79 @@ export interface ITextSnapshot {
 	read(): string | null;
 }
 
-export class StringSnapshot implements ITextSnapshot {
-	private _value: string | null;
-	constructor(value: string) {
-		this._value = value;
-	}
-	read(): string | null {
-		let ret = this._value;
-		this._value = null;
-		return ret;
-	}
-}
 /**
  * Helper method to convert a snapshot into its full string form.
  */
 export function snapshotToString(snapshot: ITextSnapshot): string {
 	const chunks: string[] = [];
+
 	let chunk: string | null;
 	while (typeof (chunk = snapshot.read()) === 'string') {
 		chunks.push(chunk);
 	}
 
 	return chunks.join('');
+}
+
+export function stringToSnapshot(value: string): ITextSnapshot {
+	let done = false;
+
+	return {
+		read(): string | null {
+			if (!done) {
+				done = true;
+
+				return value;
+			}
+
+			return null;
+		}
+	};
+}
+
+export class TextSnapshotReadable implements VSBufferReadable {
+	private preambleHandled: boolean;
+
+	constructor(private snapshot: ITextSnapshot, private preamble?: string) { }
+
+	read(): VSBuffer | null {
+		let value = this.snapshot.read();
+
+		// Handle preamble if provided
+		if (!this.preambleHandled) {
+			this.preambleHandled = true;
+
+			if (typeof this.preamble === 'string') {
+				if (typeof value === 'string') {
+					value = this.preamble + value;
+				} else {
+					value = this.preamble;
+				}
+			}
+		}
+
+		if (typeof value === 'string') {
+			return VSBuffer.fromString(value);
+		}
+
+		return null;
+	}
+}
+
+export function toBufferOrReadable(value: string): VSBuffer;
+export function toBufferOrReadable(value: ITextSnapshot): VSBufferReadable;
+export function toBufferOrReadable(value: string | ITextSnapshot): VSBuffer | VSBufferReadable;
+export function toBufferOrReadable(value: string | ITextSnapshot | undefined): VSBuffer | VSBufferReadable | undefined;
+export function toBufferOrReadable(value: string | ITextSnapshot | undefined): VSBuffer | VSBufferReadable | undefined {
+	if (typeof value === 'undefined') {
+		return undefined;
+	}
+
+	if (typeof value === 'string') {
+		return VSBuffer.fromString(value);
+	}
+
+	return new TextSnapshotReadable(value);
 }
 
 /**
@@ -724,7 +776,20 @@ export interface IResolveContentOptions {
 	position?: number;
 }
 
-export interface IUpdateContentOptions {
+export interface IWriteFileOptions {
+
+	/**
+	 * The last known modification time of the file. This can be used to prevent dirty writes.
+	 */
+	mtime?: number;
+
+	/**
+	 * The etag of the file. This can be used to prevent dirty writes.
+	 */
+	etag?: string;
+}
+
+export interface IWriteTextFileOptions extends IWriteFileOptions {
 
 	/**
 	 * The encoding to use when updating a file.
@@ -746,21 +811,6 @@ export interface IUpdateContentOptions {
 	 * ask the user to authenticate as super user.
 	 */
 	writeElevated?: boolean;
-
-	/**
-	 * The last known modification time of the file. This can be used to prevent dirty writes.
-	 */
-	mtime?: number;
-
-	/**
-	 * The etag of the file. This can be used to prevent dirty writes.
-	 */
-	etag?: string;
-
-	/**
-	 * Run mkdirp before saving.
-	 */
-	mkdirp?: boolean;
 }
 
 export interface IResolveFileOptions {
@@ -797,7 +847,7 @@ export interface ICreateFileOptions {
 }
 
 export class FileOperationError extends Error {
-	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IResolveContentOptions & IUpdateContentOptions & ICreateFileOptions) {
+	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IResolveContentOptions & IWriteTextFileOptions & ICreateFileOptions) {
 		super(message);
 	}
 
@@ -1131,8 +1181,4 @@ export interface ILegacyFileService extends IDisposable {
 	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent>;
 
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
-
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): Promise<IFileStatWithMetadata>;
-
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
 }

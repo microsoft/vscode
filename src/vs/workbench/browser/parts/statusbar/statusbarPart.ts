@@ -31,6 +31,8 @@ import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/bro
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
 
+interface PendingEntry { entry: IStatusbarEntry; alignment: StatusbarAlignment; priority: number; accessor?: IStatusbarEntryAccessor; }
+
 export class StatusbarPart extends Part implements IStatusbarService {
 
 	_serviceBrand: ServiceIdentifier<any>;
@@ -50,7 +52,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private statusMessageDispose: IDisposable;
 	private styleElement: HTMLStyleElement;
 
-	private pendingEntries: { entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number, accessor: IStatusbarEntryAccessor }[] = [];
+	private pendingEntries: PendingEntry[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -73,20 +75,28 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// As long as we have not been created into a container yet, record all entries
 		// that are pending so that they can get created at a later point
 		if (!this.element) {
-			const pendingEntry = {
-				entry, alignment, priority, accessor: {
-					update: (entry: IStatusbarEntry) => {
-						pendingEntry.entry = entry;
-					},
-					dispose: () => {
-						this.pendingEntries = this.pendingEntries.filter(entry => entry !== pendingEntry);
-						dispose(pendingEntry.accessor);
-					}
-				}
+			const pendingEntry: PendingEntry = {
+				entry, alignment, priority
 			};
 			this.pendingEntries.push(pendingEntry);
 
-			return pendingEntry.accessor;
+			const accessor: IStatusbarEntryAccessor = {
+				update: (entry: IStatusbarEntry) => {
+					if (pendingEntry.accessor) {
+						pendingEntry.accessor.update(entry);
+					} else {
+						pendingEntry.entry = entry;
+					}
+				},
+				dispose: () => {
+					if (pendingEntry.accessor) {
+						pendingEntry.accessor.dispose();
+					} else {
+						this.pendingEntries = this.pendingEntries.filter(entry => entry !== pendingEntry);
+					}
+				}
+			};
+			return accessor;
 		}
 
 		// Render entry in status bar

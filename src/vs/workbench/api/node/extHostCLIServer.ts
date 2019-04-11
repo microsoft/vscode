@@ -6,7 +6,7 @@
 import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
-import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
@@ -24,6 +24,12 @@ export interface OpenCommandPipeArgs {
 
 export interface StatusPipeArgs {
 	type: 'status';
+}
+
+export interface RunCommandPipeArgs {
+	type: 'command';
+	command: string;
+	args: string[];
 }
 
 export class CLIServer {
@@ -61,13 +67,17 @@ export class CLIServer {
 		req.setEncoding('utf8');
 		req.on('data', (d: string) => chunks.push(d));
 		req.on('end', () => {
-			const data: OpenCommandPipeArgs | StatusPipeArgs | any = JSON.parse(chunks.join(''));
+			const data: OpenCommandPipeArgs | StatusPipeArgs | RunCommandPipeArgs | any = JSON.parse(chunks.join(''));
 			switch (data.type) {
 				case 'open':
 					this.open(data, res);
 					break;
 				case 'status':
 					this.getStatus(data, res);
+					break;
+				case 'command':
+					this.runCommand(data, res)
+						.catch(console.error);
 					break;
 				default:
 					res.writeHead(404);
@@ -123,6 +133,28 @@ export class CLIServer {
 			const status = await this._commands.executeCommand('_issues.getSystemStatus');
 			res.writeHead(200);
 			res.write(status);
+			res.end();
+		} catch (err) {
+			res.writeHead(500);
+			res.write(String(err), err => {
+				if (err) {
+					console.error(err);
+				}
+			});
+			res.end();
+		}
+	}
+
+	private async runCommand(data: RunCommandPipeArgs, res: http.ServerResponse) {
+		try {
+			const { command, args } = data;
+			const result = await this._commands.executeCommand(command, ...args);
+			res.writeHead(200);
+			res.write(JSON.stringify(result), err => {
+				if (err) {
+					console.error(err);
+				}
+			});
 			res.end();
 		} catch (err) {
 			res.writeHead(500);

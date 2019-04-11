@@ -24,6 +24,10 @@ td {
 	vertical-align: top;
 }
 
+tr td:first-child {
+	width: 30%;
+}
+
 label {
 	user-select: none;
 }

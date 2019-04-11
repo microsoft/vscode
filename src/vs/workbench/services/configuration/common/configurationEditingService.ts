@@ -138,7 +138,7 @@ export class ConfigurationEditingService {
 		this.queue = new Queue<void>();
 		remoteAgentService.getEnvironment().then(environment => {
 			if (environment) {
-				this.remoteSettingsResource = environment.appSettingsPath;
+				this.remoteSettingsResource = environment.settingsPath;
 			}
 		});
 	}
@@ -375,7 +375,7 @@ export class ConfigurationEditingService {
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		const exists = await this.fileService.exists(resource);
 		if (!exists) {
-			await this.fileService.updateContent(resource, '{}', { encoding: 'utf8' });
+			await this.textFileService.write(resource, '{}');
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}

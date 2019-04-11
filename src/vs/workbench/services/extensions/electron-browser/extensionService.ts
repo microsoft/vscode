@@ -26,8 +26,8 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, ProfileSession, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser, schema } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { CachedExtensionScanner, Logger } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/electron-browser/extensionHostProcessManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -453,7 +453,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		if (code === 55) {
 			this._notificationService.prompt(
 				Severity.Error,
-				nls.localize('extensionHostProcess.versionMismatchCrash', "Extension host cannot start: version mismatch."),
+				nls.localize('extensionService.versionMismatchCrash', "Extension host cannot start: version mismatch."),
 				[{
 					label: nls.localize('relaunch', "Relaunch VS Code"),
 					run: () => {
@@ -467,9 +467,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			return;
 		}
 
-		let message = nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly.");
+		let message = nls.localize('extensionService.crash', "Extension host terminated unexpectedly.");
 		if (code === 87) {
-			message = nls.localize('extensionHostProcess.unresponsiveCrash', "Extension host terminated because it was not responsive.");
+			message = nls.localize('extensionService.unresponsiveCrash', "Extension host terminated because it was not responsive.");
 		}
 
 		this._notificationService.prompt(Severity.Error, message,

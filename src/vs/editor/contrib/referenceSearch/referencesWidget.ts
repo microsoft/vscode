@@ -157,9 +157,25 @@ class DecorationsManager implements IDisposable {
 	}
 }
 
-export interface LayoutData {
+export class LayoutData {
 	ratio: number;
 	heightInLines: number;
+
+	static fromJSON(raw: string): LayoutData {
+		let ratio: number | undefined;
+		let heightInLines: number | undefined;
+		try {
+			const data = <LayoutData>JSON.parse(raw);
+			ratio = data.ratio;
+			heightInLines = data.heightInLines;
+		} catch {
+			//
+		}
+		return {
+			ratio: ratio || 0.7,
+			heightInLines: heightInLines || 18
+		};
+	}
 }
 
 export interface SelectionEvent {
@@ -352,9 +368,6 @@ export class ReferenceWidget extends PeekViewWidget {
 			if (e.browserEvent instanceof KeyboardEvent) {
 				// todo@joh make this a command
 				goto = true;
-			} else if (e.browserEvent instanceof MouseEvent) {
-				aside = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
-				goto = e.browserEvent.detail === 2;
 			}
 			if (aside) {
 				onEvent(e.elements[0], 'side');

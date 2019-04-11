@@ -456,7 +456,7 @@ export class ActiveWindowManager implements IDisposable {
 
 		this.firstActiveWindowIdPromise = createCancelablePromise(_ => windowsService.getActiveWindowId());
 		this.firstActiveWindowIdPromise
-			.then(id => this.activeWindowId = id)
+			.then(id => this.activeWindowId = typeof this.activeWindowId === 'number' ? this.activeWindowId : id)
 			.finally(this.firstActiveWindowIdPromise = undefined);
 	}
 

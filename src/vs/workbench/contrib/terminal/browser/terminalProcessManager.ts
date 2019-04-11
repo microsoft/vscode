@@ -6,7 +6,7 @@
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -56,6 +56,8 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	private readonly _onProcessReady = new Emitter<void>();
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
+	private readonly _onBeforeProcessData = new Emitter<IBeforeProcessDataEvent>();
+	public get onBeforeProcessData(): Event<IBeforeProcessDataEvent> { return this._onBeforeProcessData.event; }
 	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
 	private readonly _onProcessTitle = new Emitter<string>();
@@ -181,7 +183,11 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		const p = this._process!;
 
 		p.onProcessData(data => {
-			this._onProcessData.fire(data);
+			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
+			this._onBeforeProcessData.fire(beforeProcessDataEvent);
+			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
+				this._onProcessData.fire(beforeProcessDataEvent.data);
+			}
 		});
 
 		p.onProcessIdReady(pid => {
