@@ -9,7 +9,7 @@ import { workbenchInstantiationService, TestLifecycleService, TestTextFileServic
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IFileService, ITextSnapshot, snapshotToString } from 'vs/platform/files/common/files';
+import { IFileService, ITextSnapshot, snapshotToString, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -359,6 +359,39 @@ suite('Files - TextFileService i/o', () => {
 		const resolved = await service.resolve(resource, { encoding: 'cp1252' });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.LF).createSnapshot(false)), content);
 	});
+
+	test('write - all encodings - large content as snapshot', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+		const content = (await readFile(resource.fsPath)).toString();
+
+		for (const encoding of Object.keys(SUPPORTED_ENCODINGS)) {
+			if (encoding === 'utf8bom') {
+				continue; // this is the only encoding that is not standard, so skip it
+			}
+
+			await testEncoding2(resource, encoding, content);
+		}
+	});
+
+	test('write - all encodings - small content as snapshot', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+		const content = (await readFile(resource.fsPath)).toString();
+
+		for (const encoding of Object.keys(SUPPORTED_ENCODINGS)) {
+			if (encoding === 'utf8bom') {
+				continue; // this is the only encoding that is not standard, so skip it
+			}
+
+			await testEncoding2(resource, encoding, content);
+		}
+	});
+
+	async function testEncoding2(resource: URI, encoding: string, content: string): Promise<void> {
+		await service.write(resource, content, { encoding });
+
+		const resolved = await service.resolve(resource, { encoding });
+		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.LF).createSnapshot(false)), content, 'Encoding used: ' + encoding);
+	}
 
 	test('write - ensure BOM in empty file - content as string', async () => {
 		const resource = URI.file(join(testDir, 'small.txt'));
