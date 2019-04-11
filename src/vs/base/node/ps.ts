@@ -162,62 +162,68 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				}, windowsProcessTree.ProcessDataFlag.CommandLine | windowsProcessTree.ProcessDataFlag.Memory);
 			});
 		} else {	// OS X & Linux
-
-			const CMD = '/bin/ps -ax -o pid=,ppid=,pcpu=,pmem=,command=';
-			const PID_CMD = /^\s*([0-9]+)\s+([0-9]+)\s+([0-9]+\.[0-9]+)\s+([0-9]+\.[0-9]+)\s+(.+)$/;
-
-			// Set numeric locale to ensure '.' is used as the decimal separator
-			exec(CMD, { maxBuffer: 1000 * 1024, env: { LC_NUMERIC: 'en_US.UTF-8' } }, (err, stdout, stderr) => {
-
+			exec('which ps', {}, (err, stdout, stderr) => {
 				if (err || stderr) {
 					reject(err || new Error(stderr.toString()));
 				} else {
+					const ps = stdout.toString().trim();
+					const args = '-ax -o pid=,ppid=,pcpu=,pmem=,command=';
+					const PID_CMD = /^\s*([0-9]+)\s+([0-9]+)\s+([0-9]+\.[0-9]+)\s+([0-9]+\.[0-9]+)\s+(.+)$/;
 
-					const lines = stdout.toString().split('\n');
-					for (const line of lines) {
-						const matches = PID_CMD.exec(line.trim());
-						if (matches && matches.length === 6) {
-							addToTree(parseInt(matches[1]), parseInt(matches[2]), matches[5], parseFloat(matches[3]), parseFloat(matches[4]));
-						}
-					}
+					// Set numeric locale to ensure '.' is used as the decimal separator
+					exec(`${ps} ${args}`, { maxBuffer: 1000 * 1024, env: { LC_NUMERIC: 'en_US.UTF-8' } }, (err, stdout, stderr) => {
 
-					if (process.platform === 'linux') {
-						// Flatten rootItem to get a list of all VSCode processes
-						let processes = [rootItem];
-						const pids: number[] = [];
-						while (processes.length) {
-							const process = processes.shift();
-							if (process) {
-								pids.push(process.pid);
-								if (process.children) {
-									processes = processes.concat(process.children);
+						if (err || stderr) {
+							reject(err || new Error(stderr.toString()));
+						} else {
+
+							const lines = stdout.toString().split('\n');
+							for (const line of lines) {
+								const matches = PID_CMD.exec(line.trim());
+								if (matches && matches.length === 6) {
+									addToTree(parseInt(matches[1]), parseInt(matches[2]), matches[5], parseFloat(matches[3]), parseFloat(matches[4]));
 								}
 							}
-						}
 
-						// The cpu usage value reported on Linux is the average over the process lifetime,
-						// recalculate the usage over a one second interval
-						// JSON.stringify is needed to escape spaces, https://github.com/nodejs/node/issues/6803
-						let cmd = JSON.stringify(getPathFromAmdModule(require, 'vs/base/node/cpuUsage.sh'));
-						cmd += ' ' + pids.join(' ');
-
-						exec(cmd, {}, (err, stdout, stderr) => {
-							if (err || stderr) {
-								reject(err || new Error(stderr.toString()));
-							} else {
-								const cpuUsage = stdout.toString().split('\n');
-								for (let i = 0; i < pids.length; i++) {
-									const processInfo = map.get(pids[i])!;
-									processInfo.load = parseFloat(cpuUsage[i]);
+							if (process.platform === 'linux') {
+								// Flatten rootItem to get a list of all VSCode processes
+								let processes = [rootItem];
+								const pids: number[] = [];
+								while (processes.length) {
+									const process = processes.shift();
+									if (process) {
+										pids.push(process.pid);
+										if (process.children) {
+											processes = processes.concat(process.children);
+										}
+									}
 								}
 
+								// The cpu usage value reported on Linux is the average over the process lifetime,
+								// recalculate the usage over a one second interval
+								// JSON.stringify is needed to escape spaces, https://github.com/nodejs/node/issues/6803
+								let cmd = JSON.stringify(getPathFromAmdModule(require, 'vs/base/node/cpuUsage.sh'));
+								cmd += ' ' + pids.join(' ');
+
+								exec(cmd, {}, (err, stdout, stderr) => {
+									if (err || stderr) {
+										reject(err || new Error(stderr.toString()));
+									} else {
+										const cpuUsage = stdout.toString().split('\n');
+										for (let i = 0; i < pids.length; i++) {
+											const processInfo = map.get(pids[i])!;
+											processInfo.load = parseFloat(cpuUsage[i]);
+										}
+
+										resolve(rootItem);
+									}
+								});
+							} else {
 								resolve(rootItem);
 							}
-						});
-					} else {
-						resolve(rootItem);
-					}
 
+						}
+					});
 				}
 			});
 		}

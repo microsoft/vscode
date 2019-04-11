@@ -67,7 +67,8 @@ const jsxTagsLanguageConfiguration: vscode.LanguageConfiguration = {
 		},
 		{
 			// `beforeText` only applies to tokens of a given language. Since we are dealing with jsx-tags,
-			// make sure we apply to the closing `>` of a tag.
+			// make sure we apply to the closing `>` of a tag so that mixed language spans
+			// such as `<div onclick={1}>` are handled properly.
 			beforeText: /^>$/,
 			afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
 			action: { indentAction: vscode.IndentAction.IndentOutdent }

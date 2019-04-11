@@ -217,8 +217,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	async openRemoteSettings(): Promise<IEditor | null> {
 		const environemnt = await this.remoteAgentService.getEnvironment();
 		if (environemnt) {
-			await this.createIfNotExists(environemnt.appSettingsPath, emptyEditableSettingsContent);
-			return this.editorService.openEditor({ resource: environemnt.appSettingsPath, options: { pinned: true, revealIfOpened: true } });
+			await this.createIfNotExists(environemnt.settingsPath, emptyEditableSettingsContent);
+			return this.editorService.openEditor({ resource: environemnt.settingsPath, options: { pinned: true, revealIfOpened: true } });
 		}
 		return null;
 	}

@@ -102,6 +102,9 @@ export interface IEnvironmentService {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 
+	machineSettingsHome: string;
+	machineSettingsPath: string;
+
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;
 

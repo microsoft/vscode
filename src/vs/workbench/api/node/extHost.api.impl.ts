@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -44,7 +43,7 @@ import { LogOutputChannelFactory } from 'vs/workbench/api/node/extHostOutputServ
 import { ExtHostProgress } from 'vs/workbench/api/common/extHostProgress';
 import { ExtHostQuickOpen } from 'vs/workbench/api/common/extHostQuickOpen';
 import { ExtHostSCM } from 'vs/workbench/api/common/extHostSCM';
-import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
+import { ExtHostSearch, registerEHSearchProviders } from 'vs/workbench/api/node/extHostSearch';
 import { ExtHostStatusBar } from 'vs/workbench/api/common/extHostStatusBar';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
@@ -67,6 +66,7 @@ import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { values } from 'vs/base/common/collections';
 import { endsWith } from 'vs/base/common/strings';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -90,10 +90,10 @@ export function createApiFactory(
 	extHostConfiguration: ExtHostConfiguration,
 	extensionService: ExtHostExtensionService,
 	extHostLogService: ExtHostLogService,
-	extHostStorage: ExtHostStorage
+	extHostStorage: ExtHostStorage,
+	schemeTransformer: ISchemeTransformer | null,
+	outputChannelName: string
 ): IExtensionApiFactory {
-
-	const schemeTransformer: ISchemeTransformer | null = null;
 
 	// Addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);
@@ -127,6 +127,14 @@ export function createApiFactory(
 	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, new ExtHostOutputService(LogOutputChannelFactory, initData.logsLocation, rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
 	if (initData.remoteAuthority) {
+		extHostTask.registerTaskSystem(Schemas.vscodeRemote, {
+			scheme: Schemas.vscodeRemote,
+			authority: initData.remoteAuthority,
+			platform: process.platform
+		});
+
+		registerEHSearchProviders(extHostSearch, extHostLogService);
+
 		const cliServer = new CLIServer(extHostCommands);
 		process.env['VSCODE_IPC_HOOK_CLI'] = cliServer.ipcHandlePath;
 	}
@@ -143,8 +151,7 @@ export function createApiFactory(
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol, extHostDocuments);
 
 	// Register an output channel for exthost log
-	const name = localize('extensionsLog', "Extension Host");
-	extHostOutputService.createOutputChannelFromLogFile(name, extHostLogService.logFile);
+	extHostOutputService.createOutputChannelFromLogFile(outputChannelName, extHostLogService.logFile);
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);

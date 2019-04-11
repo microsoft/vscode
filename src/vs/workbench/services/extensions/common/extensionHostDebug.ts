@@ -10,6 +10,22 @@ import { IRemoteConsoleLog } from 'vs/base/common/console';
 
 export const IExtensionHostDebugService = createDecorator<IExtensionHostDebugService>('extensionHostDebugService');
 
+export interface IAttachSessionEvent {
+	sessionId: string;
+	subId?: string;
+	port: number;
+}
+
+export interface ILogToSessionEvent {
+	sessionId: string;
+	log: IRemoteConsoleLog;
+}
+
+export interface ITerminateSessionEvent {
+	sessionId: string;
+	subId?: string;
+}
+
 export interface IExtensionHostDebugService {
 	_serviceBrand: any;
 
@@ -19,12 +35,12 @@ export interface IExtensionHostDebugService {
 	close(resource: URI): void;
 	onClose: Event<URI>;
 
-	attachSession(id: string, port: number): void;
-	onAttachSession: Event<{ id: string, port: number }>;
+	attachSession(sessionId: string, port: number, subId?: string): void;
+	onAttachSession: Event<IAttachSessionEvent>;
 
-	logToSession(id: string, log: IRemoteConsoleLog): void;
-	onLogToSession: Event<{ id: string, log: IRemoteConsoleLog }>;
+	logToSession(sessionId: string, log: IRemoteConsoleLog): void;
+	onLogToSession: Event<ILogToSessionEvent>;
 
-	terminateSession(id: string): void;
-	onTerminateSession: Event<string>;
+	terminateSession(sessionId: string, subId?: string): void;
+	onTerminateSession: Event<ITerminateSessionEvent>;
 }

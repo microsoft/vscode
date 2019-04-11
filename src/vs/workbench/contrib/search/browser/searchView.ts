@@ -452,8 +452,12 @@ export class SearchView extends ViewletPanel {
 					return;
 				}
 
-				const root = element instanceof SearchResult ? null : element;
-				this.tree.setChildren(root, this.createIterator(element, collapseResults));
+				if (element instanceof SearchResult) {
+					this.tree.setChildren(null, this.createIterator(element, collapseResults));
+				} else {
+					this.tree.setChildren(element, this.createIterator(element, collapseResults));
+					this.tree.rerender(element);
+				}
 			});
 		}
 	}
