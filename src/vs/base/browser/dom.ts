@@ -32,7 +32,7 @@ export function isInDOM(node: Node | null): boolean {
 		if (node === document.body) {
 			return true;
 		}
-		node = node.parentNode;
+		node = node.parentNode || node.host;
 	}
 	return false;
 }
