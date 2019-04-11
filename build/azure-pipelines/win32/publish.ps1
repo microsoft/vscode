@@ -17,11 +17,11 @@ $PackageJson = Get-Content -Raw -Path "$Build\resources\app\package.json" | Conv
 $Version = $PackageJson.version
 $Quality = "$env:VSCODE_QUALITY"
 
-$assetPlatform = if ("$Arch" -eq "ia32") { "win32" } else { "win32-x64" }
+$AssetPlatform = if ("$Arch" -eq "ia32") { "win32" } else { "win32-x64" }
 
-exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform-archive" archive "VSCode-win32-$Arch-$Version.zip" $Version true $Zip }
-exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform" setup "VSCodeSetup-$Arch-$Version.exe" $Version true $SystemExe }
-exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform-user" setup "VSCodeUserSetup-$Arch-$Version.exe" $Version true $UserExe }
+exec { node build/azure-pipelines/common/publish.js $Quality "$AssetPlatform-archive" archive "VSCode-win32-$Arch-$Version.zip" $Version true $Zip }
+exec { node build/azure-pipelines/common/publish.js $Quality "$AssetPlatform" setup "VSCodeSetup-$Arch-$Version.exe" $Version true $SystemExe }
+exec { node build/azure-pipelines/common/publish.js $Quality "$AssetPlatform-user" setup "VSCodeUserSetup-$Arch-$Version.exe" $Version true $UserExe }
 
 # publish hockeyapp symbols
 $hockeyAppId = if ("$Arch" -eq "ia32") { "$env:VSCODE_HOCKEYAPP_ID_WIN32" } else { "$env:VSCODE_HOCKEYAPP_ID_WIN64" }
