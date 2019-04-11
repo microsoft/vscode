@@ -15,7 +15,7 @@ import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, I
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, toBufferOrReadable, ICreateFileOptions } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -69,7 +69,7 @@ export class TextFileService extends Disposable implements ITextFileService {
 		@IFileService protected readonly fileService: IFileService,
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
@@ -382,15 +382,14 @@ export class TextFileService extends Disposable implements ITextFileService {
 		};
 	}
 
-	async create(resource: URI, contents?: string, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata> {
-		const existingModel = this.models.get(resource);
-
-		const stat = await this.fileService.createFile(resource, contents, options);
+	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+		const stat = await this.doCreate(resource, value, options);
 
 		// If we had an existing model for the given resource, load
 		// it again to make sure it is up to date with the contents
 		// we just wrote into the underlying resource by calling
 		// revert()
+		const existingModel = this.models.get(resource);
 		if (existingModel && !existingModel.isDisposed()) {
 			await existingModel.revert();
 		}
@@ -398,10 +397,12 @@ export class TextFileService extends Disposable implements ITextFileService {
 		return stat;
 	}
 
-	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-		const stat = await this.fileService.updateContent(resource, value, options);
+	protected doCreate(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+		return this.fileService.createFile(resource, toBufferOrReadable(value), options);
+	}
 
-		return stat;
+	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
+		return this.fileService.writeFile(resource, toBufferOrReadable(value), options);
 	}
 
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {

@@ -800,13 +800,13 @@ suite('Disk File Service', () => {
 		}
 	});
 
-	test('createFile2', async () => {
+	test('createFile', async () => {
 		let event: FileOperationEvent;
 		disposables.push(service.onAfterOperation(e => event = e));
 
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));
-		const fileStat = await service.createFile2(resource, VSBuffer.fromString(contents));
+		const fileStat = await service.createFile(resource, VSBuffer.fromString(contents));
 		assert.equal(fileStat.name, 'test.txt');
 		assert.equal(existsSync(fileStat.resource.fsPath), true);
 		assert.equal(readFileSync(fileStat.resource.fsPath), contents);
@@ -817,21 +817,21 @@ suite('Disk File Service', () => {
 		assert.equal(event!.target!.resource.fsPath, resource.fsPath);
 	});
 
-	test('createFile2 (does not overwrite by default)', async () => {
+	test('createFile (does not overwrite by default)', async () => {
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));
 
 		writeFileSync(resource.fsPath, ''); // create file
 
 		try {
-			await service.createFile2(resource, VSBuffer.fromString(contents));
+			await service.createFile(resource, VSBuffer.fromString(contents));
 		}
 		catch (error) {
 			assert.ok(error);
 		}
 	});
 
-	test('createFile2 (allows to overwrite existing)', async () => {
+	test('createFile (allows to overwrite existing)', async () => {
 		let event: FileOperationEvent;
 		disposables.push(service.onAfterOperation(e => event = e));
 
@@ -840,7 +840,7 @@ suite('Disk File Service', () => {
 
 		writeFileSync(resource.fsPath, ''); // create file
 
-		const fileStat = await service.createFile2(resource, VSBuffer.fromString(contents), { overwrite: true });
+		const fileStat = await service.createFile(resource, VSBuffer.fromString(contents), { overwrite: true });
 		assert.equal(fileStat.name, 'test.txt');
 		assert.equal(existsSync(fileStat.resource.fsPath), true);
 		assert.equal(readFileSync(fileStat.resource.fsPath), contents);
@@ -873,6 +873,20 @@ suite('Disk File Service', () => {
 		assert.equal(fileStat.name, 'lorem.txt');
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile (large file) - multiple parallel writes queue up', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		const newContent = content.toString() + content.toString();
+
+		await Promise.all(['0', '00', '000', '0000', '00000'].map(async offset => {
+			const fileStat = await service.writeFile(resource, VSBuffer.fromString(offset + newContent));
+			assert.equal(fileStat.name, 'lorem.txt');
+		}));
+
+		assert.equal(readFileSync(resource.fsPath).toString(), '00000' + newContent);
 	});
 
 	test('writeFile (readable)', async () => {

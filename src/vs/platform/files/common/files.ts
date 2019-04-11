@@ -125,11 +125,6 @@ export interface IFileService {
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
 
 	/**
-	 * @deprecated use writeFile instead
-	 */
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
-
-	/**
 	 * Updates the content replacing its previous value.
 	 */
 	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
@@ -149,17 +144,12 @@ export interface IFileService {
 	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * @deprecated use createFile2 instead
-	 */
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
-
-	/**
 	 * Creates a new file with the given path and optional contents. The returned promise
 	 * will have the stat model object as a result.
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile2(resource: URI, bufferOrReadable?: VSBuffer | VSBufferReadable, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
+	createFile(resource: URI, bufferOrReadable?: VSBuffer | VSBufferReadable, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
@@ -666,12 +656,29 @@ export interface ITextSnapshot {
  */
 export function snapshotToString(snapshot: ITextSnapshot): string {
 	const chunks: string[] = [];
+
 	let chunk: string | null;
 	while (typeof (chunk = snapshot.read()) === 'string') {
 		chunks.push(chunk);
 	}
 
 	return chunks.join('');
+}
+
+export function stringToSnapshot(value: string): ITextSnapshot {
+	let done = false;
+
+	return {
+		read(): string | null {
+			if (!done) {
+				done = true;
+
+				return value;
+			}
+
+			return null;
+		}
+	};
 }
 
 export class TextSnapshotReadable implements VSBufferReadable {
@@ -701,6 +708,22 @@ export class TextSnapshotReadable implements VSBufferReadable {
 
 		return null;
 	}
+}
+
+export function toBufferOrReadable(value: string): VSBuffer;
+export function toBufferOrReadable(value: ITextSnapshot): VSBufferReadable;
+export function toBufferOrReadable(value: string | ITextSnapshot): VSBuffer | VSBufferReadable;
+export function toBufferOrReadable(value: string | ITextSnapshot | undefined): VSBuffer | VSBufferReadable | undefined;
+export function toBufferOrReadable(value: string | ITextSnapshot | undefined): VSBuffer | VSBufferReadable | undefined {
+	if (typeof value === 'undefined') {
+		return undefined;
+	}
+
+	if (typeof value === 'string') {
+		return VSBuffer.fromString(value);
+	}
+
+	return new TextSnapshotReadable(value);
 }
 
 /**
@@ -1158,8 +1181,4 @@ export interface ILegacyFileService extends IDisposable {
 	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent>;
 
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
-
-	updateContent(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
-
-	createFile(resource: URI, content?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
 }

@@ -14,6 +14,10 @@ export const UTF8_with_bom = 'utf8bom';
 export const UTF16be = 'utf16be';
 export const UTF16le = 'utf16le';
 
+export const UTF16be_BOM = [0xFE, 0xFF];
+export const UTF16le_BOM = [0xFF, 0xFE];
+export const UTF8_BOM = [0xEF, 0xBB, 0xBF];
+
 export interface IDecodeStreamOptions {
 	guessEncoding?: boolean;
 	minBytesRequiredForDetection?: number;
@@ -150,12 +154,12 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | null, bytesRead: 
 	const b1 = buffer.readUInt8(1);
 
 	// UTF-16 BE
-	if (b0 === 0xFE && b1 === 0xFF) {
+	if (b0 === UTF16be_BOM[0] && b1 === UTF16be_BOM[1]) {
 		return UTF16be;
 	}
 
 	// UTF-16 LE
-	if (b0 === 0xFF && b1 === 0xFE) {
+	if (b0 === UTF16le_BOM[0] && b1 === UTF16le_BOM[1]) {
 		return UTF16le;
 	}
 
@@ -166,7 +170,7 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | null, bytesRead: 
 	const b2 = buffer.readUInt8(2);
 
 	// UTF-8
-	if (b0 === 0xEF && b1 === 0xBB && b2 === 0xBF) {
+	if (b0 === UTF8_BOM[0] && b1 === UTF8_BOM[1] && b2 === UTF8_BOM[2]) {
 		return UTF8;
 	}
 
