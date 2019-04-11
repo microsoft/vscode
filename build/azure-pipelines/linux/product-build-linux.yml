@@ -87,19 +87,6 @@ steps:
         AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
         MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
         node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "server-$PLATFORM_LINUX" archive-unsigned "$REHTARBALL_FILENAME" "$VERSION" true "$REHTARBALL_PATH"
-
-        # Publish Remote Extension Host Pkg-packaged
-        # REHPKGBUILDNAME="vscode-reh-$PLATFORM_LINUX-pkg"
-        # REHPKGTARBALL_FILENAME="vscode-server-$PLATFORM_LINUX-pkg.tar.gz"
-        # REHPKGTARBALL_PATH="$ROOT/$REHPKGTARBALL_FILENAME"
-
-        # rm -rf $ROOT/vscode-server-*-pkg.tar.*
-        # (cd $ROOT && tar -czf $REHPKGTARBALL_PATH $REHPKGBUILDNAME)
-
-        # AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-        # AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-        # MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-        # node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "server-$PLATFORM_LINUX-pkg" archive-unsigned "$REHPKGTARBALL_FILENAME" "$VERSION" true "$REHPKGTARBALL_PATH"
     fi
 
     # Publish hockeyapp symbols

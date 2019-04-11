@@ -116,7 +116,6 @@
     "mocha-junit-reporter": "^1.17.0",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
-    "pkg": "^4.3.4",
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
