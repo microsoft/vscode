@@ -11,12 +11,13 @@ import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { extensionButtonProminentBackground, extensionButtonProminentForeground, DisabledLabelAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension;
@@ -142,10 +143,52 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 }
 
+export class TooltipWidget extends ExtensionWidget {
+
+	constructor(
+		private readonly parent: HTMLElement,
+		private readonly extensionLabelAction: DisabledLabelAction,
+		private readonly recommendationWidget: RecommendationWidget
+	) {
+		super();
+		this._register(this.extensionLabelAction.onDidChange(() => this.render()));
+		this._register(this.recommendationWidget.onDidChangeTooltip(() => this.render()));
+	}
+
+	render(): void {
+		this.parent.title = '';
+		this.parent.removeAttribute('aria-label');
+		if (this.extension) {
+			const title = this.getTitle();
+			this.parent.title = title;
+			this.parent.setAttribute('aria-label', localize('extension-arialabel', "{0}. {1} Press enter for extension details.", this.extension.displayName));
+		}
+	}
+
+	private getTitle(): string {
+		if (this.extensionLabelAction.enabled) {
+			return this.extensionLabelAction.label;
+		}
+		return this.recommendationWidget.tooltip;
+	}
+
+}
+
 export class RecommendationWidget extends ExtensionWidget {
 
 	private element?: HTMLElement;
 	private disposables: IDisposable[] = [];
+
+	private _tooltip: string;
+	get tooltip(): string { return this._tooltip; }
+	set tooltip(tooltip: string) {
+		if (this._tooltip !== tooltip) {
+			this._tooltip = tooltip;
+			this._onDidChangeTooltip.fire();
+		}
+	}
+	private _onDidChangeTooltip: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeTooltip: Event<void> = this._onDidChangeTooltip.event;
 
 	constructor(
 		private parent: HTMLElement,
@@ -159,7 +202,7 @@ export class RecommendationWidget extends ExtensionWidget {
 	}
 
 	private clear(): void {
-		this.parent.title = '';
+		this.tooltip = '';
 		this.parent.setAttribute('aria-label', this.extension ? localize('viewExtensionDetailsAria', "{0}. Press enter for extension details.", this.extension.displayName) : '');
 		if (this.element) {
 			this.parent.removeChild(this.element);
@@ -186,8 +229,7 @@ export class RecommendationWidget extends ExtensionWidget {
 			};
 			applyBookmarkStyle(this.themeService.getTheme());
 			this.themeService.onThemeChange(applyBookmarkStyle, this, this.disposables);
-			this.parent.title = extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText;
-			this.parent.setAttribute('aria-label', localize('viewRecommendedExtensionDetailsAria', "{0}. {1} Press enter for extension details.", this.extension.displayName, extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText));
+			this.tooltip = extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText;
 		}
 	}
 
