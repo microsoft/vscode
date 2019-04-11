@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { createRemoteURITransformer } from 'vs/workbench/services/extensions/node/remoteUriTransformer';
+import { createRemoteURITransformer } from 'vs/agent/remoteUriTransformer';
 import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import * as nls from 'vs/nls';
 import * as path from 'path';

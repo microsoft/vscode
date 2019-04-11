@@ -111,7 +111,6 @@
 				"build/gulpfile.reh.js",
 				"src/vs/platform/remote/common/remoteAgentConnection.ts",
 				"src/vs/workbench/services/extensions/electron-browser/extensionService.ts",
-				"src/vs/workbench/services/extensions/node/remoteUriTransformer.ts",
 			]
 		},
 		{

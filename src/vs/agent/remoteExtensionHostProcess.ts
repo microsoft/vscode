@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { startExtensionHostProcess } from 'vs/workbench/services/extensions/node/extensionHostProcessSetup';
-import { createRemoteURITransformer } from 'vs/workbench/services/extensions/node/remoteUriTransformer';
+import { createRemoteURITransformer } from 'vs/agent/remoteUriTransformer';
 import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 
 class SchemeTransformer implements ISchemeTransformer {

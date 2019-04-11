@@ -35,7 +35,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { RemoteAgentFileSystemChannel } from 'vs/agent/remoteAgentFileSystemImpl';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { createRemoteURITransformer } from 'vs/workbench/services/extensions/node/remoteUriTransformer';
+import { createRemoteURITransformer } from 'vs/agent/remoteUriTransformer';
 import { Main as CliMain } from 'vs/code/node/cliProcessMain';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
