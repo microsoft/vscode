@@ -31,7 +31,7 @@ export class NodeTextFileService extends TextFileService {
 	private _encoding: EncodingOracle;
 	protected get encoding(): EncodingOracle {
 		if (!this._encoding) {
-			this._encoding = this._register(this.instantiationService.createInstance(EncodingOracle, []));
+			this._encoding = this._register(this.instantiationService.createInstance(EncodingOracle));
 		}
 
 		return this._encoding;
@@ -247,10 +247,9 @@ export interface IEncodingOverride {
 }
 
 export class EncodingOracle extends Disposable {
-	private encodingOverrides: IEncodingOverride[];
+	protected encodingOverrides: IEncodingOverride[];
 
 	constructor(
-		encodingOverrides: IEncodingOverride[],
 		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -258,7 +257,7 @@ export class EncodingOracle extends Disposable {
 	) {
 		super();
 
-		this.encodingOverrides = encodingOverrides || this.getDefaultEncodingOverrides();
+		this.encodingOverrides = this.getDefaultEncodingOverrides();
 
 		this.registerListeners();
 	}

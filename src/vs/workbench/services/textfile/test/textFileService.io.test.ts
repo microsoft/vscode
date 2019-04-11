@@ -27,7 +27,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { detectEncodingByBOM, UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
-import { NodeTextFileService, EncodingOracle } from 'vs/workbench/services/textfile/node/textFileService';
+import { NodeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/node/textFileService';
 import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -47,18 +47,27 @@ class ServiceAccessor {
 
 class TestNodeTextFileService extends NodeTextFileService {
 
-	private _testEncoding: EncodingOracle;
-	protected get encoding(): EncodingOracle {
+	private _testEncoding: TestEncodingOracle;
+	protected get encoding(): TestEncodingOracle {
 		if (!this._testEncoding) {
-			this._testEncoding = this._register(this.instantiationService.createInstance(EncodingOracle, [
-				{ extension: 'utf16le', encoding: UTF16le },
-				{ extension: 'utf16be', encoding: UTF16be },
-				{ extension: 'utf8bom', encoding: UTF8_with_bom }
-			]));
+			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
 		}
 
 		return this._testEncoding;
 	}
+}
+
+class TestEncodingOracle extends EncodingOracle {
+
+	protected get encodingOverrides(): IEncodingOverride[] {
+		return [
+			{ extension: 'utf16le', encoding: UTF16le },
+			{ extension: 'utf16be', encoding: UTF16be },
+			{ extension: 'utf8bom', encoding: UTF8_with_bom }
+		];
+	}
+
+	protected set encodingOverrides(overrides: IEncodingOverride[]) { }
 }
 
 suite('Files - TextFileService i/o', () => {
