@@ -3900,12 +3900,12 @@ gulp-flatmap@^1.0.2:
     through2 "2.0.3"
 
 gulp-gunzip@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/gulp-gunzip/-/gulp-gunzip-1.0.0.tgz#15b741145e83a9c6f50886241b57cc5871f151a9"
-  integrity sha1-FbdBFF6Dqcb1CIYkG1fMWHHxUak=
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/gulp-gunzip/-/gulp-gunzip-1.1.0.tgz#56f81b4ed8106ba3c905e310661ee7f11eb5ac03"
+  integrity sha512-3INeprGyz5fUtAs75k6wVslGuRZIjKAoQp39xA7Bz350ReqkrfYaLYqjZ67XyIfLytRXdzeX04f+DnBduYhQWw==
   dependencies:
-    through2 "~0.6.5"
-    vinyl "~0.4.6"
+    through2 "~2.0.3"
+    vinyl "~2.0.1"
 
 gulp-json-editor@^2.5.0:
   version "2.5.0"
@@ -7761,12 +7761,12 @@ right-align@^0.1.1:
   dependencies:
     align-text "^0.1.1"
 
-rimraf@2, rimraf@^2.4.2, rimraf@^2.5.4, rimraf@^2.6.1, rimraf@^2.6.2:
-  version "2.6.2"
-  resolved "https://registry.yarnpkg.com/rimraf/-/rimraf-2.6.2.tgz#2ed8150d24a16ea8651e6d6ef0f47c4158ce7a36"
-  integrity sha512-lreewLK/BlghmxtfH36YYVg1i8IAce4TI7oao75I1g245+6BctqTVQiBP3YUJ9C6DQOXJmkYR9X9fCLtCOJc5w==
+rimraf@2:
+  version "2.6.3"
+  resolved "https://registry.yarnpkg.com/rimraf/-/rimraf-2.6.3.tgz#b2d104fe0d8fb27cf9e0a1cda8262dd3833c6cab"
+  integrity sha512-mwqeW5XsA2qAejG46gYdENaxXjx9onRNCfn7L0duuP4hCuTIi/QO7PDK07KJfp1d+izWPrzEJDcSqBa0OZQriA==
   dependencies:
-    glob "^7.0.5"
+    glob "^7.1.3"
 
 rimraf@^2.2.8:
   version "2.6.1"

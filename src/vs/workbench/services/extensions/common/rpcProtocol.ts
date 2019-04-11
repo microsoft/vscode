@@ -258,11 +258,6 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 				this._receiveReply(msgLength, req, value);
 				break;
 			}
-			case MessageType.ReplyOKBuffer: {
-				let value = MessageIO.deserializeReplyOKBuffer(buff);
-				this._receiveReply(msgLength, req, value);
-				break;
-			}
 			case MessageType.ReplyOKVSBuffer: {
 				let value = MessageIO.deserializeReplyOKVSBuffer(buff);
 				this._receiveReply(msgLength, req, value);
@@ -517,19 +512,9 @@ class MessageBuffer {
 		return str;
 	}
 
-	public static sizeBuffer(buff: VSBuffer): number {
-		return 4 /* buffer length */ + buff.byteLength /* actual buffer */;
-	}
-
 	public writeBuffer(buff: VSBuffer): void {
 		this._buff.writeUint32BE(buff.byteLength, this._offset); this._offset += 4;
 		this._buff.set(buff, this._offset); this._offset += buff.byteLength;
-	}
-
-	public readBuffer(): Buffer {
-		const buffLength = this._buff.readUint32BE(this._offset); this._offset += 4;
-		const buff = this._buff.slice(this._offset, this._offset + buffLength); this._offset += buffLength;
-		return <Buffer>buff.buffer;
 	}
 
 	public static sizeVSBuffer(buff: VSBuffer): number {
@@ -556,8 +541,6 @@ class MessageBuffer {
 			size += 1; // arg type
 			if (elType === ArgType.String) {
 				size += this.sizeLongString(el);
-			} else if (elType === ArgType.Buffer) {
-				size += this.sizeBuffer(el);
 			} else {
 				size += this.sizeVSBuffer(el);
 			}
@@ -573,9 +556,6 @@ class MessageBuffer {
 			if (elType === ArgType.String) {
 				this.writeUInt8(ArgType.String);
 				this.writeLongString(el);
-			} else if (elType === ArgType.Buffer) {
-				this.writeUInt8(ArgType.Buffer);
-				this.writeVSBuffer(el);
 			} else {
 				this.writeUInt8(ArgType.VSBuffer);
 				this.writeVSBuffer(el);
@@ -583,17 +563,14 @@ class MessageBuffer {
 		}
 	}
 
-	public readMixedArray(): Array<string | Buffer | VSBuffer> {
+	public readMixedArray(): Array<string | VSBuffer> {
 		const arrLen = this._buff.readUint8(this._offset); this._offset += 1;
-		let arr: Array<string | Buffer | VSBuffer> = new Array(arrLen);
+		let arr: Array<string | VSBuffer> = new Array(arrLen);
 		for (let i = 0; i < arrLen; i++) {
 			const argType = <ArgType>this.readUInt8();
 			switch (argType) {
 				case ArgType.String:
 					arr[i] = this.readLongString();
-					break;
-				case ArgType.Buffer:
-					arr[i] = this.readBuffer();
 					break;
 				case ArgType.VSBuffer:
 					arr[i] = this.readVSBuffer();
@@ -608,9 +585,6 @@ class MessageIO {
 
 	private static _arrayContainsBuffer(arr: any[]): boolean {
 		for (let i = 0, len = arr.length; i < len; i++) {
-			if (Buffer.isBuffer(arr[i])) {
-				return true;
-			}
 			if (arr[i] instanceof VSBuffer) {
 				return true;
 			}
@@ -624,10 +598,7 @@ class MessageIO {
 			let massagedArgsType: ArgType[] = [];
 			for (let i = 0, len = args.length; i < len; i++) {
 				const arg = args[i];
-				if (Buffer.isBuffer(arg)) {
-					massagedArgs[i] = VSBuffer.wrap(arg);
-					massagedArgsType[i] = ArgType.Buffer;
-				} else if (arg instanceof VSBuffer) {
+				if (arg instanceof VSBuffer) {
 					massagedArgs[i] = arg;
 					massagedArgsType[i] = ArgType.VSBuffer;
 				} else {
@@ -714,9 +685,6 @@ class MessageIO {
 		if (typeof res === 'undefined') {
 			return this._serializeReplyOKEmpty(req);
 		}
-		if (Buffer.isBuffer(res)) {
-			return this._serializeReplyOKBuffer(req, res);
-		}
 		if (res instanceof VSBuffer) {
 			return this._serializeReplyOKVSBuffer(req, res);
 		}
@@ -727,17 +695,6 @@ class MessageIO {
 		return MessageBuffer.alloc(MessageType.ReplyOKEmpty, req, 0).buffer;
 	}
 
-	private static _serializeReplyOKBuffer(req: number, res: Buffer): VSBuffer {
-		const buff = VSBuffer.wrap(res);
-
-		let len = 0;
-		len += MessageBuffer.sizeBuffer(buff);
-
-		let result = MessageBuffer.alloc(MessageType.ReplyOKBuffer, req, len);
-		result.writeBuffer(buff);
-		return result.buffer;
-	}
-
 	private static _serializeReplyOKVSBuffer(req: number, res: VSBuffer): VSBuffer {
 		let len = 0;
 		len += MessageBuffer.sizeVSBuffer(res);
@@ -745,10 +702,6 @@ class MessageIO {
 		let result = MessageBuffer.alloc(MessageType.ReplyOKVSBuffer, req, len);
 		result.writeVSBuffer(res);
 		return result.buffer;
-	}
-
-	public static deserializeReplyOKBuffer(buff: MessageBuffer): Buffer {
-		return buff.readBuffer();
 	}
 
 	public static deserializeReplyOKVSBuffer(buff: MessageBuffer): VSBuffer {
@@ -807,15 +760,13 @@ const enum MessageType {
 	Acknowledged = 5,
 	Cancel = 6,
 	ReplyOKEmpty = 7,
-	ReplyOKBuffer = 8,
-	ReplyOKVSBuffer = 9,
-	ReplyOKJSON = 10,
-	ReplyErrError = 11,
-	ReplyErrEmpty = 12,
+	ReplyOKVSBuffer = 8,
+	ReplyOKJSON = 9,
+	ReplyErrError = 10,
+	ReplyErrEmpty = 11,
 }
 
 const enum ArgType {
 	String = 1,
-	Buffer = 2,
-	VSBuffer = 3
+	VSBuffer = 2
 }
