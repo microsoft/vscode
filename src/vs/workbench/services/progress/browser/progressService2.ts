@@ -60,7 +60,7 @@ export class ProgressService2 implements IProgressService2 {
 			case ProgressLocation.Extensions:
 				return this._withViewletProgress('workbench.view.extensions', task);
 			case ProgressLocation.Dialog:
-				return this._withDialogProgress(task, onDidCancel);
+				return this._withDialogProgress(options, task, onDidCancel);
 			default:
 				return Promise.reject(new Error(`Bad progress location: ${location}`));
 		}
@@ -274,7 +274,7 @@ export class ProgressService2 implements IProgressService2 {
 		return promise;
 	}
 
-	private _withDialogProgress<P extends Promise<R>, R = unknown>(task: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
+	private _withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressOptions, task: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
 		const disposables: IDisposable[] = [];
 
 		let dialog: Dialog;
@@ -283,19 +283,19 @@ export class ProgressService2 implements IProgressService2 {
 			dialog = new Dialog(
 				this._layoutService.container,
 				message,
-				[localize('cancel', "Cancel")],
-				{
-					type: 'pending',
-					cancelId: 0
-				});
+				[options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss")],
+				{ type: 'pending' }
+			);
 
 			disposables.push(dialog);
 			disposables.push(attachDialogStyler(dialog, this._themeService));
 
 			dialog.show().then(() => {
-				if (typeof onDidCancel === 'function') {
+				if (options.cancellable && typeof onDidCancel === 'function') {
 					onDidCancel();
 				}
+
+				dispose(dialog);
 			});
 
 			return dialog;
