@@ -26,7 +26,7 @@ if (!!product.reportIssueUrl) {
 
 	CommandsRegistry.registerCommand(OpenIssueReporterActionId, function (accessor, args?: [string]) {
 		let extensionId: string | undefined;
-		if (args) {
+		if (args && Array.isArray(args)) {
 			[extensionId] = args;
 		}
 
@@ -38,8 +38,6 @@ if (!!product.reportIssueUrl) {
 		title: { value: OpenIssueReporterActionLabel, original: 'Help: Open Issue Reporter' },
 		category: helpCategory
 	};
-
-	MenuRegistry.addCommand(command);
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command });
 }
