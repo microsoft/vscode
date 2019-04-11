@@ -439,15 +439,19 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			autoStart = true;
 			extensions = this.getExtensions();
 		}
+
+		const workerExtension = new Set<string>();
+		workerExtension.add(ExtensionIdentifier.toKey('jrieken.helloworld'));
+
 		{
-			const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions.then(value => value.filter(desc => !ExtensionIdentifier.equals(desc.identifier, 'jrieken.helloworld'))), this._extensionHostLogsLocation);
+			const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions.then(value => value.filter(desc => !workerExtension.has(desc.identifier.value))), this._extensionHostLogsLocation);
 			const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, null, initialActivationEvents);
 			extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
 			extHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ target: extHostProcessManager, isResponsive: responsiveState === ResponsiveState.Responsive }); });
 			this._extensionHostProcessManagers.push(extHostProcessManager);
 		}
 		{
-			const extHostWebWorkerWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, /* autoStart, */ extensions.then(value => value.filter(desc => ExtensionIdentifier.equals(desc.identifier, 'jrieken.helloworld'))), this._extensionHostLogsLocation);
+			const extHostWebWorkerWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, /* autoStart, */ extensions.then(value => value.filter(desc => workerExtension.has(desc.identifier.value))), this._extensionHostLogsLocation);
 			const extHostWebWorkerManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostWebWorkerWorker, null, initialActivationEvents);
 			extHostWebWorkerManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
 			extHostWebWorkerManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ target: extHostWebWorkerManager, isResponsive: responsiveState === ResponsiveState.Responsive }); });

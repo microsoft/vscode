@@ -32,6 +32,7 @@ import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
+import { endsWith } from 'vs/base/common/strings';
 // import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
 
 interface ITestRunner {
@@ -688,10 +689,25 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 async function loadCommonJSModule<T>(logService: ILogService, modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 
-	const exports = Object.create(null);
-	self['exports'] = exports;
-	importScripts(modulePath);
-	return exports;
+	// fake commonjs world
+	const module = { exports: {} };
+	self['module'] = module;
+	self['exports'] = module.exports;
+
+	// that's improper but might help extensions that aren't author correctly
+	// @ts-ignore
+	self['window'] = self;
+
+	// import the single (!) script, make sure it's a JS-file
+	const suffix = '.js';
+	if (endsWith(modulePath, suffix)) {
+		importScripts(modulePath);
+	} else {
+		importScripts(modulePath + suffix);
+	}
+
+	// return what it exported
+	return module.exports as T;
 }
 
 function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): any {
