@@ -129,12 +129,6 @@ steps:
     .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(ESRP_AUTH_CERTIFICATE) -AuthCertificateKey $(ESRP_AUTH_CERTIFICATE_KEY)
   displayName: Import ESRP Auth Certificate
 
-- task: ArchiveFiles@2
-  displayName: 'Create Server Archive'
-  inputs:
-    rootFolderOrFile: '..\vscode-reh-win32-$(VSCODE_ARCH)'
-    archiveFile: '.build\vscode-server-win32-$(VSCODE_ARCH).zip'
-
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
