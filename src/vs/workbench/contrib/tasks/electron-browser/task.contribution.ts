@@ -1961,7 +1961,7 @@ class TaskService extends Disposable implements ITaskService {
 		return entries;
 	}
 
-	private showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry): Promise<Task | undefined | null> {
+	private showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
 		let _createEntries = (): Promise<TaskQuickPickEntry[]> => {
 			if (Array.isArray(tasks)) {
 				return Promise.resolve(this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
@@ -1973,8 +1973,8 @@ class TaskService extends Disposable implements ITaskService {
 			if ((entries.length === 0) && defaultEntry) {
 				entries.push(defaultEntry);
 			}
-			else if (selectedEntry) {
-				entries.push(selectedEntry);
+			else if (additionalEntries && additionalEntries.length > 0) {
+				entries.push(additionalEntries[0]);
 			}
 			return entries;
 		}), {
@@ -1989,7 +1989,7 @@ class TaskService extends Disposable implements ITaskService {
 						this.openConfig(task);
 					}
 				}
-			}).then(entry => entry ? entry.task : undefined);
+			});
 	}
 
 	private showIgnoredFoldersMessage(): Promise<void> {
@@ -2049,7 +2049,11 @@ class TaskService extends Disposable implements ITaskService {
 					task: null
 				},
 				true).
-				then((task) => {
+				then((entry) => {
+					if (entry === undefined || entry === null) {
+						return;
+					}
+					let task: Task | undefined | null = entry.task;
 					if (task === undefined) {
 						return;
 					}
@@ -2129,7 +2133,11 @@ class TaskService extends Disposable implements ITaskService {
 						label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
 						task: null
 					},
-					true).then((task) => {
+					true).then((entry) => {
+						if (entry === undefined || entry === null) {
+							return;
+						}
+						let task: Task | undefined | null = entry.task;
 						if (task === undefined) {
 							return;
 						}
@@ -2177,7 +2185,11 @@ class TaskService extends Disposable implements ITaskService {
 						label: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...'),
 						task: null
 					}, true
-				).then((task) => {
+				).then((entry) => {
+					if (entry === undefined || entry === null) {
+						return;
+					}
+					let task: Task | undefined | null = entry.task;
 					if (task === undefined) {
 						return;
 					}
@@ -2210,13 +2222,19 @@ class TaskService extends Disposable implements ITaskService {
 					task: undefined
 				},
 				false, true,
-				{
+				undefined,
+				[{
 					label: nls.localize('TaskService.terminateAllRunningTasks', 'All running tasks'),
+					id: '66',
 					task: null
+				}]
+			).then(entry => {
+				if (entry === undefined || entry === null) {
+					return;
 				}
-			).then(task => {
+				let task: Task | undefined | null = entry.task;
 				if (task === undefined || task === null) {
-					if (task === null) {
+					if (entry.id && entry.id === '66') {
 						this.terminateAll();
 					}
 					return;
@@ -2273,7 +2291,11 @@ class TaskService extends Disposable implements ITaskService {
 					task: null
 				},
 				false, true
-			).then(task => {
+			).then(entry => {
+				if (entry === undefined || entry === null) {
+					return;
+				}
+				let task: Task | undefined | null = entry.task;
 				if (task === undefined || task === null) {
 					return;
 				}
@@ -2485,7 +2507,11 @@ class TaskService extends Disposable implements ITaskService {
 				this.showIgnoredFoldersMessage().then(() => {
 					this.showQuickPick(tasks,
 						nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'), undefined, true, false, selectedEntry).
-						then((task) => {
+						then((entry) => {
+							if (entry === undefined || entry === null) {
+								return;
+							}
+							let task: Task | undefined | null = entry.task;
 							if ((task === undefined) || (task === null)) {
 								return;
 							}
@@ -2535,7 +2561,11 @@ class TaskService extends Disposable implements ITaskService {
 
 				this.showIgnoredFoldersMessage().then(() => {
 					this.showQuickPick(tasks,
-						nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true, false, selectedEntry).then((task) => {
+						nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true, false, selectedEntry).then((entry) => {
+							if (entry === undefined || entry === null) {
+								return;
+							}
+							let task: Task | undefined | null = entry.task;
 							if (!task) {
 								return;
 							}
@@ -2568,7 +2598,11 @@ class TaskService extends Disposable implements ITaskService {
 				task: null
 			},
 			false, true
-		).then((task) => {
+		).then((entry) => {
+			if (entry === undefined || entry === null) {
+				return;
+			}
+			let task: Task | undefined | null = entry.task;
 			if (task === undefined || task === null) {
 				return;
 			}
