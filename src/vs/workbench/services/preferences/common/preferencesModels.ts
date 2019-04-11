@@ -578,7 +578,7 @@ export class DefaultSettings extends Disposable {
 				result.push(settingsGroup);
 			}
 			const configurationSettings: ISetting[] = [];
-			for (const setting of [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties, config.extensionInfo ? config.extensionInfo : undefined)]) {
+			for (const setting of [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties, config.extensionInfo)]) {
 				if (!seenSettings[setting.key]) {
 					configurationSettings.push(setting);
 					seenSettings[setting.key] = true;
