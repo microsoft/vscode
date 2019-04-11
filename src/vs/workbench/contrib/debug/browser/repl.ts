@@ -720,11 +720,25 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	getHeight(element: IReplElement): number {
 		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
 		const fontSize = this.configurationService.getValue<IDebugConfiguration>('debug').console.fontSize;
+		const rowHeight = Math.ceil(1.4 * fontSize);
 		if (element instanceof Expression && element.hasChildren) {
-			return Math.ceil(2 * 1.4 * fontSize);
+			return 2 * rowHeight;
 		}
 
-		return Math.ceil(1.4 * fontSize);
+		// In order to keep scroll position we need to give a good approximation to the tree
+		if (element instanceof SimpleReplElement) {
+			// For every 150 characters increase the number of lines needed
+			let count = Math.ceil(element.value.length / 150);
+			for (let i = 0; i < element.value.length; i++) {
+				if (element.value[i] === '\n' || element.value[i] === '\r\n') {
+					count++;
+				}
+			}
+
+			return Math.max(1, count) * rowHeight;
+		}
+
+		return rowHeight;
 	}
 
 	getTemplateId(element: IReplElement): string {
