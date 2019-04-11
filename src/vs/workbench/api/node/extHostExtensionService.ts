@@ -672,7 +672,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	public async $test_down(size: number): Promise<VSBuffer> {
-		return VSBuffer.wrap(Buffer.alloc(size, Math.random() % 256));
+		let buff = VSBuffer.alloc(size);
+		let value = Math.random() % 256;
+		for (let i = 0; i < size; i++) {
+			buff.writeUint8(value, i);
+		}
+		return buff;
 	}
 
 }
