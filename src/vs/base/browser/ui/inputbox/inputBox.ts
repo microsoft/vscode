@@ -95,6 +95,7 @@ export class InputBox extends Widget {
 	private validation?: IInputValidator;
 	private state: string | null = 'idle';
 	private cachedHeight: number | null;
+	private cachedScrollTop: number | null;
 
 	private inputBackground?: Color;
 	private inputForeground?: Color;
@@ -115,6 +116,9 @@ export class InputBox extends Widget {
 
 	private _onDidHeightChange = this._register(new Emitter<number>());
 	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
+
+	private _onDidScrollTopChange = this._register(new Emitter<number>());
+	public readonly onDidScrollTopChange: Event<number> = this._onDidScrollTopChange.event;
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options?: IInputOptions) {
 		super();
@@ -177,6 +181,7 @@ export class InputBox extends Widget {
 		this.oninput(this.input, () => this.onValueChange());
 		this.onblur(this.input, () => this.onBlur());
 		this.onfocus(this.input, () => this.onFocus());
+		this.onkeydown(this.input, () => this.checkScrollTop());
 
 		// Add placeholder shim for IE because IE decides to hide the placeholder on focus (we dont want that!)
 		if (this.placeholder && Bal.isIE) {
@@ -209,6 +214,14 @@ export class InputBox extends Widget {
 
 	private onFocus(): void {
 		this._showMessage();
+	}
+
+	private checkScrollTop(): void {
+		const scrollTop = this.element.scrollTop;
+		if (scrollTop !== this.cachedScrollTop) {
+			this.cachedScrollTop = scrollTop;
+			this._onDidScrollTopChange.fire(this.cachedScrollTop);
+		}
 	}
 
 	public setPlaceHolder(placeHolder: string): void {
@@ -299,6 +312,10 @@ export class InputBox extends Widget {
 		if (this.mirror) {
 			this.mirror.style.width = width + 'px';
 		}
+	}
+
+	public get scrollTop(): number {
+		return this.cachedScrollTop === null ? this.element.scrollTop : this.cachedScrollTop;
 	}
 
 	public showMessage(message: IMessage, force?: boolean): void {
@@ -511,6 +528,12 @@ export class InputBox extends Widget {
 		if (previousHeight !== this.cachedHeight) {
 			this.input.style.height = this.cachedHeight + 'px';
 			this._onDidHeightChange.fire(this.cachedHeight);
+
+			if (previousHeight) {
+				const scrollTop = this.cachedHeight - previousHeight + this.scrollTop;
+				this.cachedScrollTop = scrollTop;
+				this._onDidScrollTopChange.fire(this.cachedScrollTop);
+			}
 		}
 	}
 

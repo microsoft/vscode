@@ -49,6 +49,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -701,6 +703,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private cachedWidth: number | undefined = undefined;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
+	private scrollableElement: ScrollableElement;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private listLabels: ResourceLabels;
@@ -794,6 +797,31 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.inputBox.onDidChange(triggerValidation, null, this.disposables);
 
+		this.scrollableElement = new ScrollableElement(this.inputBox.element, {
+			vertical: ScrollbarVisibility.Visible
+		});
+
+		this.disposables.push(this.scrollableElement);
+
+		this.scrollableElement.onScroll((e) => {
+			this.scrollInput(e.scrollTop);
+		});
+
+		append(this.inputBoxContainer, this.scrollableElement.getDomNode());
+
+		const updateScrollDimensions = () => {
+			const scrollHeight = this.inputBox.height;
+			const height = scrollHeight > 134 ? 134 : scrollHeight;
+			const scrollTop = this.inputBox.scrollTop;
+
+			this.scrollableElement.setScrollDimensions({ scrollHeight: scrollHeight, height: height });
+			this.scrollableElement.setScrollPosition({ scrollTop: scrollTop });
+		};
+
+		this.inputBox.element.style.maxHeight = '134px';
+		this.inputBox.onDidHeightChange(updateScrollDimensions, null, this.disposables);
+		this.inputBox.onDidScrollTopChange(updateScrollDimensions, null, this.disposables);
+
 		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
 		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
 		Event.any<any>(onKeyUp, onMouseUp)(triggerValidation, null, this.disposables);
@@ -861,6 +889,10 @@ export class RepositoryPanel extends ViewletPanel {
 		this.onDidChangeBodyVisibility(visible => this.inputBox.setEnabled(visible));
 	}
 
+	private scrollInput(scrollTop: number): void {
+		this.inputBox.element.scrollTop = scrollTop;
+	}
+
 	private onDidChangeVisibility(visible: boolean): void {
 		if (visible) {
 			const listSplicer = new ResourceGroupSplicer(this.repository.provider.groups, this.list);
@@ -881,15 +913,12 @@ export class RepositoryPanel extends ViewletPanel {
 			removeClass(this.inputBoxContainer, 'hidden');
 			this.inputBox.layout();
 
-			const editorHeight = this.inputBox.height;
+			const editorHeight = this.inputBox.height > 134 ? 134 : this.inputBox.height;
 			const listHeight = height - (editorHeight + 12 /* margin */);
 			this.listContainer.style.height = `${listHeight}px`;
 			this.list.layout(listHeight, width);
-
-			toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
 		} else {
 			addClass(this.inputBoxContainer, 'hidden');
-			removeClass(this.inputBoxContainer, 'scroll');
 
 			this.listContainer.style.height = `${height}px`;
 			this.list.layout(height, width);
