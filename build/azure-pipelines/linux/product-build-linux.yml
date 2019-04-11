@@ -22,21 +22,27 @@ steps:
     password $(VSCODE_MIXIN_PASSWORD)
     EOF
 
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+    git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+    git fetch distro
+    git merge $(node -p "require('./package.json').distro")
+
     CHILD_CONCURRENCY=1 yarn
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
-    npm run gulp -- hygiene
-    npm run monaco-compile-check
+    yarn gulp mixin
+    yarn gulp hygiene
+    yarn monaco-compile-check
     node build/azure-pipelines/common/installDistro.js
     node build/lib/builtInExtensions.js
 
 - script: |
     set -e
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" yarn gulp vscode-linux-$(VSCODE_ARCH)-min
   name: build
 
 - script: |
     set -e
-    npm run gulp -- "electron-$(VSCODE_ARCH)"
+    yarn gulp "electron-$(VSCODE_ARCH)"
 
     # xvfb seems to be crashing often, let's make sure it's always up
     service xvfb start
@@ -74,7 +80,7 @@ steps:
     node build/azure-pipelines/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_LINUX64)"
 
     # Publish DEB
-    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
+    yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
     PLATFORM_DEB="linux-deb-$ARCH"
     [[ "$ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
     DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
@@ -85,7 +91,7 @@ steps:
     node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_DEB" package "$DEB_FILENAME" "$VERSION" true "$DEB_PATH"
 
     # Publish RPM
-    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+    yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
     PLATFORM_RPM="linux-rpm-$ARCH"
     [[ "$ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
     RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
@@ -96,7 +102,7 @@ steps:
     node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_RPM" package "$RPM_FILENAME" "$VERSION" true "$RPM_PATH"
 
     # Publish Snap
-    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
+    yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
 
     # Pack snap tarball artifact, in order to preserve file perms
     mkdir -p $REPO/.build/linux/snap-tarball
