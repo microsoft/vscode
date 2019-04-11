@@ -575,15 +575,15 @@ export class RemoteFileDialog {
 		this.filePickBox.busy = true;
 		this.userEnteredPathSegment = trailing ? trailing : '';
 		this.autoCompletePathSegment = '';
-		this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
 		const newValue = trailing ? this.pathFromUri(resources.joinPath(newFolder, trailing)) : this.pathFromUri(newFolder, true);
 		this.currentFolder = this.remoteUriFrom(this.pathFromUri(newFolder, true));
-		this.insertText(newValue, newValue);
 		return this.createItems(this.currentFolder).then(items => {
 			this.filePickBox.items = items;
 			if (this.allowFolderSelection) {
 				this.filePickBox.activeItems = [];
 			}
+			this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
+			this.insertText(newValue, newValue);
 			this.filePickBox.busy = false;
 		});
 	}
