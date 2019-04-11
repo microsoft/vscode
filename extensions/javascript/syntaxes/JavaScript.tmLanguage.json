@@ -5255,10 +5255,6 @@
 		"jsdoctype": {
 			"patterns": [
 				{
-					"name": "invalid.illegal.type.jsdoc",
-					"match": "\\G{(?:[^}*]|\\*[^/}])+$"
-				},
-				{
 					"contentName": "entity.name.type.instance.jsdoc",
 					"begin": "\\G({)",
 					"beginCaptures": {

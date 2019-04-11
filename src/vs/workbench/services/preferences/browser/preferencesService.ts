@@ -215,10 +215,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	async openRemoteSettings(): Promise<IEditor | null> {
-		const environemnt = await this.remoteAgentService.getEnvironment();
-		if (environemnt) {
-			await this.createIfNotExists(environemnt.settingsPath, emptyEditableSettingsContent);
-			return this.editorService.openEditor({ resource: environemnt.settingsPath, options: { pinned: true, revealIfOpened: true } });
+		const environment = await this.remoteAgentService.getEnvironment();
+		if (environment) {
+			await this.createIfNotExists(environment.settingsPath, emptyEditableSettingsContent);
+			return this.editorService.openEditor({ resource: environment.settingsPath, options: { pinned: true, revealIfOpened: true } });
 		}
 		return null;
 	}
@@ -520,6 +520,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): URI | null {
 		switch (configurationTarget) {
 			case ConfigurationTarget.USER:
+			case ConfigurationTarget.USER_LOCAL:
+				return URI.file(this.environmentService.appSettingsPath);
+			case ConfigurationTarget.USER_REMOTE:
 				return URI.file(this.environmentService.appSettingsPath);
 			case ConfigurationTarget.WORKSPACE:
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
