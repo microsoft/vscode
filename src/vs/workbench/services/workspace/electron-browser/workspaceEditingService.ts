@@ -24,13 +24,14 @@ import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { isEqual, basename, isEqualOrParent, getComparisonKey } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -46,10 +47,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IFileService private readonly fileSystemService: IFileService,
+		@IFileService private readonly fileService: IFileService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWorkspacesService private readonly workspaceService: IWorkspacesService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILifecycleService readonly lifecycleService: ILifecycleService,
@@ -245,7 +247,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (path && !this.isValidTargetWorkspacePath(path)) {
 			return Promise.reject(null);
 		}
-		const remoteAuthority = this.windowService.getConfiguration().remoteAuthority;
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders, remoteAuthority);
 		if (path) {
 			await this.saveWorkspaceAs(untitledWorkspace, path);
@@ -296,9 +298,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Read the contents of the workspace file, update it to new location and save it.
-		const raw = await this.fileSystemService.resolveContent(configPathURI);
+		const raw = await this.fileService.resolveContent(configPathURI);
 		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value, configPathURI, targetConfigPathURI);
-		await this.fileSystemService.createFile(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
+		await this.textFileService.create(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
 	}
 
 	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): Promise<void> {
@@ -360,7 +362,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			}
 		}
 
-		if (this.windowService.getConfiguration().remoteAuthority) {
+		if (this.environmentService.configuration.remoteAuthority) {
 			this.windowService.reloadWindow(); // TODO aeschli: workaround until restarting works
 		} else {
 			this.extensionService.startExtensionHost();

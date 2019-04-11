@@ -284,7 +284,6 @@ export namespace DataUri {
 	}
 }
 
-
 export class ResourceGlobMatcher {
 
 	private readonly globalExpression: ParsedExpression;
@@ -310,4 +309,17 @@ export class ResourceGlobMatcher {
 		}
 		return !!this.globalExpression(resource.path);
 	}
+}
+
+export function toLocalResource(resource: URI, authority: string | undefined): URI {
+	if (authority) {
+		let path = resource.path;
+		if (path && path[0] !== paths.posix.sep) {
+			path = paths.posix.sep + path;
+		}
+
+		return resource.with({ scheme: Schemas.vscodeRemote, authority, path });
+	}
+
+	return resource.with({ scheme: Schemas.file });
 }

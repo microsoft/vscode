@@ -44,6 +44,12 @@ export abstract class Composite extends Component implements IComposite {
 		return this._onDidFocus.event;
 	}
 
+	protected fireOnDidFocus(): void {
+		if (this._onDidFocus) {
+			this._onDidFocus.fire();
+		}
+	}
+
 	private _onDidBlur: Emitter<void>;
 	get onDidBlur(): Event<void> {
 		if (!this._onDidBlur) {

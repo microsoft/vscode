@@ -214,7 +214,7 @@ export async function formatDocumentWithSelectedProvider(
 	const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
-		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, token);
+		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token);
 	}
 }
 
@@ -222,6 +222,7 @@ export async function formatDocumentWithProvider(
 	accessor: ServicesAccessor,
 	provider: DocumentFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
+	mode: FormattingMode,
 	token: CancellationToken
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
@@ -255,10 +256,13 @@ export async function formatDocumentWithProvider(
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
 		FormattingEdit.execute(editorOrModel, edits);
-		alertFormattingEdits(edits);
-		editorOrModel.pushUndoStop();
-		editorOrModel.focus();
-		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
+
+		if (mode !== FormattingMode.Silent) {
+			alertFormattingEdits(edits);
+			editorOrModel.pushUndoStop();
+			editorOrModel.focus();
+			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
+		}
 
 	} else {
 		// use model to apply edits

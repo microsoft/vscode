@@ -36,7 +36,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 	static configName = 'editor.defaultFormatter';
 
-	static extensionIds: string[] = [];
+	static extensionIds: (string | null)[] = [];
 	static extensionDescriptions: string[] = [];
 
 	constructor(
@@ -60,6 +60,10 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 		DefaultFormatter.extensionIds.length = 0;
 		DefaultFormatter.extensionDescriptions.length = 0;
+
+		DefaultFormatter.extensionIds.push(null);
+		DefaultFormatter.extensionDescriptions.push(nls.localize('nullFormatterDescription', "None"));
+
 		for (const extension of extensions) {
 			if (extension.main) {
 				DefaultFormatter.extensionIds.push(extension.identifier.value);
@@ -127,7 +131,8 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		const picks = formatter.map((formatter, index) => {
 			return <IIndexedPick>{
 				index,
-				label: formatter.displayName || formatter.extensionId || '?'
+				label: formatter.displayName || formatter.extensionId || '?',
+				description: formatter.extensionId && formatter.extensionId.value
 			};
 		});
 		const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
@@ -156,7 +161,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[DefaultFormatter.configName]: {
 			description: nls.localize('formatter.default', "Defines a default formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
-			type: 'string',
+			type: ['string', 'null'],
 			default: null,
 			enum: DefaultFormatter.extensionIds,
 			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
@@ -253,8 +258,8 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		const model = editor.getModel();
 		const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
 		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
-		if (pick) {
-			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick], editor, CancellationToken.None);
+		if (typeof pick === 'number') {
+			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick], editor, FormattingMode.Explicit, CancellationToken.None);
 		}
 		logFormatterTelemetry(telemetryService, 'document', provider, typeof pick === 'number' && provider[pick] || undefined);
 	}
@@ -291,7 +296,7 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 
 		const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
-		if (pick) {
+		if (typeof pick === 'number') {
 			await instaService.invokeFunction(formatDocumentRangeWithProvider, provider[pick], editor, range, CancellationToken.None);
 		}
 

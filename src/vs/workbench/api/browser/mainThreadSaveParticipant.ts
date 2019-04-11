@@ -211,6 +211,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		// Nothing
@@ -227,8 +228,9 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 
 		return new Promise<any>((resolve, reject) => {
 			const source = new CancellationTokenSource();
+			const editorOrModel = findEditor(model, this._codeEditorService) || model;
 			const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', overrides);
-			const request = this._instantiationService.invokeFunction(formatDocumentWithSelectedProvider, model, FormattingMode.Silent, source.token);
+			const request = this._instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, source.token);
 
 			setTimeout(() => {
 				reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));
@@ -306,7 +308,7 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 		}
 	}
 
-	private async applyCodeActions(actionsToRun: ReadonlyArray<CodeAction>) {
+	private async applyCodeActions(actionsToRun: readonly CodeAction[]) {
 		for (const action of actionsToRun) {
 			await applyCodeAction(action, this._bulkEditService, this._commandService);
 		}

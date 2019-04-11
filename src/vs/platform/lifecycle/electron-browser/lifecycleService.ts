@@ -53,7 +53,7 @@ export class LifecycleService extends AbstractLifecycleService {
 	}
 
 	private registerListeners(): void {
-		const windowId = this.windowService.getCurrentWindowId();
+		const windowId = this.windowService.windowId;
 
 		// Main side indicates that window is about to unload, check for vetos
 		ipc.on('vscode:onBeforeUnload', (_event: unknown, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {

@@ -16,7 +16,7 @@ import { ProfileSession } from 'vs/workbench/services/extensions/common/extensio
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as nls from 'vs/nls';
@@ -27,6 +27,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledResourceInput } from 'vs/workbench/common/editor';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -154,7 +155,7 @@ export class ExtensionHostProcessManager extends Disposable {
 
 		let b = Buffer.alloc(SIZE, Math.random() % 256);
 		const sw = StopWatch.create(true);
-		await proxy.$test_up(b);
+		await proxy.$test_up(VSBuffer.wrap(b));
 		sw.stop();
 		return ExtensionHostProcessManager._convert(SIZE, sw.elapsed());
 	}

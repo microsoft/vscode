@@ -11,7 +11,7 @@
 			},
 			"license": "MIT",
 			"description": "The file syntaxes/css.tmLanguage.json was derived from https://github.com/octref/language-css which was derived from the Atom package https://github.com/atom/language-css which was originally converted from the TextMate bundle https://github.com/textmate/css.tmbundle.",
-			"version": "0.0.0"
+			"version": "0.42.11"
 		}
 	],
 	"version": 1

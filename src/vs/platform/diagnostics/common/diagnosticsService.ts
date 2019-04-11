@@ -30,6 +30,11 @@ export interface IRemoteDiagnosticInfo extends IDiagnosticInfo {
 	hostName: string;
 }
 
+export interface IRemoteDiagnosticError {
+	hostName: string;
+	errorMessage: string;
+}
+
 export interface IDiagnosticInfoOptions {
 	includeProcesses?: boolean;
 	folders?: UriComponents[];
@@ -46,4 +51,8 @@ export interface WorkspaceStats {
 	configFiles: WorkspaceStatItem[];
 	fileCount: number;
 	maxFilesReached: boolean;
+}
+
+export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {
+	return !!x.hostName && !!x.errorMessage;
 }

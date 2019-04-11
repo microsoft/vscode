@@ -16,8 +16,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOutputChannelModel, AbstractFileOutputChannelModel, IOutputChannelModelService, AsbtractOutputChannelModelService, BufferredOutputChannel } from 'vs/workbench/services/output/common/outputChannelModel';
 import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalISOString } from 'vs/base/common/date';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -206,8 +205,7 @@ export class OutputChannelModelService extends AsbtractOutputChannelModelService
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super(instantiationService);
@@ -221,7 +219,7 @@ export class OutputChannelModelService extends AsbtractOutputChannelModelService
 	private _outputDir: Promise<URI> | null;
 	private get outputDir(): Promise<URI> {
 		if (!this._outputDir) {
-			const outputDir = URI.file(join(this.environmentService.logsPath, `output_${this.windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`));
+			const outputDir = URI.file(join(this.environmentService.logsPath, `output_${this.environmentService.configuration.windowId}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`));
 			this._outputDir = this.fileService.createFolder(outputDir).then(() => outputDir);
 		}
 		return this._outputDir;

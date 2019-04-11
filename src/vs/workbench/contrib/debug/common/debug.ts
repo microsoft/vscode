@@ -150,6 +150,9 @@ export interface IDebugSession extends ITreeElement {
 	readonly state: State;
 	readonly root: IWorkspaceFolder;
 	readonly parentSession: IDebugSession | undefined;
+	readonly subId: string | undefined;
+
+	setSubId(subId: string | undefined): void;
 
 	getLabel(): string;
 
@@ -424,7 +427,7 @@ export interface IDebugConfiguration {
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
-	hideSubSessions: boolean;
+	showSubSessionsInToolBar: boolean;
 	console: {
 		fontSize: number;
 		fontFamily: string;

@@ -5,10 +5,10 @@
 
 
 import * as assert from 'assert';
-import { MarkdownString, LogLevel } from 'vs/workbench/api/node/extHostTypeConverters';
+import { MarkdownString, LogLevel } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
 import { size } from 'vs/base/common/collections';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 
 suite('ExtHostTypeConverter', function () {

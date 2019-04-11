@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { memoize } from 'vs/base/common/decorators';
 import { basename } from 'vs/base/common/path';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -118,7 +118,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	getName(): string {
 		if (!this.name) {
-			this.name = basenameOrAuthority(this.resource);
+			this.name = basename(this.labelService.getUriLabel(this.resource));
 		}
 
 		return this.decorateLabel(this.name);
@@ -195,6 +195,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		if (model && model.hasState(ModelState.ORPHAN)) {
 			return localize('orphanedFile', "{0} (deleted from disk)", label);
 		}
+
 		if (model && model.isReadonly()) {
 			return localize('readonlyFile', "{0} (read-only)", label);
 		}

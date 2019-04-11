@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/f6d349a5ca698be25d3f48511888fe62d158e42c",
+	"version": "https://github.com/atom/language-java/commit/a91b17906a2142bc61c06c6f214f135a2e3cdc96",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -124,15 +124,15 @@
 		"annotations": {
 			"patterns": [
 				{
-					"begin": "((@)[^\\s(]+)(\\()",
+					"begin": "((@)\\s*([^\\s(]+))(\\()",
 					"beginCaptures": {
-						"1": {
-							"name": "storage.type.annotation.java"
-						},
 						"2": {
 							"name": "punctuation.definition.annotation.java"
 						},
 						"3": {
+							"name": "storage.type.annotation.java"
+						},
+						"4": {
 							"name": "punctuation.definition.annotation-arguments.begin.bracket.round.java"
 						}
 					},
@@ -161,7 +161,7 @@
 					]
 				},
 				{
-					"match": "(@)(interface)\\s+(\\w*)|((@)\\w*)",
+					"match": "(@)(interface)\\s+(\\w*)|((@)\\s*(\\w+))",
 					"name": "meta.declaration.annotation.java",
 					"captures": {
 						"1": {
@@ -173,11 +173,11 @@
 						"3": {
 							"name": "storage.type.annotation.java"
 						},
-						"4": {
-							"name": "storage.type.annotation.java"
-						},
 						"5": {
 							"name": "punctuation.definition.annotation.java"
+						},
+						"6": {
+							"name": "storage.type.annotation.java"
 						}
 					}
 				}

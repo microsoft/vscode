@@ -226,8 +226,8 @@ export interface IWindowService {
 
 	readonly hasFocus: boolean;
 
-	getConfiguration(): IWindowConfiguration;
-	getCurrentWindowId(): number;
+	readonly windowId: number;
+
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
@@ -456,7 +456,7 @@ export class ActiveWindowManager implements IDisposable {
 
 		this.firstActiveWindowIdPromise = createCancelablePromise(_ => windowsService.getActiveWindowId());
 		this.firstActiveWindowIdPromise
-			.then(id => this.activeWindowId = id)
+			.then(id => this.activeWindowId = typeof this.activeWindowId === 'number' ? this.activeWindowId : id)
 			.finally(this.firstActiveWindowIdPromise = undefined);
 	}
 

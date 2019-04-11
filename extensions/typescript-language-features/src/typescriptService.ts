@@ -49,7 +49,6 @@ export interface TypeScriptRequestTypes {
 	'jsxClosingTag': [Proto.JsxClosingTagRequestArgs, Proto.JsxClosingTagResponse];
 	'navto': [Proto.NavtoRequestArgs, Proto.NavtoResponse];
 	'navtree': [Proto.FileRequestArgs, Proto.NavTreeResponse];
-	'occurrences': [Proto.FileLocationRequestArgs, Proto.OccurrencesResponse];
 	'organizeImports': [Proto.OrganizeImportsRequestArgs, Proto.OrganizeImportsResponse];
 	'projectInfo': [Proto.ProjectInfoRequestArgs, Proto.ProjectInfoResponse];
 	'quickinfo': [Proto.FileLocationRequestArgs, Proto.QuickInfoResponse];

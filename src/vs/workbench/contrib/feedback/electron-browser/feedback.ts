@@ -310,6 +310,12 @@ export class FeedbackDropdown extends Dropdown {
 		};
 	}
 
+	private updateFeedbackDescription() {
+		if (this.feedbackDescriptionInput && this.feedbackDescriptionInput.textLength > this.maxFeedbackCharacters) {
+			this.feedbackDescriptionInput.value = this.feedbackDescriptionInput.value.substring(0, this.maxFeedbackCharacters);
+		}
+	}
+
 	private getCharCountText(charCount: number): string {
 		const remaining = this.maxFeedbackCharacters - charCount;
 		const text = (remaining === 1)
@@ -349,6 +355,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.sentiment = smile ? 1 : 0;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
+		this.updateFeedbackDescription();
 		this.updateCharCountText();
 		if (this.feedbackDescriptionInput) {
 			this.feedbackDescriptionInput.maxLength = this.maxFeedbackCharacters;

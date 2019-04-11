@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorInput } from 'vs/workbench/common/editor';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -151,7 +151,7 @@ export class EditorGroup extends Disposable {
 		}
 
 		for (const editor of this.editors) {
-			const editorResource = toResource(editor, { supportSideBySide: true });
+			const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 			if (editorResource && editorResource.toString() === resource.toString()) {
 				return editor;
 			}
@@ -535,7 +535,7 @@ export class EditorGroup extends Disposable {
 	}
 
 	private updateResourceMap(editor: EditorInput, remove: boolean): void {
-		const resource = toResource(editor, { supportSideBySide: true });
+		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource) {
 
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)

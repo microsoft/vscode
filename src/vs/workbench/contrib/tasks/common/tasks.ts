@@ -12,8 +12,8 @@ import { UriComponents } from 'vs/base/common/uri';
 import { ProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
 
@@ -123,7 +123,9 @@ export enum RevealKind {
 
 	/**
 	 * Only brings the terminal to front if a problem is detected executing the task
-	 * (e.g. the task couldn't be started because).
+	 * e.g. the task couldn't be started,
+	 * the task ended with an exit code other than zero,
+	 * or the problem matcher found an error.
 	 */
 	Silent = 2,
 
@@ -144,6 +146,39 @@ export namespace RevealKind {
 				return RevealKind.Never;
 			default:
 				return RevealKind.Always;
+		}
+	}
+}
+
+export enum RevealProblemKind {
+	/**
+	 * Never reveals the problems panel when this task is executed.
+	 */
+	Never = 1,
+
+
+	/**
+	 * Only reveals the problems panel if a problem is found.
+	 */
+	OnProblem = 2,
+
+	/**
+	 * Never reveals the problems panel when this task is executed.
+	 */
+	Always = 3
+}
+
+export namespace RevealProblemKind {
+	export function fromString(this: void, value: string): RevealProblemKind {
+		switch (value.toLowerCase()) {
+			case 'always':
+				return RevealProblemKind.Always;
+			case 'never':
+				return RevealProblemKind.Never;
+			case 'onproblem':
+				return RevealProblemKind.OnProblem;
+			default:
+				return RevealProblemKind.OnProblem;
 		}
 	}
 }
@@ -190,6 +225,12 @@ export interface PresentationOptions {
 	reveal: RevealKind;
 
 	/**
+	 * Controls whether the problems pane is revealed when running this task or not.
+	 * Defaults to `RevealProblemKind.Never`.
+	 */
+	revealProblem: RevealProblemKind;
+
+	/**
 	 * Controls whether the command associated with the task is echoed
 	 * in the user interface.
 	 */
@@ -225,7 +266,7 @@ export interface PresentationOptions {
 
 export namespace PresentationOptions {
 	export const defaults: PresentationOptions = {
-		echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, revealProblem: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
 	};
 }
 

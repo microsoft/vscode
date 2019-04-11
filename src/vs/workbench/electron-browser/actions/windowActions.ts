@@ -222,7 +222,7 @@ export abstract class BaseSwitchWindow extends Action {
 	protected abstract isQuickNavigate(): boolean;
 
 	run(): Promise<void> {
-		const currentWindowId = this.windowService.getCurrentWindowId();
+		const currentWindowId = this.windowService.windowId;
 
 		return this.windowsService.getWindows().then(windows => {
 			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");

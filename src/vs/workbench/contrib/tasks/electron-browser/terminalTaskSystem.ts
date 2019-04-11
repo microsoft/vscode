@@ -22,6 +22,7 @@ import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/marke
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import Constants from 'vs/workbench/contrib/markers/browser/constants';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -31,7 +32,7 @@ import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope, RevealProblemKind
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -39,9 +40,10 @@ import {
 } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { URI } from 'vs/base/common/uri';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -159,14 +161,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
-	constructor(private terminalService: ITerminalService, private outputService: IOutputService,
+	constructor(
+		private terminalService: ITerminalService,
+		private outputService: IOutputService,
+		private panelService: IPanelService,
 		private markerService: IMarkerService, private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
 		private contextService: IWorkspaceContextService,
-		private windowService: IWindowService,
+		private environmentService: IWorkbenchEnvironmentService,
 		private outputChannelId: string,
-		taskSystemInfoResolver: TaskSystemInfoResovler) {
+		taskSystemInfoResolver: TaskSystemInfoResovler
+	) {
 
 		this.activeTasks = Object.create(null);
 		this.terminals = Object.create(null);
@@ -514,11 +520,16 @@ export class TerminalTaskSystem implements ITaskSystem {
 						eventCounter--;
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 						if (eventCounter === 0) {
-							let reveal = task.command.presentation!.reveal;
-							if ((reveal === RevealKind.Silent) && (watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
+							if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 								(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
-								this.terminalService.setActiveInstance(terminal!);
-								this.terminalService.showPanel(false);
+								let reveal = task.command.presentation!.reveal;
+								let revealProblem = task.command.presentation!.revealProblem;
+								if (revealProblem === RevealProblemKind.OnProblem) {
+									this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+								} else if (reveal === RevealKind.Silent) {
+									this.terminalService.setActiveInstance(terminal!);
+									this.terminalService.showPanel(false);
+								}
 							}
 						}
 					}
@@ -642,7 +653,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 						}
 					}
 					let reveal = task.command.presentation!.reveal;
-					if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
+					let revealProblem = task.command.presentation!.revealProblem;
+					let revealProblemPanel = terminal && (revealProblem === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0);
+					if (revealProblemPanel) {
+						this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
+					} else if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
 						(startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
@@ -673,7 +688,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminal) {
 			return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
 		}
-		if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
+		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblem === RevealProblemKind.Always);
+		if (showProblemPanel) {
+			this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
+		} else if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
 			this.terminalService.setActiveInstance(terminal);
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
@@ -853,7 +871,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 			// This must be normalized to the OS
-			const authority = this.windowService.getConfiguration().remoteAuthority;
+			const authority = this.environmentService.configuration.remoteAuthority;
 			shellLaunchConfig.cwd = URI.from({ scheme: authority ? REMOTE_HOST_SCHEME : Schemas.file, authority: authority, path: cwd });
 		}
 		if (options.env) {

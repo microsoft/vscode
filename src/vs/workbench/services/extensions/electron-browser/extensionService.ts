@@ -13,7 +13,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { EnablementState, IExtensionEnablementService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { BetterMergeId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,8 +26,8 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, ProfileSession, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser, schema } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { CachedExtensionScanner, Logger } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/electron-browser/extensionHostProcessManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -97,7 +97,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
@@ -112,7 +112,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			e.join(this.activateByEvent(`onFileSystem:${e.scheme}`));
 		}));
 
-		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._windowService.getCurrentWindowId()}`));
+		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._windowService.windowId}`));
 		this._registry = new ExtensionDescriptionRegistry([]);
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
@@ -189,7 +189,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[]): Promise<void> {
-		if (this._windowService.getConfiguration().remoteAuthority) {
+		if (this._environmentService.configuration.remoteAuthority) {
 			return;
 		}
 
@@ -283,7 +283,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public canAddExtension(extension: IExtensionDescription): boolean {
-		if (this._windowService.getConfiguration().remoteAuthority) {
+		if (this._environmentService.configuration.remoteAuthority) {
 			return false;
 		}
 
@@ -303,7 +303,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public canRemoveExtension(extension: IExtensionDescription): boolean {
-		if (this._windowService.getConfiguration().remoteAuthority) {
+		if (this._environmentService.configuration.remoteAuthority) {
 			return false;
 		}
 
@@ -647,85 +647,80 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
 		if (this._environmentService.isExtensionDevelopment) {
-			const extDevLoc = this._environmentService.extensionDevelopmentLocationURI;
-			const extLocation = extension.extensionLocation;
-			if (Array.isArray(extDevLoc)) {
-				for (let p of extDevLoc) {
+			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
+			if (extDevLocs) {
+				const extLocation = extension.extensionLocation;
+				for (let p of extDevLocs) {
 					if (isEqualOrParent(extLocation, p)) {
 						return true;
 					}
 				}
-			} else if (extDevLoc) {
-				return isEqualOrParent(extLocation, extDevLoc);
 			}
 		}
 		return false;
 	}
 
-	private _getRuntimeExtensions(allExtensions: IExtensionDescription[]): Promise<IExtensionDescription[]> {
-		return this._extensionEnablementService.getDisabledExtensions()
-			.then(disabledExtensions => {
+	private async _getRuntimeExtensions(allExtensions: IExtensionDescription[]): Promise<IExtensionDescription[]> {
 
-				const runtimeExtensions: IExtensionDescription[] = [];
-				const extensionsToDisable: IExtensionDescription[] = [];
-				const userMigratedSystemExtensions: IExtensionIdentifier[] = [{ id: BetterMergeId }];
+		const runtimeExtensions: IExtensionDescription[] = [];
+		const extensionsToDisable: IExtensionDescription[] = [];
+		const userMigratedSystemExtensions: IExtensionIdentifier[] = [{ id: BetterMergeId }];
 
-				let enableProposedApiFor: string | string[] = this._environmentService.args['enable-proposed-api'] || [];
+		let enableProposedApiFor: string | string[] = this._environmentService.args['enable-proposed-api'] || [];
 
-				const notFound = (id: string) => nls.localize('notFound', "Extension \`{0}\` cannot use PROPOSED API as it cannot be found", id);
+		const notFound = (id: string) => nls.localize('notFound', "Extension \`{0}\` cannot use PROPOSED API as it cannot be found", id);
 
-				if (enableProposedApiFor.length) {
-					let allProposed = (enableProposedApiFor instanceof Array ? enableProposedApiFor : [enableProposedApiFor]);
-					allProposed.forEach(id => {
-						if (!allExtensions.some(description => ExtensionIdentifier.equals(description.identifier, id))) {
-							console.error(notFound(id));
-						}
-					});
-					// Make enabled proposed API be lowercase for case insensitive comparison
-					if (Array.isArray(enableProposedApiFor)) {
-						enableProposedApiFor = enableProposedApiFor.map(id => id.toLowerCase());
-					} else {
-						enableProposedApiFor = enableProposedApiFor.toLowerCase();
-					}
-				}
-
-				const enableProposedApiForAll = !this._environmentService.isBuilt ||
-					(!!this._environmentService.extensionDevelopmentLocationURI && product.nameLong !== 'Visual Studio Code') ||
-					(enableProposedApiFor.length === 0 && 'enable-proposed-api' in this._environmentService.args);
-
-
-				for (const extension of allExtensions) {
-
-					// Do not disable extensions under development
-					if (!this.isExtensionUnderDevelopment(extension)) {
-						if (disabledExtensions.some(disabled => areSameExtensions(disabled, { id: extension.identifier.value }))) {
-							continue;
-						}
-					}
-
-					if (!extension.isBuiltin) {
-						// Check if the extension is changed to system extension
-						const userMigratedSystemExtension = userMigratedSystemExtensions.filter(userMigratedSystemExtension => areSameExtensions(userMigratedSystemExtension, { id: extension.identifier.value }))[0];
-						if (userMigratedSystemExtension) {
-							extensionsToDisable.push(extension);
-							continue;
-						}
-					}
-					runtimeExtensions.push(this._updateEnableProposedApi(extension, enableProposedApiForAll, enableProposedApiFor));
-				}
-
-				this._telemetryService.publicLog('extensionsScanned', {
-					totalCount: runtimeExtensions.length,
-					disabledCount: disabledExtensions.length
-				});
-
-				if (extensionsToDisable.length) {
-					return this._extensionEnablementService.setEnablement(extensionsToDisable.map(e => toExtension(e)), EnablementState.Disabled)
-						.then(() => runtimeExtensions);
-				} else {
-					return runtimeExtensions;
+		if (enableProposedApiFor.length) {
+			let allProposed = (enableProposedApiFor instanceof Array ? enableProposedApiFor : [enableProposedApiFor]);
+			allProposed.forEach(id => {
+				if (!allExtensions.some(description => ExtensionIdentifier.equals(description.identifier, id))) {
+					console.error(notFound(id));
 				}
 			});
+			// Make enabled proposed API be lowercase for case insensitive comparison
+			if (Array.isArray(enableProposedApiFor)) {
+				enableProposedApiFor = enableProposedApiFor.map(id => id.toLowerCase());
+			} else {
+				enableProposedApiFor = enableProposedApiFor.toLowerCase();
+			}
+		}
+
+		const enableProposedApiForAll = !this._environmentService.isBuilt ||
+			(!!this._environmentService.extensionDevelopmentLocationURI && product.nameLong !== 'Visual Studio Code') ||
+			(enableProposedApiFor.length === 0 && 'enable-proposed-api' in this._environmentService.args);
+
+
+		for (const extension of allExtensions) {
+
+			// Do not disable extensions under development
+			if (!this.isExtensionUnderDevelopment(extension)) {
+				if (!this._extensionEnablementService.isEnabled(toExtension(extension))) {
+					continue;
+				}
+			}
+
+			if (!extension.isBuiltin) {
+				// Check if the extension is changed to system extension
+				const userMigratedSystemExtension = userMigratedSystemExtensions.filter(userMigratedSystemExtension => areSameExtensions(userMigratedSystemExtension, { id: extension.identifier.value }))[0];
+				if (userMigratedSystemExtension) {
+					extensionsToDisable.push(extension);
+					continue;
+				}
+			}
+			runtimeExtensions.push(this._updateEnableProposedApi(extension, enableProposedApiForAll, enableProposedApiFor));
+		}
+
+		this._telemetryService.publicLog('extensionsScanned', {
+			totalCount: runtimeExtensions.length,
+			disabledCount: allExtensions.length - runtimeExtensions.length
+		});
+
+		if (extensionsToDisable.length) {
+			return this._extensionEnablementService.setEnablement(extensionsToDisable.map(e => toExtension(e)), EnablementState.Disabled)
+				.then(() => runtimeExtensions);
+		} else {
+			return runtimeExtensions;
+		}
 	}
 
 	private _updateEnableProposedApi(extension: IExtensionDescription, enableProposedApiForAll: boolean, enableProposedApiFor: string | string[]): IExtensionDescription {

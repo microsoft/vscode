@@ -7,20 +7,20 @@ import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import { originalFSPath } from 'vs/base/common/resources';
 import { Barrier } from 'vs/base/common/async';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createApiFactory, IExtensionApiFactory, NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory } from 'vs/workbench/api/node/extHost.api.impl';
-import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IStaticWorkspaceData } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionMemento, IExtensionModule, HostExtension } from 'vs/workbench/api/node/extHostExtensionActivator';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { createApiFactory, IExtensionApiFactory, NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory, OpenNodeModuleFactory } from 'vs/workbench/api/node/extHost.api.impl';
+import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
+import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
+import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
+import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
@@ -31,122 +31,10 @@ import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { realpath } from 'vs/base/node/extpath';
-
-class ExtensionMemento implements IExtensionMemento {
-
-	private readonly _id: string;
-	private readonly _shared: boolean;
-	private readonly _storage: ExtHostStorage;
-
-	private readonly _init: Promise<ExtensionMemento>;
-	private _value: { [n: string]: any; };
-	private readonly _storageListener: IDisposable;
-
-	constructor(id: string, global: boolean, storage: ExtHostStorage) {
-		this._id = id;
-		this._shared = global;
-		this._storage = storage;
-
-		this._init = this._storage.getValue(this._shared, this._id, Object.create(null)).then(value => {
-			this._value = value;
-			return this;
-		});
-
-		this._storageListener = this._storage.onDidChangeStorage(e => {
-			if (e.shared === this._shared && e.key === this._id) {
-				this._value = e.value;
-			}
-		});
-	}
-
-	get whenReady(): Promise<ExtensionMemento> {
-		return this._init;
-	}
-
-	get<T>(key: string, defaultValue: T): T {
-		let value = this._value[key];
-		if (typeof value === 'undefined') {
-			value = defaultValue;
-		}
-		return value;
-	}
-
-	update(key: string, value: any): Promise<boolean> {
-		this._value[key] = value;
-		return this._storage
-			.setValue(this._shared, this._id, this._value)
-			.then(() => true);
-	}
-
-	dispose(): void {
-		this._storageListener.dispose();
-	}
-}
-
-class ExtensionStoragePath {
-
-	private readonly _workspace?: IStaticWorkspaceData;
-	private readonly _environment: IEnvironment;
-
-	private readonly _ready: Promise<string | undefined>;
-	private _value?: string;
-
-	constructor(workspace: IStaticWorkspaceData | undefined, environment: IEnvironment) {
-		this._workspace = workspace;
-		this._environment = environment;
-		this._ready = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
-	}
-
-	get whenReady(): Promise<any> {
-		return this._ready;
-	}
-
-	workspaceValue(extension: IExtensionDescription): string | undefined {
-		if (this._value) {
-			return path.join(this._value, extension.identifier.value);
-		}
-		return undefined;
-	}
-
-	globalValue(extension: IExtensionDescription): string {
-		return path.join(this._environment.globalStorageHome.fsPath, extension.identifier.value.toLowerCase());
-	}
-
-	private async _getOrCreateWorkspaceStoragePath(): Promise<string | undefined> {
-		if (!this._workspace) {
-			return Promise.resolve(undefined);
-		}
-
-		if (!this._environment.appSettingsHome) {
-			return undefined;
-		}
-		const storageName = this._workspace.id;
-		const storagePath = path.join(this._environment.appSettingsHome.fsPath, 'workspaceStorage', storageName);
-
-		const exists = await pfs.dirExists(storagePath);
-
-		if (exists) {
-			return storagePath;
-		}
-
-		try {
-			await pfs.mkdirp(storagePath);
-			await pfs.writeFile(
-				path.join(storagePath, 'meta.json'),
-				JSON.stringify({
-					id: this._workspace.id,
-					configuration: this._workspace.configuration && URI.revive(this._workspace.configuration).toString(),
-					name: this._workspace.name
-				}, undefined, 2)
-			);
-			return storagePath;
-
-		} catch (e) {
-			console.error(e);
-			return undefined;
-		}
-	}
-}
+import { VSBuffer } from 'vs/base/common/buffer';
+import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
+import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
+import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
 
 interface ITestRunner {
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
@@ -161,6 +49,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _extHostContext: IMainContext;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _extHostConfiguration: ExtHostConfiguration;
+	private readonly _environment: IEnvironment;
 	private readonly _extHostLogService: ExtHostLogService;
 
 	private readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
@@ -171,7 +60,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _readyToRunExtensions: Barrier;
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _storage: ExtHostStorage;
-	private readonly _storagePath: ExtensionStoragePath;
+	private readonly _storagePath: ExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
 	private _extensionPathIndex: Promise<TernarySearchTree<IExtensionDescription>> | null;
 	private readonly _extensionApiFactory: IExtensionApiFactory;
@@ -186,13 +75,17 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		extHostContext: IMainContext,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
-		extHostLogService: ExtHostLogService
+		environment: IEnvironment,
+		extHostLogService: ExtHostLogService,
+		schemeTransformer: ISchemeTransformer | null,
+		outputChannelName: string
 	) {
 		this._nativeExit = nativeExit;
 		this._initData = initData;
 		this._extHostContext = extHostContext;
 		this._extHostWorkspace = extHostWorkspace;
 		this._extHostConfiguration = extHostConfiguration;
+		this._environment = environment;
 		this._extHostLogService = extHostLogService;
 
 		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
@@ -203,7 +96,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._readyToRunExtensions = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
-		this._storagePath = new ExtensionStoragePath(withNullAsUndefined(initData.workspace), initData.environment);
+		this._storagePath = new ExtensionStoragePaths(withNullAsUndefined(initData.workspace), initData.environment);
 
 		const hostExtensions = new Set<string>();
 		initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));
@@ -226,7 +119,17 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._extensionPathIndex = null;
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		this._extensionApiFactory = createApiFactory(this._initData, this._extHostContext, this._extHostWorkspace, this._extHostConfiguration, this, this._extHostLogService, this._storage);
+		this._extensionApiFactory = createApiFactory(
+			this._initData,
+			this._extHostContext,
+			this._extHostWorkspace,
+			this._extHostConfiguration,
+			this,
+			this._extHostLogService,
+			this._storage,
+			schemeTransformer,
+			outputChannelName
+		);
 
 		this._resolvers = Object.create(null);
 
@@ -244,7 +147,14 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			const configProvider = await this._extHostConfiguration.getConfigProvider();
 			const extensionPaths = await this.getExtensionPathIndex();
 			NodeModuleRequireInterceptor.INSTANCE.register(new VSCodeNodeModuleFactory(this._extensionApiFactory, extensionPaths, this._registry, configProvider));
-			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar)));
+			NodeModuleRequireInterceptor.INSTANCE.register(new KeytarNodeModuleFactory(this._extHostContext.getProxy(MainContext.MainThreadKeytar), this._environment));
+			if (this._initData.remoteAuthority) {
+				NodeModuleRequireInterceptor.INSTANCE.register(new OpenNodeModuleFactory(
+					this._extHostContext.getProxy(MainContext.MainThreadWindow),
+					this._extHostContext.getProxy(MainContext.MainThreadTelemetry),
+					extensionPaths
+				));
+			}
 
 			// Do this when extension service exists, but extensions are not being activated yet.
 			await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
@@ -601,7 +511,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	private _doHandleExtensionTests(): Promise<void> {
-		const { extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
+		const { extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
 		if (!(extensionDevelopmentLocationURI && extensionTestsLocationURI && extensionTestsLocationURI.scheme === Schemas.file)) {
 			return Promise.resolve(undefined);
 		}
@@ -700,8 +610,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			authority: remoteAuthority,
 			host: result.host,
 			port: result.port,
-			debugListenPort: result.debugListenPort,
-			debugConnectPort: result.debugConnectPort,
 		};
 	}
 
@@ -754,13 +662,12 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return n;
 	}
 
-	public async $test_up(b: Buffer): Promise<number> {
-		return b.length;
+	public async $test_up(b: VSBuffer): Promise<number> {
+		return b.byteLength;
 	}
 
-	public async $test_down(size: number): Promise<Buffer> {
-		const b = Buffer.alloc(size, Math.random() % 256);
-		return b;
+	public async $test_down(size: number): Promise<VSBuffer> {
+		return VSBuffer.wrap(Buffer.alloc(size, Math.random() % 256));
 	}
 
 }

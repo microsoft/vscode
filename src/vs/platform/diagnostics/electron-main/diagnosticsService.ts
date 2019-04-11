@@ -15,7 +15,7 @@ import { app } from 'electron';
 import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IMachineInfo, WorkspaceStats, SystemInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IMachineInfo, WorkspaceStats, SystemInfo, IRemoteDiagnosticInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { collectWorkspaceStats, getMachineInfo } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { ProcessItem } from 'vs/base/common/processes';
 
@@ -92,23 +92,28 @@ export class DiagnosticsService implements IDiagnosticsService {
 			try {
 				const remoteData = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
 				remoteData.forEach(diagnostics => {
-					processInfo += `\n\nRemote: ${diagnostics.hostName}`;
-					if (diagnostics.processes) {
-						processInfo += `\n${this.formatProcessList(info, diagnostics.processes)}`;
-					}
+					if (isRemoteDiagnosticError(diagnostics)) {
+						processInfo += `\n${diagnostics.errorMessage}`;
+						workspaceInfo += `\n${diagnostics.errorMessage}`;
+					} else {
+						processInfo += `\n\nRemote: ${diagnostics.hostName}`;
+						if (diagnostics.processes) {
+							processInfo += `\n${this.formatProcessList(info, diagnostics.processes)}`;
+						}
 
-					if (diagnostics.workspaceMetadata) {
-						workspaceInfo += `\n|  Remote: ${diagnostics.hostName}`;
-						for (const folder of Object.keys(diagnostics.workspaceMetadata)) {
-							const metadata = diagnostics.workspaceMetadata[folder];
+						if (diagnostics.workspaceMetadata) {
+							workspaceInfo += `\n|  Remote: ${diagnostics.hostName}`;
+							for (const folder of Object.keys(diagnostics.workspaceMetadata)) {
+								const metadata = diagnostics.workspaceMetadata[folder];
 
-							let countMessage = `${metadata.fileCount} files`;
-							if (metadata.maxFilesReached) {
-								countMessage = `more than ${countMessage}`;
+								let countMessage = `${metadata.fileCount} files`;
+								if (metadata.maxFilesReached) {
+									countMessage = `more than ${countMessage}`;
+								}
+
+								workspaceInfo += `|    Folder (${folder}): ${countMessage}`;
+								workspaceInfo += this.formatWorkspaceStats(metadata);
 							}
-
-							workspaceInfo += `|    Folder (${folder}): ${countMessage}`;
-							workspaceInfo += this.formatWorkspaceStats(metadata);
 						}
 					}
 				});
@@ -135,7 +140,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 			processArgs: `${info.mainArguments.join(' ')}`,
 			gpuStatus: app.getGPUFeatureStatus(),
 			screenReader: `${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`,
-			remoteData: await launchService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })
+			remoteData: (await launchService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })).filter((x): x is IRemoteDiagnosticInfo => !(x instanceof Error))
 		};
 
 
@@ -169,25 +174,29 @@ export class DiagnosticsService implements IDiagnosticsService {
 			try {
 				const data = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
 				data.forEach(diagnostics => {
-					output.push('\n\n');
-					output.push(`Remote:           ${diagnostics.hostName}`);
-					output.push(this.formatMachineInfo(diagnostics.machineInfo));
+					if (isRemoteDiagnosticError(diagnostics)) {
+						output.push(`\n${diagnostics.errorMessage}`);
+					} else {
+						output.push('\n\n');
+						output.push(`Remote:           ${diagnostics.hostName}`);
+						output.push(this.formatMachineInfo(diagnostics.machineInfo));
 
-					if (diagnostics.processes) {
-						output.push(this.formatProcessList(info, diagnostics.processes));
-					}
+						if (diagnostics.processes) {
+							output.push(this.formatProcessList(info, diagnostics.processes));
+						}
 
-					if (diagnostics.workspaceMetadata) {
-						for (const folder of Object.keys(diagnostics.workspaceMetadata)) {
-							const metadata = diagnostics.workspaceMetadata[folder];
+						if (diagnostics.workspaceMetadata) {
+							for (const folder of Object.keys(diagnostics.workspaceMetadata)) {
+								const metadata = diagnostics.workspaceMetadata[folder];
 
-							let countMessage = `${metadata.fileCount} files`;
-							if (metadata.maxFilesReached) {
-								countMessage = `more than ${countMessage}`;
+								let countMessage = `${metadata.fileCount} files`;
+								if (metadata.maxFilesReached) {
+									countMessage = `more than ${countMessage}`;
+								}
+
+								output.push(`Folder (${folder}): ${countMessage}`);
+								output.push(this.formatWorkspaceStats(metadata));
 							}
-
-							output.push(`Folder (${folder}): ${countMessage}`);
-							output.push(this.formatWorkspaceStats(metadata));
 						}
 					}
 				});
@@ -306,13 +315,13 @@ export class DiagnosticsService implements IDiagnosticsService {
 		output.push('CPU %\tMem MB\t   PID\tProcess');
 
 		if (rootProcess) {
-			this.formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
+			this.formatProcessItem(info.mainPID, mapPidToWindowTitle, output, rootProcess, 0);
 		}
 
 		return output.join('\n');
 	}
 
-	private formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
+	private formatProcessItem(mainPid: number, mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
 		const isRoot = (indent === 0);
 
 		const MB = 1024 * 1024;
@@ -320,7 +329,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		// Format name with indent
 		let name: string;
 		if (isRoot) {
-			name = `${product.applicationName} main`;
+			name = item.pid === mainPid ? `${product.applicationName} main` : 'remote agent';
 		} else {
 			name = `${repeat('  ', indent)} ${item.name}`;
 
@@ -333,7 +342,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 		// Recurse into children if any
 		if (Array.isArray(item.children)) {
-			item.children.forEach(child => this.formatProcessItem(mapPidToWindowTitle, output, child, indent + 1));
+			item.children.forEach(child => this.formatProcessItem(mainPid, mapPidToWindowTitle, output, child, indent + 1));
 		}
 	}
 }

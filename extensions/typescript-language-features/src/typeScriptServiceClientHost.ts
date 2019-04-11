@@ -224,7 +224,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			}
 
 			language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), body.diagnostics.map(tsDiag => {
-				const diagnostic = new vscode.Diagnostic(typeConverters.Range.fromTextSpan(tsDiag), body.diagnostics[0].text);
+				const range = tsDiag.start && tsDiag.end ? typeConverters.Range.fromTextSpan(tsDiag) : new vscode.Range(0, 0, 0, 1);
+				const diagnostic = new vscode.Diagnostic(range, body.diagnostics[0].text, this.getDiagnosticSeverity(tsDiag));
 				diagnostic.source = language.diagnosticSource;
 				return diagnostic;
 			}));
@@ -241,8 +242,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any } {
 		const { start, end, text } = diagnostic;
 		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
-		const converted = new vscode.Diagnostic(range, text);
-		converted.severity = this.getDiagnosticSeverity(diagnostic);
+		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));
 		converted.source = diagnostic.source || source;
 		if (diagnostic.code) {
 			converted.code = diagnostic.code;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare var Buffer: any;
-const hasBuffer = (typeof Buffer !== 'undefined');
+export const hasBuffer = (typeof Buffer !== 'undefined');
 
 let textEncoder: TextEncoder | null;
 let textDecoder: TextDecoder | null;
@@ -20,6 +20,11 @@ export class VSBuffer {
 	}
 
 	public static wrap(actual: Uint8Array): VSBuffer {
+		if (hasBuffer && !(Buffer.isBuffer(actual))) {
+			// https://nodejs.org/dist/latest-v10.x/docs/api/buffer.html#buffer_class_method_buffer_from_arraybuffer_byteoffset_length
+			// Create a zero-copy Buffer wrapper around the ArrayBuffer pointed to by the Uint8Array
+			actual = Buffer.from(actual.buffer, actual.byteOffset, actual.byteLength);
+		}
 		return new VSBuffer(actual);
 	}
 
@@ -123,4 +128,45 @@ function readUint8(source: Uint8Array, offset: number): number {
 
 function writeUint8(destination: Uint8Array, value: number, offset: number): void {
 	destination[offset] = value;
+}
+
+export interface VSBufferReadable {
+
+	/**
+	 * Read data from the underlying source. Will return
+	 * null to indicate that no more data can be read.
+	 */
+	read(): VSBuffer | null;
+}
+
+/**
+ * Helper to fully read a VSBuffer readable into a single buffer.
+ */
+export function readableToBuffer(readable: VSBufferReadable): VSBuffer {
+	const chunks: VSBuffer[] = [];
+
+	let chunk: VSBuffer | null;
+	while (chunk = readable.read()) {
+		chunks.push(chunk);
+	}
+
+	return VSBuffer.concat(chunks);
+}
+
+/**
+ * Helper to convert a buffer into a readable buffer.
+ */
+export function bufferToReadable(buffer: VSBuffer): VSBufferReadable {
+	let done = false;
+	return {
+		read: () => {
+			if (done) {
+				return null;
+			}
+
+			done = true;
+
+			return buffer;
+		}
+	};
 }

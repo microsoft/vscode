@@ -307,7 +307,7 @@ export class MenubarControl extends Disposable {
 			// Send menus to main process to be rendered by Electron
 			const menubarData = { menus: {}, keybindings: {} };
 			if (this.getMenubarMenus(menubarData)) {
-				this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), menubarData);
+				this.menubarService.updateMenubar(this.windowService.windowId, menubarData);
 			}
 		}
 	}
@@ -435,7 +435,7 @@ export class MenubarControl extends Disposable {
 				return null;
 
 			case StateType.Idle:
-				const windowId = this.windowService.getCurrentWindowId();
+				const windowId = this.windowService.windowId;
 				return new Action('update.check', nls.localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
 					this.updateService.checkForUpdates({ windowId }));
 

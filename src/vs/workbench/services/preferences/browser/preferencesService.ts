@@ -37,6 +37,7 @@ import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEdito
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel, DefaultRawSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -59,6 +60,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IFileService private readonly fileService: IFileService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -215,8 +217,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	async openRemoteSettings(): Promise<IEditor | null> {
 		const environemnt = await this.remoteAgentService.getEnvironment();
 		if (environemnt) {
-			await this.createIfNotExists(environemnt.appSettingsPath, emptyEditableSettingsContent);
-			return this.editorService.openEditor({ resource: environemnt.appSettingsPath, options: { pinned: true, revealIfOpened: true } });
+			await this.createIfNotExists(environemnt.settingsPath, emptyEditableSettingsContent);
+			return this.editorService.openEditor({ resource: environemnt.settingsPath, options: { pinned: true, revealIfOpened: true } });
 		}
 		return null;
 	}
@@ -555,7 +557,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private createIfNotExists(resource: URI, contents: string): Promise<any> {
 		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(undefined, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				return this.fileService.updateContent(resource, contents).then(undefined, error => {
+				return this.textFileService.write(resource, contents).then(undefined, error => {
 					return Promise.reject(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), error)));
 				});
 			}

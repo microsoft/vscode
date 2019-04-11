@@ -21,9 +21,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ColorThemeStore } from 'vs/workbench/services/themes/browser/colorThemeStore';
 import { FileIconThemeStore } from 'vs/workbench/services/themes/common/fileIconThemeStore';
 import { FileIconThemeData } from 'vs/workbench/services/themes/common/fileIconThemeData';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
@@ -98,8 +97,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWindowService private readonly windowService: IWindowService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService
 	) {
 
@@ -216,7 +214,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 			if (this.watchedIconThemeLocation && this.currentIconTheme && e.contains(this.watchedIconThemeLocation, FileChangeType.UPDATED)) {
 				await this.currentIconTheme.reload(this.fileService);
-				_applyIconTheme(this.currentIconTheme, () => Promise.resolve(this.currentIconTheme));
+				_applyIconTheme(this.currentIconTheme, () => {
+					this.doSetFileIconTheme(this.currentIconTheme);
+					return Promise.resolve(this.currentIconTheme);
+				});
 			}
 		});
 	}
@@ -241,7 +242,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		let detectHCThemeSetting = this.configurationService.getValue<boolean>(DETECT_HC_SETTING);
 
 		let colorThemeSetting: string;
-		if (this.windowService.getConfiguration().highContrast && detectHCThemeSetting) {
+		if (this.environmentService.configuration.highContrast && detectHCThemeSetting) {
 			colorThemeSetting = HC_THEME_ID;
 		} else {
 			colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
@@ -249,15 +250,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		let iconThemeSetting = this.configurationService.getValue<string | null>(ICON_THEME_SETTING);
 
-		const extDevLoc = this.environmentService.extensionDevelopmentLocationURI;
+		const extDevLocs = this.environmentService.extensionDevelopmentLocationURI;
 		let uri: URI | undefined;
-		if (Array.isArray(extDevLoc)) {
+		if (extDevLocs && extDevLocs.length > 0) {
 			// if there are more than one ext dev paths, use first
-			if (extDevLoc.length > 0) {
-				uri = extDevLoc[0];
-			}
-		} else {
-			uri = extDevLoc;
+			uri = extDevLocs[0];
 		}
 
 		return Promise.all([

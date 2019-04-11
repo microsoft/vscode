@@ -8,6 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 export interface IGetEnvironmentDataArguments {
 	language: string;
@@ -19,7 +20,7 @@ export interface IRemoteAgentEnvironmentDTO {
 	pid: number;
 	appRoot: UriComponents;
 	appSettingsHome: UriComponents;
-	appSettingsPath: UriComponents;
+	settingsPath: UriComponents;
 	logsPath: UriComponents;
 	extensionsPath: UriComponents;
 	extensionHostLogsPath: UriComponents;
@@ -34,7 +35,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 
 	constructor(private channel: IChannel) { }
 
-	getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI | URI[]): Promise<IRemoteAgentEnvironment> {
+	getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI[]): Promise<IRemoteAgentEnvironment> {
 		const args: IGetEnvironmentDataArguments = {
 			language: platform.language,
 			remoteAuthority,
@@ -46,7 +47,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 					pid: data.pid,
 					appRoot: URI.revive(data.appRoot),
 					appSettingsHome: URI.revive(data.appSettingsHome),
-					appSettingsPath: URI.revive(data.appSettingsPath),
+					settingsPath: URI.revive(data.settingsPath),
 					logsPath: URI.revive(data.logsPath),
 					extensionsPath: URI.revive(data.extensionsPath),
 					extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
@@ -57,5 +58,9 @@ export class RemoteExtensionEnvironmentChannelClient {
 					syncExtensions: data.syncExtensions
 				};
 			});
+	}
+
+	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {
+		return this.channel.call<IDiagnosticInfo>('getDiagnosticInfo', options);
 	}
 }

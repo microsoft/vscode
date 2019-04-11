@@ -18,6 +18,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
@@ -150,7 +151,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService,
 		@IWindowService windowSevice: IWindowService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -158,7 +159,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			if (!!environmentService.extensionTestsLocationURI) {
 				return; // no restart when in tests: see https://github.com/Microsoft/vscode/issues/66936
 			}
-			if (windowSevice.getConfiguration().remoteAuthority) {
+			if (environmentService.configuration.remoteAuthority) {
 				windowSevice.reloadWindow(); // TODO aeschli, workaround
 			} else {
 				extensionService.restartExtensionHost();

@@ -25,7 +25,7 @@ class BroadcastService extends Disposable implements IBroadcastService {
 	) {
 		super();
 
-		this.windowId = windowService.getCurrentWindowId();
+		this.windowId = windowService.windowId;
 
 		this.registerListeners();
 	}
