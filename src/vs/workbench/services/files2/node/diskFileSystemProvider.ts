@@ -487,7 +487,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				code = FileSystemProviderErrorCode.FileExists;
 				break;
 			case 'EPERM':
-			case 'EACCESS':
+			case 'EACCES':
 				code = FileSystemProviderErrorCode.NoPermissions;
 				break;
 			default:

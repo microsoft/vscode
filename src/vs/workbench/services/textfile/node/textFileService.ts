@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { tmpdir } from 'os';
+import { localize } from 'vs/nls';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IResolveContentOptions, IFileService, stringToSnapshot, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IResolveContentOptions, IFileService, stringToSnapshot, ICreateFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { exists, stat, chmod, rimraf } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
@@ -69,16 +70,41 @@ export class NodeTextFileService extends TextFileService {
 			return this.writeElevated(resource, value, options);
 		}
 
-		// check for encoding
-		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource, options);
+		try {
 
-		// return to parent when encoding is standard
-		if (encoding === UTF8 && !addBOM) {
-			return super.write(resource, value, options);
+			// check for encoding
+			const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource, options);
+
+			// return to parent when encoding is standard
+			if (encoding === UTF8 && !addBOM) {
+				return await super.write(resource, value, options);
+			}
+
+			// otherwise save with encoding
+			else {
+				return await this.fileService.writeFile(resource, this.getEncodedReadable(value, encoding, addBOM), options);
+			}
+		} catch (error) {
+
+			// In case of permission denied, we need to check for readonly
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED) {
+				let isReadonly = false;
+				try {
+					const fileStat = await stat(resource.fsPath);
+					if (!(fileStat.mode & 128)) {
+						isReadonly = true;
+					}
+				} catch (error) {
+					// ignore - rethrow original error
+				}
+
+				if (isReadonly) {
+					throw new FileOperationError(localize('fileReadOnlyError', "File is Read Only"), FileOperationResult.FILE_READ_ONLY, options);
+				}
+			}
+
+			throw error;
 		}
-
-		// otherwise save with encoding
-		return this.fileService.writeFile(resource, this.getEncodedReadable(value, encoding, addBOM), options);
 	}
 
 	private getEncodedReadable(value: string | ITextSnapshot, encoding: string, addBOM: boolean): VSBufferReadable {
@@ -165,7 +191,6 @@ export class NodeTextFileService extends TextFileService {
 					bytesRead += res.byteLength;
 					return VSBuffer.wrap(res);
 				}
-
 			}
 		};
 	}
