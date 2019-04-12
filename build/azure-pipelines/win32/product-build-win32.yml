@@ -58,7 +58,7 @@ steps:
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
     ConnectedServiceName: 'ESRP CodeSign'
-    FolderPath: '$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)'
+    FolderPath: '$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)'
     Pattern: '*.dll,*.exe,*.node'
     signConfigType: inlineSignParams
     inlineOperation: |
