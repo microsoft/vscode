@@ -886,7 +886,8 @@ suite('Disk File Service', () => {
 			assert.equal(fileStat.name, 'lorem.txt');
 		}));
 
-		assert.equal(readFileSync(resource.fsPath).toString(), '00000' + newContent);
+		const fileContent = readFileSync(resource.fsPath).toString();
+		assert.ok(['0', '00', '000', '0000', '00000'].some(offset => fileContent === offset + newContent));
 	});
 
 	test('writeFile (readable)', async () => {
