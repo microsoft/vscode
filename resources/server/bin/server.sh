@@ -10,5 +10,5 @@ fi
 
 ROOT="$(dirname "$(realpath "$0")")"
 
-"$ROOT/node" "${INSPECT:-}" "$ROOT/out/remoteExtensionHostAgent.js" "$@"
+"$ROOT/node" ${INSPECT:-} "$ROOT/out/remoteExtensionHostAgent.js" "$@"
 
