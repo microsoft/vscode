@@ -1048,7 +1048,7 @@ export class SettingsEditor2 extends BaseEditor {
 			query = this.parseSettingFromJSON(query) || query;
 			return this.triggerFilterPreferences(query);
 		} else {
-			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || (this.viewState.extensionFilters && this.viewState.extensionFilters.size) || !query) {
+			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || (this.viewState.extensionFilters && this.viewState.extensionFilters.size)) {
 				this.searchResultModel = this.createFilterModel();
 			} else {
 				this.searchResultModel = null;
@@ -1080,7 +1080,6 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.refreshTOCTree();
-			this.tocTree.expandAll();
 		}
 
 		return Promise.resolve();
