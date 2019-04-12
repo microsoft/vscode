@@ -15,7 +15,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand } from './apiCommands';
+import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand, OpenIssueReporter } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
@@ -256,6 +256,13 @@ export class ExtHostApiCommands {
 			description: 'Sets the editor layout. The layout is described as object with an initial (optional) orientation (0 = horizontal, 1 = vertical) and an array of editor groups within. Each editor group can have a size and another array of editor groups that will be laid out orthogonal to the orientation. If editor group sizes are provided, their sum must be 1 to be applied per row or column. Example for a 2x2 grid: `{ orientation: 0, groups: [{ groups: [{}, {}], size: 0.5 }, { groups: [{}, {}], size: 0.5 }] }`',
 			args: [
 				{ name: 'layout', description: 'The editor layout to set.', constraint: (value: EditorGroupLayout) => typeof value === 'object' && Array.isArray(value.groups) }
+			]
+		});
+
+		this._register(OpenIssueReporter.ID, adjustHandler(OpenIssueReporter.execute), {
+			description: 'Opens the issue reporter with the provided extension id as the selected source',
+			args: [
+				{ name: 'extensionId', description: 'extensionId to report an issue on', constraint: (value: any) => typeof value === 'string' }
 			]
 		});
 	}
