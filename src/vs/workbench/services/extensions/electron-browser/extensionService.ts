@@ -23,7 +23,7 @@ import product from 'vs/platform/product/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, ProfileSession, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser, schema } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
@@ -35,7 +35,6 @@ import { Schemas } from 'vs/base/common/network';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -568,29 +567,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 		}
 		return result;
-	}
-
-	public canProfileExtensionHost(): boolean {
-		for (let i = 0, len = this._extensionHostProcessManagers.length; i < len; i++) {
-			const extHostProcessManager = this._extensionHostProcessManagers[i];
-			if (extHostProcessManager.canProfileExtensionHost()) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	public startExtensionHostProfile(): Promise<ProfileSession> {
-		for (let i = 0, len = this._extensionHostProcessManagers.length; i < len; i++) {
-			const extHostProcessManager = this._extensionHostProcessManagers[i];
-			if (extHostProcessManager.canProfileExtensionHost()) {
-				const port = extHostProcessManager.getInspectPort();
-				if (port) {
-					return this._instantiationService.createInstance(ExtensionHostProfiler, port).start();
-				}
-			}
-		}
-		throw new Error('Extension host not running or no inspect port available');
 	}
 
 	public getInspectPort(): number {
