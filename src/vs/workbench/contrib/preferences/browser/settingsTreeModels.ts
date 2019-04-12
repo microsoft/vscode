@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isArray, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -19,6 +20,7 @@ export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
 	tagFilters?: Set<string>;
+	extensionFilters?: Set<string>;
 	filterToCategory?: SettingsTreeGroupElement;
 }
 
@@ -227,6 +229,24 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		return true;
+	}
+
+	matchesAnyExtension(extensionFilters?: Set<string>): boolean {
+		if (!extensionFilters || !extensionFilters.size) {
+			return true;
+		}
+
+		if (!this.setting.extensionInfo) {
+			return false;
+		}
+
+		for (let extensionId of extensionFilters) {
+			if (extensionId.toLowerCase() === this.setting.extensionInfo.id.toLowerCase()) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
 
@@ -495,7 +515,7 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
 		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget));
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget) && child.matchesAnyExtension(this._viewState.extensionFilters));
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();
@@ -528,11 +548,14 @@ export class SearchResultModel extends SettingsTreeModel {
 export interface IParsedQuery {
 	tags: string[];
 	query: string;
+	extensionFilters: string[];
 }
 
 const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
+const extensionRegex = /(^|\s)@ext:("([^"]*)"|[^"]\S*)?/g;
 export function parseQuery(query: string): IParsedQuery {
 	const tags: string[] = [];
+	let extensions: string[] = [];
 	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
 		tags.push(tag || quotedTag);
 		return '';
@@ -543,10 +566,19 @@ export function parseQuery(query: string): IParsedQuery {
 		return '';
 	});
 
+	query = query.replace(extensionRegex, (_, __, quotedExtensionId, extensionId) => {
+		let extensionIdQuery: string = extensionId || quotedExtensionId;
+		if (extensionIdQuery) {
+			extensions.push(...extensionIdQuery.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s)));
+		}
+		return '';
+	});
+
 	query = query.trim();
 
 	return {
 		tags,
+		extensionFilters: extensions,
 		query
 	};
 }
