@@ -133,7 +133,7 @@ async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptio
 			}
 		});
 
-		setTimeout(_ => {
+		setTimeout(() => {
 			e(new Error('handshake timeout'));
 		}, 2000);
 
