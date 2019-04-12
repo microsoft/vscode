@@ -1973,7 +1973,7 @@ class TaskService extends Disposable implements ITaskService {
 			if ((entries.length === 0) && defaultEntry) {
 				entries.push(defaultEntry);
 			}
-			else if (additionalEntries && additionalEntries.length > 0) {
+			else if (entries.length > 1 && additionalEntries && additionalEntries.length > 0) {
 				entries.push(additionalEntries[0]);
 			}
 			return entries;
@@ -2050,10 +2050,7 @@ class TaskService extends Disposable implements ITaskService {
 				},
 				true).
 				then((entry) => {
-					if (entry === undefined || entry === null) {
-						return;
-					}
-					let task: Task | undefined | null = entry.task;
+					let task: Task | undefined | null = entry ? entry.task : undefined;
 					if (task === undefined) {
 						return;
 					}
@@ -2134,10 +2131,7 @@ class TaskService extends Disposable implements ITaskService {
 						task: null
 					},
 					true).then((entry) => {
-						if (entry === undefined || entry === null) {
-							return;
-						}
-						let task: Task | undefined | null = entry.task;
+						let task: Task | undefined | null = entry ? entry.task : undefined;
 						if (task === undefined) {
 							return;
 						}
@@ -2186,10 +2180,7 @@ class TaskService extends Disposable implements ITaskService {
 						task: null
 					}, true
 				).then((entry) => {
-					if (entry === undefined || entry === null) {
-						return;
-					}
-					let task: Task | undefined | null = entry.task;
+					let task: Task | undefined | null = entry ? entry.task : undefined;
 					if (task === undefined) {
 						return;
 					}
@@ -2225,16 +2216,13 @@ class TaskService extends Disposable implements ITaskService {
 				undefined,
 				[{
 					label: nls.localize('TaskService.terminateAllRunningTasks', 'All running tasks'),
-					id: '66',
+					id: 'terminateAll',
 					task: null
 				}]
 			).then(entry => {
-				if (entry === undefined || entry === null) {
-					return;
-				}
-				let task: Task | undefined | null = entry.task;
+				let task: Task | undefined | null = entry ? entry.task : undefined;
 				if (task === undefined || task === null) {
-					if (entry.id && entry.id === '66') {
+					if (entry && entry.id === 'terminateAll') {
 						this.terminateAll();
 					}
 					return;
@@ -2292,10 +2280,7 @@ class TaskService extends Disposable implements ITaskService {
 				},
 				false, true
 			).then(entry => {
-				if (entry === undefined || entry === null) {
-					return;
-				}
-				let task: Task | undefined | null = entry.task;
+				let task: Task | undefined | null = entry ? entry.task : undefined;
 				if (task === undefined || task === null) {
 					return;
 				}
@@ -2508,10 +2493,7 @@ class TaskService extends Disposable implements ITaskService {
 					this.showQuickPick(tasks,
 						nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'), undefined, true, false, selectedEntry).
 						then((entry) => {
-							if (entry === undefined || entry === null) {
-								return;
-							}
-							let task: Task | undefined | null = entry.task;
+							let task: Task | undefined | null = entry ? entry.task : undefined;
 							if ((task === undefined) || (task === null)) {
 								return;
 							}
@@ -2562,10 +2544,7 @@ class TaskService extends Disposable implements ITaskService {
 				this.showIgnoredFoldersMessage().then(() => {
 					this.showQuickPick(tasks,
 						nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true, false, selectedEntry).then((entry) => {
-							if (entry === undefined || entry === null) {
-								return;
-							}
-							let task: Task | undefined | null = entry.task;
+							let task: Task | undefined | null = entry ? entry.task : undefined;
 							if (!task) {
 								return;
 							}
@@ -2599,10 +2578,7 @@ class TaskService extends Disposable implements ITaskService {
 			},
 			false, true
 		).then((entry) => {
-			if (entry === undefined || entry === null) {
-				return;
-			}
-			let task: Task | undefined | null = entry.task;
+			let task: Task | undefined | null = entry ? entry.task : undefined;
 			if (task === undefined || task === null) {
 				return;
 			}
