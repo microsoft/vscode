@@ -2217,14 +2217,14 @@ class TaskService extends Disposable implements ITaskService {
 				[{
 					label: nls.localize('TaskService.terminateAllRunningTasks', 'All running tasks'),
 					id: 'terminateAll',
-					task: null
+					task: undefined
 				}]
 			).then(entry => {
+				if (entry && entry.id === 'terminateAll') {
+					this.terminateAll();
+				}
 				let task: Task | undefined | null = entry ? entry.task : undefined;
 				if (task === undefined || task === null) {
-					if (entry && entry.id === 'terminateAll') {
-						this.terminateAll();
-					}
 					return;
 				}
 				this.terminate(task);
