@@ -42,7 +42,7 @@
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
 	"typescript.preferences.quoteStyle": "single",
-	"gitBranch.base": "origin/distro",
+	"gitBranch.base": "origin/master",
 	"gitBranch.diffGroups": [
 		{
 			"name": "⛔Build & Dev Scripts [LEAKAGE CONCERN]",
