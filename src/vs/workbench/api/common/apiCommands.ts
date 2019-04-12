@@ -47,7 +47,7 @@ export class OpenFolderAPICommand {
 			arg = { forceNewWindow: arg };
 		}
 		if (!uri) {
-			return executor.executeCommand('_files.pickFolderAndOpen', arg.forceNewWindow);
+			return executor.executeCommand('_files.pickFolderAndOpen', { forceNewWindow: arg.forceNewWindow });
 		}
 		const options: IOpenSettings = { forceNewWindow: arg.forceNewWindow, noRecentEntry: arg.noRecentEntry };
 		uri = URI.revive(uri);
