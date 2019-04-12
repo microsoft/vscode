@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService, IResponsiveStateChangeEvent, ICpuProfilerTarget, IExtensionHostProfile, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IResponsiveStateChangeEvent, IExtensionHostProfile, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -24,8 +24,8 @@ import { createSlowExtensionAction } from 'vs/workbench/contrib/extensions/elect
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
-	private readonly _session = new Map<ICpuProfilerTarget, CancellationTokenSource>();
 	private readonly _blame = new Set<string>();
+	private _session: CancellationTokenSource | undefined;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -41,26 +41,27 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 	}
 
 	private async _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): Promise<void> {
-		const { target } = event;
+		const target = this._extensionService;
 
 		if (!target.canProfileExtensionHost()) {
 			return;
 		}
 
-		if (event.isResponsive && this._session.has(target)) {
+		if (event.isResponsive && this._session) {
 			// stop profiling when responsive again
-			this._session.get(target)!.cancel();
+			this._session.cancel();
 
-		} else if (!event.isResponsive && !this._session.has(target)) {
+		} else if (!event.isResponsive && !this._session) {
 			// start profiling if not yet profiling
-			const token = new CancellationTokenSource();
-			this._session.set(target, token);
+			const cts = new CancellationTokenSource();
+			this._session = cts;
+
 
 			let session: ProfileSession;
 			try {
 				session = await target.startExtensionHostProfile();
 			} catch (err) {
-				this._session.delete(target);
+				this._session = undefined;
 				// fail silent as this is often
 				// caused by another party being
 				// connected already
@@ -69,7 +70,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 			// wait 5 seconds or until responsive again
 			await new Promise(resolve => {
-				token.token.onCancellationRequested(resolve);
+				cts.token.onCancellationRequested(resolve);
 				setTimeout(resolve, 5e3);
 			});
 
@@ -79,7 +80,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			} catch (err) {
 				onUnexpectedError(err);
 			} finally {
-				this._session.delete(target);
+				this._session = undefined;
 			}
 		}
 	}

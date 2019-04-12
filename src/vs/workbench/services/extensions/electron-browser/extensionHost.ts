@@ -37,7 +37,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
-import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensionHostStarter';
+import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
