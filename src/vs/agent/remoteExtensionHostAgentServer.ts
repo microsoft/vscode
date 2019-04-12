@@ -236,10 +236,9 @@ export class RemoteExtensionHostAgentServer {
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection; };
 
 	constructor(
-		syncExtensions: boolean,
 		private readonly _environmentService: EnvironmentService
 	) {
-		this._remoteExtensionManagementServer = new RemoteExtensionManagementServer(syncExtensions, _environmentService);
+		this._remoteExtensionManagementServer = new RemoteExtensionManagementServer(_environmentService);
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 	}

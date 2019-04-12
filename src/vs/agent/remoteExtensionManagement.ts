@@ -113,7 +113,6 @@ export class RemoteExtensionManagementServer {
 	private readonly _uriTransformerCache: { [remoteAuthority: string]: IURITransformer; };
 
 	constructor(
-		private readonly syncExtensions: boolean,
 		private readonly _environmentService: IEnvironmentService
 	) {
 		this.socketServer = new SocketServer<RemoteAgentConnectionContext>();
@@ -148,7 +147,7 @@ export class RemoteExtensionManagementServer {
 		services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
 
 		instantiationService.invokeFunction(accessor => {
-			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this.syncExtensions, this._environmentService, logService);
+			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._environmentService, logService);
 			server.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 			const remoteFileSystemChannel = new RemoteAgentFileSystemChannel(logService);

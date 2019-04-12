@@ -16,9 +16,6 @@ import { RemoteExtensionHostAgentServer } from 'vs/agent/remoteExtensionHostAgen
 const args = minimist(process.argv.slice(2), {
 	string: [
 		'port'
-	],
-	boolean: [
-		'sync-extensions'
 	]
 }) as ParsedArgs;
 
@@ -32,7 +29,6 @@ const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 const BUILTIN_EXTENSIONS_FOLDER_PATH = path.join(APP_ROOT, 'extensions');
 args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
 const PORT = args['port'] || 8000;
-const SYNC_EXTENSIONS = args['sync-extensions'] || false;
 
 const EXTENSIONS_PATH = path.join(REMOTE_DATA_FOLDER, 'extensions');
 args['extensions-dir'] = EXTENSIONS_PATH;
@@ -94,5 +90,5 @@ if (RemoteExtensionManagementCli.shouldSpawnCli(args)) {
 		onUnexpectedError(err);
 	});
 
-	new RemoteExtensionHostAgentServer(SYNC_EXTENSIONS, environmentService).start(PORT);
+	new RemoteExtensionHostAgentServer(environmentService).start(PORT);
 }

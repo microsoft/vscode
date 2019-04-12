@@ -50,7 +50,6 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	private readonly _logger: ILog;
 
 	constructor(
-		private readonly syncExtensions: boolean,
 		private readonly environmentService: IEnvironmentService,
 		private readonly logService: ILogService,
 	) {
@@ -242,8 +241,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				globalStorageHome: URI.file(this.environmentService.globalStorageHome),
 				userHome: URI.file(this.environmentService.userHome),
 				extensions,
-				os: platform.OS,
-				syncExtensions: this.syncExtensions
+				os: platform.OS
 			};
 		});
 	}
