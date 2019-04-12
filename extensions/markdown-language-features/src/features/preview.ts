@@ -398,12 +398,9 @@ export class MarkdownPreview extends Disposable {
 		this.forceUpdate = false;
 
 		this.currentVersion = { resource, version: document.version };
-		const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
 		if (this._resource === resource) {
-			this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
-			this.editor.iconPath = this.iconPath;
-			this.editor.webview.options = MarkdownPreview.getWebviewOptions(resource, this._contributionProvider.contributions);
-			this.editor.webview.html = content;
+			const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
+			this.setContent(content);
 		}
 	}
 
@@ -471,11 +468,14 @@ export class MarkdownPreview extends Disposable {
 	}
 
 	private async showFileNotFoundError() {
-		const content = await this._contentProvider.provideFileNotFoundContent(this._resource);
+		this.setContent(this._contentProvider.provideFileNotFoundContent(this._resource));
+	}
+
+	private setContent(html: string): void {
 		this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
 		this.editor.iconPath = this.iconPath;
 		this.editor.webview.options = MarkdownPreview.getWebviewOptions(this._resource, this._contributionProvider.contributions);
-		this.editor.webview.html = content;
+		this.editor.webview.html = html;
 	}
 
 	private async onDidClickPreviewLink(path: string, fragment: string | undefined) {
