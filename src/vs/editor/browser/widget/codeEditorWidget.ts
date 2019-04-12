@@ -1754,7 +1754,7 @@ export class EditorModeContext extends Disposable {
 			this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
 			this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 			this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
-			this._hasMultipleDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.all(model).length > 1 || modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
+			this._hasMultipleDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.all(model).length + modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
 			this._hasMultipleDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
 			this._isInWalkThrough.set(model.uri.scheme === Schemas.walkThroughSnippet);
 		});
