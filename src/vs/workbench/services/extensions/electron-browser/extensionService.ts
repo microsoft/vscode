@@ -445,7 +445,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		workerExtension.add(ExtensionIdentifier.toKey('jrieken.helloworld'));
 
 		{
-			const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._extensionHostLogsLocation);
+			const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions.then(value => value.filter(desc => !workerExtension.has(desc.identifier.value))), this._extensionHostLogsLocation);
 			const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, null, initialActivationEvents);
 			extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
 			extHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
