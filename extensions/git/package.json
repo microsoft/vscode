@@ -1031,7 +1031,7 @@
           ],
           "markdownDescription": "%config.path%",
           "default": null,
-          "scope": "application"
+          "scope": "machine"
         },
         "git.autoRepositoryDetection": {
           "type": [

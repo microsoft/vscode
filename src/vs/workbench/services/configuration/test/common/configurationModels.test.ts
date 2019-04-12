@@ -35,6 +35,11 @@ suite('FolderSettingsModelParser', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION
+				},
+				'FolderSettingsModelParser.machine': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE
 				}
 			}
 		});
@@ -43,7 +48,7 @@ suite('FolderSettingsModelParser', () => {
 	test('parse all folder settings', () => {
 		const testObject = new ConfigurationModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW]);
 
-		testObject.parseContent(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' }));
+		testObject.parseContent(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' }));
 
 		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'window': 'window', 'resource': 'resource' } });
 	});
@@ -51,7 +56,7 @@ suite('FolderSettingsModelParser', () => {
 	test('parse resource folder settings', () => {
 		const testObject = new ConfigurationModelParser('settings', [ConfigurationScope.RESOURCE]);
 
-		testObject.parseContent(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' }));
+		testObject.parseContent(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' }));
 
 		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource' } });
 	});
@@ -59,12 +64,12 @@ suite('FolderSettingsModelParser', () => {
 	test('parse overridable resource settings', () => {
 		const testObject = new ConfigurationModelParser('settings', [ConfigurationScope.RESOURCE]);
 
-		testObject.parseContent(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' } }));
+		testObject.parseContent(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' } }));
 
 		assert.deepEqual(testObject.configurationModel.overrides, [{ 'contents': { 'FolderSettingsModelParser': { 'resource': 'resource' } }, 'identifiers': ['json'] }]);
 	});
 
-	test('reprocess folder settings excludes application setting', () => {
+	test('reprocess folder settings excludes application and machine setting', () => {
 		const testObject = new ConfigurationModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW]);
 
 		testObject.parseContent(JSON.stringify({ 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.anotherApplicationSetting': 'executable' }));
@@ -80,6 +85,11 @@ suite('FolderSettingsModelParser', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION
+				},
+				'FolderSettingsModelParser.anotherMachineSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE
 				}
 			}
 		});

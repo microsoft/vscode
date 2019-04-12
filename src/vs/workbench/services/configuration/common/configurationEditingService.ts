@@ -43,6 +43,11 @@ export const enum ConfigurationEditingErrorCode {
 	ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION,
 
 	/**
+	 * Error when trying to write a machne setting into workspace settings.
+	 */
+	ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE,
+
+	/**
 	 * Error when trying to write an invalid folder configuration key to folder settings.
 	 */
 	ERROR_INVALID_FOLDER_CONFIGURATION,
@@ -284,6 +289,7 @@ export class ConfigurationEditingService {
 			// API constraints
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to {0} because {1} is not a registered configuration.", this.stringifyTarget(target), operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION: return nls.localize('errorInvalidWorkspaceConfigurationApplication', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
+			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE: return nls.localize('errorInvalidWorkspaceConfigurationMachine', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION: return nls.localize('errorInvalidFolderConfiguration', "Unable to write to Folder Settings because {0} does not support the folder resource scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET: return nls.localize('errorInvalidUserTarget', "Unable to write to User Settings because {0} does not support for global scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET: return nls.localize('errorInvalidWorkspaceTarget', "Unable to write to Workspace Settings because {0} does not support for workspace scope in a multi folder workspace.", operation.key);
@@ -375,7 +381,7 @@ export class ConfigurationEditingService {
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		const exists = await this.fileService.exists(resource);
 		if (!exists) {
-			await this.textFileService.write(resource, '{}');
+			await this.textFileService.write(resource, '{}', { encoding: 'utf8' });
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}
@@ -423,6 +429,9 @@ export class ConfigurationEditingService {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 				if (configurationProperties[operation.key].scope === ConfigurationScope.APPLICATION) {
 					return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION, target, operation);
+				}
+				if (configurationProperties[operation.key].scope === ConfigurationScope.MACHINE) {
+					return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE, target, operation);
 				}
 			}
 		}

@@ -502,7 +502,7 @@ function isMouseRightClick(event: UIEvent): boolean {
 	return event instanceof MouseEvent && event.button === 2;
 }
 
-const DefaultMultipleSelectionContoller = {
+const DefaultMultipleSelectionController = {
 	isSelectionSingleChangeEvent,
 	isSelectionRangeChangeEvent
 };
@@ -529,7 +529,7 @@ export class MouseController<T> implements IDisposable {
 		this.multipleSelectionSupport = !(list.options.multipleSelectionSupport === false);
 
 		if (this.multipleSelectionSupport) {
-			this.multipleSelectionController = list.options.multipleSelectionController || DefaultMultipleSelectionContoller;
+			this.multipleSelectionController = list.options.multipleSelectionController || DefaultMultipleSelectionController;
 		}
 
 		this.openController = list.options.openController || DefaultOpenController;
@@ -909,7 +909,7 @@ function getContiguousRangeContaining(range: number[], value: number): number[] 
 
 /**
  * Given two sorted collections of numbers, returns the intersection
- * betweem them (OR).
+ * between them (OR).
  */
 function disjunction(one: number[], other: number[]): number[] {
 	const result: number[] = [];

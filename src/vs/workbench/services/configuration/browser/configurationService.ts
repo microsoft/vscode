@@ -18,7 +18,7 @@ import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides
 import { Configuration, WorkspaceConfigurationChangeEvent, AllKeysConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, IConfigurationFileService, machineSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditingService';
@@ -503,16 +503,18 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			};
 
 			const allSettingsSchema: IJSONSchema = { properties: allSettings.properties, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
-			const unsupportedApplicationSettings = convertToNotSuggestedProperties(applicationSettings.properties, localize('unsupportedApplicationSetting', "This setting can be applied only in User Settings"));
-			const workspaceSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+			const unsupportedApplicationSettings = convertToNotSuggestedProperties(applicationSettings.properties, localize('unsupportedApplicationSetting', "This setting can be applied only in application user Settings"));
+			const unsupportedMachineSettings = convertToNotSuggestedProperties(machineSettings.properties, localize('unsupportedMachineSetting', "This setting can be applied only in user Settings"));
+			const machineSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+			const workspaceSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...unsupportedMachineSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
 
 			jsonRegistry.registerSchema(defaultSettingsSchemaId, allSettingsSchema);
 			jsonRegistry.registerSchema(userSettingsSchemaId, allSettingsSchema);
-			jsonRegistry.registerSchema(machineSettingsSchemaId, workspaceSettingsSchema);
+			jsonRegistry.registerSchema(machineSettingsSchemaId, machineSettingsSchema);
 
 			if (WorkbenchState.WORKSPACE === this.getWorkbenchState()) {
 				const unsupportedWindowSettings = convertToNotSuggestedProperties(windowSettings.properties, localize('unsupportedWindowSetting', "This setting cannot be applied now. It will be applied when you open this folder directly."));
-				const folderSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...unsupportedWindowSettings, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+				const folderSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...unsupportedMachineSettings, ...unsupportedWindowSettings, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
 				jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
 				jsonRegistry.registerSchema(folderSettingsSchemaId, folderSettingsSchema);
 			} else {

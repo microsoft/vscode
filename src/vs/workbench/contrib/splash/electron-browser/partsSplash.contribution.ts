@@ -85,7 +85,8 @@ class PartsSplash {
 				colorInfo,
 				layoutInfo,
 				baseTheme
-			})
+			}),
+			{ encoding: 'utf8', overwriteEncoding: true }
 		);
 
 		if (baseTheme !== this._lastBaseTheme || colorInfo.editorBackground !== this._lastBackground) {
