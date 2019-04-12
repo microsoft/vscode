@@ -46,6 +46,7 @@ import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
 import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -783,8 +784,8 @@ export interface ExtHostWorkspaceShape {
 export interface ExtHostFileSystemShape {
 	$stat(handle: number, resource: UriComponents): Promise<files.IStat>;
 	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]>;
-	$readFile(handle: number, resource: UriComponents): Promise<Buffer>;
-	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: files.FileWriteOptions): Promise<void>;
+	$readFile(handle: number, resource: UriComponents): Promise<VSBuffer>;
+	$writeFile(handle: number, resource: UriComponents, content: VSBuffer, opts: files.FileWriteOptions): Promise<void>;
 	$rename(handle: number, resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
 	$copy(handle: number, resource: UriComponents, target: UriComponents, opts: files.FileOverwriteOptions): Promise<void>;
 	$mkdir(handle: number, resource: UriComponents): Promise<void>;
@@ -793,8 +794,8 @@ export interface ExtHostFileSystemShape {
 	$unwatch(handle: number, session: number): void;
 	$open(handle: number, resource: UriComponents, opts: files.FileOpenOptions): Promise<number>;
 	$close(handle: number, fd: number): Promise<void>;
-	$read(handle: number, fd: number, pos: number, length: number): Promise<Buffer>;
-	$write(handle: number, fd: number, pos: number, data: Buffer): Promise<number>;
+	$read(handle: number, fd: number, pos: number, length: number): Promise<VSBuffer>;
+	$write(handle: number, fd: number, pos: number, data: VSBuffer): Promise<number>;
 }
 
 export interface ExtHostSearchShape {
@@ -812,8 +813,8 @@ export interface ExtHostExtensionServiceShape {
 	$deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
 
 	$test_latency(n: number): Promise<number>;
-	$test_up(b: Buffer): Promise<number>;
-	$test_down(size: number): Promise<Buffer>;
+	$test_up(b: VSBuffer): Promise<number>;
+	$test_down(size: number): Promise<VSBuffer>;
 }
 
 export interface FileSystemEvents {

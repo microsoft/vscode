@@ -17,6 +17,7 @@ import { CachedResponse } from '../tsServer/cachedResponse';
 const localize = nls.loadMessageBundle();
 
 class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+	public static readonly minVersion = API.v206;
 
 	public async resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
@@ -98,7 +99,7 @@ export function register(
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
-	return new VersionDependentRegistration(client, API.v206, () =>
+	return new VersionDependentRegistration(client, TypeScriptReferencesCodeLensProvider.minVersion, () =>
 		new ConfigurationDependentRegistration(modeId, 'referencesCodeLens.enabled', () => {
 			return vscode.languages.registerCodeLensProvider(selector,
 				new TypeScriptReferencesCodeLensProvider(client, cachedResponse));

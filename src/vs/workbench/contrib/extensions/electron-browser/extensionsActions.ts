@@ -15,7 +15,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
-import { IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -60,6 +60,7 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -387,19 +388,12 @@ export class UninstallAction extends ExtensionAction {
 		this.label = UninstallAction.UninstallLabel;
 		this.class = UninstallAction.UninstallClass;
 
-		const installedExtensions = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier));
-
-		if (!installedExtensions.length) {
-			this.enabled = false;
-			return;
-		}
-
 		if (state !== ExtensionState.Installed) {
 			this.enabled = false;
 			return;
 		}
 
-		if (installedExtensions[0].type !== ExtensionType.User) {
+		if (this.extension.type !== ExtensionType.User) {
 			this.enabled = false;
 			return;
 		}
@@ -1022,36 +1016,32 @@ export class CheckForUpdatesAction extends Action {
 	}
 
 	private checkUpdatesAndNotify(): void {
-		this.extensionsWorkbenchService.queryLocal().then(
-			extensions => {
-				const outdatedExtensions = extensions.filter(ext => ext.outdated === true);
-				if (!outdatedExtensions.length) {
-					this.notificationService.info(localize('noUpdatesAvailable', "All Extensions are up to date."));
-					return;
-				}
+		const outdated = this.extensionsWorkbenchService.outdated;
+		if (!outdated.length) {
+			this.notificationService.info(localize('noUpdatesAvailable', "All Extensions are up to date."));
+			return;
+		}
 
-				let msgAvailableExtensions = outdatedExtensions.length === 1 ? localize('singleUpdateAvailable', "An extension update is available.") : localize('updatesAvailable', "{0} extension updates are available.", outdatedExtensions.length);
+		let msgAvailableExtensions = outdated.length === 1 ? localize('singleUpdateAvailable', "An extension update is available.") : localize('updatesAvailable', "{0} extension updates are available.", outdated.length);
 
-				const disabledExtensionsCount = outdatedExtensions.filter(ext => ext.enablementState === EnablementState.Disabled || ext.enablementState === EnablementState.WorkspaceDisabled).length;
-				if (disabledExtensionsCount) {
-					if (outdatedExtensions.length === 1) {
-						msgAvailableExtensions = localize('singleDisabledUpdateAvailable', "An update to an extension which is disabled is available.");
-					} else if (disabledExtensionsCount === 1) {
-						msgAvailableExtensions = localize('updatesAvailableOneDisabled', "{0} extension updates are available. One of them is for a disabled extension.", outdatedExtensions.length);
-					} else if (disabledExtensionsCount === outdatedExtensions.length) {
-						msgAvailableExtensions = localize('updatesAvailableAllDisabled', "{0} extension updates are available. All of them are for disabled extensions.", outdatedExtensions.length);
-					} else {
-						msgAvailableExtensions = localize('updatesAvailableIncludingDisabled', "{0} extension updates are available. {1} of them are for disabled extensions.", outdatedExtensions.length, disabledExtensionsCount);
-					}
-				}
-
-				this.viewletService.openViewlet(VIEWLET_ID, true)
-					.then(viewlet => viewlet as IExtensionsViewlet)
-					.then(viewlet => viewlet.search(''));
-
-				this.notificationService.info(msgAvailableExtensions);
+		const disabledExtensionsCount = outdated.filter(ext => ext.enablementState === EnablementState.Disabled || ext.enablementState === EnablementState.WorkspaceDisabled).length;
+		if (disabledExtensionsCount) {
+			if (outdated.length === 1) {
+				msgAvailableExtensions = localize('singleDisabledUpdateAvailable', "An update to an extension which is disabled is available.");
+			} else if (disabledExtensionsCount === 1) {
+				msgAvailableExtensions = localize('updatesAvailableOneDisabled', "{0} extension updates are available. One of them is for a disabled extension.", outdated.length);
+			} else if (disabledExtensionsCount === outdated.length) {
+				msgAvailableExtensions = localize('updatesAvailableAllDisabled', "{0} extension updates are available. All of them are for disabled extensions.", outdated.length);
+			} else {
+				msgAvailableExtensions = localize('updatesAvailableIncludingDisabled', "{0} extension updates are available. {1} of them are for disabled extensions.", outdated.length, disabledExtensionsCount);
 			}
-		);
+		}
+
+		this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet.search(''));
+
+		this.notificationService.info(msgAvailableExtensions);
 	}
 
 	run(): Promise<any> {
@@ -1130,16 +1120,12 @@ export class UpdateAllAction extends Action {
 		this.update();
 	}
 
-	private get outdated(): IExtension[] {
-		return this.extensionsWorkbenchService.local.filter(e => e.outdated && e.state !== ExtensionState.Installing);
-	}
-
 	private update(): void {
-		this.enabled = this.outdated.length > 0;
+		this.enabled = this.extensionsWorkbenchService.outdated.length > 0;
 	}
 
 	run(): Promise<any> {
-		return Promise.all(this.outdated.map(e => this.install(e)));
+		return Promise.all(this.extensionsWorkbenchService.outdated.map(e => this.install(e)));
 	}
 
 	private install(extension: IExtension): Promise<any> {
@@ -1167,9 +1153,7 @@ export class ReloadAction extends ExtensionAction {
 
 	updateWhenCounterExtensionChanges: boolean = true;
 	private disposables: IDisposable[] = [];
-	private _runningExtensions: IExtensionDescription[] = [];
-	private get runningExtensions(): IExtensionDescription[] { return this._runningExtensions; }
-	private set runningExtensions(runningExtensions: IExtensionDescription[]) { this._runningExtensions = runningExtensions; this.update(); }
+	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -1186,31 +1170,32 @@ export class ReloadAction extends ExtensionAction {
 	}
 
 	private updateRunningExtensions(): void {
-		this.extensionService.getExtensions().then(runningExtensions => this.runningExtensions = runningExtensions);
+		this.extensionService.getExtensions().then(runningExtensions => { this._runningExtensions = runningExtensions; this.update(); });
 	}
 
 	update(): void {
 		this.enabled = false;
 		this.tooltip = '';
-		if (!this.extension) {
+		if (!this.extension || !this._runningExtensions) {
 			return;
 		}
 		const state = this.extension.state;
 		if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
 			return;
 		}
-		const installed = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
-		const local = this.extension.local || (installed && installed.local);
-		if (local && local.manifest && local.manifest.contributes && local.manifest.contributes.localizations && local.manifest.contributes.localizations.length > 0) {
+		if (this.extension.local && this.extension.local.manifest && this.extension.local.manifest.contributes && this.extension.local.manifest.contributes.localizations && this.extension.local.manifest.contributes.localizations.length > 0) {
 			return;
 		}
-		this.computeReloadState(local);
+		this.computeReloadState();
 		this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
 	}
 
-	private computeReloadState(local: ILocalExtension | undefined): void {
+	private computeReloadState(): void {
+		if (!this._runningExtensions) {
+			return;
+		}
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
-		const runningExtension = this.runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
 
 		if (isUninstalled) {
 			if (runningExtension) {
@@ -1221,14 +1206,14 @@ export class ReloadAction extends ExtensionAction {
 			}
 			return;
 		}
-		if (local) {
-			const isEnabled = this.extensionEnablementService.isEnabled(local);
+		if (this.extension.local) {
+			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
 			if (runningExtension) {
 				// Extension is running
 				const isSameExtensionRunning = this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
 				const isSameVersionRunning = isSameExtensionRunning && this.extension.version === runningExtension.version;
 				if (isEnabled) {
-					if (!isSameVersionRunning && !this.extensionService.canAddExtension(toExtensionDescription(local))) {
+					if (!isSameVersionRunning && !this.extensionService.canAddExtension(toExtensionDescription(this.extension.local))) {
 						this.enabled = true;
 						this.label = localize('reloadRequired', "Reload Required");
 						this.tooltip = localize('postUpdateTooltip', "Please reload Visual Studio Code to enable the updated extension.");
@@ -1243,7 +1228,7 @@ export class ReloadAction extends ExtensionAction {
 				return;
 			} else {
 				// Extension is not running
-				if (isEnabled && !this.extensionService.canAddExtension(toExtensionDescription(local))) {
+				if (isEnabled && !this.extensionService.canAddExtension(toExtensionDescription(this.extension.local))) {
 					this.enabled = true;
 					this.label = localize('reloadRequired', "Reload Required");
 					this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
@@ -1251,7 +1236,7 @@ export class ReloadAction extends ExtensionAction {
 				}
 				if (this.workbenchEnvironmentService.configuration.remoteAuthority
 					// Local Workspace Extension
-					&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(local.manifest, this.configurationService)
+					&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)
 				) {
 					const remoteExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)[0];
 					// Extension exist in remote and enabled
@@ -1522,10 +1507,11 @@ export class ClearExtensionsInputAction extends Action {
 		id: string,
 		label: string,
 		onSearchChange: Event<string>,
+		value: string,
 		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, 'clear-extensions', true);
-		this.enabled = false;
+		this.onSearchChange(value);
 		onSearchChange(this.onSearchChange, this, this.disposables);
 	}
 
@@ -2021,6 +2007,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		label: string,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IFileService private readonly fileService: IFileService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IEditorService protected editorService: IEditorService,
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
@@ -2169,7 +2156,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		return Promise.resolve(this.fileService.resolveContent(extensionsFileResource)).then(content => {
 			return { created: false, extensionsFileResource, content: content.value };
 		}, err => {
-			return this.fileService.updateContent(extensionsFileResource, ExtensionsConfigurationInitialContent).then(() => {
+			return this.textFileService.write(extensionsFileResource, ExtensionsConfigurationInitialContent).then(() => {
 				return { created: true, extensionsFileResource, content: ExtensionsConfigurationInitialContent };
 			});
 		});
@@ -2187,12 +2174,13 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		id: string,
 		label: string,
 		@IFileService fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEditorService editorService: IEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
-		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
+		super(id, label, contextService, fileService, textFileService, editorService, jsonEditingService, textModelResolverService);
 		this.contextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
 		this.update();
 	}
@@ -2228,13 +2216,14 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		id: string,
 		label: string,
 		@IFileService fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEditorService editorService: IEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
+		super(id, label, contextService, fileService, textFileService, editorService, jsonEditingService, textModelResolverService);
 		this.contextService.onDidChangeWorkspaceFolders(() => this.update(), this, this.disposables);
 		this.update();
 	}
@@ -2273,6 +2262,7 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 		id: string,
 		label: string,
 		@IFileService fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEditorService editorService: IEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
@@ -2280,7 +2270,7 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
-		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
+		super(id, label, contextService, fileService, textFileService, editorService, jsonEditingService, textModelResolverService);
 	}
 
 	run(shouldRecommend: boolean): Promise<void> {
@@ -2356,13 +2346,14 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 		id: string,
 		label: string,
 		@IFileService fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEditorService editorService: IEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
-		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
+		super(id, label, contextService, fileService, textFileService, editorService, jsonEditingService, textModelResolverService);
 	}
 
 	run(shouldRecommend: boolean): Promise<void> {
@@ -2538,7 +2529,7 @@ export class MaliciousStatusLabelAction extends ExtensionAction {
 	}
 }
 
-export class DisabledStatusLabelAction extends ExtensionAction {
+export class DisabledLabelAction extends ExtensionAction {
 
 	private static readonly Class = 'disable-status';
 
@@ -2546,40 +2537,107 @@ export class DisabledStatusLabelAction extends ExtensionAction {
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		private readonly warningAction: SystemDisabledWarningAction,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+	) {
+		super('extensions.disabledLabel', warningAction.tooltip, `${DisabledLabelAction.Class} hide`, false);
+		warningAction.onDidChange(() => this.update(), this, this.disposables);
+	}
+
+	update(): void {
+		this.class = `${DisabledLabelAction.Class} hide`;
+		this.label = '';
+		if (this.warningAction.enabled) {
+			this.enabled = true;
+			this.class = DisabledLabelAction.Class;
+			this.label = this.warningAction.tooltip;
+			return;
+		}
+		if (this.extension && this.extension.local && !this.extensionEnablementService.isEnabled(this.extension.local)) {
+			this.enabled = true;
+			this.class = DisabledLabelAction.Class;
+			this.label = localize('disabled by user', "This extension is disabled by the user.");
+			return;
+		}
+	}
+
+	run(): Promise<any> {
+		return Promise.resolve(null);
+	}
+
+	dispose(): void {
+		dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+export class SystemDisabledWarningAction extends ExtensionAction {
+
+	private static readonly Class = 'disable-warning';
+
+	updateWhenCounterExtensionChanges: boolean = true;
+	private disposables: IDisposable[] = [];
+	private _runningExtensions: IExtensionDescription[] | null = null;
+
+	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
-		super('extensions.install', localize('disabled', "Disabled"), `${DisabledStatusLabelAction.Class} hide`, false);
+		super('extensions.install', '', `${SystemDisabledWarningAction.Class} hide`, false);
 		this.labelService.onDidChangeFormatters(() => this.update(), this, this.disposables);
+		this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this, this.disposables);
+		this.updateRunningExtensions();
 		this.update();
 	}
 
+	private updateRunningExtensions(): void {
+		this.extensionService.getExtensions().then(runningExtensions => { this._runningExtensions = runningExtensions; this.update(); });
+	}
+
 	update(): void {
-		this.class = `${DisabledStatusLabelAction.Class} hide`;
+		this.enabled = false;
+		this.class = `${SystemDisabledWarningAction.Class} hide`;
 		this.tooltip = '';
-		if (this.extension && this.extension.local) {
+		if (this.extension && this.extension.local && this.extension.server && this._runningExtensions && this.workbenchEnvironmentService.configuration.remoteAuthority && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			if (
-				// Remote Window
-				this.workbenchEnvironmentService.configuration.remoteAuthority
 				// Local Workspace Extension
-				&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)
-				// Extension does not exist in remote
-				&& !this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
+				this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)
 			) {
-				this.class = `${DisabledStatusLabelAction.Class}`;
-				const host = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.workbenchEnvironmentService.configuration.remoteAuthority) || localize('remote', "Remote");
-				this.label = localize('disabled workspace Extension', "Disabled because the window is connected to remote server and only UI extensions from local server are enabled.", host, host);
-				if (this.extensionsWorkbenchService.canInstall(this.extension)) {
-					this.label = `${this.label} ${localize('Install in remote server', "Install it in '{0}' server to enable.", host)}`;
+				this.enabled = true;
+				this.class = `${SystemDisabledWarningAction.Class}`;
+				this.tooltip = localize('disabled workspace Extension', "This extension from {0} server is disabled because it cannot run in a window connected to the remote server.", this.getServerLabel(this.extensionManagementServerService.localExtensionManagementServer));
+				if (!this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
+					&& this.extensionsWorkbenchService.canInstall(this.extension)
+				) {
+					// Extension does not exist in remote
+					this.tooltip = `${this.tooltip} ${localize('Install in remote server', "Install it in {0} server to enable.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer))}`;
 				}
+				return;
+			}
+			const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;
+			if (
+				// Not same as running extension
+				runningExtensionServer && this.extension.server !== runningExtensionServer
+			) {
+				this.enabled = true;
+				this.class = `${SystemDisabledWarningAction.Class}`;
+				this.tooltip = localize('disabled because running in another server', "This extension from {0} server is disabled because another instance of same extension from {1} server is enabled.", this.getServerLabel(this.extension.server), this.getServerLabel(runningExtensionServer));
 				return;
 			}
 		}
 	}
 
+	private getServerLabel(server: IExtensionManagementServer): string {
+		if (server === this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.workbenchEnvironmentService.configuration.remoteAuthority) || localize('remote', "Remote");
+		}
+		return server.label;
+	}
 	run(): Promise<any> {
 		return Promise.resolve(null);
 	}

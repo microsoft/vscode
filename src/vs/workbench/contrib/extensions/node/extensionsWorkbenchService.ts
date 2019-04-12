@@ -463,7 +463,9 @@ class Extensions extends Disposable {
 					this.installed.push(extension);
 				}
 				extension.local = local;
-				extension.gallery = gallery;
+				if (!extension.gallery) {
+					extension.gallery = gallery;
+				}
 			}
 		}
 		this._onChange.fire(error ? undefined : extension);
@@ -502,7 +504,7 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private getExtensionState(extension: Extension): ExtensionState {
+	getExtensionState(extension: Extension): ExtensionState {
 		if (extension.gallery && this.installing.some(e => !!e.gallery && areSameExtensions(e.gallery.identifier, extension.gallery!.identifier))) {
 			return ExtensionState.Installing;
 		}
@@ -589,6 +591,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		result.push(...this.remoteExtensions.local);
 		const byId = groupByExtension(result, r => r.identifier);
 		return byId.reduce((result, extensions) => { result.push(this.getPrimaryExtension(extensions)); return result; }, []);
+	}
+
+	get outdated(): IExtension[] {
+		const allLocal = [...this.localExtensions.local];
+		if (this.remoteExtensions) {
+			allLocal.push(...this.remoteExtensions.local);
+		}
+		return allLocal.filter(e => e.outdated && e.local && e.state === ExtensionState.Installed);
 	}
 
 	async queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]> {
@@ -680,7 +690,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (installed) {
 			return installed;
 		}
-		const extension = new Extension(this.galleryService, ext => ExtensionState.Uninstalled, undefined, undefined, gallery, this.telemetryService, this.logService, this.fileService);
+		const extension = new Extension(this.galleryService, ext => this.getExtensionState(ext), undefined, undefined, gallery, this.telemetryService, this.logService, this.fileService);
 		if (maliciousExtensionSet.has(extension.identifier.id)) {
 			extension.isMalicious = true;
 		}
@@ -700,6 +710,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}
 		return null;
+	}
+
+	private getExtensionState(extension: Extension): ExtensionState {
+		if (this.remoteExtensions) {
+			const state = this.remoteExtensions.getExtensionState(extension);
+			if (state !== ExtensionState.Uninstalled) {
+				return state;
+			}
+		}
+		return this.localExtensions.getExtensionState(extension);
 	}
 
 	checkForUpdates(): Promise<void> {
@@ -756,9 +776,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return Promise.resolve();
 		}
 
-		const toUpdate = [...this.localExtensions.local, ...(this.remoteExtensions ? this.remoteExtensions.local : [])].filter(e =>
-			e.outdated && e.state !== ExtensionState.Installing
-			&& e.local && !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)));
+		const toUpdate = this.outdated.filter(e => !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)));
 		return Promise.all(toUpdate.map(e => this.install(e)));
 	}
 

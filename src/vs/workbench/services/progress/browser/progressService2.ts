@@ -16,6 +16,10 @@ import { INotificationService, Severity, INotificationHandle, INotificationActio
 import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
+import { attachDialogStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class ProgressService2 implements IProgressService2 {
 
@@ -29,6 +33,8 @@ export class ProgressService2 implements IProgressService2 {
 		@IViewletService private readonly _viewletService: IViewletService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
+		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
 	withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
@@ -53,6 +59,8 @@ export class ProgressService2 implements IProgressService2 {
 				return this._withViewletProgress('workbench.view.scm', task);
 			case ProgressLocation.Extensions:
 				return this._withViewletProgress('workbench.view.extensions', task);
+			case ProgressLocation.Dialog:
+				return this._withDialogProgress(options, task, onDidCancel);
 			default:
 				return Promise.reject(new Error(`Bad progress location: ${location}`));
 		}
@@ -264,6 +272,52 @@ export class ProgressService2 implements IProgressService2 {
 
 		promise.then(onDone, onDone);
 		return promise;
+	}
+
+	private _withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressOptions, task: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
+		const disposables: IDisposable[] = [];
+
+		let dialog: Dialog;
+
+		const createDialog = (message: string) => {
+			dialog = new Dialog(
+				this._layoutService.container,
+				message,
+				[options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss")],
+				{ type: 'pending' }
+			);
+
+			disposables.push(dialog);
+			disposables.push(attachDialogStyler(dialog, this._themeService));
+
+			dialog.show().then(() => {
+				if (options.cancellable && typeof onDidCancel === 'function') {
+					onDidCancel();
+				}
+
+				dispose(dialog);
+			});
+
+			return dialog;
+		};
+
+		const updateDialog = (message?: string) => {
+			if (message && !dialog) {
+				dialog = createDialog(message);
+			}
+		};
+
+		const p = task({
+			report: progress => {
+				updateDialog(progress.message);
+			}
+		});
+
+		p.finally(() => {
+			dispose(disposables);
+		});
+
+		return p;
 	}
 }
 

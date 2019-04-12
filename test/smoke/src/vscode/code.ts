@@ -90,6 +90,7 @@ export interface SpawnOptions {
 	verbose?: boolean;
 	extraArgs?: string[];
 	log?: string;
+	remote?: boolean;
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -119,6 +120,15 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		`--user-data-dir=${options.userDataDir}`,
 		'--driver', handle
 	];
+
+	if (options.remote) {
+		// Replace workspace path with URI
+		args.shift();
+		args.push(
+			`--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri`,
+			`vscode-remote://test+test${options.workspacePath}`,
+		);
+	}
 
 	if (!codePath) {
 		args.unshift(repoPath);

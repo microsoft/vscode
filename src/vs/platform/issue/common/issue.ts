@@ -56,6 +56,7 @@ export interface IssueReporterData extends WindowData {
 	styles: IssueReporterStyles;
 	enabledExtensions: IssueReporterExtensionData[];
 	issueType?: IssueType;
+	extensionId?: string;
 }
 
 export interface ISettingSearchResult {

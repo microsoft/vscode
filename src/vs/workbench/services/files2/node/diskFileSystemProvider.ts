@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdir, open, close, read, write } from 'fs';
+import { mkdir, open, close, read, write, fdatasync } from 'fs';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { statLink, readdir, unlink, move, copy, readFile, writeFile, fileExists, truncate, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { statLink, readdir, unlink, move, copy, readFile, writeFile, truncate, rimraf, RimRafMode, exists } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -116,14 +116,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			const filePath = this.toFilePath(resource);
 
 			// Validate target
-			const exists = await fileExists(filePath);
-			if (exists && !opts.overwrite) {
+			const fileExists = await exists(filePath);
+			if (fileExists && !opts.overwrite) {
 				throw createFileSystemProviderError(new Error(localize('fileExists', "File already exists")), FileSystemProviderErrorCode.FileExists);
-			} else if (!exists && !opts.create) {
+			} else if (!fileExists && !opts.create) {
 				throw createFileSystemProviderError(new Error(localize('fileNotExists', "File does not exist")), FileSystemProviderErrorCode.FileNotFound);
 			}
 
-			if (exists && isWindows) {
+			if (fileExists && isWindows) {
 				try {
 					// On Windows and if the file exists, we use a different strategy of saving the file
 					// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
@@ -154,16 +154,36 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 	}
 
+	private writeHandles: Set<number> = new Set();
+	private canFlush: boolean = true;
+
 	async open(resource: URI, opts: FileOpenOptions): Promise<number> {
 		try {
 			const filePath = this.toFilePath(resource);
 
-			let flags: string;
+			let flags: string | undefined = undefined;
 			if (opts.create) {
-				// we take this as a hint that the file is opened for writing
+				if (isWindows && await exists(filePath)) {
+					try {
+						// On Windows and if the file exists, we use a different strategy of saving the file
+						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
+						// (see https://github.com/Microsoft/vscode/issues/931) and prevent removing alternate data streams
+						// (see https://github.com/Microsoft/vscode/issues/6363)
+						await truncate(filePath, 0);
+
+						// After a successful truncate() the flag can be set to 'r+' which will not truncate.
+						flags = 'r+';
+					} catch (error) {
+						this.logService.trace(error);
+					}
+				}
+
+				// we take opts.create as a hint that the file is opened for writing
 				// as such we use 'w' to truncate an existing or create the
 				// file otherwise. we do not allow reading.
-				flags = 'w';
+				if (!flags) {
+					flags = 'w';
+				}
 			} else {
 				// otherwise we assume the file is opened for reading
 				// as such we use 'r' to neither truncate, nor create
@@ -171,7 +191,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				flags = 'r';
 			}
 
-			return await promisify(open)(filePath, flags);
+			const handle = await promisify(open)(filePath, flags);
+
+			// remember that this handle was used for writing
+			if (opts.create) {
+				this.writeHandles.add(handle);
+			}
+
+			return handle;
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -179,6 +206,19 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	async close(fd: number): Promise<void> {
 		try {
+			// if a handle is closed that was used for writing, ensure
+			// to flush the contents to disk if possible.
+			if (this.writeHandles.delete(fd) && this.canFlush) {
+				try {
+					await promisify(fdatasync)(fd);
+				} catch (error) {
+					// In some exotic setups it is well possible that node fails to sync
+					// In that case we disable flushing and log the error to our logger
+					this.canFlush = false;
+					this.logService.error(error);
+				}
+			}
+
 			return await promisify(close)(fd);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
@@ -199,6 +239,13 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	}
 
 	async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		// we know at this point that the file to write to is truncated and thus empty
+		// if the write now fails, the file remains empty. as such we really try hard
+		// to ensure the write succeeds by retrying up to three times.
+		return retry(() => this.doWrite(fd, pos, data, offset, length), 100 /* ms delay */, 3 /* retries */);
+	}
+
+	private async doWrite(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 		try {
 			const result = await promisify(write)(fd, data, offset, length, pos);
 			if (typeof result === 'number') {
@@ -295,7 +342,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		const isCaseChange = isPathCaseSensitive ? false : isEqual(fromFilePath, toFilePath, true /* ignore case */);
 
 		// handle existing target (unless this is a case change)
-		if (!isCaseChange && await fileExists(toFilePath)) {
+		if (!isCaseChange && await exists(toFilePath)) {
 			if (!overwrite) {
 				throw createFileSystemProviderError(new Error('File at target already exists'), FileSystemProviderErrorCode.FileExists);
 			}
@@ -440,7 +487,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				code = FileSystemProviderErrorCode.FileExists;
 				break;
 			case 'EPERM':
-			case 'EACCESS':
+			case 'EACCES':
 				code = FileSystemProviderErrorCode.NoPermissions;
 				break;
 			default:
