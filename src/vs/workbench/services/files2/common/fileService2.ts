@@ -317,36 +317,12 @@ export class FileService2 extends Disposable implements IFileService {
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource));
 
 		// validate write
-		const exists = await this.exists(resource);
-		if (exists) {
-			const stat = await provider.stat(resource);
-
-			// file cannot be directory
-			if ((stat.type & FileType.Directory) !== 0) {
-				throw new Error(localize('fileIsDirectoryError', "Expected file {0} is actually a directory", resource.toString()));
-			}
-
-			// Dirty write prevention: if the file on disk has been changed and does not match our expected
-			// mtime and etag, we bail out to prevent dirty writing.
-			//
-			// First, we check for a mtime that is in the future before we do more checks. The assumption is
-			// that only the mtime is an indicator for a file that has changd on disk.
-			//
-			// Second, if the mtime has advanced, we compare the size of the file on disk with our previous
-			// one using the etag() function. Relying only on the mtime check has prooven to produce false
-			// positives due to file system weirdness (especially around remote file systems). As such, the
-			// check for size is a weaker check because it can return a false negative if the file has changed
-			// but to the same length. This is a compromise we take to avoid having to produce checksums of
-			// the file content for comparison which would be much slower to compute.
-			if (options && typeof options.mtime === 'number' && typeof options.etag === 'string' && options.mtime < stat.mtime && options.etag !== etag(stat.size, options.mtime)) {
-				throw new FileOperationError(localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE, options);
-			}
-		}
+		const stat = await this.validateWriteFile(provider, resource, options);
 
 		try {
 
 			// mkdir recursively as needed
-			if (!exists) {
+			if (!stat) {
 				await this.mkdirp(provider, dirname(resource));
 			}
 
@@ -369,6 +345,38 @@ export class FileService2 extends Disposable implements IFileService {
 		}
 
 		return this.resolve(resource, { resolveMetadata: true });
+	}
+
+	private async validateWriteFile(provider: IFileSystemProvider, resource: URI, options?: IWriteFileOptions): Promise<IStat | undefined> {
+		let stat: IStat | undefined = undefined;
+		try {
+			stat = await provider.stat(resource);
+		} catch (error) {
+			return undefined; // file might not exist
+		}
+
+		// file cannot be directory
+		if ((stat.type & FileType.Directory) !== 0) {
+			throw new Error(localize('fileIsDirectoryError', "Expected file {0} is actually a directory", resource.toString()));
+		}
+
+		// Dirty write prevention: if the file on disk has been changed and does not match our expected
+		// mtime and etag, we bail out to prevent dirty writing.
+		//
+		// First, we check for a mtime that is in the future before we do more checks. The assumption is
+		// that only the mtime is an indicator for a file that has changd on disk.
+		//
+		// Second, if the mtime has advanced, we compare the size of the file on disk with our previous
+		// one using the etag() function. Relying only on the mtime check has prooven to produce false
+		// positives due to file system weirdness (especially around remote file systems). As such, the
+		// check for size is a weaker check because it can return a false negative if the file has changed
+		// but to the same length. This is a compromise we take to avoid having to produce checksums of
+		// the file content for comparison which would be much slower to compute.
+		if (options && typeof options.mtime === 'number' && typeof options.etag === 'string' && options.mtime < stat.mtime && options.etag !== etag(stat.size, options.mtime)) {
+			throw new FileOperationError(localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE, options);
+		}
+
+		return stat;
 	}
 
 	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent> {

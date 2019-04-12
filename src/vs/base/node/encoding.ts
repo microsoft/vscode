@@ -182,7 +182,7 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | null, bytesRead: 
  * If no BOM is detected, null will be passed to callback.
  */
 export function detectEncodingByBOM(file: string): Promise<string | null> {
-	return stream.readExactlyByFile(file, 3).then(({ buffer, bytesRead }) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
+	return stream.readExactlyByFile(file, 3).then(({ buffer, bytesRead }) => detectEncodingByBOMFromBuffer(buffer, bytesRead), error => null);
 }
 
 const MINIMUM_THRESHOLD = 0.2;
