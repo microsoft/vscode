@@ -374,10 +374,12 @@ export class URI implements UriComponents {
 	}
 
 	static revive(data: UriComponents | URI): URI;
-	static revive(data: UriComponents | URI | undefined | null): URI | undefined;
-	static revive(data: UriComponents | URI | undefined | null): URI | undefined {
+	static revive(data: UriComponents | URI | undefined): URI | undefined;
+	static revive(data: UriComponents | URI | null): URI | null;
+	static revive(data: UriComponents | URI | undefined | null): URI | undefined | null;
+	static revive(data: UriComponents | URI | undefined | null): URI | undefined | null {
 		if (!data) {
-			return undefined;
+			return data;
 		} else if (data instanceof URI) {
 			return data;
 		} else {
