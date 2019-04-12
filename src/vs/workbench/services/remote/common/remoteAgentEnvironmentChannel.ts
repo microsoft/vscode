@@ -61,4 +61,8 @@ export class RemoteExtensionEnvironmentChannelClient {
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {
 		return this.channel.call<IDiagnosticInfo>('getDiagnosticInfo', options);
 	}
+
+	disableTelemetry(): Promise<void> {
+		return this.channel.call<void>('disableTelemetry');
+	}
 }
