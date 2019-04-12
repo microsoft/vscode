@@ -83,9 +83,21 @@ export interface IConfigurationRegistry {
 }
 
 export const enum ConfigurationScope {
+	/**
+	 * Application specific configuration, which can be configured only in local user settings.
+	 */
 	APPLICATION = 1,
+	/**
+	 * Machine specific configuration, which can be configured only in local and remote user settings.
+	 */
 	MACHINE,
+	/**
+	 * Window specific configuration, which can be configured in the user or workspace settings.
+	 */
 	WINDOW,
+	/**
+	 * Resource specific configuration, which can be configured in the user, workspace or folder settings.
+	 */
 	RESOURCE,
 }
 
