@@ -654,7 +654,7 @@
 	"checksumFailMoreInfoUrl": "https://go.microsoft.com/fwlink/?LinkId=828886",
 	"electronRepository": "Microsoft/vscode-electron-prebuilt",
 	"dependencies": {
-		"vsda": "git+https://monacotools.visualstudio.com/DefaultCollection/_git/vscode-debug-handshake#56d1294699f381fb20d7fedd6556ddf42a474073"
+		"vsda": "git+https://monacotools.visualstudio.com/DefaultCollection/_git/vscode-debug-handshake#31bf016d04d013bb9b86117232e53e3ebb015c27"
 	},
 	"settingsSearchUrl": "https://bingsettingssearch.trafficmanager.net/api/Search",
 	"surveys": [
@@ -699,7 +699,21 @@
 		"ms-vsliveshare.vsliveshare",
 		"GitHub.vscode-pull-request-github",
 		"GitHub.vscode-pull-request-github-insiders",
-		"Microsoft.vscode-nmake-tools"
+		"Microsoft.vscode-nmake-tools",
+		"ms-vscode.remote-containers",
+		"ms-vscode.remote-ssh",
+		"ms-vscode.remote-ssh-edit",
+		"ms-vscode.remote-ssh-explorer",
+		"ms-vscode.remote-wsl"
 	],
-	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json"
+	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
+	"uiExtensions": [
+		"robertohuertasm.vscode-icons",
+		"PKief.material-icon-theme",
+		"ms-vscode.sublime-keybindings",
+		"vscodevim.vim",
+		"msjsdiag.debugger-for-chrome",
+		"techer.open-in-browser",
+		"Shan.code-settings-sync"
+	]
 }

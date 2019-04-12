@@ -34,6 +34,12 @@ them into two folders. Pass the folder paths to the smoketest as follows:
 yarn smoketest --build PATH_TO_NEW_RELEASE_PARENT_FOLDER --stable-build PATH_TO_LAST_STABLE_RELEASE_PARENT_FOLDER
 ```
 
+### Run in test resolver
+
+```bash
+yarn smoketest --remote
+```
+
 ### Debug
 
 - `--verbose` logs all the low level driver calls made to Code;
