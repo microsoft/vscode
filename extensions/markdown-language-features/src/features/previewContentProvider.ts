@@ -90,9 +90,9 @@ export class MarkdownContentProvider {
 			</html>`;
 	}
 
-	public async provideFileNotFoundContent(
+	public provideFileNotFoundContent(
 		resource: vscode.Uri,
-	): Promise<string> {
+	): string {
 		const resourcePath = path.basename(resource.fsPath);
 		const body = localize('preview.notFound', '{0} cannot be found', resourcePath);
 		return `<!DOCTYPE html>

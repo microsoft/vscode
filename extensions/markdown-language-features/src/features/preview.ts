@@ -399,8 +399,7 @@ export class MarkdownPreview extends Disposable {
 				this.editor.webview.options = MarkdownPreview.getWebviewOptions(resource, this._contributionProvider.contributions);
 				this.editor.webview.html = content;
 			}
-		}
-		catch (e) {
+		} catch {
 			await this.showFileNotFoundError();
 		}
 	}
@@ -463,8 +462,7 @@ export class MarkdownPreview extends Disposable {
 
 		try {
 			vscode.workspace.openTextDocument(this._resource).then(vscode.window.showTextDocument);
-		}
-		catch (e) {
+		} catch {
 			await this.showFileNotFoundError();
 		}
 	}
