@@ -19,7 +19,6 @@ export interface IRemoteAgentEnvironment {
 	userHome: URI;
 	extensions: IExtensionDescription[];
 	os: OperatingSystem;
-	syncExtensions: boolean;
 }
 
 export interface RemoteAgentConnectionContext {

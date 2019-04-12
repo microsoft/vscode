@@ -21,6 +21,7 @@ import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { createSlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
+import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -41,9 +42,10 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 	}
 
 	private async _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): Promise<void> {
-		const target = this._extensionService;
 
-		if (!target.canProfileExtensionHost()) {
+		const port = this._extensionService.getInspectPort();
+
+		if (!port) {
 			return;
 		}
 
@@ -59,7 +61,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 			let session: ProfileSession;
 			try {
-				session = await target.startExtensionHostProfile();
+				session = await this._instantiationService.createInstance(ExtensionHostProfiler, port).start();
+
 			} catch (err) {
 				this._session = undefined;
 				// fail silent as this is often

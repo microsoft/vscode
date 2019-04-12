@@ -208,19 +208,10 @@ export interface IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 
 	/**
-	 * Return the inspect port or 0.
+	 * Return the inspect port or `0`, the latter means inspection
+	 * is not possible.
 	 */
 	getInspectPort(): number;
-
-	/**
-	 * Can the extension host be profiled.
-	 */
-	canProfileExtensionHost(): boolean;
-
-	/**
-	 *
-	 */
-	startExtensionHostProfile(): Promise<ProfileSession>;
 
 	/**
 	 * Restarts the extension host.
@@ -282,9 +273,7 @@ export class NullExtensionService implements IExtensionService {
 	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
-	canProfileExtensionHost(): boolean { return false; }
 	getInspectPort(): number { return 0; }
-	startExtensionHostProfile(): Promise<ProfileSession> { return Promise.resolve(Object.create(null)); }
 	restartExtensionHost(): void { }
 	startExtensionHost(): void { }
 	stopExtensionHost(): void { }
