@@ -509,7 +509,7 @@ export class DebugService implements IDebugService {
 
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
 			if (isExtensionHostDebugging(session.configuration) && session.state === State.Running && session.configuration.noDebug) {
-				this.extensionHostDebugService.close(session.root.uri);
+				this.extensionHostDebugService.close(session.getId());
 			}
 
 			this.telemetryDebugSessionStop(session, adapterExitEvent);
@@ -556,8 +556,8 @@ export class DebugService implements IDebugService {
 				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? session.restart() : undefined);
 			}
 
-			if (isExtensionHostDebugging(session.configuration) && session.root) {
-				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? this.extensionHostDebugService.reload(session.root.uri) : undefined);
+			if (isExtensionHostDebugging(session.configuration)) {
+				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? this.extensionHostDebugService.reload(session.getId()) : undefined);
 			}
 
 			const shouldFocus = this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
