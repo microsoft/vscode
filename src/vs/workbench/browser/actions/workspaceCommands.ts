@@ -34,7 +34,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: '_files.pickFolderAndOpen',
-	handler: (accessor: ServicesAccessor, options: { forceNewWindow: boolean }) => accessor.get(IFileDialogService).pickFolderAndOpen(options)
+	handler: (accessor: ServicesAccessor, forceNewWindow: boolean = false) => accessor.get(IFileDialogService).pickFolderAndOpen({ forceNewWindow })
 });
 
 CommandsRegistry.registerCommand({
