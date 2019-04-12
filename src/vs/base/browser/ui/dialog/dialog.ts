@@ -33,6 +33,7 @@ export class Dialog extends Disposable {
 	private element: HTMLElement | undefined;
 	private modal: HTMLElement | undefined;
 	private buttonsContainer: HTMLElement | undefined;
+	private messageDetailElement: HTMLElement | undefined;
 	private iconElement: HTMLElement | undefined;
 	private toolbarContainer: HTMLElement | undefined;
 	private buttonGroup: ButtonGroup | undefined;
@@ -56,11 +57,17 @@ export class Dialog extends Disposable {
 			messageElement.innerText = this.message;
 		}
 
-		const messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
-		messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
+		this.messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
+		this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
 
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
+	}
+
+	updateMessage(message: string): void {
+		if (this.messageDetailElement) {
+			this.messageDetailElement.innerText = message;
+		}
 	}
 
 	async show(): Promise<number> {

@@ -64,8 +64,8 @@
 }
 
 .monaco-workbench .dialog-box .dialog-message-row .dialog-icon {
-	height: 30px;
 	flex: 0 0 30px;
+	height: 30px;
 	padding-right: 4px;
 	padding-left: 4px;
 	background-position: center;
