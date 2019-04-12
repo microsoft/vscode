@@ -11,7 +11,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensionHostStarter';
 import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,6 +23,7 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
+import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 
 export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 
