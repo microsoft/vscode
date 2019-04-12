@@ -32,6 +32,8 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import { ipcRenderer as ipc } from 'electron';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IProgressService2, IProgress, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 
 const WINDOW_ACTIONS_COMMAND_ID = '_remote.showWindowActions';
 
@@ -206,8 +208,49 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 	}
 }
 
+class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IProgressService2 progressService: IProgressService2
+	) {
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			let currentProgressPromiseResolve: (() => void) | null = null;
+			let currentProgress: IProgress<IProgressStep> | null = null;
+
+			connection.onDidStateChange((e) => {
+				console.log(`received event... `, e);
+				switch (e.type) {
+					case PersistenConnectionEventType.ConnectionLost:
+						if (!currentProgressPromiseResolve) {
+							const promise = new Promise<void>((resolve) => currentProgressPromiseResolve = resolve);
+							progressService!.withProgress({ location: ProgressLocation.Dialog }, (progress) => { currentProgress = progress; return promise; });
+						}
+						currentProgress!.report({ message: nls.localize('connectionLost', "Connection Lost") });
+						break;
+					case PersistenConnectionEventType.ReconnectionWait:
+						currentProgress!.report({ message: nls.localize('reconnectionWait', "Attempting to reconnect in {0} seconds...", e.durationSeconds) });
+						break;
+					case PersistenConnectionEventType.ReconnectionRunning:
+						currentProgress!.report({ message: nls.localize('reconnectionRunning', "Reconnecting...") });
+						break;
+					case PersistenConnectionEventType.ReconnectionPermanentFailure:
+						currentProgress!.report({ message: nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the workbench.") });
+						break;
+					case PersistenConnectionEventType.ConnectionGain:
+						currentProgressPromiseResolve!();
+						currentProgressPromiseResolve = null;
+						currentProgress = null;
+						break;
+				}
+			});
+		}
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);

@@ -9,6 +9,7 @@ import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAg
 import { Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import * as platform from 'vs/base/common/platform';
+import { Emitter } from 'vs/base/common/event';
 
 export const enum ConnectionType {
 	Management = 1,
@@ -263,7 +264,37 @@ function sleep(seconds: number): Promise<void> {
 	});
 }
 
+export const enum PersistenConnectionEventType {
+	ConnectionLost,
+	ReconnectionWait,
+	ReconnectionRunning,
+	ReconnectionPermanentFailure,
+	ConnectionGain
+}
+export class ConnectionLostEvent {
+	public readonly type = PersistenConnectionEventType.ConnectionLost;
+}
+export class ReconnectionWaitEvent {
+	public readonly type = PersistenConnectionEventType.ReconnectionWait;
+	constructor(
+		public readonly durationSeconds: number
+	) { }
+}
+export class ReconnectionRunningEvent {
+	public readonly type = PersistenConnectionEventType.ReconnectionRunning;
+}
+export class ConnectionGainEvent {
+	public readonly type = PersistenConnectionEventType.ConnectionGain;
+}
+export class ReconnectionPermanentFailureEvent {
+	public readonly type = PersistenConnectionEventType.ReconnectionPermanentFailure;
+}
+export type PersistenConnectionEvent = ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ConnectionGainEvent | ReconnectionPermanentFailureEvent;
+
 abstract class PersistentConnection extends Disposable {
+
+	private readonly _onDidStateChange = this._register(new Emitter<PersistenConnectionEvent>());
+	public readonly onDidStateChange = this._onDidStateChange.event;
 
 	protected readonly _options: IConnectionOptions;
 	public readonly reconnectionToken: string;
@@ -302,6 +333,7 @@ abstract class PersistentConnection extends Disposable {
 			// no more attempts!
 			return;
 		}
+		this._onDidStateChange.fire(new ConnectionLostEvent());
 		const TIMES = [1, 9, 20, 30, 30, 30, 60, 60, 60, 300];
 		let attempt = -1;
 		do {
@@ -309,13 +341,15 @@ abstract class PersistentConnection extends Disposable {
 			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : 300);
 			try {
 				console.log(`Waiting for ${waitTime} s before trying to reconnect.`);
+				this._onDidStateChange.fire(new ReconnectionWaitEvent(waitTime));
 				await sleep(waitTime);
 
 				// connection was lost, let's try to re-establish it
 				console.log(`Trying to reconnect using my secret token ${this.reconnectionToken}`);
-
+				this._onDidStateChange.fire(new ReconnectionRunningEvent());
 				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol);
 				await this._reconnect(simpleOptions);
+				this._onDidStateChange.fire(new ConnectionGainEvent());
 
 				break;
 			} catch (err) {
@@ -323,11 +357,13 @@ abstract class PersistentConnection extends Disposable {
 					console.error(`A permanent connection error occurred`);
 					console.error(err);
 					this._permanentFailure = true;
+					this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
 					break;
 				}
 				if (attempt > 30) {
 					console.error(`Giving up after 30 reconnection attempts!`);
 					this._permanentFailure = true;
+					this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
 					break;
 				}
 				console.error(`An error occured while trying to reconnect:`);
