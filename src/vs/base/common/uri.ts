@@ -373,9 +373,11 @@ export class URI implements UriComponents {
 		return this;
 	}
 
-	static revive(data: UriComponents | any): URI {
+	static revive(data: UriComponents | URI): URI;
+	static revive(data: UriComponents | URI | undefined | null): URI | undefined;
+	static revive(data: UriComponents | URI | undefined | null): URI | undefined {
 		if (!data) {
-			return data;
+			return undefined;
 		} else if (data instanceof URI) {
 			return data;
 		} else {

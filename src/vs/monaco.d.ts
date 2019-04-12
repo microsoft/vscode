@@ -172,7 +172,8 @@ declare namespace monaco {
 		 */
 		toString(skipEncoding?: boolean): string;
 		toJSON(): object;
-		static revive(data: UriComponents | any): Uri;
+		static revive(data: UriComponents | Uri): Uri;
+		static revive(data: UriComponents | Uri | undefined | null): Uri | undefined;
 	}
 
 	export interface UriComponents {
