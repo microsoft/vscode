@@ -84,6 +84,7 @@ export interface IConfigurationRegistry {
 
 export const enum ConfigurationScope {
 	APPLICATION = 1,
+	MACHINE,
 	WINDOW,
 	RESOURCE,
 }
@@ -116,6 +117,7 @@ export interface IDefaultConfigurationExtension {
 
 export const allSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
 export const applicationSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
+export const machineSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
 export const windowSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
 export const resourceSettings: { properties: {}, patternProperties: {} } = { properties: {}, patternProperties: {} };
 
@@ -185,6 +187,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					switch (configuration.properties[key].scope) {
 						case ConfigurationScope.APPLICATION:
 							delete applicationSettings.properties[key];
+							break;
+						case ConfigurationScope.MACHINE:
+							delete machineSettings.properties[key];
 							break;
 						case ConfigurationScope.WINDOW:
 							delete windowSettings.properties[key];
@@ -334,6 +339,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						case ConfigurationScope.APPLICATION:
 							applicationSettings.properties[key] = properties[key];
 							break;
+						case ConfigurationScope.MACHINE:
+							machineSettings.properties[key] = properties[key];
+							break;
 						case ConfigurationScope.WINDOW:
 							windowSettings.properties[key] = properties[key];
 							break;
@@ -371,6 +379,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		delete allSettings.patternProperties[this.overridePropertyPattern];
 		delete applicationSettings.patternProperties[this.overridePropertyPattern];
+		delete machineSettings.patternProperties[this.overridePropertyPattern];
 		delete windowSettings.patternProperties[this.overridePropertyPattern];
 		delete resourceSettings.patternProperties[this.overridePropertyPattern];
 
@@ -378,6 +387,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		allSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		applicationSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
+		machineSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		windowSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		resourceSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 
