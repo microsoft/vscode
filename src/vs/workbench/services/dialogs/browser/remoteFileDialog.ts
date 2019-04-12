@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import * as objects from 'vs/base/common/objects';
 import { IFileService, IFileStat, FileKind } from 'vs/platform/files/common/files';
-import { IQuickInputService, IQuickPickItem, IQuickPick, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -35,8 +35,6 @@ const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
 
 export class RemoteFileDialog {
-	private acceptButton: IQuickInputButton;
-	private fallbackListItem: FileQuickPickItem | undefined;
 	private options: IOpenDialogOptions;
 	private currentFolder: URI;
 	private filePickBox: IQuickPick<FileQuickPickItem>;
@@ -79,13 +77,6 @@ export class RemoteFileDialog {
 			return Promise.resolve(undefined);
 		}
 		this.options = newOptions;
-
-		const openFileString = nls.localize('remoteFileDialog.localFileFallback', '(Open Local File)');
-		const openFolderString = nls.localize('remoteFileDialog.localFolderFallback', '(Open Local Folder)');
-		const openFileFolderString = nls.localize('remoteFileDialog.localFileFolderFallback', '(Open Local File or Folder)');
-		let fallbackLabel = options.canSelectFiles ? (options.canSelectFolders ? openFileFolderString : openFileString) : openFolderString;
-		this.fallbackListItem = this.getFallbackFileSystem(fallbackLabel);
-
 		return this.pickResource();
 	}
 
@@ -100,7 +91,6 @@ export class RemoteFileDialog {
 		this.options = newOptions;
 		this.options.canSelectFolders = true;
 		this.options.canSelectFiles = true;
-		this.fallbackListItem = this.getFallbackFileSystem(nls.localize('remoteFileDialog.localSaveFallback', '(Save Local File)'));
 
 		return new Promise<URI | undefined>((resolve) => {
 			this.pickResource(true).then(folderUri => {
@@ -129,18 +119,11 @@ export class RemoteFileDialog {
 
 	private remoteUriFrom(path: string): URI {
 		path = path.replace(/\\/g, '/');
-		return resources.toLocalResource(URI.from({ scheme: this.scheme, path }), this.remoteAuthority);
+		return resources.toLocalResource(URI.from({ scheme: this.scheme, path }), this.scheme === Schemas.file ? undefined : this.remoteAuthority);
 	}
 
 	private getScheme(defaultUri: URI | undefined, available: string[] | undefined): string {
 		return defaultUri ? defaultUri.scheme : (available ? available[0] : Schemas.file);
-	}
-
-	private getFallbackFileSystem(label: string): FileQuickPickItem | undefined {
-		if (this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
-			return { label: label, uri: URI.from({ scheme: this.options.availableFileSystems[1] }), isFolder: true };
-		}
-		return undefined;
 	}
 
 	private async getUserHome(): Promise<URI> {
@@ -182,30 +165,22 @@ export class RemoteFileDialog {
 				}
 			}
 		}
-		this.acceptButton = { iconPath: this.getDialogIcons('accept'), tooltip: this.options.title };
 
 		return new Promise<URI | undefined>(async (resolve) => {
 			this.filePickBox = this.quickInputService.createQuickPick<FileQuickPickItem>();
 			this.filePickBox.matchOnLabel = false;
 			this.filePickBox.autoFocusOnList = false;
+			this.filePickBox.ok = true;
+			if (this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
+				this.filePickBox.customButton = true;
+				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
+			}
 
 			let isResolving = false;
 			let isAcceptHandled = false;
 			this.currentFolder = homedir;
 			this.userEnteredPathSegment = '';
 			this.autoCompletePathSegment = '';
-			this.filePickBox.buttons = [this.acceptButton];
-			this.filePickBox.onDidTriggerButton(_ => {
-				// accept button
-				const resolveValue = this.addPostfix(this.remoteUriFrom(this.filePickBox.value));
-				this.validate(resolveValue).then(validated => {
-					if (validated) {
-						isResolving = true;
-						this.filePickBox.hide();
-						doResolve(this, resolveValue);
-					}
-				});
-			});
 
 			this.filePickBox.title = this.options.title;
 			this.filePickBox.value = this.pathFromUri(this.currentFolder);
@@ -216,6 +191,28 @@ export class RemoteFileDialog {
 				dialog.contextKey.set(false);
 				dialog.filePickBox.dispose();
 			}
+
+			this.filePickBox.onDidCustom(() => {
+				if (isAcceptHandled || this.filePickBox.busy) {
+					return;
+				}
+
+				isAcceptHandled = true;
+				isResolving = true;
+				if (this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
+					this.options.availableFileSystems.shift();
+				}
+				this.options.defaultUri = undefined;
+				if (this.requiresTrailing) {
+					return this.fileDialogService.showSaveDialog(this.options).then(result => {
+						doResolve(this, result);
+					});
+				} else {
+					return this.fileDialogService.showOpenDialog(this.options).then(result => {
+						doResolve(this, result ? result[0] : undefined);
+					});
+				}
+			});
 
 			this.filePickBox.onDidAccept(_ => {
 				if (isAcceptHandled || this.filePickBox.busy) {
@@ -294,24 +291,6 @@ export class RemoteFileDialog {
 	}
 
 	private async onDidAccept(): Promise<URI | undefined> {
-		// Check if Open Local has been selected
-		const selectedItems: ReadonlyArray<FileQuickPickItem> = this.filePickBox.selectedItems;
-		if (selectedItems && (selectedItems.length > 0) && (selectedItems[0] === this.fallbackListItem)) {
-			if (this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
-				this.options.availableFileSystems.shift();
-			}
-			this.options.defaultUri = undefined;
-			if (this.requiresTrailing) {
-				return this.fileDialogService.showSaveDialog(this.options).then(result => {
-					return result;
-				});
-			} else {
-				return this.fileDialogService.showOpenDialog(this.options).then(result => {
-					return result ? result[0] : undefined;
-				});
-			}
-		}
-
 		let resolveValue: URI | undefined;
 		let navigateValue: URI | undefined;
 		const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
@@ -687,10 +666,6 @@ export class RemoteFileDialog {
 		if (backDir) {
 			sorted.unshift(backDir);
 		}
-
-		if (this.fallbackListItem) {
-			sorted.push(this.fallbackListItem);
-		}
 		return sorted;
 	}
 
@@ -723,12 +698,5 @@ export class RemoteFileDialog {
 		} catch (e) {
 			return undefined;
 		}
-	}
-
-	private getDialogIcons(name: string): { light: URI, dark: URI } {
-		return {
-			dark: URI.parse(require.toUrl(`vs/workbench/services/dialogs/browser/media/dark/${name}.svg`)),
-			light: URI.parse(require.toUrl(`vs/workbench/services/dialogs/browser/media/light/${name}.svg`))
-		};
 	}
 }
