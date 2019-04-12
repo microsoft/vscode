@@ -15,7 +15,8 @@ import { RemoteExtensionHostAgentServer } from 'vs/agent/remoteExtensionHostAgen
 
 const args = minimist(process.argv.slice(2), {
 	string: [
-		'port'
+		'port',
+		'disable-telemetry'
 	]
 }) as ParsedArgs;
 
