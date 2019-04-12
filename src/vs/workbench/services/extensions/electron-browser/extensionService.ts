@@ -35,12 +35,13 @@ import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/ele
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { CachedExtensionScanner, Logger } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
-import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/electron-browser/extensionHostProcessManager';
+import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
+import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -466,7 +467,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, null, initialActivationEvents);
 		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
-		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ target: extHostProcessManager, isResponsive: responsiveState === ResponsiveState.Responsive }); });
+		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
 		this._extensionHostProcessManagers.push(extHostProcessManager);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
@@ -616,7 +617,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		for (let i = 0, len = this._extensionHostProcessManagers.length; i < len; i++) {
 			const extHostProcessManager = this._extensionHostProcessManagers[i];
 			if (extHostProcessManager.canProfileExtensionHost()) {
-				return extHostProcessManager.startExtensionHostProfile();
+				const port = extHostProcessManager.getInspectPort();
+				if (port) {
+					return this._instantiationService.createInstance(ExtensionHostProfiler, port).start();
+				}
 			}
 		}
 		throw new Error('Extension host not running or no inspect port available');

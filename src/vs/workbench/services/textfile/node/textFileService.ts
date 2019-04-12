@@ -9,7 +9,7 @@ import { TextFileService } from 'vs/workbench/services/textfile/common/textFileS
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IResolveContentOptions, IFileService, stringToSnapshot, ICreateFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IResolveContentOptions, stringToSnapshot, ICreateFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { exists, stat, chmod, rimraf } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
@@ -252,8 +252,7 @@ export class EncodingOracle extends Disposable {
 	constructor(
 		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IFileService private fileService: IFileService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -293,18 +292,11 @@ export class EncodingOracle extends Disposable {
 			return { encoding, addBOM: true };
 		}
 
-		// Existing UTF-8 file: check for options regarding BOM
-		if (encoding === UTF8 && await this.fileService.exists(resource)) {
-
-			// if we are to overwrite the encoding, we do not preserve it if found
-			if (options && options.overwriteEncoding) {
-				return { encoding, addBOM: false };
-			}
-
-			// otherwise preserve it if found
-			if (resource.scheme === Schemas.file && await detectEncodingByBOM(resource.fsPath) === UTF8) {
-				return { encoding, addBOM: true };
-			}
+		// Ensure that we preserve an existing BOM if found for UTF8
+		// unless we are instructed to overwrite the encoding
+		const overwriteEncoding = options && options.overwriteEncoding;
+		if (!overwriteEncoding && encoding === UTF8 && resource.scheme === Schemas.file && await detectEncodingByBOM(resource.fsPath) === UTF8) {
+			return { encoding, addBOM: true };
 		}
 
 		return { encoding, addBOM: false };

@@ -12,9 +12,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -28,6 +25,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IUntitledResourceInput } from 'vs/workbench/common/editor';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -169,10 +167,6 @@ export class ExtensionHostProcessManager extends Disposable {
 		return ExtensionHostProcessManager._convert(SIZE, sw.elapsed());
 	}
 
-	public canProfileExtensionHost(): boolean {
-		return this._extensionHostProcessWorker && Boolean(this._extensionHostProcessWorker.getInspectPort());
-	}
-
 	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
 
 		let logger: IRPCProtocolLogger | null = null;
@@ -236,16 +230,6 @@ export class ExtensionHostProcessManager extends Disposable {
 		});
 	}
 
-	public startExtensionHostProfile(): Promise<ProfileSession> {
-		if (this._extensionHostProcessWorker) {
-			let port = this._extensionHostProcessWorker.getInspectPort();
-			if (port) {
-				return this._instantiationService.createInstance(ExtensionHostProfiler, port).start();
-			}
-		}
-		throw new Error('Extension host not running or no inspect port available');
-	}
-
 	public getInspectPort(): number {
 		if (this._extensionHostProcessWorker) {
 			let port = this._extensionHostProcessWorker.getInspectPort();
@@ -254,6 +238,10 @@ export class ExtensionHostProcessManager extends Disposable {
 			}
 		}
 		return 0;
+	}
+
+	public canProfileExtensionHost(): boolean {
+		return this._extensionHostProcessWorker && Boolean(this._extensionHostProcessWorker.getInspectPort());
 	}
 
 	public async resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority> {

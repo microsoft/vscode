@@ -55,7 +55,7 @@ export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefine
 					result.workspaces.push({ workspace: { id: workspace['id'], configPath: URI.file(workspace['configPath']) } });
 				} else if (workspace && typeof workspace['path'] === 'string' && typeof workspace['scheme'] === 'string') {
 					// added by 1.26-insiders
-					result.workspaces.push({ folderUri: URI.revive(workspace) });
+					result.workspaces.push({ folderUri: URI.revive(<UriComponents>workspace) });
 				}
 			}
 		}

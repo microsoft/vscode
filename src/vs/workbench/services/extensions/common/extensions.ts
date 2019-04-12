@@ -10,6 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -82,6 +83,14 @@ export interface IExtensionHostProfile {
 	getAggregatedTimes(): Map<ProfileSegmentId, number>;
 }
 
+export interface IExtensionHostStarter {
+	readonly onCrashed: Event<[number, string | null]>;
+	start(): Promise<IMessagePassingProtocol> | null;
+	getInspectPort(): number | undefined;
+	dispose(): void;
+}
+
+
 /**
  * Extension id or one of the four known program states.
  */
@@ -116,11 +125,10 @@ export interface IWillActivateEvent {
 }
 
 export interface IResponsiveStateChangeEvent {
-	target: ICpuProfilerTarget;
 	isResponsive: boolean;
 }
 
-export interface IExtensionService extends ICpuProfilerTarget {
+export interface IExtensionService {
 	_serviceBrand: any;
 
 	/**
@@ -205,6 +213,16 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	getInspectPort(): number;
 
 	/**
+	 * Can the extension host be profiled.
+	 */
+	canProfileExtensionHost(): boolean;
+
+	/**
+	 *
+	 */
+	startExtensionHostProfile(): Promise<ProfileSession>;
+
+	/**
 	 * Restarts the extension host.
 	 */
 	restartExtensionHost(): void;
@@ -225,19 +243,6 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	_onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
 	_onExtensionHostExit(code: number): void;
-}
-
-export interface ICpuProfilerTarget {
-
-	/**
-	 * Check if the extension host can be profiled.
-	 */
-	canProfileExtensionHost(): boolean;
-
-	/**
-	 * Begin an extension host process profile session.
-	 */
-	startExtensionHostProfile(): Promise<ProfileSession>;
 }
 
 export interface ProfileSession {
