@@ -463,9 +463,11 @@ export class MarkdownPreview extends Disposable {
 			}
 		}
 
-		vscode.workspace.openTextDocument(this._resource).then(
-			vscode.window.showTextDocument,
-			() => this.showFileNotFoundError());
+		vscode.workspace.openTextDocument(this._resource)
+			.then(vscode.window.showTextDocument)
+			.then(undefined, () => {
+				vscode.window.showErrorMessage(localize('preview.clickOpenFailed', 'Could not open {0}', this._resource.toString()));
+			});
 	}
 
 	private async showFileNotFoundError() {
