@@ -116,11 +116,10 @@ export interface IWillActivateEvent {
 }
 
 export interface IResponsiveStateChangeEvent {
-	target: ICpuProfilerTarget;
 	isResponsive: boolean;
 }
 
-export interface IExtensionService extends ICpuProfilerTarget {
+export interface IExtensionService {
 	_serviceBrand: any;
 
 	/**
@@ -205,6 +204,16 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	getInspectPort(): number;
 
 	/**
+	 * Can the extension host be profiled.
+	 */
+	canProfileExtensionHost(): boolean;
+
+	/**
+	 *
+	 */
+	startExtensionHostProfile(): Promise<ProfileSession>;
+
+	/**
 	 * Restarts the extension host.
 	 */
 	restartExtensionHost(): void;
@@ -225,19 +234,6 @@ export interface IExtensionService extends ICpuProfilerTarget {
 	_onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
 	_onExtensionHostExit(code: number): void;
-}
-
-export interface ICpuProfilerTarget {
-
-	/**
-	 * Check if the extension host can be profiled.
-	 */
-	canProfileExtensionHost(): boolean;
-
-	/**
-	 * Begin an extension host process profile session.
-	 */
-	startExtensionHostProfile(): Promise<ProfileSession>;
 }
 
 export interface ProfileSession {
