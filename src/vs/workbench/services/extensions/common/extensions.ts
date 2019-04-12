@@ -10,6 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -81,6 +82,14 @@ export interface IExtensionHostProfile {
 	 */
 	getAggregatedTimes(): Map<ProfileSegmentId, number>;
 }
+
+export interface IExtensionHostStarter {
+	readonly onCrashed: Event<[number, string | null]>;
+	start(): Promise<IMessagePassingProtocol> | null;
+	getInspectPort(): number | undefined;
+	dispose(): void;
+}
+
 
 /**
  * Extension id or one of the four known program states.

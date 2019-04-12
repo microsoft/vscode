@@ -428,7 +428,8 @@
 					"**/vs/platform/**/common/**",
 					"**/vs/editor/common/**",
 					"**/vs/workbench/common/**",
-					"**/vs/workbench/services/**/common/**"
+					"**/vs/workbench/services/**/common/**",
+					"**/vs/workbench/api/**/common/**"
 				]
 			},
 			{

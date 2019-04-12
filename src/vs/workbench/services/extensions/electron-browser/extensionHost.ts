@@ -37,13 +37,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
-
-export interface IExtensionHostStarter {
-	readonly onCrashed: Event<[number, string | null]>;
-	start(): Promise<IMessagePassingProtocol> | null;
-	getInspectPort(): number | undefined;
-	dispose(): void;
-}
+import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
