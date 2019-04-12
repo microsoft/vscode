@@ -381,26 +381,29 @@ export class MarkdownPreview extends Disposable {
 		clearTimeout(this.throttleTimer);
 		this.throttleTimer = undefined;
 
+		let document: vscode.TextDocument;
 		try {
-			const document = await vscode.workspace.openTextDocument(resource);
-			if (!this.forceUpdate && this.currentVersion && this.currentVersion.resource.fsPath === resource.fsPath && this.currentVersion.version === document.version) {
-				if (this.line) {
-					this.updateForView(resource, this.line);
-				}
-				return;
-			}
-			this.forceUpdate = false;
-
-			this.currentVersion = { resource, version: document.version };
-			const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
-			if (this._resource === resource) {
-				this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
-				this.editor.iconPath = this.iconPath;
-				this.editor.webview.options = MarkdownPreview.getWebviewOptions(resource, this._contributionProvider.contributions);
-				this.editor.webview.html = content;
-			}
+			document = await vscode.workspace.openTextDocument(resource);
 		} catch {
 			await this.showFileNotFoundError();
+			return;
+		}
+
+		if (!this.forceUpdate && this.currentVersion && this.currentVersion.resource.fsPath === resource.fsPath && this.currentVersion.version === document.version) {
+			if (this.line) {
+				this.updateForView(resource, this.line);
+			}
+			return;
+		}
+		this.forceUpdate = false;
+
+		this.currentVersion = { resource, version: document.version };
+		const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
+		if (this._resource === resource) {
+			this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+			this.editor.iconPath = this.iconPath;
+			this.editor.webview.options = MarkdownPreview.getWebviewOptions(resource, this._contributionProvider.contributions);
+			this.editor.webview.html = content;
 		}
 	}
 
@@ -460,11 +463,9 @@ export class MarkdownPreview extends Disposable {
 			}
 		}
 
-		try {
-			vscode.workspace.openTextDocument(this._resource).then(vscode.window.showTextDocument);
-		} catch {
-			await this.showFileNotFoundError();
-		}
+		vscode.workspace.openTextDocument(this._resource).then(
+			vscode.window.showTextDocument,
+			() => this.showFileNotFoundError());
 	}
 
 	private async showFileNotFoundError() {
