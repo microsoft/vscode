@@ -217,8 +217,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
 	primary: KeyMod.CtrlCmd | KeyCode.US_COMMA,
-	handler: (accessor, args: any) => {
-		accessor.get(IPreferencesService).openSettings(undefined, undefined);
+	handler: (accessor, args: string | undefined) => {
+		accessor.get(IPreferencesService).openSettings(undefined, args);
 	}
 });
 
