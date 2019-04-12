@@ -72,6 +72,7 @@ const vscodeResources = [
 	// 'out-build/vs/**/markdown.css',
 
 	'out-build/vs/base/node/cpuUsage.sh',
+	'out-build/vs/base/node/ps.sh',
 
 	'!**/test/**'
 ];
