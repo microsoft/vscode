@@ -256,6 +256,8 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 	) {
 		super();
 
+		this.updateRemoteTelemetryEnablement();
+
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('telemetry.enableTelemetry')) {
 				this.updateRemoteTelemetryEnablement();
