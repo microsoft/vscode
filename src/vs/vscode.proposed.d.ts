@@ -616,11 +616,6 @@ declare module 'vscode' {
 		 * An [event](#Event) that fires when the log level has changed.
 		 */
 		export const onDidChangeLogLevel: Event<LogLevel>;
-
-		/**
-		 * The custom uri scheme the editor registers to in the operating system, like 'vscode', 'vscode-insiders'.
-		 */
-		export const uriScheme: string;
 	}
 
 	//#endregion
