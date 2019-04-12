@@ -679,7 +679,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private fromGallery(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>): IExtension {
-		Promise.all([this.localExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet), this.remoteExtensions ? this.localExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false)])
+		Promise.all([this.localExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet), this.remoteExtensions ? this.remoteExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false)])
 			.then(result => {
 				if (result[0] || result[1]) {
 					this.eventuallyAutoUpdateExtensions();
