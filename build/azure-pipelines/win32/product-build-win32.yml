@@ -31,14 +31,14 @@ steps:
     exec { yarn monaco-compile-check }
     exec { node build/azure-pipelines/common/installDistro.js }
     exec { node build/lib/builtInExtensions.js }
+  displayName: Prepare build
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
     $env:VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)"
-    exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min" }
-    exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
-  name: build
+    .\build\azure-pipelines\win32\build.ps1
+  displayName: Build
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
@@ -46,19 +46,19 @@ steps:
     exec { yarn gulp "electron-$(VSCODE_ARCH)" }
     exec { .\scripts\test.bat --build --tfs "Unit Tests" }
     # yarn smoketest -- --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-  displayName: Unit tests
+  displayName: Run unit tests
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
     exec { yarn gulp "electron-$(VSCODE_ARCH)" }
     exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
-  displayName: Integration tests
+  displayName: Run integration tests
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
     ConnectedServiceName: 'ESRP CodeSign'
-    FolderPath: '$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)'
+    FolderPath: '$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)'
     Pattern: '*.dll,*.exe,*.node'
     signConfigType: inlineSignParams
     inlineOperation: |
@@ -132,31 +132,11 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-archive" "vscode-win32-$(VSCODE_ARCH)-system-setup" "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
-
-    $Repo = "$(pwd)"
-    $Root = "$Repo\.."
-    $SystemExe = "$Repo\.build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe"
-    $UserExe = "$Repo\.build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe"
-    $Zip = "$Repo\.build\win32-$(VSCODE_ARCH)\archive\VSCode-win32-$(VSCODE_ARCH).zip"
-    $Build = "$Root\VSCode-win32-$(VSCODE_ARCH)"
-
-    # get version
-    $PackageJson = Get-Content -Raw -Path "$Build\resources\app\package.json" | ConvertFrom-Json
-    $Version = $PackageJson.version
-    $Quality = "$env:VSCODE_QUALITY"
     $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(AZURE_STORAGE_ACCESS_KEY_2)"
     $env:AZURE_DOCUMENTDB_MASTERKEY = "$(AZURE_DOCUMENTDB_MASTERKEY)"
-
-    $assetPlatform = if ("$(VSCODE_ARCH)" -eq "ia32") { "win32" } else { "win32-x64" }
-
-    exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform-archive" archive "VSCode-win32-$(VSCODE_ARCH)-$Version.zip" $Version true $Zip }
-    exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform" setup "VSCodeSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $SystemExe }
-    exec { node build/azure-pipelines/common/publish.js $Quality "$global:assetPlatform-user" setup "VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $UserExe }
-
-    # publish hockeyapp symbols
-    $hockeyAppId = if ("$(VSCODE_ARCH)" -eq "ia32") { "$(VSCODE_HOCKEYAPP_ID_WIN32)" } else { "$(VSCODE_HOCKEYAPP_ID_WIN64)" }
-    exec { node build/azure-pipelines/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" $hockeyAppId }
+    $env:VSCODE_HOCKEYAPP_TOKEN = "$(VSCODE_HOCKEYAPP_TOKEN)"
+    .\build\azure-pipelines\win32\publish.ps1
+  displayName: Publish
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'

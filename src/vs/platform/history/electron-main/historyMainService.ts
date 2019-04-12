@@ -15,7 +15,7 @@ import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, IWorkspacesMainService, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IHistoryMainService, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile } from 'vs/platform/history/common/history';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { isEqual as areResourcesEqual, dirname, originalFSPath } from 'vs/base/common/resources';
+import { isEqual as areResourcesEqual, dirname, originalFSPath, basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -28,6 +28,12 @@ export class HistoryMainService implements IHistoryMainService {
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
 	private static readonly MAX_MACOS_DOCK_RECENT_FOLDERS = 10;
 	private static readonly MAX_MACOS_DOCK_RECENT_FILES = 5;
+
+	// Exclude some very common files from the dock/taskbar
+	private static readonly COMMON_FILES_FILTER = [
+		'COMMIT_EDITMSG',
+		'MERGE_MSG'
+	];
 
 	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
@@ -63,8 +69,9 @@ export class HistoryMainService implements IHistoryMainService {
 			} else {
 				if (indexOfFile(files, curr.fileUri) === -1) {
 					files.push(curr);
+
 					// Add to recent documents (Windows only, macOS later)
-					if (isWindows && curr.fileUri.scheme === Schemas.file) {
+					if (isWindows && curr.fileUri.scheme === Schemas.file && HistoryMainService.COMMON_FILES_FILTER.indexOf(basename(curr.fileUri)) === -1) {
 						app.addRecentDocument(curr.fileUri.fsPath);
 					}
 				}
@@ -76,6 +83,7 @@ export class HistoryMainService implements IHistoryMainService {
 		if (workspaces.length > HistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
 			workspaces.length = HistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
 		}
+
 		if (files.length > HistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
 			files.length = HistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
 		}
@@ -143,7 +151,7 @@ export class HistoryMainService implements IHistoryMainService {
 		// Fill in files
 		for (let i = 0, entries = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i++) {
 			const loc = location(mru.files[i]);
-			if (loc.scheme === Schemas.file) {
+			if (loc.scheme === Schemas.file && HistoryMainService.COMMON_FILES_FILTER.indexOf(basename(loc)) === -1) {
 				const filePath = originalFSPath(loc);
 				if (await exists(filePath)) {
 					app.addRecentDocument(filePath);
@@ -162,7 +170,6 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier, currentFolder?: ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened {
-
 		const workspaces: Array<IRecentFolder | IRecentWorkspace> = [];
 		const files: IRecentFile[] = [];
 
@@ -170,6 +177,7 @@ export class HistoryMainService implements IHistoryMainService {
 		if (currentWorkspace && !this.workspacesMainService.isUntitledWorkspace(currentWorkspace)) {
 			workspaces.push({ workspace: currentWorkspace });
 		}
+
 		if (currentFolder) {
 			workspaces.push({ folderUri: currentFolder });
 		}
@@ -183,12 +191,14 @@ export class HistoryMainService implements IHistoryMainService {
 				}
 			}
 		}
+
 		this.addEntriesFromStorage(workspaces, files);
 
 		return { workspaces, files };
 	}
 
 	private addEntriesFromStorage(workspaces: Array<IRecentFolder | IRecentWorkspace>, files: IRecentFile[]) {
+
 		// Get from storage
 		let recents = this.getRecentlyOpenedFromStorage();
 		for (let recent of recents.workspaces) {
@@ -199,6 +209,7 @@ export class HistoryMainService implements IHistoryMainService {
 				workspaces.push(recent);
 			}
 		}
+
 		for (let recent of recents.files) {
 			let index = indexOfFile(files, recent.fileUri);
 			if (index >= 0) {
@@ -211,11 +222,13 @@ export class HistoryMainService implements IHistoryMainService {
 
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
 		const storedRecents = this.stateService.getItem<RecentlyOpenedStorageData>(HistoryMainService.recentlyOpenedStorageKey);
+
 		return restoreRecentlyOpened(storedRecents);
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
 		const serialized = toStoreData(recent);
+
 		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
 
@@ -268,16 +281,17 @@ export class HistoryMainService implements IHistoryMainService {
 				items: arrays.coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(recent => {
 					const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
 					const title = recent.label || getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
+
 					let description;
 					let args;
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						const parentFolder = dirname(workspace);
-						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(parentFolder, this.environmentService));
+						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(dirname(workspace), this.environmentService));
 						args = `--folder-uri "${workspace.toString()}"`;
 					} else {
 						description = nls.localize('codeWorkspace', "Code Workspace");
 						args = `--file-uri "${workspace.configPath.toString()}"`;
 					}
+
 					return <Electron.JumpListItem>{
 						type: 'task',
 						title,
@@ -308,9 +322,11 @@ function location(recent: IRecent): URI {
 	if (isRecentFolder(recent)) {
 		return recent.folderUri;
 	}
+
 	if (isRecentFile(recent)) {
 		return recent.fileUri;
 	}
+
 	return recent.workspace.configPath;
 }
 

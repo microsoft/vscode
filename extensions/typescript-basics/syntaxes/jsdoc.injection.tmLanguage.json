@@ -2,10 +2,31 @@
 	"injectionSelector": "L:comment.block.documentation",
 	"patterns": [
 		{
-			"include": "#example"
+			"include": "#jsdocbody"
 		}
 	],
 	"repository": {
+		"jsdocbody": {
+			"begin": "(?<=/\\*\\*)([^*]|\\*(?!/))*$",
+			"while": "(^|\\G)\\s*\\*(?!/)(?=([^*]|[*](?!/))*$)",
+			"patterns": [
+				{
+					"include": "text.html.markdown#fenced_code_block"
+				},
+				{
+					"include": "text.html.markdown#lists"
+				},
+				{
+					"include": "#example"
+				},
+				{
+					"include": "source.ts#docblock"
+				},
+				{
+					"include": "text.html.markdown#inline"
+				}
+			]
+		},
 		"example": {
 			"begin": "((@)example)\\s+(?=([^*]|[*](?!/))*$).*$",
 			"while": "(^|\\G)\\s(?!@)(?=([^*]|[*](?!/))*$)",
@@ -25,5 +46,5 @@
 			]
 		}
 	},
-	"scopeName": "documentation.example.injection"
+	"scopeName": "documentation.injection"
 }

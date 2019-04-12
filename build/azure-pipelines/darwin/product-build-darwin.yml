@@ -36,10 +36,7 @@ steps:
     set -e
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
     AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    yarn gulp vscode-darwin-min
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
-    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    yarn gulp upload-vscode-sourcemaps
+    ./build/azure-pipelines/darwin/build.sh
   displayName: Build
 
 - script: |
@@ -80,30 +77,12 @@ steps:
 
 - script: |
     set -e
-
-    # remove pkg from archive
-    zip -d ../VSCode-darwin.zip "*.pkg"
-
-    # publish the build
-    PACKAGEJSON=`ls ../VSCode-darwin/*.app/Contents/Resources/app/package.json`
-    VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
     AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    node build/azure-pipelines/common/publish.js \
-      "$(VSCODE_QUALITY)" \
-      darwin \
-      archive \
-      "VSCode-darwin-$(VSCODE_QUALITY).zip" \
-      $VERSION \
-      true \
-      ../VSCode-darwin.zip
-
-    # publish hockeyapp symbols
-    node build/azure-pipelines/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_MACOS)"
-
-    # upload configuration
     AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    yarn gulp upload-vscode-configuration
+    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    VSCODE_HOCKEYAPP_TOKEN="$(VSCODE_HOCKEYAPP_TOKEN)" \
+    ./build/azure-pipelines/darwin/publish.sh
   displayName: Publish
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0

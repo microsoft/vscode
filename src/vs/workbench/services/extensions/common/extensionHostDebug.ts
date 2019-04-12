@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 
@@ -26,14 +25,22 @@ export interface ITerminateSessionEvent {
 	subId?: string;
 }
 
+export interface IReloadSessionEvent {
+	sessionId: string;
+}
+
+export interface ICloseSessionEvent {
+	sessionId: string;
+}
+
 export interface IExtensionHostDebugService {
 	_serviceBrand: any;
 
-	reload(resource: URI): void;
-	onReload: Event<URI>;
+	reload(sessionId: string): void;
+	onReload: Event<IReloadSessionEvent>;
 
-	close(resource: URI): void;
-	onClose: Event<URI>;
+	close(sessionId: string): void;
+	onClose: Event<ICloseSessionEvent>;
 
 	attachSession(sessionId: string, port: number, subId?: string): void;
 	onAttachSession: Event<IAttachSessionEvent>;

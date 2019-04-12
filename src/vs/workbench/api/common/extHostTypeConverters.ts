@@ -478,8 +478,8 @@ export namespace WorkspaceEdit {
 				);
 			} else {
 				result.renameFile(
-					URI.revive((<ResourceFileEditDto>edit).oldUri),
-					URI.revive((<ResourceFileEditDto>edit).newUri),
+					URI.revive((<ResourceFileEditDto>edit).oldUri!),
+					URI.revive((<ResourceFileEditDto>edit).newUri!),
 					(<ResourceFileEditDto>edit).options
 				);
 			}

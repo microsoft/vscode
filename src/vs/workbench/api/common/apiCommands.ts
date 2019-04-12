@@ -144,6 +144,13 @@ export class RemoveFromRecentlyOpenedAPICommand {
 }
 CommandsRegistry.registerCommand(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute));
 
+export class OpenIssueReporter {
+	public static ID = 'vscode.openIssueReporter';
+	public static execute(executor: ICommandsExecutor, extensionId: string): Promise<void> {
+		return executor.executeCommand('workbench.action.openIssueReporter', [extensionId]);
+	}
+}
+
 interface RecentEntry {
 	uri: URI;
 	type: 'workspace' | 'folder' | 'file';

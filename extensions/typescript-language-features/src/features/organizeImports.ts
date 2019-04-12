@@ -57,6 +57,8 @@ class OrganizeImportsCommand implements Command {
 }
 
 export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvider {
+	public static readonly minVersion = API.v280;
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		commandManager: CommandManager,
@@ -103,7 +105,7 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	telemetryReporter: TelemetryReporter,
 ) {
-	return new VersionDependentRegistration(client, API.v280, () => {
+	return new VersionDependentRegistration(client, OrganizeImportsCodeActionProvider.minVersion, () => {
 		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager, telemetryReporter);
 		return vscode.languages.registerCodeActionsProvider(selector,
 			organizeImportsProvider,

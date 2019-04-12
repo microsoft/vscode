@@ -30,7 +30,8 @@ export const enum ProgressLocation {
 	Scm = 3,
 	Extensions = 5,
 	Window = 10,
-	Notification = 15
+	Notification = 15,
+	Dialog = 20
 }
 
 export interface IProgressOptions {

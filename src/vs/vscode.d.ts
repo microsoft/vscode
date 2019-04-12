@@ -5974,6 +5974,11 @@ declare module 'vscode' {
 		export const appRoot: string;
 
 		/**
+		 * The custom uri scheme the editor registers to in the operating system.
+		 */
+		export const uriScheme: string;
+
+		/**
 		 * Represents the preferred user-language, like `de-CH`, `fr`, or `en-US`.
 		 */
 		export const language: string;

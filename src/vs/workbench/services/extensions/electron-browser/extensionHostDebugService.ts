@@ -6,23 +6,20 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionHostDebugService, IAttachSessionEvent, ITerminateSessionEvent, ILogToSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
-import { URI } from 'vs/base/common/uri';
+import { IExtensionHostDebugService, IAttachSessionEvent, ITerminateSessionEvent, ILogToSessionEvent, IReloadSessionEvent, ICloseSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { ipcRenderer as ipc } from 'electron';
 
-interface IReloadBroadcast {
+interface IReloadBroadcast extends IReloadSessionEvent {
 	type: 'vscode:extensionReload';
-	resource: string;
 }
 
 interface IAttachSessionBroadcast extends IAttachSessionEvent {
 	type: 'vscode:extensionAttach';
 }
 
-interface ICloseBroadcast {
+interface ICloseBroadcast extends ICloseSessionEvent {
 	type: 'vscode:extensionCloseExtensionHost';
-	resource: string;
 }
 
 interface ILogToSessionBroadcast extends ILogToSessionEvent {
@@ -39,8 +36,8 @@ class ExtensionHostDebugService implements IExtensionHostDebugService {
 	_serviceBrand: any;
 
 	private windowId: number;
-	private readonly _onReload = new Emitter<URI>();
-	private readonly _onClose = new Emitter<URI>();
+	private readonly _onReload = new Emitter<IReloadSessionEvent>();
+	private readonly _onClose = new Emitter<ICloseSessionEvent>();
 	private readonly _onAttachSession = new Emitter<IAttachSessionEvent>();
 	private readonly _onLogToSession = new Emitter<ILogToSessionEvent>();
 	private readonly _onTerminateSession = new Emitter<ITerminateSessionEvent>();
@@ -53,10 +50,10 @@ class ExtensionHostDebugService implements IExtensionHostDebugService {
 		ipc.on(CHANNEL, (_: unknown, broadcast: IReloadBroadcast | ICloseBroadcast | IAttachSessionBroadcast | ILogToSessionBroadcast | ITerminateSessionBroadcast) => {
 			switch (broadcast.type) {
 				case 'vscode:extensionReload':
-					this._onReload.fire(URI.parse(broadcast.resource));
+					this._onReload.fire(broadcast);
 					break;
 				case 'vscode:extensionCloseExtensionHost':
-					this._onClose.fire(URI.parse(broadcast.resource));
+					this._onClose.fire(broadcast);
 					break;
 				case 'vscode:extensionAttach':
 					this._onAttachSession.fire(broadcast);
@@ -71,25 +68,25 @@ class ExtensionHostDebugService implements IExtensionHostDebugService {
 		});
 	}
 
-	reload(resource: URI): void {
+	reload(sessionId: string): void {
 		ipc.send(CHANNEL, this.windowId, <IReloadBroadcast>{
 			type: 'vscode:extensionReload',
-			resource: resource.toString()
+			sessionId
 		});
 	}
 
-	get onReload(): Event<URI> {
+	get onReload(): Event<IReloadSessionEvent> {
 		return this._onReload.event;
 	}
 
-	close(resource: URI): void {
+	close(sessionId: string): void {
 		ipc.send(CHANNEL, this.windowId, <ICloseBroadcast>{
 			type: 'vscode:extensionCloseExtensionHost',
-			resource: resource.toString()
+			sessionId
 		});
 	}
 
-	get onClose(): Event<URI> {
+	get onClose(): Event<ICloseSessionEvent> {
 		return this._onClose.event;
 	}
 

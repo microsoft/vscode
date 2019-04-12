@@ -606,9 +606,9 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderLocalizations(content, manifest, layout)
 				];
 
-				const isEmpty = !renders.reduce((v, r) => r || v, false);
 				scrollableContent.scanDomNode();
 
+				const isEmpty = !renders.some(x => x);
 				if (isEmpty) {
 					append(content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
 					append(this.content, content);
