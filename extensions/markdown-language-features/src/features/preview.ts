@@ -381,22 +381,27 @@ export class MarkdownPreview extends Disposable {
 		clearTimeout(this.throttleTimer);
 		this.throttleTimer = undefined;
 
-		const document = await vscode.workspace.openTextDocument(resource);
-		if (!this.forceUpdate && this.currentVersion && this.currentVersion.resource.fsPath === resource.fsPath && this.currentVersion.version === document.version) {
-			if (this.line) {
-				this.updateForView(resource, this.line);
+		try {
+			const document = await vscode.workspace.openTextDocument(resource);
+			if (!this.forceUpdate && this.currentVersion && this.currentVersion.resource.fsPath === resource.fsPath && this.currentVersion.version === document.version) {
+				if (this.line) {
+					this.updateForView(resource, this.line);
+				}
+				return;
 			}
-			return;
-		}
-		this.forceUpdate = false;
+			this.forceUpdate = false;
 
-		this.currentVersion = { resource, version: document.version };
-		const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
-		if (this._resource === resource) {
-			this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
-			this.editor.iconPath = this.iconPath;
-			this.editor.webview.options = MarkdownPreview.getWebviewOptions(resource, this._contributionProvider.contributions);
-			this.editor.webview.html = content;
+			this.currentVersion = { resource, version: document.version };
+			const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
+			if (this._resource === resource) {
+				this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+				this.editor.iconPath = this.iconPath;
+				this.editor.webview.options = MarkdownPreview.getWebviewOptions(resource, this._contributionProvider.contributions);
+				this.editor.webview.html = content;
+			}
+		}
+		catch (e) {
+			await this.showFileNotFoundError();
 		}
 	}
 
@@ -456,7 +461,20 @@ export class MarkdownPreview extends Disposable {
 			}
 		}
 
-		vscode.workspace.openTextDocument(this._resource).then(vscode.window.showTextDocument);
+		try {
+			vscode.workspace.openTextDocument(this._resource).then(vscode.window.showTextDocument);
+		}
+		catch (e) {
+			await this.showFileNotFoundError();
+		}
+	}
+
+	private async showFileNotFoundError() {
+		const content = await this._contentProvider.provideFileNotFoundContent(this._resource);
+		this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+		this.editor.iconPath = this.iconPath;
+		this.editor.webview.options = MarkdownPreview.getWebviewOptions(this._resource, this._contributionProvider.contributions);
+		this.editor.webview.html = content;
 	}
 
 	private async onDidClickPreviewLink(path: string, fragment: string | undefined) {
