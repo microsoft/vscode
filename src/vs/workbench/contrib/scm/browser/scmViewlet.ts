@@ -1060,10 +1060,10 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		const visibleViewDescriptors = this.viewsModel.visibleViewDescriptors;
 
 		const toSetVisible = this.viewsModel.viewDescriptors
-			.filter(d => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
+			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
 
 		const toSetInvisible = visibleViewDescriptors
-			.filter(d => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
+			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
 
 		let size: number | undefined;
 		const oneToOne = toSetVisible.length === 1 && toSetInvisible.length === 1;
@@ -1077,10 +1077,12 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 				}
 			}
 
+			viewDescriptor.repository.setSelected(false);
 			this.viewsModel.setVisible(viewDescriptor.id, false);
 		}
 
 		for (const viewDescriptor of toSetVisible) {
+			viewDescriptor.repository.setSelected(true);
 			this.viewsModel.setVisible(viewDescriptor.id, true, size);
 		}
 	}
