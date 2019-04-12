@@ -173,7 +173,7 @@ export class RemoteExtensionManagementServer {
 		services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
 
 		instantiationService.invokeFunction(accessor => {
-			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._environmentService, logService);
+			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._environmentService, logService, accessor.get(ITelemetryService));
 			server.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 			const remoteFileSystemChannel = new RemoteAgentFileSystemChannel(logService);

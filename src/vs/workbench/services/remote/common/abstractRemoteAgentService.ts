@@ -56,6 +56,16 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 
 		return Promise.resolve(undefined);
 	}
+
+	disableTelemetry(): Promise<void> {
+		const connection = this.getConnection();
+		if (connection) {
+			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
+			return client.disableTelemetry();
+		}
+
+		return Promise.resolve(undefined);
+	}
 }
 
 export class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection {
