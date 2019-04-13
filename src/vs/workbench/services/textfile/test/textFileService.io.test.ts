@@ -246,7 +246,7 @@ suite('Files - TextFileService i/o', () => {
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, encoding);
 
-		const resolved = await service.resolve(resource);
+		const resolved = await service.read(resource);
 		assert.equal(resolved.encoding, encoding);
 
 		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), expectedContent);
@@ -273,18 +273,18 @@ suite('Files - TextFileService i/o', () => {
 	});
 
 	async function testEncodingKeepsData(resource: URI, encoding: string, expected: string) {
-		let resolved = await service.resolve(resource, { encoding });
+		let resolved = await service.read(resource, { encoding });
 		const content = snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false));
 		assert.equal(content, expected);
 
 		await service.write(resource, content, { encoding });
 
-		resolved = await service.resolve(resource, { encoding });
+		resolved = await service.read(resource, { encoding });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
 
 		await service.write(resource, TextModel.createFromString(content).createSnapshot(), { encoding });
 
-		resolved = await service.resolve(resource, { encoding });
+		resolved = await service.read(resource, { encoding });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
 	}
 
@@ -295,7 +295,7 @@ suite('Files - TextFileService i/o', () => {
 
 		await service.write(resource, content);
 
-		const resolved = await service.resolve(resource);
+		const resolved = await service.read(resource);
 		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
 	});
 
@@ -306,14 +306,14 @@ suite('Files - TextFileService i/o', () => {
 
 		await service.write(resource, TextModel.createFromString(content).createSnapshot());
 
-		const resolved = await service.resolve(resource);
+		const resolved = await service.read(resource);
 		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
 	});
 
 	test('write - encoding preserved (UTF 16 LE) - content as string', async () => {
 		const resource = URI.file(join(testDir, 'some_utf16le.css'));
 
-		const resolved = await service.resolve(resource);
+		const resolved = await service.read(resource);
 		assert.equal(resolved.encoding, UTF16le);
 
 		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, 'Hello\nWorld', 'Hello\nWorld');
@@ -322,7 +322,7 @@ suite('Files - TextFileService i/o', () => {
 	test('write - encoding preserved (UTF 16 LE) - content as snapshot', async () => {
 		const resource = URI.file(join(testDir, 'some_utf16le.css'));
 
-		const resolved = await service.resolve(resource);
+		const resolved = await service.read(resource);
 		assert.equal(resolved.encoding, UTF16le);
 
 		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, TextModel.createFromString('Hello\nWorld').createSnapshot(), 'Hello\nWorld');

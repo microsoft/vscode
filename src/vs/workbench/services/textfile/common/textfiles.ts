@@ -355,9 +355,9 @@ export interface ITextFileService extends IDisposable {
 	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * Resolve the contents of a file identified by the resource.
+	 * Read the contents of a file identified by the resource.
 	 */
-	resolve(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent>;
+	read(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent>;
 
 	/**
 	 * Update a file with given contents.
