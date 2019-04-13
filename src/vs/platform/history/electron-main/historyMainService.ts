@@ -58,20 +58,31 @@ export class HistoryMainService implements IHistoryMainService {
 		const files: IRecentFile[] = [];
 
 		for (let curr of newlyAdded) {
+
+			// Workspace
 			if (isRecentWorkspace(curr)) {
 				if (!this.workspacesMainService.isUntitledWorkspace(curr.workspace) && indexOfWorkspace(workspaces, curr.workspace) === -1) {
 					workspaces.push(curr);
 				}
-			} else if (isRecentFolder(curr)) {
+			}
+
+			// Folder
+			else if (isRecentFolder(curr)) {
 				if (indexOfFolder(workspaces, curr.folderUri) === -1) {
 					workspaces.push(curr);
 				}
-			} else {
-				if (indexOfFile(files, curr.fileUri) === -1) {
+			}
+
+			// File
+			else {
+				const alreadyExistsInHistory = indexOfFile(files, curr.fileUri) >= 0;
+				const shouldBeFiltered = curr.fileUri.scheme === Schemas.file && HistoryMainService.COMMON_FILES_FILTER.indexOf(basename(curr.fileUri)) >= 0;
+
+				if (!alreadyExistsInHistory && !shouldBeFiltered) {
 					files.push(curr);
 
 					// Add to recent documents (Windows only, macOS later)
-					if (isWindows && curr.fileUri.scheme === Schemas.file && HistoryMainService.COMMON_FILES_FILTER.indexOf(basename(curr.fileUri)) === -1) {
+					if (isWindows && curr.fileUri.scheme === Schemas.file) {
 						app.addRecentDocument(curr.fileUri.fsPath);
 					}
 				}
