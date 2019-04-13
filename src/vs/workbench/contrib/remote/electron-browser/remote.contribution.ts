@@ -80,10 +80,10 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		const windowActionCommand = this.windowCommandMenu.getActions().length ? WINDOW_ACTIONS_COMMAND_ID : undefined;
 		if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.remoteAuthority) || this.remoteAuthority;
-			this.renderWindowIndicator(`$(file-symlink-directory) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel), windowActionCommand);
+			this.renderWindowIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel), windowActionCommand);
 		} else {
 			if (windowActionCommand) {
-				this.renderWindowIndicator(`$(file-symlink-directory)`, nls.localize('noHost.tooltip', "Open a remote window"), windowActionCommand);
+				this.renderWindowIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a remote window"), windowActionCommand);
 			} else if (this.windowIndicatorEntry) {
 				this.windowIndicatorEntry.dispose();
 				this.windowIndicatorEntry = undefined;
