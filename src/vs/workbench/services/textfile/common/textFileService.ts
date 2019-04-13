@@ -15,7 +15,7 @@ import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, I
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, toBufferOrReadable, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, toBufferOrReadable, ICreateFileOptions, IResourceEncodings, IResourceEncoding } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -56,6 +56,12 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 	private _models: TextFileEditorModelManager;
 	get models(): ITextFileEditorModelManager { return this._models; }
+
+	readonly encoding: IResourceEncodings = {
+		getPreferredWriteEncoding(): IResourceEncoding {
+			return { encoding: 'utf8', hasBOM: false };
+		}
+	};
 
 	private currentFilesAssociationConfig: { [key: string]: string; };
 	private configuredAutoSaveDelay?: number;

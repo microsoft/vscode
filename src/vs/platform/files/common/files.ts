@@ -18,7 +18,7 @@ import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IResourceEncodings {
-	getWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding;
+	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding;
 }
 
 export interface IResourceEncoding {
@@ -64,11 +64,6 @@ export interface IFileService {
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
 
 	//#endregion
-
-	/**
-	 * Helper to determine read/write encoding for resources.
-	 */
-	encoding: IResourceEncodings;
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace

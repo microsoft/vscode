@@ -49,7 +49,7 @@ class ServiceAccessor {
 class TestNodeTextFileService extends NodeTextFileService {
 
 	private _testEncoding: TestEncodingOracle;
-	protected get encoding(): TestEncodingOracle {
+	get encoding(): TestEncodingOracle {
 		if (!this._testEncoding) {
 			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
 		}

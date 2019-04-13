@@ -9,7 +9,7 @@ import { TextFileService } from 'vs/workbench/services/textfile/common/textFileS
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IResolveContentOptions, stringToSnapshot, ICreateFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IResolveContentOptions, stringToSnapshot, ICreateFileOptions, FileOperationError, FileOperationResult, IResourceEncodings } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { exists, stat, chmod, rimraf } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
@@ -29,7 +29,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 export class NodeTextFileService extends TextFileService {
 
 	private _encoding: EncodingOracle;
-	protected get encoding(): EncodingOracle {
+	get encoding(): EncodingOracle {
 		if (!this._encoding) {
 			this._encoding = this._register(this.instantiationService.createInstance(EncodingOracle));
 		}
@@ -246,7 +246,7 @@ export interface IEncodingOverride {
 	encoding: string;
 }
 
-export class EncodingOracle extends Disposable {
+export class EncodingOracle extends Disposable implements IResourceEncodings {
 	protected encodingOverrides: IEncodingOverride[];
 
 	constructor(
@@ -285,7 +285,7 @@ export class EncodingOracle extends Disposable {
 	}
 
 	async getWriteEncoding(resource: URI, options?: IWriteTextFileOptions): Promise<{ encoding: string, addBOM: boolean }> {
-		const { encoding, hasBOM } = this.doGetWriteEncoding(resource, options ? options.encoding : undefined);
+		const { encoding, hasBOM } = this.getPreferredWriteEncoding(resource, options ? options.encoding : undefined);
 
 		// Some encodings come with a BOM automatically
 		if (hasBOM) {
@@ -302,7 +302,7 @@ export class EncodingOracle extends Disposable {
 		return { encoding, addBOM: false };
 	}
 
-	private doGetWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding {
+	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding {
 		const resourceEncoding = this.getEncodingForResource(resource, preferredEncoding);
 
 		return {

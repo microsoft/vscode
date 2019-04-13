@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
-import { IResolveContentOptions, ITextSnapshot, IBaseStatWithMetadata, IWriteTextFileOptions, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { IResolveContentOptions, ITextSnapshot, IBaseStatWithMetadata, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncodings } from 'vs/platform/files/common/files';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
@@ -274,7 +274,9 @@ export interface ITextFileService extends IDisposable {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	readonly onWillMove: Event<IWillMoveEvent>;
+
 	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
+
 	readonly onFilesAssociationChange: Event<void>;
 
 	readonly isHotExitEnabled: boolean;
@@ -283,6 +285,11 @@ export interface ITextFileService extends IDisposable {
 	 * Access to the manager of text file editor models providing further methods to work with them.
 	 */
 	readonly models: ITextFileEditorModelManager;
+
+	/**
+	 * Helper to determine encoding for resources.
+	 */
+	readonly encoding: IResourceEncodings;
 
 	/**
 	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.

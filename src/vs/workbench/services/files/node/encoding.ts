@@ -78,7 +78,7 @@ export class ResourceEncodings extends Disposable implements IResourceEncodings 
 		return this.getEncodingForResource(resource, preferredEncoding);
 	}
 
-	getWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding {
+	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding {
 		const resourceEncoding = this.getEncodingForResource(resource, preferredEncoding);
 
 		return {
