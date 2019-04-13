@@ -533,7 +533,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		const workspace = this.contextService.getWorkspace();
 
 		// Handle top-level workspace files for local single folder workspace
-		if (state === WorkbenchState.FOLDER && workspace.folders[0].uri.scheme === Schemas.file) {
+		if (state === WorkbenchState.FOLDER) {
 			const workspaceFiles = rootFiles.filter(hasWorkspaceFileExtension);
 			if (workspaceFiles.length > 0) {
 				this.doHandleWorkspaceFiles(workspace.folders[0].uri, workspaceFiles);

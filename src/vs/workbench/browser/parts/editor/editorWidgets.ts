@@ -163,7 +163,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			this._register(this.openWorkspaceButton.onClick(() => {
 				const model = this.editor.getModel();
 				if (model) {
-					this.windowService.openWindow([{ fileUri: model.uri }]);
+					this.windowService.openWindow([{ workspaceUri: model.uri }]);
 				}
 			}));
 
