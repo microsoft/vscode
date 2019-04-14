@@ -25,7 +25,7 @@ import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/serv
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncoding, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncoding, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -962,6 +962,39 @@ export class TestFileService implements IFileService {
 	}
 
 	resolveStreamContent(resource: URI, _options?: IResolveContentOptions): Promise<IStreamContent> {
+		return Promise.resolve({
+			resource: resource,
+			value: {
+				on: (event: string, callback: Function): void => {
+					if (event === 'data') {
+						callback(this.content);
+					}
+					if (event === 'end') {
+						callback();
+					}
+				}
+			},
+			etag: 'index.txt',
+			encoding: 'utf8',
+			mtime: Date.now(),
+			size: 1,
+			name: resources.basename(resource)
+		});
+	}
+
+	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
+		return Promise.resolve({
+			resource: resource,
+			value: VSBuffer.fromString(this.content),
+			etag: 'index.txt',
+			encoding: 'utf8',
+			mtime: Date.now(),
+			name: resources.basename(resource),
+			size: 1
+		});
+	}
+
+	readFileStream(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileStreamContent> {
 		return Promise.resolve({
 			resource: resource,
 			value: {

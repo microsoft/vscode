@@ -71,7 +71,7 @@ export class FileService3 extends FileService2 {
 		return super.resolveStreamContent(resource, options);
 	}
 
-	protected throwIfFileSystemIsReadonly(provider: IFileSystemProvider): IFileSystemProvider {
+	protected throwIfFileSystemIsReadonly<T extends IFileSystemProvider>(provider: T): T {
 		// we really do not want to allow for changes currently
 		throw new FileOperationError(localize('err.readonly', "Resource can not be modified."), FileOperationResult.FILE_PERMISSION_DENIED);
 	}

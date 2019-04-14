@@ -13,7 +13,7 @@ import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -106,18 +106,24 @@ export interface IFileService {
 	exists(resource: URI): Promise<boolean>;
 
 	/**
-	 * Resolve the contents of a file identified by the resource.
-	 *
-	 * The returned object contains properties of the file and the full value as string.
+	 * @deprecated use readFile() instead.
 	 */
 	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent>;
 
 	/**
-	 * Resolve the contents of a file identified by the resource.
-	 *
-	 * The returned object contains properties of the file and the value as a readable stream.
+	 * @deprecated use readFileStream() instead.
 	 */
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
+
+	/**
+	 * Read the contents of the provided resource unbuffered.
+	 */
+	readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
+
+	/**
+	 * Read the contents of the provided resource buffered as stream.
+	 */
+	readFileStream(resource: URI, options?: IReadFileOptions): Promise<IFileStreamContent>;
 
 	/**
 	 * Updates the content replacing its previous value.
@@ -332,6 +338,13 @@ export function toFileSystemProviderErrorCode(error: Error): FileSystemProviderE
 }
 
 export function toFileOperationResult(error: Error): FileOperationResult {
+
+	// FileSystemProviderError comes with the result already
+	if (error instanceof FileOperationError) {
+		return error.fileOperationResult;
+	}
+
+	// Otherwise try to find from code
 	switch (toFileSystemProviderErrorCode(error)) {
 		case FileSystemProviderErrorCode.FileNotFound:
 			return FileOperationResult.FILE_NOT_FOUND;
@@ -619,6 +632,22 @@ export interface IContent extends IBaseStatWithMetadata {
 	encoding: string;
 }
 
+export interface IFileContent extends IBaseStatWithMetadata {
+
+	/**
+	 * The content of a file as buffer.
+	 */
+	value: VSBuffer;
+}
+
+export interface IFileStreamContent extends IBaseStatWithMetadata {
+
+	/**
+	 * The content of a file as stream.
+	 */
+	value: VSBufferReadableStream;
+}
+
 // this should eventually replace IContent such
 // that we have a clear separation between content
 // and metadata (TODO@Joh, TODO@Ben)
@@ -737,13 +766,7 @@ export interface IStreamContent extends IBaseStatWithMetadata {
 	encoding: string;
 }
 
-export interface IResolveContentOptions {
-
-	/**
-	 * The optional acceptTextOnly parameter allows to fail this request early if the file
-	 * contents are not textual.
-	 */
-	acceptTextOnly?: boolean;
+export interface IReadFileOptions {
 
 	/**
 	 * The optional etag parameter allows to return early from resolving the resource if
@@ -752,6 +775,29 @@ export interface IResolveContentOptions {
 	 * It is the task of the caller to makes sure to handle this error case from the promise.
 	 */
 	etag?: string;
+
+	/**
+	 * Is an integer specifying where to begin reading from in the file. If position is null,
+	 * data will be read from the current file position.
+	 */
+	position?: number;
+
+	/**
+	 * If provided, the size of the file will be checked against the limits.
+	 */
+	limits?: {
+		size?: number;
+		memory?: number;
+	};
+}
+
+export interface IResolveContentOptions extends IReadFileOptions {
+
+	/**
+	 * The optional acceptTextOnly parameter allows to fail this request early if the file
+	 * contents are not textual.
+	 */
+	acceptTextOnly?: boolean;
 
 	/**
 	 * The optional encoding parameter allows to specify the desired encoding when resolving
@@ -763,12 +809,6 @@ export interface IResolveContentOptions {
 	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
 	 */
 	autoGuessEncoding?: boolean;
-
-	/**
-	 * Is an integer specifying where to begin reading from in the file. If position is null,
-	 * data will be read from the current file position.
-	 */
-	position?: number;
 }
 
 export interface IWriteFileOptions {

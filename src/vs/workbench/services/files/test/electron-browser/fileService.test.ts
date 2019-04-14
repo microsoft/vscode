@@ -52,31 +52,6 @@ suite('LegacyFileService', () => {
 		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
-	test('resolveContent - large file', function () {
-		const resource = uri.file(path.join(testDir, 'lorem.txt'));
-
-		return service.resolveContent(resource).then(c => {
-			assert.ok(c.value.length > 64000);
-		});
-	});
-
-	test('resolveContent - Files are intermingled #38331', function () {
-		let resource1 = uri.file(path.join(testDir, 'lorem.txt'));
-		let resource2 = uri.file(path.join(testDir, 'some_utf16le.css'));
-		let value1: string;
-		let value2: string;
-		// load in sequence and keep data
-		return service.resolveContent(resource1).then(c => value1 = c.value).then(() => {
-			return service.resolveContent(resource2).then(c => value2 = c.value);
-		}).then(() => {
-			// load in parallel in expect the same result
-			return Promise.all([
-				service.resolveContent(resource1).then(c => assert.equal(c.value, value1)),
-				service.resolveContent(resource2).then(c => assert.equal(c.value, value2))
-			]);
-		});
-	});
-
 	test('resolveContent - FILE_IS_BINARY', function () {
 		const resource = uri.file(path.join(testDir, 'binary.txt'));
 
@@ -88,44 +63,6 @@ suite('LegacyFileService', () => {
 			});
 		});
 	});
-
-	test('resolveContent - FILE_IS_DIRECTORY', function () {
-		const resource = uri.file(path.join(testDir, 'deep'));
-
-		return service.resolveContent(resource).then(undefined, (e: FileOperationError) => {
-			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
-		});
-	});
-
-	test('resolveContent - FILE_NOT_FOUND', function () {
-		const resource = uri.file(path.join(testDir, '404.html'));
-
-		return service.resolveContent(resource).then(undefined, (e: FileOperationError) => {
-			assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
-		});
-	});
-
-	test('resolveContent - FILE_NOT_MODIFIED_SINCE', function () {
-		const resource = uri.file(path.join(testDir, 'index.html'));
-
-		return service.resolveContent(resource).then(c => {
-			return service.resolveContent(resource, { etag: c.etag }).then(undefined, (e: FileOperationError) => {
-				assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
-			});
-		});
-	});
-
-	// test('resolveContent - FILE_MODIFIED_SINCE', function () {
-	// 	const resource = uri.file(path.join(testDir, 'index.html'));
-
-	// 	return service.resolveContent(resource).then(c => {
-	// 		fs.writeFileSync(resource.fsPath, 'Updates Incoming!');
-
-	// 		return service.updateContent(resource, c.value, { etag: c.etag, mtime: c.mtime - 1000 }).then(undefined, (e: FileOperationError) => {
-	// 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
-	// 		});
-	// 	});
-	// });
 
 	test('resolveContent - encoding picked up', function () {
 		const resource = uri.file(path.join(testDir, 'index.html'));
@@ -241,22 +178,6 @@ suite('LegacyFileService', () => {
 					_service.dispose();
 				});
 			});
-		});
-	});
-
-	test('resolveContent - from position (ASCII)', function () {
-		const resource = uri.file(path.join(testDir, 'small.txt'));
-
-		return service.resolveContent(resource, { position: 6 }).then(content => {
-			assert.equal(content.value, 'File');
-		});
-	});
-
-	test('resolveContent - from position (with umlaut)', function () {
-		const resource = uri.file(path.join(testDir, 'small_umlaut.txt'));
-
-		return service.resolveContent(resource, { position: Buffer.from('Small File with Ü').length }).then(content => {
-			assert.equal(content.value, 'mlaut');
 		});
 	});
 });
