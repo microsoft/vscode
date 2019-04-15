@@ -63,7 +63,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 	const mapFileUri = desc.remoteCodeCmd ? mapFileToRemoteUri : (uri: string) => uri;
 
 	if (parsedArgs.help) {
-		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, o => isSupported(o.id), false);
+		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, o => isSupported(o.id), false));
 		return;
 	}
 	if (parsedArgs.version) {
