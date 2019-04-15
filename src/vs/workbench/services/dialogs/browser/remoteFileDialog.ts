@@ -23,7 +23,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { RemoteFileDialogContext } from 'vs/workbench/common/contextkeys';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { equalsIgnoreCase, format } from 'vs/base/common/strings';
+import { OpenLocalFileAction, OpenLocalFileFolderAction, OpenLocalFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -62,8 +64,8 @@ export class RemoteFileDialog {
 		@IModeService private readonly modeService: IModeService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IContextKeyService contextKeyService: IContextKeyService
-
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this.remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
@@ -174,6 +176,14 @@ export class RemoteFileDialog {
 			if (this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
 				this.filePickBox.customButton = true;
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
+				const action = this.allowFileSelection ? (this.allowFolderSelection ? OpenLocalFileFolderAction : OpenLocalFileAction) : OpenLocalFolderAction;
+				const keybinding = this.keybindingService.lookupKeybinding(action.ID);
+				if (keybinding) {
+					const label = keybinding.getLabel();
+					if (label) {
+						this.filePickBox.customHover = format('{0} ({1})', action.LABEL, label);
+					}
+				}
 			}
 
 			let isResolving = false;

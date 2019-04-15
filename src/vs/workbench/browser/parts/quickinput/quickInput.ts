@@ -338,6 +338,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _ok: boolean;
 	private _customButton: boolean;
 	private _customButtonLabel: string;
+	private _customButtonHover: string;
 
 	quickNavigate: IQuickNavigateConfiguration;
 
@@ -488,6 +489,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	set customLabel(label: string) {
 		this._customButtonLabel = label;
+		this.update();
+	}
+
+	get customHover() {
+		return this._customButtonHover;
+	}
+
+	set customHover(hover: string) {
+		this._customButtonHover = hover;
 		this.update();
 	}
 
@@ -738,6 +748,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.inputBox.showDecoration(Severity.Ignore);
 		}
 		this.ui.customButton.label = this.customLabel;
+		this.ui.customButton.element.title = this.customHover;
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.list.matchOnLabel = this.matchOnLabel;
