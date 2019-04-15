@@ -536,7 +536,7 @@ export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void;
 	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, newState: WebviewPanelViewState): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
-	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions): Promise<void>;
+	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {

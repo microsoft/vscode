@@ -1411,11 +1411,19 @@ export interface WorkspaceCommentProvider {
 /**
  * @internal
  */
+export interface IWebviewPortMapping {
+	webviewPort: number;
+	extensionHostPort: number;
+}
+
+/**
+ * @internal
+ */
 export interface IWebviewOptions {
 	readonly enableScripts?: boolean;
 	readonly enableCommandUris?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly portMapping?: ReadonlyArray<{ port: number, resolvedPort: number }>;
+	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
 }
 
 /**
