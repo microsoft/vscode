@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { validateConstraint } from 'vs/base/common/types';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ICommandHandlerDescription, ICommandEvent } from 'vs/platform/commands/common/commands';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -18,6 +18,8 @@ import { revive } from 'vs/base/common/marshalling';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
+import { Event, Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 interface CommandHandler {
 	callback: Function;
@@ -30,6 +32,8 @@ export interface ArgumentProcessor {
 }
 
 export class ExtHostCommands implements ExtHostCommandsShape {
+	private readonly _onDidExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
+	public readonly onDidExecuteCommandEmitter: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _proxy: MainThreadCommandsShape;
@@ -107,6 +111,15 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
+	onDidExecuteCommand(listener: (command: ICommandEvent) => any, thisArgs?: any, disposables?: IDisposable[]) {
+		this._proxy.$onDidExecuteCommand();
+		return this.onDidExecuteCommandEmitter(listener, thisArgs, disposables);
+	}
+
+	$handleDidExecuteCommand(command: ICommandEvent): void {
+		this._onDidExecuteCommand.fire(command);
+	}
+
 	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
 		this._logService.trace('ExtHostCommands#executeCommand', id);
 
@@ -133,7 +146,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			});
 
-			return this._proxy.$executeCommand<T>(id, args).then(result => revive(result, 0));
+			return this._proxy.$executeCommand<T>(id, args).then(result => {
+				return revive(result, 0);
+			});
 		}
 	}
 

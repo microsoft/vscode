@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry, ICommandHandlerDescription, ICommandEvent } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -78,8 +78,16 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		return this._commandService.executeCommand<T>(id, ...args);
 	}
 
+	$onDidExecuteCommand() {
+		return this._commandService.onDidExecuteCommand((command) => this.handleExecuteCommand(command));
+	}
+
 	$getCommands(): Promise<string[]> {
 		return Promise.resolve(Object.keys(CommandsRegistry.getCommands()));
+	}
+
+	handleExecuteCommand(command: ICommandEvent) {
+		this._proxy.$handleDidExecuteCommand(command);
 	}
 }
 
