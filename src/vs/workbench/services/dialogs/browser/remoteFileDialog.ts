@@ -200,7 +200,8 @@ export class RemoteFileDialog {
 			this.autoCompletePathSegment = '';
 
 			this.filePickBox.title = this.options.title;
-			this.filePickBox.value = this.pathFromUri(this.currentFolder);
+			this.filePickBox.value = this.pathFromUri(this.currentFolder, true);
+			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			this.filePickBox.items = [];
 
 			function doResolve(dialog: RemoteFileDialog, uri: URI | undefined) {
@@ -593,8 +594,10 @@ export class RemoteFileDialog {
 			if (this.allowFolderSelection) {
 				this.filePickBox.activeItems = [];
 			}
-			this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
-			this.insertText(newValue, newValue);
+			if (!equalsIgnoreCase(this.filePickBox.value, newValue)) {
+				this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
+				this.insertText(newValue, newValue);
+			}
 			this.filePickBox.busy = false;
 		});
 	}
