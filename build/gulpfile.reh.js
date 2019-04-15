@@ -341,9 +341,11 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName) {
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
-					.pipe(rename(`bin/${product.applicationName}`)),
+					.pipe(rename(`bin/${product.applicationName}`))
+					.pipe(util.setExecutableBit()),
 				gulp.src('resources/server/bin/server.sh', { base: '.' })
 					.pipe(rename(`server.sh`))
+					.pipe(util.setExecutableBit())
 			);
 		}
 
