@@ -503,7 +503,7 @@ export class DuplicateLineAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: AutoFixAction.Id,
+			id: DuplicateLineAction.Id,
 			label: nls.localize('duplicateLine.label', "Duplicate Line..."),
 			alias: 'Duplicate Line',
 			precondition: ContextKeyExpr.and(
