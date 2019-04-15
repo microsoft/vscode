@@ -60,6 +60,7 @@ export function startup(configuration: IssueReporterConfiguration) {
 	const issueReporter = new IssueReporter(configuration);
 	issueReporter.render();
 	document.body.style.display = 'block';
+	issueReporter.setInitialFocus();
 }
 
 export class IssueReporter extends Disposable {
@@ -140,6 +141,21 @@ export class IssueReporter extends Disposable {
 
 	render(): void {
 		this.renderBlocks();
+	}
+
+	setInitialFocus() {
+		const { fileOnExtension } = this.issueReporterModel.getData();
+		if (fileOnExtension) {
+			const issueTitle = document.getElementById('issue-title');
+			if (issueTitle) {
+				issueTitle.focus();
+			}
+		} else {
+			const issueType = document.getElementById('issue-type');
+			if (issueType) {
+				issueType.focus();
+			}
+		}
 	}
 
 	private applyZoom(zoomLevel: number) {

@@ -183,24 +183,24 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor({ resource: this.userSettingsResource });
 	}
 
-	openSettings(jsonEditor?: boolean): Promise<IEditor | null> {
+	openSettings(jsonEditor: boolean | undefined, query: string | undefined): Promise<IEditor | null> {
 		jsonEditor = typeof jsonEditor === 'undefined' ?
 			this.configurationService.getValue('workbench.settings.editor') === 'json' :
 			jsonEditor;
 
 		if (!jsonEditor) {
-			return this.openSettings2();
+			return this.openSettings2({ query: query });
 		}
 
 		const editorInput = this.getActiveSettingsEditorInput() || this.lastOpenedSettingsInput;
 		const resource = editorInput ? editorInput.master.getResource()! : this.userSettingsResource;
 		const target = this.getConfigurationTargetFromSettingsResource(resource);
-		return this.openOrSwitchSettings(target, resource);
+		return this.openOrSwitchSettings(target, resource, { query: query });
 	}
 
-	private openSettings2(): Promise<IEditor> {
+	private openSettings2(options?: ISettingsEditorOptions): Promise<IEditor> {
 		const input = this.settingsEditor2Input;
-		return this.editorGroupService.activeGroup.openEditor(input)
+		return this.editorGroupService.activeGroup.openEditor(input, options)
 			.then(() => this.editorGroupService.activeGroup.activeControl!);
 	}
 

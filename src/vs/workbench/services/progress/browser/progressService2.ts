@@ -304,6 +304,8 @@ export class ProgressService2 implements IProgressService2 {
 		const updateDialog = (message?: string) => {
 			if (message && !dialog) {
 				dialog = createDialog(message);
+			} else if (message) {
+				dialog.updateMessage(message);
 			}
 		};
 

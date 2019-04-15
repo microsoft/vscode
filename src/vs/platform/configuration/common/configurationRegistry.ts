@@ -108,6 +108,10 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	tags?: string[];
 }
 
+export interface IConfigurationExtensionInfo {
+	id: string;
+}
+
 export interface IConfigurationNode {
 	id?: string;
 	order?: number;
@@ -118,7 +122,7 @@ export interface IConfigurationNode {
 	allOf?: IConfigurationNode[];
 	overridable?: boolean;
 	scope?: ConfigurationScope;
-	contributedByExtension?: boolean;
+	extensionInfo?: IConfigurationExtensionInfo;
 }
 
 export interface IDefaultConfigurationExtension {

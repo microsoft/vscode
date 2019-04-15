@@ -59,6 +59,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
@@ -179,7 +180,7 @@ export class InstallAction extends ExtensionAction {
 			return;
 		}
 
-		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && this.extension.state === ExtensionState.Uninstalled;
+		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && !this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier));
 		this.class = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingClass : InstallAction.Class;
 		this.updateLabel();
 	}
@@ -699,7 +700,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		]);
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
-		groups.push([this.instantiationService.createInstance(ExtensionInfoAction)]);
+		groups.push([this.instantiationService.createInstance(ExtensionInfoAction), this.instantiationService.createInstance(ExtensionSettingsAction)]);
 
 		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
 
@@ -804,6 +805,27 @@ export class ExtensionInfoAction extends ExtensionAction {
 		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 
 		clipboard.writeText(clipboardStr);
+		return Promise.resolve();
+	}
+}
+
+export class ExtensionSettingsAction extends ExtensionAction {
+
+	static readonly ID = 'extensions.extensionSettings';
+	static readonly LABEL = localize('extensionSettingsAction', "Configure Extension Settings");
+
+	constructor(
+		@IPreferencesService private readonly preferencesService: IPreferencesService
+	) {
+		super(ExtensionSettingsAction.ID, ExtensionSettingsAction.LABEL);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = !!this.extension;
+	}
+	run(): Promise<any> {
+		this.preferencesService.openSettings(false, `@ext:${this.extension.identifier.id}`);
 		return Promise.resolve();
 	}
 }
@@ -1174,9 +1196,10 @@ export class ReloadAction extends ExtensionAction {
 		}
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
 		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+		const isSameExtensionRunning = runningExtension && this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
 
 		if (isUninstalled) {
-			if (runningExtension) {
+			if (isSameExtensionRunning) {
 				this.enabled = true;
 				this.label = localize('reloadRequired', "Reload Required");
 				this.tooltip = localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstallation of this extension.");
@@ -1188,7 +1211,6 @@ export class ReloadAction extends ExtensionAction {
 			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
 			if (runningExtension) {
 				// Extension is running
-				const isSameExtensionRunning = this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
 				const isSameVersionRunning = isSameExtensionRunning && this.extension.version === runningExtension.version;
 				if (isEnabled) {
 					if (!isSameVersionRunning && !this.extensionService.canAddExtension(toExtensionDescription(this.extension.local))) {
@@ -2458,6 +2480,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 				return canAddExtension() ? this.initialStatus === ExtensionState.Installed ? localize('updated', "Updated") : localize('installed', "Installed") : null;
 			}
 			if (currentStatus === ExtensionState.Uninstalling && this.status === ExtensionState.Uninstalled) {
+				this.initialStatus = this.status;
 				return canRemoveExtension() ? localize('uninstalled', "Uninstalled") : null;
 			}
 		}

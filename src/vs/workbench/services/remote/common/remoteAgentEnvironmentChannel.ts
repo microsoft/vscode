@@ -28,7 +28,6 @@ export interface IRemoteAgentEnvironmentDTO {
 	userHome: UriComponents;
 	extensions: IExtensionDescription[];
 	os: platform.OperatingSystem;
-	syncExtensions: boolean;
 }
 
 export class RemoteExtensionEnvironmentChannelClient {
@@ -54,13 +53,16 @@ export class RemoteExtensionEnvironmentChannelClient {
 					globalStorageHome: URI.revive(data.globalStorageHome),
 					userHome: URI.revive(data.userHome),
 					extensions: data.extensions.map(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); return ext; }),
-					os: data.os,
-					syncExtensions: data.syncExtensions
+					os: data.os
 				};
 			});
 	}
 
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {
 		return this.channel.call<IDiagnosticInfo>('getDiagnosticInfo', options);
+	}
+
+	disableTelemetry(): Promise<void> {
+		return this.channel.call<void>('disableTelemetry');
 	}
 }

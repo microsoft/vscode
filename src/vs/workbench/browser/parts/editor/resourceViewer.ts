@@ -108,7 +108,7 @@ export class ResourceViewer {
 }
 
 class ImageView {
-	private static readonly MAX_IMAGE_SIZE = BinarySize.MB; // showing images inline is memory intense, so we have a limit
+	private static readonly MAX_IMAGE_SIZE = BinarySize.MB * 10; // showing images inline is memory intense, so we have a limit
 	private static readonly BASE64_MARKER = 'base64,';
 
 	static create(
