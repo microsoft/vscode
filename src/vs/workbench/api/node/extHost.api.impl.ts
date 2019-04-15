@@ -253,7 +253,7 @@ export function createApiFactory(
 				return extHostClipboard;
 			},
 			openExternal(uri: URI) {
-				return extHostWindow.openUri(uri);
+				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remoteAuthority });
 			}
 		});
 

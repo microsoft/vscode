@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IMainContext } from './extHost.protocol';
+import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IMainContext, IOpenUriOptions } from './extHost.protocol';
 import { WindowState } from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -38,7 +38,7 @@ export class ExtHostWindow implements ExtHostWindowShape {
 		this._onDidChangeWindowState.fire(this._state);
 	}
 
-	openUri(stringOrUri: string | URI): Promise<boolean> {
+	openUri(stringOrUri: string | URI, options: IOpenUriOptions): Promise<boolean> {
 		if (typeof stringOrUri === 'string') {
 			try {
 				stringOrUri = URI.parse(stringOrUri);
@@ -51,6 +51,6 @@ export class ExtHostWindow implements ExtHostWindowShape {
 		} else if (stringOrUri.scheme === Schemas.command) {
 			return Promise.reject(`Invalid scheme '${stringOrUri.scheme}'`);
 		}
-		return this._proxy.$openUri(stringOrUri);
+		return this._proxy.$openUri(stringOrUri, options);
 	}
 }

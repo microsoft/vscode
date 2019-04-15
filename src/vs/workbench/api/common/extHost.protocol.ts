@@ -686,9 +686,13 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Promise<void>;
 }
 
+export interface IOpenUriOptions {
+	readonly allowTunneling?: boolean;
+}
+
 export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): Promise<boolean>;
-	$openUri(uri: UriComponents): Promise<boolean>;
+	$openUri(uri: UriComponents, options: IOpenUriOptions): Promise<boolean>;
 }
 
 // -- extension host
