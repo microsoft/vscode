@@ -29,7 +29,7 @@ export interface StatusPipeArgs {
 export interface RunCommandPipeArgs {
 	type: 'command';
 	command: string;
-	args: string[];
+	args: any[];
 }
 
 export class CLIServer {
