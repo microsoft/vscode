@@ -267,6 +267,7 @@ export interface ITerminalService {
 	 */
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string): Promise<string>;
 
+	extHostReady(remoteAuthority: string): void;
 	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 }
 
