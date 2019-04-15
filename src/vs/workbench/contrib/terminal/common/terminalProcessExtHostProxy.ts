@@ -46,6 +46,7 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		this._terminalService.requestExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
+		setTimeout(() => this._onProcessTitleChanged.fire('Starting...'), 0);
 	}
 
 	public dispose(): void {
