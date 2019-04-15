@@ -186,6 +186,7 @@ export class Delayer<T> implements IDisposable {
 		this.completionPromise = null;
 		this.doResolve = null;
 		this.task = null;
+		this.defaultDelay = defaultDelay;
 	}
 
 	trigger(task: ITask<T | Promise<T>>, delay: number = this.defaultDelay): Promise<T> {
