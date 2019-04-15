@@ -440,7 +440,7 @@ export class RemoteFileDialog {
 			this.autoCompletePathSegment = '';
 			return false;
 		}
-		const itemBasename = (quickPickItem.label === '..') ? quickPickItem.label : resources.basename(quickPickItem.uri);
+		const itemBasename = quickPickItem.label;
 		// Either force the autocomplete, or the old value should be one smaller than the new value and match the new value.
 		if (!force && (itemBasename.length >= startingBasename.length) && equalsIgnoreCase(itemBasename.substr(0, startingBasename.length), startingBasename)) {
 			this.userEnteredPathSegment = startingBasename;
@@ -598,6 +598,7 @@ export class RemoteFileDialog {
 				this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
 				this.insertText(newValue, newValue);
 			}
+			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			this.filePickBox.busy = false;
 		});
 	}
