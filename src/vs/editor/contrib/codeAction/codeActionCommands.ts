@@ -496,3 +496,37 @@ export class AutoFixAction extends EditorAction {
 			CodeActionAutoApply.IfSingle);
 	}
 }
+
+export class DuplicateLineAction extends EditorAction {
+
+	static readonly Id = 'editor.action.duplicateLine';
+
+	constructor() {
+		super({
+			id: AutoFixAction.Id,
+			label: nls.localize('duplicateLine.label', "Duplicate Line..."),
+			alias: 'Duplicate Line',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.writable,
+				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.WinCtrl | KeyCode.KEY_D,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_D
+				},
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		return showCodeActionsForEditorSelection(editor,
+			nls.localize('editor.action.duplicateLine.noneMessage', "No duplication for line available"),
+			{
+				kind: CodeActionKind.QuickFix,
+				onlyIncludePreferredActions: true
+			},
+			CodeActionAutoApply.IfSingle);
+	}
+}
