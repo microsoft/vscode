@@ -117,7 +117,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 		for (let actionGroup of actions) {
 			if (items.length) {
-				items.push({ type: 'separator', label: actionGroup[0] });
+				items.push({ type: 'separator' });
 			}
 			for (let action of actionGroup[1]) {
 				if (action instanceof MenuItemAction) {
