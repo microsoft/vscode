@@ -479,6 +479,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	set customButton(showCustomButton: boolean) {
 		this._customButton = showCustomButton;
+		this.update();
 	}
 
 	get customLabel() {
@@ -487,6 +488,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	set customLabel(label: string) {
 		this._customButtonLabel = label;
+		this.update();
 	}
 
 	get ok() {
@@ -495,6 +497,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	set ok(showOkButton: boolean) {
 		this._ok = showOkButton;
+		this.update();
 	}
 
 	public inputHasFocus(): boolean {
