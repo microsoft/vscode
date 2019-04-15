@@ -148,9 +148,10 @@ export class RemoteExtensionManagementServer {
 				// disposables.push(appInsightsAppender); // TODO Ensure the AI appender is disposed so that it flushes remaining data
 			}
 
+			const tempMachineId = '0000005266c953d717196bce4bd4c1c6e7b058fe0a40ec6728c6654f9fe8ceba';
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
-				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', undefined, this._environmentService.installSourcePath),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', tempMachineId, this._environmentService.installSourcePath),
 				piiPaths: [this._environmentService.appRoot]
 			};
 
