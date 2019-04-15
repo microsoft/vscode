@@ -32,6 +32,12 @@ interface FileQuickPickItem extends IQuickPickItem {
 	isFolder: boolean;
 }
 
+enum UpdateResult {
+	Updated,
+	NotUpdated,
+	InvalidPath
+}
+
 // Reference: https://en.wikipedia.org/wiki/Filename
 const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
@@ -52,6 +58,7 @@ export class RemoteFileDialog {
 	private autoCompletePathSegment: string;
 	private activeItem: FileQuickPickItem;
 	private userHome: URI;
+	private badPath: string | undefined;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -254,15 +261,16 @@ export class RemoteFileDialog {
 			this.filePickBox.onDidChangeValue(async value => {
 				// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
 				if (this.isChangeFromUser()) {
-					if (value !== this.constructFullUserPath()) {
+					// If the user has just entered more bad path, don't change anything
+					if (value !== this.constructFullUserPath() && !this.isBadSubpath(value)) {
 						this.filePickBox.validationMessage = undefined;
 						this.shouldOverwriteFile = false;
 						const valueUri = this.remoteUriFrom(this.trimTrailingSlash(this.filePickBox.value));
-						let isUpdate = false;
+						let updated: UpdateResult = UpdateResult.NotUpdated;
 						if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), valueUri, true)) {
-							isUpdate = await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
+							updated = await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
 						}
-						if (!isUpdate) {
+						if (updated === UpdateResult.NotUpdated) {
 							this.setActiveItems(value);
 						}
 					} else {
@@ -286,6 +294,10 @@ export class RemoteFileDialog {
 				this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			}
 		});
+	}
+
+	private isBadSubpath(value: string) {
+		return this.badPath && (value.length > this.badPath.length) && equalsIgnoreCase(value.substring(0, this.badPath.length), this.badPath);
 	}
 
 	private isChangeFromUser(): boolean {
@@ -349,10 +361,11 @@ export class RemoteFileDialog {
 		return Promise.resolve(undefined);
 	}
 
-	private async tryUpdateItems(value: string, valueUri: URI): Promise<boolean> {
+	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
 		if (value[value.length - 1] === '~') {
 			await this.updateItems(this.userHome);
-			return true;
+			this.badPath = undefined;
+			return UpdateResult.Updated;
 		} else if (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true))) {
 			let stat: IFileStat | undefined;
 			try {
@@ -362,7 +375,14 @@ export class RemoteFileDialog {
 			}
 			if (stat && stat.isDirectory && (resources.basename(valueUri) !== '.') && this.endsWithSlash(value)) {
 				await this.updateItems(valueUri);
-				return true;
+				return UpdateResult.Updated;
+			} else if (this.endsWithSlash(value)) {
+				// The input box contains a path that doesn't exist on the system.
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.badPath', 'The path does not exist.');
+				// Save this bad path. It can take too long to to a stat on every user entered character, but once a user enters a bad path they are likely
+				// to keep typing more bad path. We can compare against this bad path and see if the user entered path starts with it.
+				this.badPath = value;
+				return UpdateResult.InvalidPath;
 			} else {
 				const inputUriDirname = resources.dirname(valueUri);
 				if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), inputUriDirname, true)) {
@@ -374,12 +394,14 @@ export class RemoteFileDialog {
 					}
 					if (statWithoutTrailing && statWithoutTrailing.isDirectory && (resources.basename(valueUri) !== '.')) {
 						await this.updateItems(inputUriDirname, resources.basename(valueUri));
-						return true;
+						this.badPath = undefined;
+						return UpdateResult.Updated;
 					}
 				}
 			}
 		}
-		return false;
+		this.badPath = undefined;
+		return UpdateResult.NotUpdated;
 	}
 
 	private setActiveItems(value: string) {
