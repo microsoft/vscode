@@ -60,10 +60,12 @@
 	display: flex;
 	flex-grow: 1;
 	padding: 10px 15px 20px;
+	align-items: center;
 }
 
 .monaco-workbench .dialog-box .dialog-message-row .dialog-icon {
 	flex: 0 0 30px;
+	height: 30px;
 	padding-right: 4px;
 	padding-left: 4px;
 	background-position: center;

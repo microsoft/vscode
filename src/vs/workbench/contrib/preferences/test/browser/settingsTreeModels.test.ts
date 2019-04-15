@@ -116,6 +116,7 @@ suite('SettingsTree', () => {
 			'',
 			<IParsedQuery>{
 				tags: [],
+				extensionFilters: [],
 				query: ''
 			});
 
@@ -123,6 +124,7 @@ suite('SettingsTree', () => {
 			'@modified',
 			<IParsedQuery>{
 				tags: ['modified'],
+				extensionFilters: [],
 				query: ''
 			});
 
@@ -130,6 +132,7 @@ suite('SettingsTree', () => {
 			'@tag:foo',
 			<IParsedQuery>{
 				tags: ['foo'],
+				extensionFilters: [],
 				query: ''
 			});
 
@@ -137,6 +140,7 @@ suite('SettingsTree', () => {
 			'@modified foo',
 			<IParsedQuery>{
 				tags: ['modified'],
+				extensionFilters: [],
 				query: 'foo'
 			});
 
@@ -144,6 +148,7 @@ suite('SettingsTree', () => {
 			'@tag:foo @modified',
 			<IParsedQuery>{
 				tags: ['foo', 'modified'],
+				extensionFilters: [],
 				query: ''
 			});
 
@@ -151,6 +156,7 @@ suite('SettingsTree', () => {
 			'@tag:foo @modified my query',
 			<IParsedQuery>{
 				tags: ['foo', 'modified'],
+				extensionFilters: [],
 				query: 'my query'
 			});
 
@@ -158,6 +164,7 @@ suite('SettingsTree', () => {
 			'test @modified query',
 			<IParsedQuery>{
 				tags: ['modified'],
+				extensionFilters: [],
 				query: 'test  query'
 			});
 
@@ -165,6 +172,7 @@ suite('SettingsTree', () => {
 			'test @modified',
 			<IParsedQuery>{
 				tags: ['modified'],
+				extensionFilters: [],
 				query: 'test'
 			});
 
@@ -172,7 +180,24 @@ suite('SettingsTree', () => {
 			'query has @ for some reason',
 			<IParsedQuery>{
 				tags: [],
+				extensionFilters: [],
 				query: 'query has @ for some reason'
+			});
+
+		testParseQuery(
+			'@ext:github.vscode-pull-request-github',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: ['github.vscode-pull-request-github'],
+				query: ''
+			});
+
+		testParseQuery(
+			'@ext:github.vscode-pull-request-github,vscode.git',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: ['github.vscode-pull-request-github', 'vscode.git'],
+				query: ''
 			});
 	});
 });

@@ -22,31 +22,30 @@ export interface IFileChangeDto {
 
 export class RemoteExtensionsFileSystemProvider extends Disposable implements IFileSystemProvider {
 
-	private readonly _session: string;
-	private readonly _channel: IChannel;
+	private readonly session: string = generateUuid();
 
 	private readonly _onDidChange = this._register(new Emitter<IFileChange[]>());
 	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChange.event;
 
-	public capabilities: FileSystemProviderCapabilities;
 	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
 
-	constructor(channel: IChannel, environment: Promise<IRemoteAgentEnvironment | null>) {
+	private _capabilities: FileSystemProviderCapabilities;
+	get capabilities(): FileSystemProviderCapabilities { return this._capabilities; }
+
+	constructor(private readonly channel: IChannel, environment: Promise<IRemoteAgentEnvironment | null>) {
 		super();
-		this._session = generateUuid();
-		this._channel = channel;
 
 		this.setCaseSensitive(true);
 		environment.then(remoteAgentEnvironment => this.setCaseSensitive(!!(remoteAgentEnvironment && remoteAgentEnvironment.os === OperatingSystem.Linux)));
 
-		this._channel.listen<IFileChangeDto[]>('filechange', [this._session])((events) => {
-			this._onDidChange.fire(events.map(RemoteExtensionsFileSystemProvider._createFileChange));
-		});
+		this.registerListeners();
 	}
 
-	dispose(): void {
-		super.dispose();
+	private registerListeners(): void {
+		this._register(this.channel.listen<IFileChangeDto[]>('filechange', [this.session])((events) => {
+			this._onDidChange.fire(events.map(event => ({ resource: URI.revive(event.resource), type: event.type })));
+		}));
 	}
 
 	setCaseSensitive(isCaseSensitive: boolean) {
@@ -54,58 +53,55 @@ export class RemoteExtensionsFileSystemProvider extends Disposable implements IF
 			FileSystemProviderCapabilities.FileReadWrite
 			| FileSystemProviderCapabilities.FileFolderCopy
 		);
+
 		if (isCaseSensitive) {
 			capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
 		}
-		this.capabilities = capabilities;
+
+		this._capabilities = capabilities;
 		this._onDidChangeCapabilities.fire(undefined);
-	}
-
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		const req = Math.random();
-		this._channel.call('watch', [this._session, req, resource, opts]);
-		return toDisposable(() => {
-			this._channel.call('unwatch', [this._session, req]);
-		});
-	}
-
-	private static _createFileChange(dto: IFileChangeDto): IFileChange {
-		return { resource: URI.revive(dto.resource), type: dto.type };
 	}
 
 	// --- forwarding calls
 
 	stat(resource: URI): Promise<IStat> {
-		return this._channel.call('stat', [resource]);
+		return this.channel.call('stat', [resource]);
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		const buff = <VSBuffer>await this._channel.call('readFile', [resource]);
+		const buff = <VSBuffer>await this.channel.call('readFile', [resource]);
+
 		return buff.buffer;
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		const contents = VSBuffer.wrap(content);
-		return this._channel.call('writeFile', [resource, contents, opts]);
+		return this.channel.call('writeFile', [resource, VSBuffer.wrap(content), opts]);
 	}
 
 	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		return this._channel.call('delete', [resource, opts]);
+		return this.channel.call('delete', [resource, opts]);
 	}
 
 	mkdir(resource: URI): Promise<void> {
-		return this._channel.call('mkdir', [resource]);
+		return this.channel.call('mkdir', [resource]);
 	}
 
 	readdir(resource: URI): Promise<[string, FileType][]> {
-		return this._channel.call('readdir', [resource]);
+		return this.channel.call('readdir', [resource]);
 	}
 
 	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
-		return this._channel.call('rename', [resource, target, opts]);
+		return this.channel.call('rename', [resource, target, opts]);
 	}
 
 	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
-		return this._channel.call('copy', [resource, target, opts]);
+		return this.channel.call('copy', [resource, target, opts]);
+	}
+
+	watch(resource: URI, opts: IWatchOptions): IDisposable {
+		const req = Math.random();
+		this.channel.call('watch', [this.session, req, resource, opts]);
+
+		return toDisposable(() => this.channel.call('unwatch', [this.session, req]));
 	}
 }

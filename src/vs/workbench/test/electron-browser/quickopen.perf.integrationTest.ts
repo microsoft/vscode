@@ -164,6 +164,9 @@ class TestTelemetryService implements ITelemetryService {
 
 	public events: any[] = [];
 
+	public setEnabled(value: boolean): void {
+	}
+
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		this.events.push({ name: eventName, data: data });
 		return Promise.resolve(undefined);

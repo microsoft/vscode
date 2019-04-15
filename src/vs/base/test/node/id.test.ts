@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as getmac from 'getmac';
-// import { getMachineId } from 'vs/base/node/id';
+import { getMachineId } from 'vs/base/node/id';
 
 suite('ID', () => {
 
-	// test('getMachineId', () => {
-	// 	return getMachineId().then(id => {
-	// 		assert.ok(id);
-	// 	});
-	// });
+	test('getMachineId', function () {
+		this.timeout(20000);
+		return getMachineId().then(id => {
+			assert.ok(id);
+		});
+	});
 
 	test('getMac', () => {
 		return new Promise<string>((resolve, reject) => {

@@ -47,6 +47,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		}
 	}
 
+	setEnabled(value: boolean): void {
+		return this.impl.setEnabled(value);
+	}
+
 	get isOptedIn(): boolean {
 		return this.impl.isOptedIn;
 	}

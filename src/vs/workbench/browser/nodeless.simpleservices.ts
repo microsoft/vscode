@@ -821,6 +821,9 @@ export class SimpleTelemetryService implements ITelemetryService {
 		return Promise.resolve(undefined);
 	}
 
+	setEnabled(value: boolean): void {
+	}
+
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',

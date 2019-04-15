@@ -269,7 +269,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 		}
 		if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
 			this.element = append(this.parent, $('div.extension-remote-badge'));
-			append(this.element, $('span.octicon.octicon-file-symlink-directory'));
+			append(this.element, $('span.octicon.octicon-remote'));
 
 			const applyBadgeStyle = () => {
 				if (!this.element) {
