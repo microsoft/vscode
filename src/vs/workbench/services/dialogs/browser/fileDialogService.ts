@@ -72,8 +72,8 @@ export class FileDialogService implements IFileDialogService {
 			}
 		}
 
-		// ...then fallback to default folder path
-		return this.defaultFolderPath(schemeFilter);
+		// ...then fallback to default file path
+		return this.defaultFilePath(schemeFilter);
 	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
