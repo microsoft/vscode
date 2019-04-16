@@ -14,7 +14,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
  * This module contains utility functions related to the environment, cwd and paths.
  */
 
-export function mergeEnvironments(parent: platform.IProcessEnvironment, other?: ITerminalEnvironment): void {
+export function mergeEnvironments(parent: platform.IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {
 		return;
 	}
@@ -49,11 +49,25 @@ function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: s
 	}
 }
 
-export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, version: string | undefined, locale: string | undefined, setLocaleVariables: boolean): void {
+export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, version: string | undefined, locale: string | undefined, setLocaleVariables: boolean): void {
 	env['TERM_PROGRAM'] = 'vscode';
-	env['TERM_PROGRAM_VERSION'] = version ? version : null;
+	if (version) {
+		env['TERM_PROGRAM_VERSION'] = version;
+	}
 	if (setLocaleVariables) {
 		env['LANG'] = _getLangEnvVariable(locale);
+	}
+}
+
+export function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | NodeJS.ProcessEnv | undefined) {
+	if (!other) {
+		return;
+	}
+	for (const key of Object.keys(other)) {
+		const value = other[key];
+		if (value) {
+			env[key] = value;
+		}
 	}
 }
 

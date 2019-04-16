@@ -6,7 +6,7 @@
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -22,6 +22,7 @@ import { IProductService } from 'vs/platform/product/common/product';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { URI } from 'vs/base/common/uri';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -172,32 +173,41 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		if (!shellLaunchConfig.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 		}
-
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, this._environmentService.userHome, activeWorkspaceRootUri, this._configHelper.config.cwd);
+		const env = this._createEnvironment(shellLaunchConfig, activeWorkspaceRootUri);
 
-		// Compel type system as process.env should not have any undefined entries
+		this._logService.debug(`Terminal process launching`, shellLaunchConfig, initialCwd, cols, rows, env);
+		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
+	}
+
+	private _createEnvironment(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined): platform.IProcessEnvironment {
+		// Create a terminal environment based on settings, launch config and permissions
 		let env: platform.IProcessEnvironment = {};
-
 		if (shellLaunchConfig.strictEnv) {
-			// Only base the terminal process environment on this environment and add the
-			// various mixins when strictEnv is false
-			env = { ...shellLaunchConfig.env } as any;
+			// strictEnv is true, only use the requested env (ignoring null entries)
+			terminalEnvironment.mergeNonNullKeys(env, shellLaunchConfig.env);
 		} else {
 			// Merge process env with the env from config and from shellLaunchConfig
-			env = { ...process.env } as any;
+			terminalEnvironment.mergeNonNullKeys(env, process.env);
 
-			// Resolve env vars from config and shell
+			// Determine config env based on workspace shell permissions
 			const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
 			const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 			const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
-			const envFromConfigValue = this._workspaceConfigurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
-			const allowedEnvFromConfig = (isWorkspaceShellAllowed ? envFromConfigValue.value : envFromConfigValue.user);
-			const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...allowedEnvFromConfig }, lastActiveWorkspaceRoot);
-			const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-			shellLaunchConfig.env = envFromShell;
+			const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
+			const allowedEnvFromConfig = { ...(isWorkspaceShellAllowed ? envFromConfigValue.value : envFromConfigValue.user) };
 
-			terminalEnvironment.mergeEnvironments(env, envFromConfig);
+			// Resolve env vars from config and shell
+			if (allowedEnvFromConfig) {
+				terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, allowedEnvFromConfig, lastActiveWorkspaceRoot);
+			}
+			if (shellLaunchConfig.env) {
+				terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, shellLaunchConfig.env, lastActiveWorkspaceRoot);
+			}
+
+			// Merge config (settings) and ShellLaunchConfig environments
+			terminalEnvironment.mergeEnvironments(env, allowedEnvFromConfig);
 			terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
 
 			// Sanitize the environment, removing any undesirable VS Code and Electron environment
@@ -207,9 +217,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			// Adding other env keys necessary to create the process
 			terminalEnvironment.addTerminalEnvironmentKeys(env, this._productService.version, platform.locale, this._configHelper.config.setLocaleVariables);
 		}
-
-		this._logService.debug(`Terminal process launching`, shellLaunchConfig, initialCwd, cols, rows, env);
-		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
+		return env;
 	}
 
 	public setDimensions(cols: number, rows: number): void {
