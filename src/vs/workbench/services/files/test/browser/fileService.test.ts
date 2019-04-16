@@ -12,7 +12,7 @@ import { NullFileSystemProvider } from 'vs/workbench/test/workbenchTestServices'
 import { NullLogService } from 'vs/platform/log/common/log';
 import { timeout } from 'vs/base/common/async';
 
-suite('File Service 2', () => {
+suite('File Service', () => {
 
 	test('provider registration', async () => {
 		const service = new FileService(new NullLogService());
