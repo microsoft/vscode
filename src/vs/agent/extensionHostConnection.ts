@@ -72,8 +72,7 @@ export class ExtensionHostConnection {
 			if (startParams.port && !(<any>process).pkg) {
 				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=0.0.0.0:${startParams.port}`];
 			}
-			console.log(`==> Starting Remote extension host with NLS configuration:`);
-			console.log(JSON.stringify(nlsConfig, undefined, 4));
+
 			const opts = {
 				env: objects.mixin(objects.deepClone(process.env), {
 					AMD_ENTRYPOINT: 'vs/agent/remoteExtensionHostProcess',

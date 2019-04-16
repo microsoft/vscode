@@ -112,6 +112,10 @@ export class Main {
 	private async installExtensions(extensions: string[], force: boolean): Promise<void> {
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
+		if (extensions.length) {
+			console.log(localize('installingExtensions', "Installing extensions..."));
+		}
+
 		for (const extension of extensions) {
 			try {
 				const manifest = await this.installExtension(extension, force);
@@ -142,11 +146,11 @@ export class Main {
 
 			if (valid) {
 				return this.extensionManagementService.install(URI.file(extension)).then(id => {
-					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
+					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(extension)));
 					return manifest;
 				}, error => {
 					if (isPromiseCanceledError(error)) {
-						console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", getBaseLabel(extension)));
+						console.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", getBaseLabel(extension)));
 						return null;
 					} else {
 						return Promise.reject(error);
@@ -191,9 +195,7 @@ export class Main {
 							console.log(localize('forceUpdate', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Use '--force' option to update to newer version.", id, installedExtension.manifest.version, extension.version));
 							return Promise.resolve(null);
 						}
-						console.log(localize('updateMessage', "Updating the Extension '{0}' to the version {1}", id, extension.version));
-					} else {
-						console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
+						console.log(localize('updateMessage', "Updating the extension '{0}' to the version {1}", id, extension.version));
 					}
 					await this.installFromGallery(id, extension);
 					return manifest;
@@ -210,7 +212,7 @@ export class Main {
 		const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, local.identifier) && semver.gt(local.manifest.version, manifest.version))[0];
 
 		if (newer && !force) {
-			console.log(localize('forceDowngrade', "A newer version of this extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));
+			console.log(localize('forceDowngrade', "A newer version of extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));
 			return false;
 		}
 
@@ -218,14 +220,14 @@ export class Main {
 	}
 
 	private async installFromGallery(id: string, extension: IGalleryExtension): Promise<void> {
-		console.log(localize('installing', "Installing..."));
+		console.log(localize('installing', "Installing extension '{0}' v{1}...", id, extension.version));
 
 		try {
 			await this.extensionManagementService.installFromGallery(extension);
-			console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
+			console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, extension.version));
 		} catch (error) {
 			if (isPromiseCanceledError(error)) {
-				console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", id));
+				console.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", id));
 			} else {
 				throw error;
 			}
