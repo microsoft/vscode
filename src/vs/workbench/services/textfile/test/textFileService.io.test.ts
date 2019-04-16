@@ -7,9 +7,9 @@ import { URI } from 'vs/base/common/uri';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { ITextFileService, snapshotToString, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, snapshotToString, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IFileService, FileOperationError } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -558,7 +558,7 @@ suite('Files - TextFileService i/o', () => {
 	test('readStream - FILE_IS_BINARY', async () => {
 		const resource = URI.file(join(testDir, 'binary.txt'));
 
-		let error: FileOperationError | undefined = undefined;
+		let error: TextFileOperationError | undefined = undefined;
 		try {
 			await service.readStream(resource, { acceptTextOnly: true });
 		} catch (err) {
@@ -566,7 +566,7 @@ suite('Files - TextFileService i/o', () => {
 		}
 
 		assert.ok(error);
-		assert.equal(error!.fileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
+		assert.equal(error!.textFileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
 
 		const result = await service.readStream(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
 		assert.equal(result.name, 'small.txt');
