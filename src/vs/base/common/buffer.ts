@@ -85,24 +85,24 @@ export class VSBuffer {
 		this.buffer.set(array.buffer, offset);
 	}
 
-	readUint32BE(offset: number): number {
-		return readUint32BE(this.buffer, offset);
+	readUInt32BE(offset: number): number {
+		return readUInt32BE(this.buffer, offset);
 	}
 
-	writeUint32BE(value: number, offset: number): void {
-		writeUint32BE(this.buffer, value, offset);
+	writeUInt32BE(value: number, offset: number): void {
+		writeUInt32BE(this.buffer, value, offset);
 	}
 
-	readUint8(offset: number): number {
-		return readUint8(this.buffer, offset);
+	readUInt8(offset: number): number {
+		return readUInt8(this.buffer, offset);
 	}
 
-	writeUint8(value: number, offset: number): void {
-		writeUint8(this.buffer, value, offset);
+	writeUInt8(value: number, offset: number): void {
+		writeUInt8(this.buffer, value, offset);
 	}
 }
 
-function readUint32BE(source: Uint8Array, offset: number): number {
+function readUInt32BE(source: Uint8Array, offset: number): number {
 	return (
 		source[offset] * 2 ** 24
 		+ source[offset + 1] * 2 ** 16
@@ -111,7 +111,7 @@ function readUint32BE(source: Uint8Array, offset: number): number {
 	);
 }
 
-function writeUint32BE(destination: Uint8Array, value: number, offset: number): void {
+function writeUInt32BE(destination: Uint8Array, value: number, offset: number): void {
 	destination[offset + 3] = value;
 	value = value >>> 8;
 	destination[offset + 2] = value;
@@ -121,11 +121,11 @@ function writeUint32BE(destination: Uint8Array, value: number, offset: number): 
 	destination[offset] = value;
 }
 
-function readUint8(source: Uint8Array, offset: number): number {
+function readUInt8(source: Uint8Array, offset: number): number {
 	return source[offset];
 }
 
-function writeUint8(destination: Uint8Array, value: number, offset: number): void {
+function writeUInt8(destination: Uint8Array, value: number, offset: number): void {
 	destination[offset] = value;
 }
 

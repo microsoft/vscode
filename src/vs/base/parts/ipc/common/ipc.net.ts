@@ -216,10 +216,10 @@ class ProtocolReader extends Disposable {
 
 				// save new state => next time will read the body
 				this._state.readHead = false;
-				this._state.readLen = buff.readUint32BE(9);
-				this._state.messageType = <ProtocolMessageType>buff.readUint8(0);
-				this._state.id = buff.readUint32BE(1);
-				this._state.ack = buff.readUint32BE(5);
+				this._state.readLen = buff.readUInt32BE(9);
+				this._state.messageType = <ProtocolMessageType>buff.readUInt8(0);
+				this._state.id = buff.readUInt32BE(1);
+				this._state.ack = buff.readUInt32BE(5);
 			} else {
 				// buff is the body
 				const messageType = this._state.messageType;
@@ -288,10 +288,10 @@ class ProtocolWriter {
 		msg.writtenTime = Date.now();
 		this.lastWriteTime = Date.now();
 		const header = VSBuffer.alloc(ProtocolConstants.HeaderLength);
-		header.writeUint8(msg.type, 0);
-		header.writeUint32BE(msg.id, 1);
-		header.writeUint32BE(msg.ack, 5);
-		header.writeUint32BE(msg.data.byteLength, 9);
+		header.writeUInt8(msg.type, 0);
+		header.writeUInt32BE(msg.id, 1);
+		header.writeUInt32BE(msg.ack, 5);
+		header.writeUInt32BE(msg.data.byteLength, 9);
 		this._writeSoon(header, msg.data);
 	}
 

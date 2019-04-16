@@ -463,20 +463,20 @@ class MessageBuffer {
 	}
 
 	public writeUInt8(n: number): void {
-		this._buff.writeUint8(n, this._offset); this._offset += 1;
+		this._buff.writeUInt8(n, this._offset); this._offset += 1;
 	}
 
 	public readUInt8(): number {
-		const n = this._buff.readUint8(this._offset); this._offset += 1;
+		const n = this._buff.readUInt8(this._offset); this._offset += 1;
 		return n;
 	}
 
 	public writeUInt32(n: number): void {
-		this._buff.writeUint32BE(n, this._offset); this._offset += 4;
+		this._buff.writeUInt32BE(n, this._offset); this._offset += 4;
 	}
 
 	public readUInt32(): number {
-		const n = this._buff.readUint32BE(this._offset); this._offset += 4;
+		const n = this._buff.readUInt32BE(this._offset); this._offset += 4;
 		return n;
 	}
 
@@ -485,12 +485,12 @@ class MessageBuffer {
 	}
 
 	public writeShortString(str: VSBuffer): void {
-		this._buff.writeUint8(str.byteLength, this._offset); this._offset += 1;
+		this._buff.writeUInt8(str.byteLength, this._offset); this._offset += 1;
 		this._buff.set(str, this._offset); this._offset += str.byteLength;
 	}
 
 	public readShortString(): string {
-		const strByteLength = this._buff.readUint8(this._offset); this._offset += 1;
+		const strByteLength = this._buff.readUInt8(this._offset); this._offset += 1;
 		const strBuff = this._buff.slice(this._offset, this._offset + strByteLength);
 		const str = strBuff.toString(); this._offset += strByteLength;
 		return str;
@@ -501,19 +501,19 @@ class MessageBuffer {
 	}
 
 	public writeLongString(str: VSBuffer): void {
-		this._buff.writeUint32BE(str.byteLength, this._offset); this._offset += 4;
+		this._buff.writeUInt32BE(str.byteLength, this._offset); this._offset += 4;
 		this._buff.set(str, this._offset); this._offset += str.byteLength;
 	}
 
 	public readLongString(): string {
-		const strByteLength = this._buff.readUint32BE(this._offset); this._offset += 4;
+		const strByteLength = this._buff.readUInt32BE(this._offset); this._offset += 4;
 		const strBuff = this._buff.slice(this._offset, this._offset + strByteLength);
 		const str = strBuff.toString(); this._offset += strByteLength;
 		return str;
 	}
 
 	public writeBuffer(buff: VSBuffer): void {
-		this._buff.writeUint32BE(buff.byteLength, this._offset); this._offset += 4;
+		this._buff.writeUInt32BE(buff.byteLength, this._offset); this._offset += 4;
 		this._buff.set(buff, this._offset); this._offset += buff.byteLength;
 	}
 
@@ -522,12 +522,12 @@ class MessageBuffer {
 	}
 
 	public writeVSBuffer(buff: VSBuffer): void {
-		this._buff.writeUint32BE(buff.byteLength, this._offset); this._offset += 4;
+		this._buff.writeUInt32BE(buff.byteLength, this._offset); this._offset += 4;
 		this._buff.set(buff, this._offset); this._offset += buff.byteLength;
 	}
 
 	public readVSBuffer(): VSBuffer {
-		const buffLength = this._buff.readUint32BE(this._offset); this._offset += 4;
+		const buffLength = this._buff.readUInt32BE(this._offset); this._offset += 4;
 		const buff = this._buff.slice(this._offset, this._offset + buffLength); this._offset += buffLength;
 		return buff;
 	}
@@ -549,7 +549,7 @@ class MessageBuffer {
 	}
 
 	public writeMixedArray(arr: VSBuffer[], arrType: ArgType[]): void {
-		this._buff.writeUint8(arr.length, this._offset); this._offset += 1;
+		this._buff.writeUInt8(arr.length, this._offset); this._offset += 1;
 		for (let i = 0, len = arr.length; i < len; i++) {
 			const el = arr[i];
 			const elType = arrType[i];
@@ -564,7 +564,7 @@ class MessageBuffer {
 	}
 
 	public readMixedArray(): Array<string | VSBuffer> {
-		const arrLen = this._buff.readUint8(this._offset); this._offset += 1;
+		const arrLen = this._buff.readUInt8(this._offset); this._offset += 1;
 		let arr: Array<string | VSBuffer> = new Array(arrLen);
 		for (let i = 0; i < arrLen; i++) {
 			const argType = <ArgType>this.readUInt8();

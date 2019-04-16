@@ -625,6 +625,12 @@ export interface IReadFileOptions {
 	position?: number;
 
 	/**
+	 * Is an integer specifying how many bytes to read from the file. By default, all bytes
+	 * will be read.
+	 */
+	length?: number;
+
+	/**
 	 * If provided, the size of the file will be checked against the limits.
 	 */
 	limits?: {

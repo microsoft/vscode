@@ -418,7 +418,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		// chunk for possibly being binary by looking for 0-bytes
 		// we limit this check to the first 512 bytes
 		for (let i = 0; i < buffer.byteLength && i < 512; i++) {
-			if (buffer.readUint8(i) === 0) {
+			if (buffer.readUInt8(i) === 0) {
 				throw new TextFileOperationError(nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
 			}
 		}

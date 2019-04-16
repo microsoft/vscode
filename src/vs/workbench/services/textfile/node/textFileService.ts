@@ -9,7 +9,7 @@ import { TextFileService } from 'vs/workbench/services/textfile/common/textFileS
 import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IResourceEncoding, IReadTextFileOptions, IWriteTextFileOptions, stringToSnapshot, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IFileStatWithMetadata, ICreateFileOptions, FileOperationError, FileOperationResult, IFileStreamContent } from 'vs/platform/files/common/files';
+import { IFileStatWithMetadata, ICreateFileOptions, FileOperationError, FileOperationResult, IFileStreamContent, IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { exists, stat, chmod, rimraf } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
@@ -17,7 +17,7 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, IDetectedEncodingResult, detectEncodingByBOM, encodeStream, UTF8_BOM, UTF16be_BOM, UTF16le_BOM, toDecodeStream, IDecodeStreamResult } from 'vs/base/node/encoding';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, IDetectedEncodingResult, encodeStream, UTF8_BOM, UTF16be_BOM, UTF16le_BOM, toDecodeStream, IDecodeStreamResult, detectEncodingByBOMFromBuffer } from 'vs/base/node/encoding';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { joinPath, extname, isEqualOrParent } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -371,7 +371,8 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 	constructor(
 		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IFileService private fileService: IFileService
 	) {
 		super();
 
@@ -414,8 +415,15 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		// Ensure that we preserve an existing BOM if found for UTF8
 		// unless we are instructed to overwrite the encoding
 		const overwriteEncoding = options && options.overwriteEncoding;
-		if (!overwriteEncoding && encoding === UTF8 && resource.scheme === Schemas.file && await detectEncodingByBOM(resource.fsPath) === UTF8) {
-			return { encoding, addBOM: true };
+		if (!overwriteEncoding && encoding === UTF8) {
+			try {
+				const buffer = (await this.fileService.readFile(resource, { length: 3 })).value;
+				if (detectEncodingByBOMFromBuffer(buffer, buffer.byteLength) === UTF8) {
+					return { encoding, addBOM: true };
+				}
+			} catch (error) {
+				// ignore - file might not exist
+			}
 		}
 
 		return { encoding, addBOM: false };

@@ -692,7 +692,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		let buff = VSBuffer.alloc(size);
 		let value = Math.random() % 256;
 		for (let i = 0; i < size; i++) {
-			buff.writeUint8(value, i);
+			buff.writeUInt8(value, i);
 		}
 		return buff;
 	}
