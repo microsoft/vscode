@@ -11,7 +11,7 @@ if [ -z "$extensions" ] ; then
 	echo No extensions to install.
 	mkdir -p /root/.vscode-remote
 else
-	(PATH="$HOME/bin:$PATH" node out/remoteExtensionHostAgent.js ${extensions} || true)
+	(PATH="$HOME/bin:$PATH" node out/remoteExtensionHostAgent.js ${VSCODE_TELEMETRY_ARG} ${extensions} || true)
 fi
 
-PATH="$HOME/bin:$PATH" node out/remoteExtensionHostAgent.js --port $PORT
+PATH="$HOME/bin:$PATH" node out/remoteExtensionHostAgent.js ${VSCODE_TELEMETRY_ARG} --port $PORT
