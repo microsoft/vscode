@@ -13,261 +13,7 @@ import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-/**
- * The save error handler can be installed on the text file editor model to install code that executes when save errors occur.
- */
-export interface ISaveErrorHandler {
-
-	/**
-	 * Called whenever a save fails.
-	 */
-	onSaveError(error: Error, model: ITextFileEditorModel): void;
-}
-
-export interface ISaveParticipant {
-
-	/**
-	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
-	 */
-	participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason }): Promise<void>;
-}
-
-/**
- * States the text file editor model can be in.
- */
-export const enum ModelState {
-	SAVED,
-	DIRTY,
-	PENDING_SAVE,
-
-	/**
-	 * A model is in conflict mode when changes cannot be saved because the
-	 * underlying file has changed. Models in conflict mode are always dirty.
-	 */
-	CONFLICT,
-
-	/**
-	 * A model is in orphan state when the underlying file has been deleted.
-	 */
-	ORPHAN,
-
-	/**
-	 * Any error that happens during a save that is not causing the CONFLICT state.
-	 * Models in error mode are always diry.
-	 */
-	ERROR
-}
-
-export const enum StateChange {
-	DIRTY,
-	SAVING,
-	SAVE_ERROR,
-	SAVED,
-	REVERTED,
-	ENCODING,
-	CONTENT_CHANGE,
-	ORPHANED_CHANGE
-}
-
-export class TextFileModelChangeEvent {
-	private _resource: URI;
-	private _kind: StateChange;
-
-	constructor(model: ITextFileEditorModel, kind: StateChange) {
-		this._resource = model.getResource();
-		this._kind = kind;
-	}
-
-	get resource(): URI {
-		return this._resource;
-	}
-
-	get kind(): StateChange {
-		return this._kind;
-	}
-}
-
-export const TEXT_FILE_SERVICE_ID = 'textFileService';
-export const AutoSaveContext = new RawContextKey<string>('config.files.autoSave', undefined);
-
-export interface ITextFileOperationResult {
-	results: IResult[];
-}
-
-export interface IResult {
-	source: URI;
-	target?: URI;
-	success?: boolean;
-}
-
-export interface IAutoSaveConfiguration {
-	autoSaveDelay?: number;
-	autoSaveFocusChange: boolean;
-	autoSaveApplicationChange: boolean;
-}
-
-export const enum AutoSaveMode {
-	OFF,
-	AFTER_SHORT_DELAY,
-	AFTER_LONG_DELAY,
-	ON_FOCUS_CHANGE,
-	ON_WINDOW_CHANGE
-}
-
-export const enum SaveReason {
-	EXPLICIT = 1,
-	AUTO = 2,
-	FOCUS_CHANGE = 3,
-	WINDOW_CHANGE = 4
-}
-
-export const enum LoadReason {
-	EDITOR = 1,
-	REFERENCE = 2,
-	OTHER = 3
-}
-
-export const ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
-
-export interface IRawTextContent extends IBaseStatWithMetadata {
-
-	/**
-	 * The line grouped content of a text file.
-	 */
-	value: ITextBufferFactory;
-
-	/**
-	 * The encoding of the content if known.
-	 */
-	encoding: string;
-}
-
-export interface IModelLoadOrCreateOptions {
-
-	/**
-	 * Context why the model is being loaded or created.
-	 */
-	reason?: LoadReason;
-
-	/**
-	 * The encoding to use when resolving the model text content.
-	 */
-	encoding?: string;
-
-	/**
-	 * If the model was already loaded before, allows to trigger
-	 * a reload of it to fetch the latest contents:
-	 * - async: loadOrCreate() will return immediately and trigger
-	 * a reload that will run in the background.
-	 * - sync: loadOrCreate() will only return resolved when the
-	 * model has finished reloading.
-	 */
-	reload?: {
-		async: boolean
-	};
-
-	/**
-	 * Allow to load a model even if we think it is a binary file.
-	 */
-	allowBinary?: boolean;
-}
-
-export interface ITextFileEditorModelManager {
-
-	onModelDisposed: Event<URI>;
-	onModelContentChanged: Event<TextFileModelChangeEvent>;
-	onModelEncodingChanged: Event<TextFileModelChangeEvent>;
-
-	onModelDirty: Event<TextFileModelChangeEvent>;
-	onModelSaveError: Event<TextFileModelChangeEvent>;
-	onModelSaved: Event<TextFileModelChangeEvent>;
-	onModelReverted: Event<TextFileModelChangeEvent>;
-	onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
-
-	onModelsDirty: Event<TextFileModelChangeEvent[]>;
-	onModelsSaveError: Event<TextFileModelChangeEvent[]>;
-	onModelsSaved: Event<TextFileModelChangeEvent[]>;
-	onModelsReverted: Event<TextFileModelChangeEvent[]>;
-
-	get(resource: URI): ITextFileEditorModel | undefined;
-
-	getAll(resource?: URI): ITextFileEditorModel[];
-
-	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
-
-	disposeModel(model: ITextFileEditorModel): void;
-}
-
-export interface ISaveOptions {
-	force?: boolean;
-	reason?: SaveReason;
-	overwriteReadonly?: boolean;
-	overwriteEncoding?: boolean;
-	skipSaveParticipants?: boolean;
-	writeElevated?: boolean;
-}
-
-export interface ILoadOptions {
-
-	/**
-	 * Go to disk bypassing any cache of the model if any.
-	 */
-	forceReadFromDisk?: boolean;
-
-	/**
-	 * Allow to load a model even if we think it is a binary file.
-	 */
-	allowBinary?: boolean;
-
-	/**
-	 * Context why the model is being loaded.
-	 */
-	reason?: LoadReason;
-}
-
-export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
-
-	onDidContentChange: Event<StateChange>;
-	onDidStateChange: Event<StateChange>;
-
-	getVersionId(): number;
-
-	getResource(): URI;
-
-	hasState(state: ModelState): boolean;
-
-	getETag(): string | null;
-
-	updatePreferredEncoding(encoding: string): void;
-
-	save(options?: ISaveOptions): Promise<void>;
-
-	load(options?: ILoadOptions): Promise<ITextFileEditorModel>;
-
-	revert(soft?: boolean): Promise<void>;
-
-	createSnapshot(): ITextSnapshot | null;
-
-	isDirty(): boolean;
-
-	isResolved(): boolean;
-
-	isDisposed(): boolean;
-}
-
-export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
-	readonly textEditorModel: ITextModel;
-
-	createSnapshot(): ITextSnapshot;
-}
-
-
-export interface IWillMoveEvent {
-	oldResource: URI;
-	newResource: URI;
-
-	waitUntil(p: Promise<unknown>): void;
-}
+export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
 export interface ITextFileService extends IDisposable {
 
@@ -391,4 +137,266 @@ export interface ITextFileService extends IDisposable {
 	 * Convinient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
+}
+
+/**
+ * The save error handler can be installed on the text file editor model to install code that executes when save errors occur.
+ */
+export interface ISaveErrorHandler {
+
+	/**
+	 * Called whenever a save fails.
+	 */
+	onSaveError(error: Error, model: ITextFileEditorModel): void;
+}
+
+export interface ISaveParticipant {
+
+	/**
+	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
+	 */
+	participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason }): Promise<void>;
+}
+
+/**
+ * States the text file editor model can be in.
+ */
+export const enum ModelState {
+
+	/**
+	 * A model is saved.
+	 */
+	SAVED,
+
+	/**
+	 * A model is dirty.
+	 */
+	DIRTY,
+
+	/**
+	 * A model is transitioning from dirty to saved.
+	 */
+	PENDING_SAVE,
+
+	/**
+	 * A model is in conflict mode when changes cannot be saved because the
+	 * underlying file has changed. Models in conflict mode are always dirty.
+	 */
+	CONFLICT,
+
+	/**
+	 * A model is in orphan state when the underlying file has been deleted.
+	 */
+	ORPHAN,
+
+	/**
+	 * Any error that happens during a save that is not causing the CONFLICT state.
+	 * Models in error mode are always diry.
+	 */
+	ERROR
+}
+
+export const enum StateChange {
+	DIRTY,
+	SAVING,
+	SAVE_ERROR,
+	SAVED,
+	REVERTED,
+	ENCODING,
+	CONTENT_CHANGE,
+	ORPHANED_CHANGE
+}
+
+export class TextFileModelChangeEvent {
+	private _resource: URI;
+
+	constructor(model: ITextFileEditorModel, private _kind: StateChange) {
+		this._resource = model.getResource();
+	}
+
+	get resource(): URI {
+		return this._resource;
+	}
+
+	get kind(): StateChange {
+		return this._kind;
+	}
+}
+
+export const AutoSaveContext = new RawContextKey<string>('config.files.autoSave', undefined);
+
+export interface ITextFileOperationResult {
+	results: IResult[];
+}
+
+export interface IResult {
+	source: URI;
+	target?: URI;
+	success?: boolean;
+}
+
+export interface IAutoSaveConfiguration {
+	autoSaveDelay?: number;
+	autoSaveFocusChange: boolean;
+	autoSaveApplicationChange: boolean;
+}
+
+export const enum AutoSaveMode {
+	OFF,
+	AFTER_SHORT_DELAY,
+	AFTER_LONG_DELAY,
+	ON_FOCUS_CHANGE,
+	ON_WINDOW_CHANGE
+}
+
+export const enum SaveReason {
+	EXPLICIT = 1,
+	AUTO = 2,
+	FOCUS_CHANGE = 3,
+	WINDOW_CHANGE = 4
+}
+
+export const enum LoadReason {
+	EDITOR = 1,
+	REFERENCE = 2,
+	OTHER = 3
+}
+
+export interface IRawTextContent extends IBaseStatWithMetadata {
+
+	/**
+	 * The line grouped content of a text file.
+	 */
+	value: ITextBufferFactory;
+
+	/**
+	 * The encoding of the content if known.
+	 */
+	encoding: string;
+}
+
+export interface IModelLoadOrCreateOptions {
+
+	/**
+	 * Context why the model is being loaded or created.
+	 */
+	reason?: LoadReason;
+
+	/**
+	 * The encoding to use when resolving the model text content.
+	 */
+	encoding?: string;
+
+	/**
+	 * If the model was already loaded before, allows to trigger
+	 * a reload of it to fetch the latest contents:
+	 * - async: loadOrCreate() will return immediately and trigger
+	 * a reload that will run in the background.
+	 * - sync: loadOrCreate() will only return resolved when the
+	 * model has finished reloading.
+	 */
+	reload?: {
+		async: boolean
+	};
+
+	/**
+	 * Allow to load a model even if we think it is a binary file.
+	 */
+	allowBinary?: boolean;
+}
+
+export interface ITextFileEditorModelManager {
+
+	readonly onModelDisposed: Event<URI>;
+	readonly onModelContentChanged: Event<TextFileModelChangeEvent>;
+	readonly onModelEncodingChanged: Event<TextFileModelChangeEvent>;
+
+	readonly onModelDirty: Event<TextFileModelChangeEvent>;
+	readonly onModelSaveError: Event<TextFileModelChangeEvent>;
+	readonly onModelSaved: Event<TextFileModelChangeEvent>;
+	readonly onModelReverted: Event<TextFileModelChangeEvent>;
+	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
+
+	readonly onModelsDirty: Event<TextFileModelChangeEvent[]>;
+	readonly onModelsSaveError: Event<TextFileModelChangeEvent[]>;
+	readonly onModelsSaved: Event<TextFileModelChangeEvent[]>;
+	readonly onModelsReverted: Event<TextFileModelChangeEvent[]>;
+
+	get(resource: URI): ITextFileEditorModel | undefined;
+
+	getAll(resource?: URI): ITextFileEditorModel[];
+
+	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
+
+	disposeModel(model: ITextFileEditorModel): void;
+}
+
+export interface ISaveOptions {
+	force?: boolean;
+	reason?: SaveReason;
+	overwriteReadonly?: boolean;
+	overwriteEncoding?: boolean;
+	skipSaveParticipants?: boolean;
+	writeElevated?: boolean;
+}
+
+export interface ILoadOptions {
+
+	/**
+	 * Go to disk bypassing any cache of the model if any.
+	 */
+	forceReadFromDisk?: boolean;
+
+	/**
+	 * Allow to load a model even if we think it is a binary file.
+	 */
+	allowBinary?: boolean;
+
+	/**
+	 * Context why the model is being loaded.
+	 */
+	reason?: LoadReason;
+}
+
+export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
+
+	readonly onDidContentChange: Event<StateChange>;
+	readonly onDidStateChange: Event<StateChange>;
+
+	getVersionId(): number;
+
+	getResource(): URI;
+
+	hasState(state: ModelState): boolean;
+
+	getETag(): string | null;
+
+	updatePreferredEncoding(encoding: string): void;
+
+	save(options?: ISaveOptions): Promise<void>;
+
+	load(options?: ILoadOptions): Promise<ITextFileEditorModel>;
+
+	revert(soft?: boolean): Promise<void>;
+
+	createSnapshot(): ITextSnapshot | null;
+
+	isDirty(): boolean;
+
+	isResolved(): boolean;
+
+	isDisposed(): boolean;
+}
+
+export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
+	readonly textEditorModel: ITextModel;
+
+	createSnapshot(): ITextSnapshot;
+}
+
+export interface IWillMoveEvent {
+	oldResource: URI;
+	newResource: URI;
+
+	waitUntil(p: Promise<unknown>): void;
 }

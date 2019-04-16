@@ -30,8 +30,6 @@ export interface IFileService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
-	//#region File System Provider
-
 	/**
 	 * An event that is fired when a file system provider is added or removed
 	 */
@@ -62,8 +60,6 @@ export interface IFileService {
 	 * Checks if the provider for the provided resource has the provided file system capability.
 	 */
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
-
-	//#endregion
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
@@ -229,11 +225,11 @@ export const enum FileSystemProviderCapabilities {
 export interface IFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities;
-	onDidChangeCapabilities: Event<void>;
+	readonly onDidChangeCapabilities: Event<void>;
 
-	onDidErrorOccur?: Event<Error>; // TODO@ben remove once file watchers are solid
+	readonly onDidErrorOccur?: Event<Error>; // TODO@ben remove once file watchers are solid
 
-	onDidChangeFile: Event<IFileChange[]>;
+	readonly onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
 	stat(resource: URI): Promise<IStat>;
