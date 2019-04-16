@@ -89,10 +89,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
 		const systemDisabledWarningAction = this.instantiationService.createInstance(SystemDisabledWarningAction);
+		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const actions = [
 			this.instantiationService.createInstance(StatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction),
-			this.instantiationService.createInstance(ReloadAction),
+			reloadAction,
 			this.instantiationService.createInstance(InstallAction),
 			this.instantiationService.createInstance(RemoteInstallAction),
 			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
@@ -100,7 +101,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(ManageExtensionAction)
 		];
 		const disabledLabelAction = this.instantiationService.createInstance(DisabledLabelAction, systemDisabledWarningAction);
-		const tooltipWidget = this.instantiationService.createInstance(TooltipWidget, root, disabledLabelAction, recommendationWidget);
+		const tooltipWidget = this.instantiationService.createInstance(TooltipWidget, root, disabledLabelAction, recommendationWidget, reloadAction);
 		const widgets = [
 			recommendationWidget,
 			iconRemoteBadgeWidget,
