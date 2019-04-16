@@ -297,7 +297,7 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, content);
 
 		const resolved = await service.read(resource);
-		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
+		assert.equal(resolved.value.getFirstLineText(999999), content);
 	});
 
 	test('write - no encoding - content as snapshot', async () => {
@@ -308,7 +308,7 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, TextModel.createFromString(content).createSnapshot());
 
 		const resolved = await service.read(resource);
-		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
+		assert.equal(resolved.value.getFirstLineText(999999), content);
 	});
 
 	test('write - encoding preserved (UTF 16 LE) - content as string', async () => {
@@ -426,6 +426,14 @@ suite('Files - TextFileService i/o', () => {
 		await testReadFile(resource);
 	});
 
+	async function testReadFile(resource: URI): Promise<void> {
+		const result = await service.read(resource);
+
+		assert.equal(result.name, basename(resource.fsPath));
+		assert.equal(result.size, statSync(resource.fsPath).size);
+		assert.equal(snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false)), snapshotToString(TextModel.createFromString(readFileSync(resource.fsPath).toString()).createSnapshot(false)));
+	}
+
 	test('read - encoding picked up (CP1252)', async () => {
 		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
 		const encoding = 'windows1252';
@@ -464,12 +472,48 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(result.value.getFirstLineText(999999), 'This is some UTF 16 with BOM file.');
 	});
 
-	async function testReadFile(resource: URI): Promise<void> {
-		const result = await service.read(resource);
+	test('read - large Big5', async () => {
+		await testLargeEncoding('big5', '中文abc');
+	});
 
-		assert.equal(result.name, basename(resource.fsPath));
-		assert.equal(result.size, statSync(resource.fsPath).size);
-		assert.equal(snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false)), snapshotToString(TextModel.createFromString(readFileSync(resource.fsPath).toString()).createSnapshot(false)));
+	test('read - large CP1252', async () => {
+		await testLargeEncoding('cp1252', 'öäüß');
+	});
+
+	test('read - large Cyrillic', async () => {
+		await testLargeEncoding('cp866', 'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя');
+	});
+
+	test('read - large GBK', async () => {
+		await testLargeEncoding('gbk', '中国abc');
+	});
+
+	test('read - large ShiftJS', async () => {
+		await testLargeEncoding('shiftjis', '中文abc');
+	});
+
+	test('read - large UTF8 BOM', async () => {
+		await testLargeEncoding('utf8bom', 'öäüß');
+	});
+
+	test('read - large UTF16 LE', async () => {
+		await testLargeEncoding('utf16le', 'öäüß');
+	});
+
+	test('read - large UTF16 BE', async () => {
+		await testLargeEncoding('utf16be', 'öäüß');
+	});
+
+	async function testLargeEncoding(encoding: string, needle: string): Promise<void> {
+		const resource = URI.file(join(testDir, `lorem_${encoding}.txt`));
+
+		const result = await service.read(resource, { encoding });
+		assert.equal(result.encoding, encoding);
+
+		const contents = snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false));
+
+		assert.equal(contents.indexOf(needle), 0);
+		assert.ok(contents.indexOf(needle, 10) > 0);
 	}
 
 	test('read - FILE_IS_BINARY', async () => {
