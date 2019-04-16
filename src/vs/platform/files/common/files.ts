@@ -102,11 +102,6 @@ export interface IFileService {
 	exists(resource: URI): Promise<boolean>;
 
 	/**
-	 * @deprecated use readFile() instead.
-	 */
-	resolveContent(resource: URI, options?: IReadTextFileOptions): Promise<IContent>;
-
-	/**
 	 * Read the contents of the provided resource unbuffered.
 	 */
 	readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
@@ -1203,6 +1198,4 @@ export interface ILegacyFileService extends IDisposable {
 	onAfterOperation: Event<FileOperationEvent>;
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
-
-	resolveContent(resource: URI, options?: IReadTextFileOptions): Promise<IContent>;
 }

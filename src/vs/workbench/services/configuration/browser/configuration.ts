@@ -133,7 +133,7 @@ export class UserConfiguration extends Disposable {
 
 	async reload(): Promise<ConfigurationModel> {
 		try {
-			const content = await this.configurationFileService.resolveContent(this.configurationResource);
+			const content = await this.configurationFileService.readFile(this.configurationResource);
 			this.parser.parseContent(content);
 			return this.parser.configurationModel;
 		} catch (e) {
@@ -379,7 +379,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable implements IWork
 		}
 		let contents = '';
 		try {
-			contents = await this.configurationFileService.resolveContent(this._workspaceIdentifier.configPath);
+			contents = await this.configurationFileService.readFile(this._workspaceIdentifier.configPath);
 		} catch (error) {
 			const exists = await this.configurationFileService.exists(this._workspaceIdentifier.configPath);
 			if (exists) {
@@ -547,7 +547,7 @@ class FileServiceBasedFolderConfiguration extends Disposable implements IFolderC
 	async loadConfiguration(): Promise<ConfigurationModel> {
 		const configurationContents = await Promise.all(this.configurationResources.map(async resource => {
 			try {
-				return await this.configurationFileService.resolveContent(resource);
+				return await this.configurationFileService.readFile(resource);
 			} catch (error) {
 				const exists = await this.configurationFileService.exists(resource);
 				if (exists) {

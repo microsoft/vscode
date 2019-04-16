@@ -49,7 +49,7 @@ export interface IConfigurationFileService {
 	whenProviderRegistered(scheme: string): Promise<void>;
 	watch(resource: URI): IDisposable;
 	exists(resource: URI): Promise<boolean>;
-	resolveContent(resource: URI): Promise<string>;
+	readFile(resource: URI): Promise<string>;
 }
 
 export class ConfigurationFileService implements IConfigurationFileService {
@@ -82,8 +82,8 @@ export class ConfigurationFileService implements IConfigurationFileService {
 		return this.fileService.exists(resource);
 	}
 
-	resolveContent(resource: URI): Promise<string> {
-		return this.fileService.resolveContent(resource, { encoding: 'utf8' }).then(content => content.value);
+	readFile(resource: URI): Promise<string> {
+		return this.fileService.readFile(resource).then(content => content.value.toString());
 	}
 
 }

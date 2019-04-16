@@ -22,7 +22,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
-import { IFileService, IContent } from 'vs/platform/files/common/files';
+import { IFileService, IFileContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -2031,7 +2031,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 
 	protected openWorkspaceConfigurationFile(workspaceConfigurationFile: URI): Promise<any> {
 		return this.getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile)
-			.then(content => this.getSelectionPosition(content.value, content.resource, ['extensions', 'recommendations']))
+			.then(content => this.getSelectionPosition(content.value.toString(), content.resource, ['extensions', 'recommendations']))
 			.then(selection => this.editorService.openEditor({
 				resource: workspaceConfigurationFile,
 				options: {
@@ -2045,7 +2045,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		return this.getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile)
 			.then(content => {
 				const extensionIdLowerCase = extensionId.toLowerCase();
-				const workspaceExtensionsConfigContent: IExtensionsConfigContent = (json.parse(content.value) || {})['extensions'] || {};
+				const workspaceExtensionsConfigContent: IExtensionsConfigContent = (json.parse(content.value.toString()) || {})['extensions'] || {};
 				let insertInto = shouldRecommend ? workspaceExtensionsConfigContent.recommendations || [] : workspaceExtensionsConfigContent.unwantedRecommendations || [];
 				let removeFrom = shouldRecommend ? workspaceExtensionsConfigContent.unwantedRecommendations || [] : workspaceExtensionsConfigContent.recommendations || [];
 
@@ -2105,26 +2105,26 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 	}
 
 	protected getWorkspaceExtensionsConfigContent(extensionsFileResource: URI): Promise<IExtensionsConfigContent> {
-		return Promise.resolve(this.fileService.resolveContent(extensionsFileResource))
+		return Promise.resolve(this.fileService.readFile(extensionsFileResource))
 			.then(content => {
-				return (json.parse(content.value) || {})['extensions'] || {};
+				return (json.parse(content.value.toString()) || {})['extensions'] || {};
 			}, err => ({ recommendations: [], unwantedRecommendations: [] }));
 	}
 
 	protected getWorkspaceFolderExtensionsConfigContent(extensionsFileResource: URI): Promise<IExtensionsConfigContent> {
-		return Promise.resolve(this.fileService.resolveContent(extensionsFileResource))
+		return Promise.resolve(this.fileService.readFile(extensionsFileResource))
 			.then(content => {
-				return (<IExtensionsConfigContent>json.parse(content.value));
+				return (<IExtensionsConfigContent>json.parse(content.value.toString()));
 			}, err => ({ recommendations: [], unwantedRecommendations: [] }));
 	}
 
-	private getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile: URI): Promise<IContent> {
-		return Promise.resolve(this.fileService.resolveContent(workspaceConfigurationFile))
+	private getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile: URI): Promise<IFileContent> {
+		return Promise.resolve(this.fileService.readFile(workspaceConfigurationFile))
 			.then(content => {
-				const workspaceRecommendations = <IExtensionsConfigContent>json.parse(content.value)['extensions'];
+				const workspaceRecommendations = <IExtensionsConfigContent>json.parse(content.value.toString())['extensions'];
 				if (!workspaceRecommendations || !workspaceRecommendations.recommendations) {
 					return this.jsonEditingService.write(workspaceConfigurationFile, { key: 'extensions', value: { recommendations: [] } }, true)
-						.then(() => this.fileService.resolveContent(workspaceConfigurationFile));
+						.then(() => this.fileService.readFile(workspaceConfigurationFile));
 				}
 				return content;
 			});
@@ -2153,8 +2153,8 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 	}
 
 	private getOrCreateExtensionsFile(extensionsFileResource: URI): Promise<{ created: boolean, extensionsFileResource: URI, content: string }> {
-		return Promise.resolve(this.fileService.resolveContent(extensionsFileResource)).then(content => {
-			return { created: false, extensionsFileResource, content: content.value };
+		return Promise.resolve(this.fileService.readFile(extensionsFileResource)).then(content => {
+			return { created: false, extensionsFileResource, content: content.value.toString() };
 		}, err => {
 			return this.textFileService.write(extensionsFileResource, ExtensionsConfigurationInitialContent).then(() => {
 				return { created: true, extensionsFileResource, content: ExtensionsConfigurationInitialContent };

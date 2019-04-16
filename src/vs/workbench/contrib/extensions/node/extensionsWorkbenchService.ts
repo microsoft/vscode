@@ -236,7 +236,7 @@ class Extension implements IExtension {
 		}
 
 		if (this.local && this.local.readmeUrl) {
-			return this.fileService.resolveContent(this.local.readmeUrl, { encoding: 'utf8' }).then(content => content.value);
+			return this.fileService.readFile(this.local.readmeUrl).then(content => content.value.toString());
 		}
 
 		if (this.type === ExtensionType.System) {
@@ -277,7 +277,7 @@ ${this.description}
 			return Promise.reject(new Error('not available'));
 		}
 
-		return this.fileService.resolveContent(changelogUrl, { encoding: 'utf8' }).then(content => content.value);
+		return this.fileService.readFile(changelogUrl).then(content => content.value.toString());
 	}
 
 	get dependencies(): string[] {
