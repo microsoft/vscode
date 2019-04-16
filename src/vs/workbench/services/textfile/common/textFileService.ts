@@ -397,22 +397,6 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		};
 	}
 
-	async legacyRead(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
-		const streamContent = await this.fileService.resolveStreamContent(resource, options);
-		const value = await createTextBufferFactoryFromStream(streamContent.value);
-
-		return {
-			resource: streamContent.resource,
-			name: streamContent.name,
-			mtime: streamContent.mtime,
-			etag: streamContent.etag,
-			encoding: streamContent.encoding,
-			isReadonly: streamContent.isReadonly,
-			size: streamContent.size,
-			value
-		};
-	}
-
 	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 		const stat = await this.doCreate(resource, value, options);
 

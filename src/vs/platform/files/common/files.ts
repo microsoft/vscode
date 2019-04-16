@@ -107,11 +107,6 @@ export interface IFileService {
 	resolveContent(resource: URI, options?: IReadTextFileOptions): Promise<IContent>;
 
 	/**
-	 * @deprecated use readFileStream() instead.
-	 */
-	resolveStreamContent(resource: URI, options?: IReadTextFileOptions): Promise<IStreamContent>;
-
-	/**
 	 * Read the contents of the provided resource unbuffered.
 	 */
 	readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
@@ -1210,6 +1205,4 @@ export interface ILegacyFileService extends IDisposable {
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
 	resolveContent(resource: URI, options?: IReadTextFileOptions): Promise<IContent>;
-
-	resolveStreamContent(resource: URI, options?: IReadTextFileOptions): Promise<IStreamContent>;
 }
