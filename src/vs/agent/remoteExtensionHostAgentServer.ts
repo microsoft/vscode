@@ -98,25 +98,25 @@ class WebSocketNodeSocket extends Disposable implements ISocket {
 		}
 		const header = VSBuffer.alloc(headerLen);
 
-		header.writeUint8(0b10000010, 0);
+		header.writeUInt8(0b10000010, 0);
 		if (buffer.byteLength < 126) {
-			header.writeUint8(buffer.byteLength, 1);
+			header.writeUInt8(buffer.byteLength, 1);
 		} else if (buffer.byteLength < 2 ** 16) {
-			header.writeUint8(126, 1);
+			header.writeUInt8(126, 1);
 			let offset = 1;
-			header.writeUint8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
-			header.writeUint8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
+			header.writeUInt8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
+			header.writeUInt8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
 		} else {
-			header.writeUint8(127, 1);
+			header.writeUInt8(127, 1);
 			let offset = 1;
-			header.writeUint8(0, ++offset);
-			header.writeUint8(0, ++offset);
-			header.writeUint8(0, ++offset);
-			header.writeUint8(0, ++offset);
-			header.writeUint8((buffer.byteLength >>> 24) & 0b11111111, ++offset);
-			header.writeUint8((buffer.byteLength >>> 16) & 0b11111111, ++offset);
-			header.writeUint8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
-			header.writeUint8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
+			header.writeUInt8(0, ++offset);
+			header.writeUInt8(0, ++offset);
+			header.writeUInt8(0, ++offset);
+			header.writeUInt8(0, ++offset);
+			header.writeUInt8((buffer.byteLength >>> 24) & 0b11111111, ++offset);
+			header.writeUInt8((buffer.byteLength >>> 16) & 0b11111111, ++offset);
+			header.writeUInt8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
+			header.writeUInt8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
 		}
 
 		this._socket.write(VSBuffer.concat([header, buffer]));
@@ -138,9 +138,9 @@ class WebSocketNodeSocket extends Disposable implements ISocket {
 			if (this._state.state === ReadState.PeekHeader) {
 				// peek to see if we can read the entire header
 				const peekHeader = this._incomingData.peek(this._state.readLen);
-				// const firstByte = peekHeader.readUint8(0);
+				// const firstByte = peekHeader.readUInt8(0);
 				// const finBit = (firstByte & 0b10000000) >>> 7;
-				const secondByte = peekHeader.readUint8(1);
+				const secondByte = peekHeader.readUInt8(1);
 				const hasMask = (secondByte & 0b10000000) >>> 7;
 				const len = (secondByte & 0b01111111);
 
@@ -151,36 +151,36 @@ class WebSocketNodeSocket extends Disposable implements ISocket {
 			} else if (this._state.state === ReadState.ReadHeader) {
 				// read entire header
 				const header = this._incomingData.read(this._state.readLen);
-				const secondByte = header.readUint8(1);
+				const secondByte = header.readUInt8(1);
 				const hasMask = (secondByte & 0b10000000) >>> 7;
 				let len = (secondByte & 0b01111111);
 
 				let offset = 1;
 				if (len === 126) {
 					len = (
-						header.readUint8(++offset) * 2 ** 8
-						+ header.readUint8(++offset)
+						header.readUInt8(++offset) * 2 ** 8
+						+ header.readUInt8(++offset)
 					);
 				} else if (len === 127) {
 					len = (
-						header.readUint8(++offset) * 2 ** 56
-						+ header.readUint8(++offset) * 2 ** 48
-						+ header.readUint8(++offset) * 2 ** 40
-						+ header.readUint8(++offset) * 2 ** 32
-						+ header.readUint8(++offset) * 2 ** 24
-						+ header.readUint8(++offset) * 2 ** 16
-						+ header.readUint8(++offset) * 2 ** 8
-						+ header.readUint8(++offset)
+						header.readUInt8(++offset) * 2 ** 56
+						+ header.readUInt8(++offset) * 2 ** 48
+						+ header.readUInt8(++offset) * 2 ** 40
+						+ header.readUInt8(++offset) * 2 ** 32
+						+ header.readUInt8(++offset) * 2 ** 24
+						+ header.readUInt8(++offset) * 2 ** 16
+						+ header.readUInt8(++offset) * 2 ** 8
+						+ header.readUInt8(++offset)
 					);
 				}
 
 				let mask = 0;
 				if (hasMask) {
 					mask = (
-						header.readUint8(++offset) * 2 ** 24
-						+ header.readUint8(++offset) * 2 ** 16
-						+ header.readUint8(++offset) * 2 ** 8
-						+ header.readUint8(++offset)
+						header.readUInt8(++offset) * 2 ** 24
+						+ header.readUInt8(++offset) * 2 ** 16
+						+ header.readUInt8(++offset) * 2 ** 8
+						+ header.readUInt8(++offset)
 					);
 				}
 
@@ -210,8 +210,8 @@ function unmask(buffer: VSBuffer, mask: number): void {
 	}
 	let cnt = buffer.byteLength >>> 2;
 	for (let i = 0; i < cnt; i++) {
-		const v = buffer.readUint32BE(i * 4);
-		buffer.writeUint32BE(v ^ mask, i * 4);
+		const v = buffer.readUInt32BE(i * 4);
+		buffer.writeUInt32BE(v ^ mask, i * 4);
 	}
 	let offset = cnt * 4;
 	let bytesLeft = buffer.byteLength - offset;
@@ -219,13 +219,13 @@ function unmask(buffer: VSBuffer, mask: number): void {
 	const m2 = (mask >>> 16) & 0b11111111;
 	const m1 = (mask >>> 8) & 0b11111111;
 	if (bytesLeft >= 1) {
-		buffer.writeUint8(buffer.readUint8(offset) ^ m3, offset);
+		buffer.writeUInt8(buffer.readUInt8(offset) ^ m3, offset);
 	}
 	if (bytesLeft >= 2) {
-		buffer.writeUint8(buffer.readUint8(offset + 1) ^ m2, offset + 1);
+		buffer.writeUInt8(buffer.readUInt8(offset + 1) ^ m2, offset + 1);
 	}
 	if (bytesLeft >= 3) {
-		buffer.writeUint8(buffer.readUint8(offset + 2) ^ m1, offset + 2);
+		buffer.writeUInt8(buffer.readUInt8(offset + 2) ^ m1, offset + 2);
 	}
 }
 
