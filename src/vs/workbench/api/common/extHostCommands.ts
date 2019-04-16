@@ -33,7 +33,7 @@ export interface ArgumentProcessor {
 
 export class ExtHostCommands implements ExtHostCommandsShape {
 	private readonly _onDidExecuteCommand: Emitter<ICommandEvent>;
-	public readonly onDidExecuteCommandEmitter: Event<ICommandEvent>;
+	readonly onDidExecuteCommandEmitter: Event<ICommandEvent>;
 
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _proxy: MainThreadCommandsShape;
