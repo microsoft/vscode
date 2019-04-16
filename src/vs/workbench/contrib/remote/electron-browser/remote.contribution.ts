@@ -34,6 +34,7 @@ import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagn
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService2, IProgress, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const WINDOW_ACTIONS_COMMAND_ID = '_remote.showWindowActions';
 
@@ -248,9 +249,35 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 	}
 }
 
+class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchContribution {
+	constructor(
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super();
+
+		this.updateRemoteTelemetryEnablement();
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('telemetry.enableTelemetry')) {
+				this.updateRemoteTelemetryEnablement();
+			}
+		}));
+	}
+
+	private updateRemoteTelemetryEnablement(): Promise<void> {
+		if (!this.configurationService.getValue('telemetry.enableTelemetry')) {
+			return this.remoteAgentService.disableTelemetry();
+		}
+
+		return Promise.resolve();
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchContributionsExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);

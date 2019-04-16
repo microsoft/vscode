@@ -28,6 +28,7 @@ import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/n
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { basename } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 let _SystemExtensionsRoot: string | null = null;
 function getSystemExtensionsRoot(): string {
@@ -52,6 +53,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	constructor(
 		private readonly environmentService: IEnvironmentService,
 		private readonly logService: ILogService,
+		private readonly telemetryService: ITelemetryService
 	) {
 		this._logger = new class implements ILog {
 			public error(source: string, message: string): void {
@@ -68,6 +70,10 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
 	async call(_: any, command: string, arg?: any): Promise<any> {
 		switch (command) {
+			case 'disableTelemetry': {
+				this.telemetryService.setEnabled(false);
+				return;
+			}
 			case 'getEnvironmentData': {
 				const args = <IGetEnvironmentDataArguments>arg;
 				const language = args.language;

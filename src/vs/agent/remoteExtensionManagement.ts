@@ -12,7 +12,7 @@ import { ConfigurationService } from 'vs/platform/configuration/node/configurati
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, ITelemetryAppender, NullAppender, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
@@ -40,6 +40,12 @@ import { Main as CliMain } from 'vs/code/node/cliProcessMain';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { VSBuffer } from 'vs/base/common/buffer';
+import product from 'vs/platform/product/node/product';
+import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import pkg from 'vs/platform/product/node/package';
+import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 
 export interface IExtensionsManagementProcessInitData {
 	args: ParsedArgs;
@@ -107,6 +113,8 @@ export class ManagementConnection {
 	}
 }
 
+const eventPrefix = 'remoteAgent';
+
 export class RemoteExtensionManagementServer {
 
 	public readonly socketServer: SocketServer<RemoteAgentConnectionContext>;
@@ -132,7 +140,26 @@ export class RemoteExtensionManagementServer {
 		services.set(ILogService, logService);
 		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [this._environmentService.machineSettingsPath]));
 		services.set(IRequestService, new SyncDescriptor(RequestService));
-		services.set(ITelemetryService, NullTelemetryService);
+
+		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
+		if (!this._environmentService.args['disable-telemetry'] && product.enableTelemetry && this._environmentService.isBuilt) {
+			if (product.aiConfig && product.aiConfig.asimovKey) {
+				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, logService);
+				// disposables.push(appInsightsAppender); // TODO Ensure the AI appender is disposed so that it flushes remaining data
+			}
+
+			const tempMachineId = '0000005266c953d717196bce4bd4c1c6e7b058fe0a40ec6728c6654f9fe8ceba';
+			const config: ITelemetryServiceConfig = {
+				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', tempMachineId, this._environmentService.installSourcePath),
+				piiPaths: [this._environmentService.appRoot]
+			};
+
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
+		} else {
+			services.set(ITelemetryService, NullTelemetryService);
+		}
+
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
 		const dialogChannel = server.getChannel('dialog', router);
@@ -147,7 +174,7 @@ export class RemoteExtensionManagementServer {
 		services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
 
 		instantiationService.invokeFunction(accessor => {
-			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._environmentService, logService);
+			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._environmentService, logService, accessor.get(ITelemetryService));
 			server.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 			const remoteFileSystemChannel = new RemoteAgentFileSystemChannel(logService);
@@ -159,6 +186,9 @@ export class RemoteExtensionManagementServer {
 
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+
+			// tslint:disable-next-line: no-unused-expression
+			new ErrorTelemetry(accessor.get(ITelemetryService)); // TODO dispose
 		});
 	}
 
