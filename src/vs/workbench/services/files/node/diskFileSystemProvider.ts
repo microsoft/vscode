@@ -10,7 +10,7 @@ import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatc
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { statLink, readdir, unlink, move, copy, readFile, writeFile, truncate, rimraf, RimRafMode, exists } from 'vs/base/node/pfs';
+import { statLink, readdir, unlink, move, copy, readFile, truncate, rimraf, RimRafMode, exists } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -112,6 +112,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+		let handle: number | undefined = undefined;
 		try {
 			const filePath = this.toFilePath(resource);
 
@@ -123,34 +124,17 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				throw createFileSystemProviderError(new Error(localize('fileNotExists', "File does not exist")), FileSystemProviderErrorCode.FileNotFound);
 			}
 
-			if (fileExists && isWindows) {
-				try {
-					// On Windows and if the file exists, we use a different strategy of saving the file
-					// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
-					// (see https://github.com/Microsoft/vscode/issues/931) and prevent removing alternate data streams
-					// (see https://github.com/Microsoft/vscode/issues/6363)
-					await truncate(filePath, 0);
+			// Open
+			handle = await this.open(resource, { create: true });
 
-					// We heard from one user that fs.truncate() succeeds, but the save fails (https://github.com/Microsoft/vscode/issues/61310)
-					// In that case, the file is now entirely empty and the contents are gone. This can happen if an external file watcher is
-					// installed that reacts on the truncate and keeps the file busy right after. Our workaround is to retry to save after a
-					// short timeout, assuming that the file is free to write then.
-					await retry(() => writeFile(filePath, content, { flag: 'r+' }), 100 /* ms delay */, 3 /* retries */);
-				} catch (error) {
-					this.logService.trace(error);
-
-					// we heard from users that fs.truncate() fails (https://github.com/Microsoft/vscode/issues/59561)
-					// in that case we simply save the file without truncating first (same as macOS and Linux)
-					await writeFile(filePath, content);
-				}
-			}
-
-			// macOS/Linux: just write directly
-			else {
-				await writeFile(filePath, content);
-			}
+			// Write content at once
+			await this.write(handle, 0, content, 0, content.byteLength);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
+		} finally {
+			if (typeof handle === 'number') {
+				await this.close(handle);
+			}
 		}
 	}
 
