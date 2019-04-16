@@ -19,7 +19,7 @@ import { BetterMergeId, areSameExtensions } from 'vs/platform/extensionManagemen
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/electron-browser/remoteExtensionHostClient';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, ResolvedAuthority, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -635,7 +635,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			const resolvedAuthority = await extensionHost.resolveAuthority(remoteAuthority);
 			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority);
 		} catch (err) {
-			console.error(err);
+			this._remoteAuthorityResolverService.setResolvedAuthorityError(remoteAuthority, err);
 		}
 	}
 
@@ -656,7 +656,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				console.error(err);
 				const plusIndex = remoteAuthority.indexOf('+');
 				const authorityFriendlyName = plusIndex > 0 ? remoteAuthority.substr(0, plusIndex) : remoteAuthority;
-				this._notificationService.notify({ severity: Severity.Error, message: nls.localize('resolveAuthorityFailure', "Resolving the authority `{0}` failed", authorityFriendlyName) });
+				if (!RemoteAuthorityResolverError.isHandledNotAvailable(err)) {
+					this._notificationService.notify({ severity: Severity.Error, message: nls.localize('resolveAuthorityFailure', "Resolving the authority `{0}` failed", authorityFriendlyName) });
+				} else {
+					console.log(`Not showing a notification for the error`);
+				}
 
 				this._remoteAuthorityResolverService.setResolvedAuthorityError(remoteAuthority, err);
 

@@ -10,6 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import * as platform from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
+import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export const enum ConnectionType {
 	Management = 1,
@@ -366,8 +367,15 @@ abstract class PersistentConnection extends Disposable {
 					this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
 					break;
 				}
+				if (RemoteAuthorityResolverError.isTemporarilyNotAvailable(err)) {
+					// try again!
+					continue;
+				}
 				console.error(`An error occured while trying to reconnect:`);
 				console.error(err);
+				this._permanentFailure = true;
+				this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+				break;
 			}
 		} while (!this._permanentFailure);
 	}
