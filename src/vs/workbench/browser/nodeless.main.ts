@@ -19,7 +19,7 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remot
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { FileService2 } from 'vs/workbench/services/files/common/fileService2';
 import { Schemas } from 'vs/base/common/network';
 
 class CodeRendererMain extends Disposable {

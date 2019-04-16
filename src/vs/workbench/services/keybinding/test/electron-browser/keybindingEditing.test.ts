@@ -41,9 +41,9 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TestBackupFileService, TestContextService, TestEditorGroupsService, TestEditorService, TestLifecycleService, TestLogService, TestTextFileService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
-import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { FileService2 } from 'vs/workbench/services/files/common/fileService2';
 import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 
 interface Modifiers {
 	metaKey?: boolean;
