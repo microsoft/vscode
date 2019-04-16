@@ -16,7 +16,7 @@ import * as modes from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
@@ -118,7 +118,7 @@ class WebviewProtocolProvider extends Disposable {
 		private readonly _extensionLocation: URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
 		private readonly _environmentService: IEnvironmentService,
-		private readonly _fileService: IFileService,
+		private readonly _textFileService: ITextFileService,
 	) {
 		super();
 
@@ -137,11 +137,11 @@ class WebviewProtocolProvider extends Disposable {
 
 		const appRootUri = URI.file(this._environmentService.appRoot);
 
-		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, undefined, () => [
+		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._textFileService, undefined, () => [
 			appRootUri
 		]);
 
-		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._extensionLocation, () =>
+		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._textFileService, this._extensionLocation, () =>
 			this._getLocalResourceRoots()
 		);
 	}
@@ -374,7 +374,7 @@ export class WebviewElement extends Disposable implements Webview {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService,
 		@ITunnelService tunnelService: ITunnelService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -412,7 +412,7 @@ export class WebviewElement extends Disposable implements Webview {
 			this._options.extension ? this._options.extension.location : undefined,
 			() => (this._contentOptions.localResourceRoots || []),
 			environmentService,
-			fileService));
+			textFileService));
 
 		this._register(new WebviewPortMappingProvider(
 			session,

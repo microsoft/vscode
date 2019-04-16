@@ -14,11 +14,10 @@ import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -112,12 +111,6 @@ suite('ConfigurationEditingService', () => {
 			instantiationService.stub(IConfigurationService, workspaceService);
 			const fileService = new FileService2(new NullLogService());
 			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-			fileService.setLegacyService(new LegacyFileService(
-				fileService,
-				workspaceService,
-				TestEnvironmentService,
-				new TestTextResourceConfigurationService(),
-			));
 			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));

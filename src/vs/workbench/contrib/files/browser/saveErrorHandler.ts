@@ -9,7 +9,7 @@ import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, IResolvedTextFileEditorModel, IWriteTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -134,7 +134,7 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 		// Any other save error
 		else {
 			const isReadonly = fileOperationError.fileOperationResult === FileOperationResult.FILE_READ_ONLY;
-			const triedToMakeWriteable = isReadonly && fileOperationError.options && fileOperationError.options.overwriteReadonly;
+			const triedToMakeWriteable = isReadonly && fileOperationError.options && (fileOperationError.options as IWriteTextFileOptions).overwriteReadonly;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 
 			// Save Elevated (TODO@remote cannot write elevated https://github.com/Microsoft/vscode/issues/48659)

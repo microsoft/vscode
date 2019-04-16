@@ -25,12 +25,11 @@ import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/serv
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncodings, IResourceEncoding, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileStreamContent, ITextFileService, IResourceEncoding, IReadTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -38,7 +37,7 @@ import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/p
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -49,7 +48,7 @@ import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/pos
 import { IMenuService, MenuId, IMenu, ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
+import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -83,6 +82,7 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined);
@@ -176,7 +176,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 }
 
-export class TestTextFileService extends TextFileService {
+export class TestTextFileService extends BrowserTextFileService {
 	public cleanupBackupsBeforeShutdownCalled: boolean;
 
 	private promptPath: URI;
@@ -235,7 +235,7 @@ export class TestTextFileService extends TextFileService {
 		this.resolveTextContentError = error;
 	}
 
-	public resolve(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent> {
+	public readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
@@ -243,15 +243,15 @@ export class TestTextFileService extends TextFileService {
 			return Promise.reject(error);
 		}
 
-		return this.fileService.resolveContent(resource, options).then((content): IRawTextContent => {
+		return this.fileService.readFileStream(resource, options).then(async (content): Promise<ITextFileStreamContent> => {
 			return {
 				resource: content.resource,
 				name: content.name,
 				mtime: content.mtime,
 				etag: content.etag,
-				encoding: content.encoding,
-				value: createTextBufferFactory(content.value),
-				size: content.value.length
+				encoding: 'utf8',
+				value: await createTextBufferFactoryFromStream(content.value),
+				size: 10
 			};
 		});
 	}
@@ -890,8 +890,6 @@ export class TestFileService implements IFileService {
 
 	public _serviceBrand: any;
 
-	public encoding: IResourceEncodings;
-
 	private readonly _onFileChanges: Emitter<FileChangesEvent>;
 	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
@@ -951,10 +949,10 @@ export class TestFileService implements IFileService {
 		return Promise.resolve(true);
 	}
 
-	resolveContent(resource: URI, _options?: IResolveContentOptions): Promise<IContent> {
+	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
 		return Promise.resolve({
 			resource: resource,
-			value: this.content,
+			value: VSBuffer.fromString(this.content),
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
@@ -963,7 +961,7 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveStreamContent(resource: URI, _options?: IResolveContentOptions): Promise<IStreamContent> {
+	readFileStream(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileStreamContent> {
 		return Promise.resolve({
 			resource: resource,
 			value: {
@@ -974,7 +972,10 @@ export class TestFileService implements IFileService {
 					if (event === 'end') {
 						callback();
 					}
-				}
+				},
+				resume: () => { },
+				pause: () => { },
+				destroy: () => { }
 			},
 			etag: 'index.txt',
 			encoding: 'utf8',

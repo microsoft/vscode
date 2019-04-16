@@ -26,7 +26,7 @@ import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/bina
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { SUPPORTED_ENCODINGS, IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
+import { IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -35,7 +35,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -1144,7 +1144,8 @@ export class ChangeEncodingAction extends Action {
 		@IEditorService private readonly editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -1195,7 +1196,7 @@ export class ChangeEncodingAction extends Action {
 						return Promise.resolve(null); // encoding detection only possible for resources the file service can handle
 					}
 
-					return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);
+					return this.textFileService.read(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);
 				})
 				.then((guessedEncoding: string) => {
 					const isReopenWithEncoding = (action === reopenWithEncodingPick);

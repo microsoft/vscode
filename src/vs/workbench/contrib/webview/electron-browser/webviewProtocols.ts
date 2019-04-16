@@ -6,16 +6,16 @@ import { getMediaMime, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { extname, sep } from 'vs/base/common/path';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export const enum WebviewProtocol {
 	CoreResource = 'vscode-core-resource',
 	VsCodeResource = 'vscode-resource',
 }
 
-function resolveContent(fileService: IFileService, resource: URI, mime: string, callback: any): void {
-	fileService.resolveContent(resource, { encoding: 'binary' }).then(contents => {
+function resolveContent(textFileService: ITextFileService, resource: URI, mime: string, callback: any): void {
+	textFileService.read(resource, { encoding: 'binary' }).then(contents => {
 		callback({
 			data: Buffer.from(contents.value, contents.encoding),
 			mimeType: mime
@@ -29,7 +29,7 @@ function resolveContent(fileService: IFileService, resource: URI, mime: string, 
 export function registerFileProtocol(
 	contents: Electron.WebContents,
 	protocol: WebviewProtocol,
-	fileService: IFileService,
+	textFileService: ITextFileService,
 	extensionLocation: URI | undefined,
 	getRoots: () => ReadonlyArray<URI>
 ) {
@@ -44,7 +44,7 @@ export function registerFileProtocol(
 					requestResourcePath: requestUri.path
 				})
 			});
-			resolveContent(fileService, redirectedUri, getMimeType(requestUri), callback);
+			resolveContent(textFileService, redirectedUri, getMimeType(requestUri), callback);
 			return;
 		}
 
@@ -52,7 +52,7 @@ export function registerFileProtocol(
 		const normalizedPath = URI.file(requestPath);
 		for (const root of getRoots()) {
 			if (startsWith(normalizedPath.fsPath, root.fsPath + sep)) {
-				resolveContent(fileService, normalizedPath, getMimeType(normalizedPath), callback);
+				resolveContent(textFileService, normalizedPath, getMimeType(normalizedPath), callback);
 				return;
 			}
 		}

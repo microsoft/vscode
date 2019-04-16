@@ -297,7 +297,7 @@ function toCSSSelector(extensionId: string, path: string) {
 
 function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {
 	if (resources.extname(themeLocation) === '.json') {
-		return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
+		return fileService.readFile(themeLocation).then(content => {
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.value.toString(), errors);
 			if (errors.length > 0) {
@@ -345,7 +345,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 }
 
 function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): Promise<any> {
-	return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
+	return fileService.readFile(themeLocation).then(content => {
 		try {
 			let contentValue = parsePList(content.value.toString());
 			let settings: ITokenColorizationRule[] = contentValue.settings;

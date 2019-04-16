@@ -11,11 +11,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, toBufferOrReadable, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { IFileService, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -37,11 +37,13 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { ITextSnapshot } from 'vs/editor/common/model';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
  */
-export class TextFileService extends Disposable implements ITextFileService {
+export abstract class TextFileService extends Disposable implements ITextFileService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
@@ -56,6 +58,8 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 	private _models: TextFileEditorModelManager;
 	get models(): ITextFileEditorModelManager { return this._models; }
+
+	abstract get encoding(): IResourceEncodings;
 
 	private currentFilesAssociationConfig: { [key: string]: string; };
 	private configuredAutoSaveDelay?: number;
@@ -364,22 +368,60 @@ export class TextFileService extends Disposable implements ITextFileService {
 
 	//#endregion
 
-	//#region primitives (resolve, create, move, delete, update)
+	//#region primitives (read, create, move, delete, update)
 
-	async resolve(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent> {
-		const streamContent = await this.fileService.resolveStreamContent(resource, options);
-		const value = await createTextBufferFactoryFromStream(streamContent.value);
+	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
+		const content = await this.fileService.readFile(resource, options);
+
+		// in case of acceptTextOnly: true, we check the first
+		// chunk for possibly being binary by looking for 0-bytes
+		// we limit this check to the first 512 bytes
+		this.validateBinary(content.value, options);
 
 		return {
-			resource: streamContent.resource,
-			name: streamContent.name,
-			mtime: streamContent.mtime,
-			etag: streamContent.etag,
-			encoding: streamContent.encoding,
-			isReadonly: streamContent.isReadonly,
-			size: streamContent.size,
-			value
+			...content,
+			encoding: 'utf8',
+			value: content.value.toString()
 		};
+	}
+
+	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+		const stream = await this.fileService.readFileStream(resource, options);
+
+		// in case of acceptTextOnly: true, we check the first
+		// chunk for possibly being binary by looking for 0-bytes
+		// we limit this check to the first 512 bytes
+		let checkedForBinary = false;
+		const throwOnBinary = (data: VSBuffer): Error | undefined => {
+			if (!checkedForBinary) {
+				checkedForBinary = true;
+
+				this.validateBinary(data, options);
+			}
+
+			return undefined;
+		};
+
+		return {
+			...stream,
+			encoding: 'utf8',
+			value: await createTextBufferFactoryFromStream(stream.value, undefined, options && options.acceptTextOnly ? throwOnBinary : undefined)
+		};
+	}
+
+	private validateBinary(buffer: VSBuffer, options?: IReadTextFileOptions): void {
+		if (!options || !options.acceptTextOnly) {
+			return; // no validation needed
+		}
+
+		// in case of acceptTextOnly: true, we check the first
+		// chunk for possibly being binary by looking for 0-bytes
+		// we limit this check to the first 512 bytes
+		for (let i = 0; i < buffer.byteLength && i < 512; i++) {
+			if (buffer.readUint8(i) === 0) {
+				throw new TextFileOperationError(nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
+			}
+		}
 	}
 
 	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
@@ -843,7 +885,10 @@ export class TextFileService extends Disposable implements ITextFileService {
 		} catch (error) {
 
 			// binary model: delete the file and run the operation again
-			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+			if (
+				(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
+				(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
+			) {
 				await this.fileService.del(target);
 
 				return this.doSaveTextFileAs(sourceModel, resource, target, options);

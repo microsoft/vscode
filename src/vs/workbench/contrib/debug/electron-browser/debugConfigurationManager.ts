@@ -559,7 +559,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 		const resource = this.uri;
 		let created = false;
 
-		return this.fileService.resolveContent(resource).then(content => content.value, err => {
+		return this.fileService.readFile(resource).then(content => content.value, err => {
 			// launch.json not found: create one by collecting launch configs from debugConfigProviders
 			return this.configurationManager.guessDebugger(type).then(adapter => {
 				if (adapter) {
@@ -576,19 +576,17 @@ class Launch extends AbstractLaunch implements ILaunch {
 				}
 
 				created = true; // pin only if config file is created #8727
-				return this.textFileService.write(resource, content).then(() => {
-					// convert string into IContent; see #32135
-					return content;
-				});
+				return this.textFileService.write(resource, content).then(() => content);
 			});
 		}).then(content => {
 			if (!content) {
 				return { editor: null, created: false };
 			}
-			const index = content.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);
+			const contentValue = content.toString();
+			const index = contentValue.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);
 			let startLineNumber = 1;
 			for (let i = 0; i < index; i++) {
-				if (content.charAt(i) === '\n') {
+				if (contentValue.charAt(i) === '\n') {
 					startLineNumber++;
 				}
 			}

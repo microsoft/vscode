@@ -91,8 +91,6 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
 import { IBroadcastService, NullBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
@@ -115,13 +113,12 @@ import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/output/common/outputChannelModelService';
 import 'vs/workbench/services/configuration/common/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-// import 'vs/workbench/services/textfile/node/textFileService';
+import 'vs/workbench/services/textfile/browser/textFileService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 // import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 // import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
-// import 'vs/workbench/services/files/node/remoteFileService';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
 // import 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -171,7 +168,6 @@ registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(IHeapService, NullHeapService);
 registerSingleton(IBroadcastService, NullBroadcastService);
 registerSingleton(IContextMenuService, ContextMenuService);
-registerSingleton(ITextFileService, TextFileService);
 registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 
 //#endregion

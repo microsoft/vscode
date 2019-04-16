@@ -117,8 +117,8 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 	}
 
 	private loadFile(): Promise<string> {
-		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
-			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value);
+		return this.fileService.readFile(this.file, { position: this.startOffset })
+			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value.toString());
 	}
 
 	protected updateModel(): void {
