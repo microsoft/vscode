@@ -226,12 +226,12 @@ export async function registerWindowDriver(accessor: ServicesAccessor): Promise<
 	const windowDriverRegistryChannel = mainProcessService.getChannel('windowDriverRegistry');
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
-	await windowDriverRegistry.registerWindowDriver(windowService.getCurrentWindowId());
+	await windowDriverRegistry.registerWindowDriver(windowService.windowId);
 	// const options = await windowDriverRegistry.registerWindowDriver(windowId);
 
 	// if (options.verbose) {
 	// 	windowDriver.openDevTools();
 	// }
 
-	return toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowService.getCurrentWindowId()));
+	return toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowService.windowId));
 }

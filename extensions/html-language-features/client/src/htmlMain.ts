@@ -144,8 +144,10 @@ export function activate(context: ExtensionContext) {
 	});
 
 	const regionCompletionRegExpr = /^(\s*)(<(!(-(-\s*(#\w*)?)?)?)?)?$/;
+	const htmlSnippetCompletionRegExpr = /^(\s*)(<(h(t(m(l)?)?)?)?)?$/;
 	languages.registerCompletionItemProvider(documentSelector, {
 		provideCompletionItems(doc, pos) {
+			const results: CompletionItem[] = [];
 			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
 			let match = lineUntilPos.match(regionCompletionRegExpr);
 			if (match) {
@@ -156,15 +158,41 @@ export function activate(context: ExtensionContext) {
 				beginProposal.documentation = localize('folding.start', 'Folding Region Start');
 				beginProposal.filterText = match[2];
 				beginProposal.sortText = 'za';
+				results.push(beginProposal);
 				let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
 				endProposal.range = range;
 				endProposal.insertText = new SnippetString('<!-- #endregion -->');
 				endProposal.documentation = localize('folding.end', 'Folding Region End');
 				endProposal.filterText = match[2];
 				endProposal.sortText = 'zb';
-				return [beginProposal, endProposal];
+				results.push(endProposal);
 			}
-			return null;
+			let match2 = lineUntilPos.match(htmlSnippetCompletionRegExpr);
+			if (match2 && doc.getText(new Range(new Position(0, 0), pos)).match(htmlSnippetCompletionRegExpr)) {
+				let range = new Range(new Position(pos.line, match2[1].length), pos);
+				let snippetProposal = new CompletionItem('HTML sample', CompletionItemKind.Snippet);
+				snippetProposal.range = range;
+				const content = ['<!DOCTYPE html>',
+					'<html>',
+					'<head>',
+					'\t<meta charset=\'utf-8\'>',
+					'\t<meta http-equiv=\'X-UA-Compatible\' content=\'IE=edge\'>',
+					'\t<title>${1:Page Title}</title>',
+					'\t<meta name=\'viewport\' content=\'width=device-width, initial-scale=1\'>',
+					'\t<link rel=\'stylesheet\' type=\'text/css\' media=\'screen\' href=\'${2:main.css}\'>',
+					'\t<script src=\'${3:main.js}\'></script>',
+					'</head>',
+					'<body>',
+					'\t$0',
+					'</body>',
+					'</html>'].join('\n');
+				snippetProposal.insertText = new SnippetString(content);
+				snippetProposal.documentation = localize('folding.html', 'Simple HTML5 starting point');
+				snippetProposal.filterText = match2[2];
+				snippetProposal.sortText = 'za';
+				results.push(snippetProposal);
+			}
+			return results;
 		}
 	});
 }

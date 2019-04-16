@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
 
 export class MenuService implements IMenuService {
 
@@ -52,7 +52,7 @@ class Menu implements IMenu {
 
 		// when context keys change we need to check if the menu also
 		// has changed
-		Event.debounce(
+		Event.debounce<IContextKeyChangeEvent, boolean>(
 			this._contextKeyService.onDidChangeContext,
 			(last, event) => last || event.affectsSome(this._contextKeys),
 			50
@@ -110,7 +110,7 @@ class Menu implements IMenu {
 			const [id, items] = group;
 			const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 			for (const item of items) {
-				if (this._contextKeyService.contextMatchesRules(item.when || null)) {
+				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					const action = isIMenuItem(item) ? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService) : new SubmenuItemAction(item);
 					activeActions.push(action);
 				}

@@ -84,9 +84,9 @@ export class JSONEditingService implements IJSONEditingService {
 	}
 
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		const exists = await this.fileService.existsFile(resource);
+		const exists = await this.fileService.exists(resource);
 		if (!exists) {
-			await this.fileService.updateContent(resource, '{}', { encoding: 'utf8' });
+			await this.textFileService.write(resource, '{}', { encoding: 'utf8' });
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}

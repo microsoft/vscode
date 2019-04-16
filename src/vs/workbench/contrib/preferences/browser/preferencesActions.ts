@@ -48,7 +48,7 @@ export class OpenSettings2Action extends Action {
 	}
 
 	run(event?: any): Promise<any> {
-		return this.preferencesService.openSettings(false);
+		return this.preferencesService.openSettings(false, undefined);
 	}
 }
 
@@ -66,7 +66,7 @@ export class OpenSettingsJsonAction extends Action {
 	}
 
 	run(event?: any): Promise<any> {
-		return this.preferencesService.openSettings(true);
+		return this.preferencesService.openSettings(true, undefined);
 	}
 }
 
@@ -85,6 +85,23 @@ export class OpenGlobalSettingsAction extends Action {
 
 	run(event?: any): Promise<any> {
 		return this.preferencesService.openGlobalSettings();
+	}
+}
+
+export class OpenRemoteSettingsAction extends Action {
+
+	static readonly ID = 'workbench.action.openRemoteSettings';
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+	) {
+		super(id, label);
+	}
+
+	run(event?: any): Promise<any> {
+		return this.preferencesService.openRemoteSettings();
 	}
 }
 

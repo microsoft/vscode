@@ -22,90 +22,45 @@ steps:
     password $(VSCODE_MIXIN_PASSWORD)
     EOF
 
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+    git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+    git fetch distro
+    git merge $(node -p "require('./package.json').distro")
+
     CHILD_CONCURRENCY=1 yarn
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
-    npm run gulp -- hygiene
-    npm run monaco-compile-check
+    yarn gulp mixin
+    yarn gulp hygiene
+    yarn monaco-compile-check
     node build/azure-pipelines/common/installDistro.js
     node build/lib/builtInExtensions.js
+  displayName: Prepare build
 
 - script: |
     set -e
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
-  name: build
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
+    ./build/azure-pipelines/linux/build.sh
+  displayName: Build
 
 - script: |
     set -e
-    npm run gulp -- "electron-$(VSCODE_ARCH)"
+    yarn gulp "electron-$(VSCODE_ARCH)"
 
     # xvfb seems to be crashing often, let's make sure it's always up
     service xvfb start
 
     DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
-  name: test
+  displayName: Run unit tests
 
 - script: |
     set -e
-    REPO="$(pwd)"
-    ROOT="$REPO/.."
-    ARCH="$(VSCODE_ARCH)"
-
-    # Publish tarball
-    PLATFORM_LINUX="linux-$(VSCODE_ARCH)"
-    [[ "$ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
-    [[ "$ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
-    BUILDNAME="VSCode-$PLATFORM_LINUX"
-    BUILD="$ROOT/$BUILDNAME"
-    BUILD_VERSION="$(date +%s)"
-    [ -z "$VSCODE_QUALITY" ] && TARBALL_FILENAME="code-$BUILD_VERSION.tar.gz" || TARBALL_FILENAME="code-$VSCODE_QUALITY-$BUILD_VERSION.tar.gz"
-    TARBALL_PATH="$ROOT/$TARBALL_FILENAME"
-    PACKAGEJSON="$BUILD/resources/app/package.json"
-    VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
-
-    rm -rf $ROOT/code-*.tar.*
-    (cd $ROOT && tar -czf $TARBALL_PATH $BUILDNAME)
-
     AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-    node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_LINUX" archive-unsigned "$TARBALL_FILENAME" "$VERSION" true "$TARBALL_PATH"
-
-    # Publish hockeyapp symbols
-    node build/azure-pipelines/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_LINUX64)"
-
-    # Publish DEB
-    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
-    PLATFORM_DEB="linux-deb-$ARCH"
-    [[ "$ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
-    DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
-    DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
-
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-    node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_DEB" package "$DEB_FILENAME" "$VERSION" true "$DEB_PATH"
-
-    # Publish RPM
-    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
-    PLATFORM_RPM="linux-rpm-$ARCH"
-    [[ "$ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
-    RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
-    RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
-
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-    node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_RPM" package "$RPM_FILENAME" "$VERSION" true "$RPM_PATH"
-
-    # Publish Snap
-    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
-
-    # Pack snap tarball artifact, in order to preserve file perms
-    mkdir -p $REPO/.build/linux/snap-tarball
-    SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-$(VSCODE_ARCH).tar.gz"
-    rm -rf $SNAP_TARBALL_PATH
-    (cd .build/linux && tar -czf $SNAP_TARBALL_PATH snap)
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
+    VSCODE_HOCKEYAPP_TOKEN="$(VSCODE_HOCKEYAPP_TOKEN)" \
+    ./build/azure-pipelines/linux/publish.sh
+  displayName: Publish
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'

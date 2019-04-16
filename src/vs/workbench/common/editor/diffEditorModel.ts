@@ -21,18 +21,20 @@ export class DiffEditorModel extends EditorModel {
 		this._modifiedModel = modifiedModel;
 	}
 
-	get originalModel(): EditorModel | null {
+	get originalModel(): IEditorModel | null {
 		if (!this._originalModel) {
 			return null;
 		}
-		return this._originalModel as EditorModel;
+
+		return this._originalModel;
 	}
 
-	get modifiedModel(): EditorModel | null {
+	get modifiedModel(): IEditorModel | null {
 		if (!this._modifiedModel) {
 			return null;
 		}
-		return this._modifiedModel as EditorModel;
+
+		return this._modifiedModel;
 	}
 
 	load(): Promise<EditorModel> {
@@ -43,7 +45,7 @@ export class DiffEditorModel extends EditorModel {
 	}
 
 	isResolved(): boolean {
-		return !!this.originalModel && this.originalModel.isResolved() && !!this.modifiedModel && this.modifiedModel.isResolved();
+		return this.originalModel instanceof EditorModel && this.originalModel.isResolved() && this.modifiedModel instanceof EditorModel && this.modifiedModel.isResolved();
 	}
 
 	dispose(): void {

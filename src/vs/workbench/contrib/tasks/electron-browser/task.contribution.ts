@@ -73,14 +73,13 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource
+	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
+	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
 
-import { KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition } from 'vs/workbench/contrib/tasks/node/tasks';
-
-import * as TaskConfig from '../node/taskConfiguration';
+import * as TaskConfig from '../common/taskConfiguration';
 import { ProcessTaskSystem } from 'vs/workbench/contrib/tasks/node/processTaskSystem';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/contrib/tasks/node/processRunnerDetector';
@@ -95,6 +94,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { RunAutomaticTasks, AllowAutomaticTaskRunning, DisallowAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/electron-browser/runAutomaticTasks';
+
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -156,9 +157,9 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const info = document.createElement('div');
 		const building = document.createElement('div');
 
-		const errorTitle = n => nls.localize('totalErrors', "{0} Errors", n);
-		const warningTitle = n => nls.localize('totalWarnings', "{0} Warnings", n);
-		const infoTitle = n => nls.localize('totalInfos', "{0} Infos", n);
+		const errorTitle = (n: number) => nls.localize('totalErrors', "{0} Errors", n);
+		const warningTitle = (n: number) => nls.localize('totalWarnings', "{0} Warnings", n);
+		const infoTitle = (n: number) => nls.localize('totalInfos', "{0} Infos", n);
 
 		Dom.addClass(element, 'task-statusbar-item');
 		element.title = nls.localize('problems', "Problems");
@@ -211,7 +212,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		}));
 
 		const manyProblems = nls.localize('manyProblems', "10K+");
-		const packNumber = n => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
+		const packNumber = (n: number) => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
 		let updateLabel = (stats: MarkerStatistics) => {
 			error.innerHTML = packNumber(stats.errors);
 			error.title = errorIcon.title = errorTitle(stats.errors);
@@ -386,7 +387,7 @@ interface WorkspaceFolderConfigurationResult {
 	hasErrors: boolean;
 }
 
-interface TaskCustomizationTelementryEvent {
+interface TaskCustomizationTelemetryEvent {
 	properties: string[];
 }
 
@@ -468,6 +469,7 @@ class TaskService extends Disposable implements ITaskService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IOutputService private readonly outputService: IOutputService,
+		@IPanelService private readonly panelService: IPanelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -486,6 +488,7 @@ class TaskService extends Disposable implements ITaskService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -871,7 +874,7 @@ class TaskService extends Disposable implements ITaskService {
 		});
 	}
 
-	public run(task: Task | undefined, options?: ProblemMatcherRunOptions): Promise<ITaskSummary> {
+	public run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary> {
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
@@ -887,7 +890,14 @@ class TaskService extends Disposable implements ITaskService {
 				});
 			}
 			return this.executeTask(task, resolver);
-		}).then(value => value, (error) => {
+		}).then((value) => {
+			if (runSource === TaskRunSource.User) {
+				this.getWorkspaceTasks().then(workspaceTasks => {
+					RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, workspaceTasks);
+				});
+			}
+			return value;
+		}, (error) => {
 			this.handleError(error);
 			return Promise.reject(error);
 		});
@@ -1071,7 +1081,7 @@ class TaskService extends Disposable implements ITaskService {
 			if (editorConfig.editor.insertSpaces) {
 				content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 			}
-			promise = this.fileService.createFile(workspaceFolder.toResource('.vscode/tasks.json'), content).then(() => { });
+			promise = this.textFileService.create(workspaceFolder.toResource('.vscode/tasks.json'), content).then(() => { });
 		} else {
 			// We have a global task configuration
 			if ((index === -1) && properties) {
@@ -1098,7 +1108,7 @@ class TaskService extends Disposable implements ITaskService {
 			return Promise.resolve(undefined);
 		}
 		return promise.then(() => {
-			let event: TaskCustomizationTelementryEvent = {
+			let event: TaskCustomizationTelemetryEvent = {
 				properties: properties ? Object.getOwnPropertyNames(properties) : []
 			};
 			/* __GDPR__
@@ -1346,9 +1356,9 @@ class TaskService extends Disposable implements ITaskService {
 		}
 		if (this.executionEngine === ExecutionEngine.Terminal) {
 			this._taskSystem = new TerminalTaskSystem(
-				this.terminalService, this.outputService, this.markerService,
+				this.terminalService, this.outputService, this.panelService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
-				this.contextService, this._windowService,
+				this.contextService, this._environmentService,
 				TaskService.OutputChannelId,
 				(workspaceFolder: IWorkspaceFolder) => {
 					if (!workspaceFolder) {
@@ -1378,6 +1388,8 @@ class TaskService extends Disposable implements ITaskService {
 		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
 			let validTypes: IStringDictionary<boolean> = Object.create(null);
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
+			validTypes['shell'] = true;
+			validTypes['process'] = true;
 			return new Promise<TaskSet[]>(resolve => {
 				let result: TaskSet[] = [];
 				let counter: number = 0;
@@ -1549,11 +1561,6 @@ class TaskService extends Disposable implements ITaskService {
 			return this._workspaceTasksPromise;
 		}
 		this.updateWorkspaceTasks(runSource);
-		if (runSource === TaskRunSource.User) {
-			this._workspaceTasksPromise!.then(workspaceFolderTasks => {
-				RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, workspaceFolderTasks);
-			});
-		}
 		return this._workspaceTasksPromise!;
 	}
 
@@ -1874,7 +1881,14 @@ class TaskService extends Disposable implements ITaskService {
 
 	private canRunCommand(): boolean {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.notificationService.info(nls.localize('TaskService.noWorkspace', 'Tasks are only available on a workspace folder.'));
+			this.notificationService.prompt(
+				Severity.Info,
+				nls.localize('TaskService.noWorkspace', "Tasks are only available on a workspace folder."),
+				[{
+					label: nls.localize('TaskService.learnMore', "Learn More"),
+					run: () => window.open('https://code.visualstudio.com/docs/editor/tasks')
+				}]
+			);
 			return false;
 		}
 		return true;
@@ -1958,7 +1972,7 @@ class TaskService extends Disposable implements ITaskService {
 		return entries;
 	}
 
-	private showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry): Promise<Task | undefined | null> {
+	private showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
 		let _createEntries = (): Promise<TaskQuickPickEntry[]> => {
 			if (Array.isArray(tasks)) {
 				return Promise.resolve(this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
@@ -1969,6 +1983,9 @@ class TaskService extends Disposable implements ITaskService {
 		return this.quickInputService.pick(_createEntries().then((entries) => {
 			if ((entries.length === 0) && defaultEntry) {
 				entries.push(defaultEntry);
+			}
+			else if (entries.length > 1 && additionalEntries && additionalEntries.length > 0) {
+				entries.push(additionalEntries[0]);
 			}
 			return entries;
 		}), {
@@ -1983,7 +2000,7 @@ class TaskService extends Disposable implements ITaskService {
 						this.openConfig(task);
 					}
 				}
-			}).then(entry => entry ? entry.task : undefined);
+			});
 	}
 
 	private showIgnoredFoldersMessage(): Promise<void> {
@@ -2039,18 +2056,19 @@ class TaskService extends Disposable implements ITaskService {
 			this.showQuickPick(tasks ? tasks : this.tasks(),
 				nls.localize('TaskService.pickRunTask', 'Select the task to run'),
 				{
-					label: nls.localize('TaslService.noEntryToRun', 'No task to run found. Configure Tasks...'),
+					label: nls.localize('TaskService.noEntryToRun', 'No task to run found. Configure Tasks...'),
 					task: null
 				},
 				true).
-				then((task) => {
+				then((entry) => {
+					let task: Task | undefined | null = entry ? entry.task : undefined;
 					if (task === undefined) {
 						return;
 					}
 					if (task === null) {
 						this.runConfigureTasks();
 					} else {
-						this.run(task, { attachProblemMatcher: true }).then(undefined, reason => {
+						this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
 					}
@@ -2123,7 +2141,8 @@ class TaskService extends Disposable implements ITaskService {
 						label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
 						task: null
 					},
-					true).then((task) => {
+					true).then((entry) => {
+						let task: Task | undefined | null = entry ? entry.task : undefined;
 						if (task === undefined) {
 							return;
 						}
@@ -2171,7 +2190,8 @@ class TaskService extends Disposable implements ITaskService {
 						label: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...'),
 						task: null
 					}, true
-				).then((task) => {
+				).then((entry) => {
+					let task: Task | undefined | null = entry ? entry.task : undefined;
 					if (task === undefined) {
 						return;
 					}
@@ -2192,15 +2212,29 @@ class TaskService extends Disposable implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
+		if (arg === 'terminateAll') {
+			this.terminateAll();
+			return;
+		}
 		let runQuickPick = (promise?: Promise<Task[]>) => {
 			this.showQuickPick(promise || this.getActiveTasks(),
-				nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
+				nls.localize('TaskService.taskToTerminate', 'Select task to terminate'),
 				{
 					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
-					task: null
+					task: undefined
 				},
-				false, true
-			).then(task => {
+				false, true,
+				undefined,
+				[{
+					label: nls.localize('TaskService.terminateAllRunningTasks', 'All running tasks'),
+					id: 'terminateAll',
+					task: undefined
+				}]
+			).then(entry => {
+				if (entry && entry.id === 'terminateAll') {
+					this.terminateAll();
+				}
+				let task: Task | undefined | null = entry ? entry.task : undefined;
 				if (task === undefined || task === null) {
 					return;
 				}
@@ -2250,13 +2284,14 @@ class TaskService extends Disposable implements ITaskService {
 		}
 		let runQuickPick = (promise?: Promise<Task[]>) => {
 			this.showQuickPick(promise || this.getActiveTasks(),
-				nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
+				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
 				{
 					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
 					task: null
 				},
 				false, true
-			).then(task => {
+			).then(entry => {
+				let task: Task | undefined | null = entry ? entry.task : undefined;
 				if (task === undefined || task === null) {
 					return;
 				}
@@ -2315,7 +2350,7 @@ class TaskService extends Disposable implements ITaskService {
 		let openTaskFile = (workspaceFolder: IWorkspaceFolder): void => {
 			let resource = workspaceFolder.toResource('.vscode/tasks.json');
 			let configFileCreated = false;
-			this.fileService.resolveFile(resource).then((stat) => stat, () => undefined).then((stat) => {
+			this.fileService.resolve(resource).then((stat) => stat, () => undefined).then((stat) => {
 				if (stat) {
 					return stat.resource;
 				}
@@ -2335,7 +2370,7 @@ class TaskService extends Disposable implements ITaskService {
 							"autoDetect" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 						}
 					*/
-					return this.fileService.createFile(resource, content).then((result): URI => {
+					return this.textFileService.create(resource, content).then((result): URI => {
 						this.telemetryService.publicLog(TaskService.TemplateTelemetryEventName, {
 							templateId: selection.id,
 							autoDetect: selection.autoDetect
@@ -2372,7 +2407,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 
 		let stats = this.contextService.getWorkspace().folders.map<Promise<IFileStat | undefined>>((folder) => {
-			return this.fileService.resolveFile(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
+			return this.fileService.resolve(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
 		});
 
 		let createLabel = nls.localize('TaskService.createJsonFile', 'Create tasks.json file from template');
@@ -2468,7 +2503,8 @@ class TaskService extends Disposable implements ITaskService {
 				this.showIgnoredFoldersMessage().then(() => {
 					this.showQuickPick(tasks,
 						nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task'), undefined, true, false, selectedEntry).
-						then((task) => {
+						then((entry) => {
+							let task: Task | undefined | null = entry ? entry.task : undefined;
 							if ((task === undefined) || (task === null)) {
 								return;
 							}
@@ -2518,7 +2554,8 @@ class TaskService extends Disposable implements ITaskService {
 
 				this.showIgnoredFoldersMessage().then(() => {
 					this.showQuickPick(tasks,
-						nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true, false, selectedEntry).then((task) => {
+						nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true, false, selectedEntry).then((entry) => {
+							let task: Task | undefined | null = entry ? entry.task : undefined;
 							if (!task) {
 								return;
 							}
@@ -2551,7 +2588,8 @@ class TaskService extends Disposable implements ITaskService {
 				task: null
 			},
 			false, true
-		).then((task) => {
+		).then((entry) => {
+			let task: Task | undefined | null = entry ? entry.task : undefined;
 			if (task === undefined || task === null) {
 				return;
 			}

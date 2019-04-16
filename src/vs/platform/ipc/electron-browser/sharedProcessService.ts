@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { Client, connect } from 'vs/base/parts/ipc/node/ipc.net';
+import { Client } from 'vs/base/parts/ipc/common/ipc.net';
+import { connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export const ISharedProcessService = createDecorator<ISharedProcessService>('sharedProcessService');
 
@@ -33,7 +33,7 @@ export class SharedProcessService implements ISharedProcessService {
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		this.withSharedProcessConnection = windowsService.whenSharedProcessReady()
-			.then(() => connect(environmentService.sharedIPCHandle, `window:${windowService.getCurrentWindowId()}`));
+			.then(() => connect(environmentService.sharedIPCHandle, `window:${windowService.windowId}`));
 	}
 
 	getChannel(channelName: string): IChannel {

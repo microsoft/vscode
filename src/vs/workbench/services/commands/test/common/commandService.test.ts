@@ -134,4 +134,43 @@ suite('CommandService', function () {
 			dispose(dispoables);
 		});
 	});
+
+	test('issue #71471: wait for onCommand activation even if a command is registered', () => {
+		let expectedOrder: string[] = ['registering command', 'resolving activation event', 'executing command'];
+		let actualOrder: string[] = [];
+		let disposables: IDisposable[] = [];
+		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
+
+			activateByEvent(event: string): Promise<void> {
+				if (event === '*') {
+					return new Promise(() => { }); //forever promise...
+				}
+				if (event.indexOf('onCommand:') === 0) {
+					return new Promise(resolve => {
+						setTimeout(() => {
+							// Register the command after some time
+							actualOrder.push('registering command');
+							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
+								actualOrder.push('executing command');
+							});
+							disposables.push(reg);
+
+							setTimeout(() => {
+								// Resolve the activation event after some more time
+								actualOrder.push('resolving activation event');
+								resolve();
+							}, 10);
+						}, 10);
+					});
+				}
+				return Promise.resolve();
+			}
+
+		}, new NullLogService());
+
+		return service.executeCommand('farboo2').then(() => {
+			assert.deepEqual(actualOrder, expectedOrder);
+			dispose(disposables);
+		});
+	});
 });

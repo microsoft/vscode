@@ -55,16 +55,16 @@ suite('WorkspacesMainService', () => {
 		service = new TestWorkspacesMainService(environmentService, logService);
 
 		// Delete any existing backups completely and then re-create it.
-		return pfs.del(untitledWorkspacesHomePath, os.tmpdir()).then(() => {
+		return pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE).then(() => {
 			return pfs.mkdirp(untitledWorkspacesHomePath);
 		});
 	});
 
 	teardown(() => {
-		return pfs.del(untitledWorkspacesHomePath, os.tmpdir());
+		return pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE);
 	});
 
-	function assertPathEquals(p1: string, p2): void {
+	function assertPathEquals(p1: string, p2: string): void {
 		if (isWindows) {
 			p1 = normalizeDriveLetter(p1);
 			p2 = normalizeDriveLetter(p2);

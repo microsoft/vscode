@@ -15,6 +15,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class ExtensionDependencyChecker extends Disposable implements IWorkbenchContribution {
 
@@ -60,7 +61,7 @@ export class ExtensionDependencyChecker extends Disposable implements IWorkbench
 	private async installMissingDependencies(): Promise<void> {
 		const missingDependencies = await this.getUninstalledMissingDependencies();
 		if (missingDependencies.length) {
-			const extensions = (await this.extensionsWorkbenchService.queryGallery({ names: missingDependencies, pageSize: missingDependencies.length })).firstPage;
+			const extensions = (await this.extensionsWorkbenchService.queryGallery({ names: missingDependencies, pageSize: missingDependencies.length }, CancellationToken.None)).firstPage;
 			if (extensions.length) {
 				await Promise.all(extensions.map(extension => this.extensionsWorkbenchService.install(extension)));
 				this.notificationService.notify({

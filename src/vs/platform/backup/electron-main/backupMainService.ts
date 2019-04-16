@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import { writeFileAndFlushSync } from 'vs/base/node/extfs';
+import { writeFileSync, writeFile, readFile, readdir, exists, rimraf, rename, RimRafMode } from 'vs/base/node/pfs';
 import * as arrays from 'vs/base/common/arrays';
 import { IBackupMainService, IBackupWorkspacesFormat, IEmptyWindowBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -19,7 +19,6 @@ import { URI } from 'vs/base/common/uri';
 import { isEqual as areResourcesEquals, getComparisonKey, hasToIgnoreCase } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
-import { writeFile, readFile, readdir, exists, del, rename } from 'vs/base/node/pfs';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -343,7 +342,7 @@ export class BackupMainService implements IBackupMainService {
 	private async deleteStaleBackup(backupPath: string): Promise<void> {
 		try {
 			if (await exists(backupPath)) {
-				await del(backupPath);
+				await rimraf(backupPath, RimRafMode.MOVE);
 			}
 		} catch (ex) {
 			this.logService.error(`Backup: Could not delete stale backup: ${ex.toString()}`);
@@ -415,7 +414,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private saveSync(): void {
 		try {
-			writeFileAndFlushSync(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
+			writeFileSync(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
 		} catch (ex) {
 			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
 		}
@@ -435,7 +434,7 @@ export class BackupMainService implements IBackupMainService {
 			folderURIWorkspaces: this.folderWorkspaces.map(f => f.toString()),
 			emptyWorkspaceInfos: this.emptyWorkspaces,
 			emptyWorkspaces: this.emptyWorkspaces.map(info => info.backupFolder)
-		} as IBackupWorkspacesFormat;
+		};
 	}
 
 	private getRandomEmptyWindowId(): string {

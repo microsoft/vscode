@@ -6,7 +6,7 @@
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from './watcher';
 import { Event } from 'vs/base/common/event';
-import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
+import { IDiskFileChange } from 'vs/workbench/services/files/node/watcher/watcher';
 
 export class WatcherChannel implements IServerChannel {
 
@@ -35,7 +35,7 @@ export class WatcherChannelClient implements IWatcherService {
 
 	constructor(private channel: IChannel) { }
 
-	watch(options: IWatcherOptions): Event<IRawFileChange[] | IWatchError> {
+	watch(options: IWatcherOptions): Event<IDiskFileChange[] | IWatchError> {
 		return this.channel.listen('watch', options);
 	}
 

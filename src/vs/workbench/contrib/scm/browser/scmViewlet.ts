@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { VIEWLET_ID, ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType, VIEW_CONTAINER } from 'vs/workbench/contrib/scm/common/scm';
-import { ResourceLabels, IResourceLabel, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -234,7 +234,7 @@ export class MainPanel extends ViewletPanel {
 	protected renderBody(container: HTMLElement): void {
 		const delegate = new ProvidersListDelegate();
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
-		const identityProvider = { getId: r => r.provider.id };
+		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
 			identityProvider,
@@ -829,7 +829,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 
-		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
+		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this.disposables.push(this.listLabels);
 
 		const renderers = [
@@ -918,9 +918,9 @@ export class RepositoryPanel extends ViewletPanel {
 		return this.menus.getTitleSecondaryActions();
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
-			return null;
+			return undefined;
 		}
 
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
@@ -1060,10 +1060,10 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		const visibleViewDescriptors = this.viewsModel.visibleViewDescriptors;
 
 		const toSetVisible = this.viewsModel.viewDescriptors
-			.filter(d => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
+			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
 
 		const toSetInvisible = visibleViewDescriptors
-			.filter(d => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
+			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
 
 		let size: number | undefined;
 		const oneToOne = toSetVisible.length === 1 && toSetInvisible.length === 1;
@@ -1077,10 +1077,12 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 				}
 			}
 
+			viewDescriptor.repository.setSelected(false);
 			this.viewsModel.setVisible(viewDescriptor.id, false);
 		}
 
 		for (const viewDescriptor of toSetVisible) {
+			viewDescriptor.repository.setSelected(true);
 			this.viewsModel.setVisible(viewDescriptor.id, true, size);
 		}
 	}
@@ -1181,6 +1183,10 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 			this.viewsModel.setVisible(MainPanel.ID, false);
 		}
 
+		if (repositoryCount === 1) {
+			this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
+		}
+
 		toggleClass(this.el, 'empty', repositoryCount === 0);
 		this.repositoryCount = repositoryCount;
 	}
@@ -1221,9 +1227,9 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		}
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
-			return null;
+			return undefined;
 		}
 
 		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);

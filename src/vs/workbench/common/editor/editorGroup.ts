@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection } from 'vs/workbench/common/editor';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -48,7 +48,7 @@ export interface ISerializedEditorGroup {
 }
 
 export function isSerializedEditorGroup(obj?: any): obj is ISerializedEditorGroup {
-	const group = obj as ISerializedEditorGroup;
+	const group: ISerializedEditorGroup = obj;
 
 	return obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru);
 }
@@ -140,7 +140,7 @@ export class EditorGroup extends Disposable {
 
 	getEditor(index: number): EditorInput | null;
 	getEditor(resource: URI): EditorInput | null;
-	getEditor(arg1: any): EditorInput | null {
+	getEditor(arg1: number | URI): EditorInput | null {
 		if (typeof arg1 === 'number') {
 			return this.editors[arg1];
 		}
@@ -151,7 +151,7 @@ export class EditorGroup extends Disposable {
 		}
 
 		for (const editor of this.editors) {
-			const editorResource = toResource(editor, { supportSideBySide: true });
+			const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 			if (editorResource && editorResource.toString() === resource.toString()) {
 				return editor;
 			}
@@ -501,7 +501,7 @@ export class EditorGroup extends Disposable {
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
 		const editorToDeleteOrReplace = this.editors[index];
 
-		const args: any[] = [index, del ? 1 : 0];
+		const args: (number | EditorInput)[] = [index, del ? 1 : 0];
 		if (editor) {
 			args.push(editor);
 		}
@@ -535,7 +535,7 @@ export class EditorGroup extends Disposable {
 	}
 
 	private updateResourceMap(editor: EditorInput, remove: boolean): void {
-		const resource = toResource(editor, { supportSideBySide: true });
+		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource) {
 
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
@@ -561,7 +561,7 @@ export class EditorGroup extends Disposable {
 		}
 	}
 
-	indexOf(candidate: EditorInput | null, editors = this.editors): number {
+	indexOf(candidate: IEditorInput | null, editors = this.editors): number {
 		if (!candidate) {
 			return -1;
 		}
@@ -614,7 +614,7 @@ export class EditorGroup extends Disposable {
 		this.mru.unshift(editor);
 	}
 
-	private matches(editorA: EditorInput | null, editorB: EditorInput | null): boolean {
+	private matches(editorA: IEditorInput | null, editorB: IEditorInput | null): boolean {
 		return !!editorA && !!editorB && editorA.matches(editorB);
 	}
 
@@ -640,9 +640,9 @@ export class EditorGroup extends Disposable {
 		let serializedEditors: ISerializedEditorInput[] = [];
 		let serializablePreviewIndex: number | undefined;
 		this.editors.forEach(e => {
-			let factory = registry.getEditorInputFactory(e.getTypeId());
+			const factory = registry.getEditorInputFactory(e.getTypeId());
 			if (factory) {
-				let value = factory.serialize(e);
+				const value = factory.serialize(e);
 				if (typeof value === 'string') {
 					serializedEditors.push({ id: e.getTypeId(), value });
 					serializableEditors.push(e);
@@ -678,10 +678,11 @@ export class EditorGroup extends Disposable {
 		this.editors = coalesce(data.editors.map(e => {
 			const factory = registry.getEditorInputFactory(e.id);
 			if (factory) {
-				const editor = factory.deserialize(this.instantiationService, e.value)!;
-
-				this.registerEditorListeners(editor);
-				this.updateResourceMap(editor, false /* add */);
+				const editor = factory.deserialize(this.instantiationService, e.value);
+				if (editor) {
+					this.registerEditorListeners(editor);
+					this.updateResourceMap(editor, false /* add */);
+				}
 
 				return editor;
 			}

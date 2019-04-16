@@ -61,7 +61,7 @@ export interface IColorRegistry {
 	/**
 	 * Register a color to the registry.
 	 */
-	deregisterColor(id: string);
+	deregisterColor(id: string): void;
 
 	/**
 	 * Get all color contributions

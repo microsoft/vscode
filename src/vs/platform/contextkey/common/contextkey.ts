@@ -50,9 +50,9 @@ export abstract class ContextKeyExpr {
 		return new ContextKeyAndExpr(expr);
 	}
 
-	public static deserialize(serialized: string | null | undefined, strict: boolean = false): ContextKeyExpr | null {
+	public static deserialize(serialized: string | null | undefined, strict: boolean = false): ContextKeyExpr | undefined {
 		if (!serialized) {
-			return null;
+			return undefined;
 		}
 
 		let pieces = serialized.split('&&');
@@ -143,7 +143,7 @@ export abstract class ContextKeyExpr {
 	public abstract getType(): ContextKeyExprType;
 	public abstract equals(other: ContextKeyExpr): boolean;
 	public abstract evaluate(context: IContext): boolean;
-	public abstract normalize(): ContextKeyExpr | null;
+	public abstract normalize(): ContextKeyExpr | undefined;
 	public abstract serialize(): string;
 	public abstract keys(): string[];
 	public abstract map(mapFnc: IContextKeyExprMapper): ContextKeyExpr;
@@ -519,9 +519,9 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 		return expr;
 	}
 
-	public normalize(): ContextKeyExpr | null {
+	public normalize(): ContextKeyExpr | undefined {
 		if (this.expr.length === 0) {
-			return null;
+			return undefined;
 		}
 
 		if (this.expr.length === 1) {
@@ -621,8 +621,11 @@ export interface IContextKeyService {
 	dispose(): void;
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
+	bufferChangeEvents(callback: Function): void;
+
+
 	createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T>;
-	contextMatchesRules(rules: ContextKeyExpr | null): boolean;
+	contextMatchesRules(rules: ContextKeyExpr | undefined): boolean;
 	getContextKeyValue<T>(key: string): T | undefined;
 
 	createScoped(target?: IContextKeyServiceTarget): IContextKeyService;

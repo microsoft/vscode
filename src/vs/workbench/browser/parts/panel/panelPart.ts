@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ClosePanelAction, TogglePanelPositionAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem } from 'vs/workbench/browser/parts/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
@@ -30,7 +30,7 @@ import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -222,7 +222,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return this.openComposite(id, focus) || null;
+		return withUndefinedAsNull(this.openComposite(id, focus));
 	}
 
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
@@ -484,8 +484,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// Styling with Outline color (e.g. high contrast theme)
 	const outline = theme.getColor(activeContrastBorder);
 	if (outline) {
-		const outline = theme.getColor(activeContrastBorder);
-
 		collector.addRule(`
 			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
 			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
@@ -499,6 +497,15 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label:hover {
 				outline-style: dashed;
+			}
+		`);
+	}
+
+	const inputBorder = theme.getColor(PANEL_INPUT_BORDER);
+	if (inputBorder) {
+		collector.addRule(`
+			.monaco-workbench .part.panel .monaco-inputbox {
+				border-color: ${inputBorder}
 			}
 		`);
 	}

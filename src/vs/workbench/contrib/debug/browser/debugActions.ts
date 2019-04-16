@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, State, IEnablement, IBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -366,8 +366,7 @@ export class FocusSessionAction extends AbstractDebugAction {
 		super(id, label, '', debugService, keybindingService, 100);
 	}
 
-	public run(sessionName: string): Promise<any> {
-		const session = this.debugService.getModel().getSessions().filter(p => p.getLabel() === sessionName).pop();
+	public run(session: IDebugSession): Promise<any> {
 		this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {

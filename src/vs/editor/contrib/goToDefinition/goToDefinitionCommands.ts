@@ -28,6 +28,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from './goToDefinition';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 
 export class DefinitionActionConfig {
 
@@ -61,9 +62,11 @@ export class DefinitionAction extends EditorAction {
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
-		const definitionPromise = this._getTargetLocationForPosition(model, pos, CancellationToken.None).then(async references => {
+		const cts = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-			if (model.isDisposed() || editor.getModel() !== model) {
+		const definitionPromise = this._getTargetLocationForPosition(model, pos, cts.token).then(async references => {
+
+			if (cts.token.isCancellationRequested || model.isDisposed() || editor.getModel() !== model) {
 				// new model, no more model
 				return;
 			}
@@ -105,6 +108,8 @@ export class DefinitionAction extends EditorAction {
 		}, (err) => {
 			// report an error
 			notificationService.error(err);
+		}).finally(() => {
+			cts.dispose();
 		});
 
 		progressService.showWhile(definitionPromise, 250);
@@ -131,17 +136,19 @@ export class DefinitionAction extends EditorAction {
 		alert(msg);
 
 		const { gotoLocation } = editor.getConfiguration().contribInfo;
-		if (this._configuration.openInPeek || (gotoLocation.many === 'peek' && model.references.length > 1)) {
+		if (this._configuration.openInPeek || (gotoLocation.multiple === 'peek' && model.references.length > 1)) {
 			this._openInPeek(editorService, editor, model);
+
 		} else if (editor.hasModel()) {
-			const next = model.nearestReference(editor.getModel().uri, editor.getPosition());
-			if (next) {
-				const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
-				if (targetEditor && model.references.length > 1 && gotoLocation.many === 'revealAndPeek') {
-					this._openInPeek(editorService, targetEditor, model);
-				} else {
-					model.dispose();
-				}
+			const next = model.firstReference();
+			if (!next) {
+				return;
+			}
+			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
+			if (targetEditor && model.references.length > 1 && gotoLocation.multiple === 'gotoAndPeek') {
+				this._openInPeek(editorService, targetEditor, model);
+			} else {
+				model.dispose();
 			}
 		}
 	}

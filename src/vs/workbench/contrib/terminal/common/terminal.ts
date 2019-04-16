@@ -101,6 +101,8 @@ export interface ITerminalConfiguration {
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
+	enableLatencyMitigation: boolean;
+	experimentalRefreshOnResume: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -265,6 +267,7 @@ export interface ITerminalService {
 	 */
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string): Promise<string>;
 
+	extHostReady(remoteAuthority: string): void;
 	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
 }
 
@@ -633,6 +636,14 @@ export interface ITerminalCommandTracker {
 	selectToNextLine(): void;
 }
 
+export interface IBeforeProcessDataEvent {
+	/**
+	 * The data of the event, this can be modified by the event listener to change what gets sent
+	 * to the terminal.
+	 */
+	data: string;
+}
+
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
@@ -642,13 +653,14 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly userHome: string | undefined;
 
 	readonly onProcessReady: Event<void>;
+	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<string>;
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number>;
 
-	addDisposable(disposable: IDisposable);
-	dispose(immediate?: boolean);
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
+	addDisposable(disposable: IDisposable): void;
+	dispose(immediate?: boolean): void;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 

@@ -21,7 +21,7 @@ import { Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface IResourceDescriptor {
 	readonly resource: URI;
@@ -72,7 +72,7 @@ export class ResourceViewer {
 
 	static show(
 		descriptor: IResourceDescriptor,
-		fileService: IFileService,
+		textFileService: ITextFileService,
 		container: HTMLElement,
 		scrollbar: DomScrollableElement,
 		openInternalClb: (uri: URI) => void,
@@ -85,7 +85,7 @@ export class ResourceViewer {
 
 		// Images
 		if (ResourceViewer.isImageResource(descriptor)) {
-			return ImageView.create(container, descriptor, fileService, scrollbar, openExternalClb, metadataClb);
+			return ImageView.create(container, descriptor, textFileService, scrollbar, openExternalClb, metadataClb);
 		}
 
 		// Large Files
@@ -108,19 +108,19 @@ export class ResourceViewer {
 }
 
 class ImageView {
-	private static readonly MAX_IMAGE_SIZE = BinarySize.MB; // showing images inline is memory intense, so we have a limit
+	private static readonly MAX_IMAGE_SIZE = BinarySize.MB * 10; // showing images inline is memory intense, so we have a limit
 	private static readonly BASE64_MARKER = 'base64,';
 
 	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
-		fileService: IFileService,
+		textFileService: ITextFileService,
 		scrollbar: DomScrollableElement,
 		openExternalClb: (uri: URI) => void,
 		metadataClb: (meta: string) => void
 	): ResourceViewerContext {
 		if (ImageView.shouldShowImageInline(descriptor)) {
-			return InlineImageView.create(container, descriptor, fileService, scrollbar, metadataClb);
+			return InlineImageView.create(container, descriptor, textFileService, scrollbar, metadataClb);
 		}
 
 		return LargeImageView.create(container, descriptor, openExternalClb, metadataClb);
@@ -357,7 +357,7 @@ class InlineImageView {
 	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
-		fileService: IFileService,
+		textFileService: ITextFileService,
 		scrollbar: DomScrollableElement,
 		metadataClb: (meta: string) => void
 	) {
@@ -559,7 +559,7 @@ class InlineImageView {
 			}
 		}));
 
-		InlineImageView.imageSrc(descriptor, fileService).then(dataUri => {
+		InlineImageView.imageSrc(descriptor, textFileService).then(dataUri => {
 			const imgs = container.getElementsByTagName('img');
 			if (imgs.length) {
 				imgs[0].src = dataUri;
@@ -569,12 +569,12 @@ class InlineImageView {
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Promise<string> {
+	private static imageSrc(descriptor: IResourceDescriptor, textFileService: ITextFileService): Promise<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
 			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
 		}
 
-		return fileService.resolveContent(descriptor.resource, { encoding: 'base64' }).then(data => {
+		return textFileService.read(descriptor.resource, { encoding: 'base64' }).then(data => {
 			const mime = getMime(descriptor);
 
 			return `data:${mime};base64,${data.value}`;

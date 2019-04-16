@@ -8,8 +8,8 @@ import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
-import { parseMainProcessArgv, createWaitMarkerFile } from 'vs/platform/environment/node/argvHelper';
-import { addArg } from 'vs/platform/environment/node/argv';
+import { parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -125,7 +125,7 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 					// Show a warning dialog after some timeout if it takes long to talk to the other instance
 					// Skip this if we are running with --wait where it is expected that we wait for a while.
 					// Also skip when gathering diagnostics (--status) which can take a longer time.
-					let startupWarningDialogHandle: any;
+					let startupWarningDialogHandle: NodeJS.Timeout;
 					if (!environmentService.wait && !environmentService.status && !environmentService.args['upload-logs']) {
 						startupWarningDialogHandle = setTimeout(() => {
 							showStartupWarningDialog(
@@ -140,9 +140,10 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 
 					// Process Info
 					if (environmentService.args.status) {
-						return service.getMainProcessInfo().then(info => {
-							return instantiationService.invokeFunction(accessor => {
-								return accessor.get(IDiagnosticsService).printDiagnostics(info).then(() => Promise.reject(new ExpectedError()));
+						return instantiationService.invokeFunction(accessor => {
+							return accessor.get(IDiagnosticsService).getDiagnostics(service).then(diagnostics => {
+								console.log(diagnostics);
+								return Promise.reject(new ExpectedError());
 							});
 						});
 					}
@@ -212,7 +213,7 @@ function showStartupWarningDialog(message: string, detail: string): void {
 	});
 }
 
-function handleStartupDataDirError(environmentService: IEnvironmentService, error): void {
+function handleStartupDataDirError(environmentService: IEnvironmentService, error: NodeJS.ErrnoException): void {
 	if (error.code === 'EACCES' || error.code === 'EPERM') {
 		showStartupWarningDialog(
 			localize('startupDataDirError', "Unable to write program user data."),
@@ -306,24 +307,24 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(ILogService, logService);
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStateService, new SyncDescriptor(StateService));
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 
 	return new InstantiationService(services, true);
 }
 
-function initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<any> {
+function initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<unknown> {
 
 	// Ensure paths for environment service exist
-	const environmentServiceInitialization = Promise.all<boolean | undefined>([
+	const environmentServiceInitialization = Promise.all<void | undefined>([
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir,
 		environmentService.logsPath,
 		environmentService.globalStorageHome,
 		environmentService.workspaceStorageHome,
 		environmentService.backupHome
-	].map((path): undefined | Promise<boolean> => path ? mkdirp(path) : undefined));
+	].map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
 
 	// State service
 	const stateServiceInitialization = stateService.init();
@@ -357,20 +358,13 @@ function main(): void {
 	// Note: we are not doing this if the wait marker has been already
 	// added as argument. This can happen if Code was started from CLI.
 	if (args.wait && !args.waitMarkerFilePath) {
-		createWaitMarkerFile(args.verbose).then(waitMarkerFilePath => {
-			if (waitMarkerFilePath) {
-				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
-				args.waitMarkerFilePath = waitMarkerFilePath;
-			}
-
-			startup(args);
-		});
+		const waitMarkerFilePath = createWaitMarkerFile(args.verbose);
+		if (waitMarkerFilePath) {
+			addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
+			args.waitMarkerFilePath = waitMarkerFilePath;
+		}
 	}
-
-	// Otherwise just startup normally
-	else {
-		startup(args);
-	}
+	startup(args);
 }
 
 main();

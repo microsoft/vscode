@@ -12,6 +12,7 @@ import { Disposable } from '../utils/dispose';
 import * as typeConverters from '../utils/typeConverters';
 
 class TagClosing extends Disposable {
+	public static readonly minVersion = API.v300;
 
 	private _disposed = false;
 	private _timeout: NodeJS.Timer | undefined = undefined;
@@ -167,7 +168,7 @@ export function register(
 	modeId: string,
 	client: ITypeScriptServiceClient,
 ) {
-	return new VersionDependentRegistration(client, API.v300, () =>
+	return new VersionDependentRegistration(client, TagClosing.minVersion, () =>
 		new ConfigurationDependentRegistration(modeId, 'autoClosingTags', () =>
 			new ActiveDocumentDependentRegistration(selector, () =>
 				new TagClosing(client))));

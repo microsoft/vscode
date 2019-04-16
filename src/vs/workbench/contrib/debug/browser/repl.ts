@@ -309,12 +309,12 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replInput.focus();
 	}
 
-	getActionItem(action: IAction): IActionItem | null {
+	getActionItem(action: IAction): IActionItem | undefined {
 		if (action.id === SelectReplAction.ID) {
 			return this.instantiationService.createInstance(SelectReplActionItem, this.selectReplAction);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getActions(): IAction[] {
@@ -373,9 +373,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		], new ReplDataSource(), {
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
-				identityProvider: { getId: element => (<IReplElement>element).getId() },
+				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
 				horizontalScrolling: false,
 				setRowLineHeight: false,
 				supportDynamicHeights: true
@@ -452,7 +452,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
 		const actions: IAction[] = [];
 		actions.push(new Action('debug.replCopy', nls.localize('copy', "Copy"), undefined, true, () => {
-			this.clipboardService.writeText(window.getSelection().toString());
+			const nativeSelection = window.getSelection();
+			if (nativeSelection) {
+				this.clipboardService.writeText(nativeSelection.toString());
+			}
 			return Promise.resolve();
 		}));
 		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, () => {
@@ -717,11 +720,25 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	getHeight(element: IReplElement): number {
 		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
 		const fontSize = this.configurationService.getValue<IDebugConfiguration>('debug').console.fontSize;
+		const rowHeight = Math.ceil(1.4 * fontSize);
 		if (element instanceof Expression && element.hasChildren) {
-			return Math.ceil(2 * 1.4 * fontSize);
+			return 2 * rowHeight;
 		}
 
-		return Math.ceil(1.4 * fontSize);
+		// In order to keep scroll position we need to give a good approximation to the tree
+		if (element instanceof SimpleReplElement) {
+			// For every 150 characters increase the number of lines needed
+			let count = Math.ceil(element.value.length / 150);
+			for (let i = 0; i < element.value.length; i++) {
+				if (element.value[i] === '\n' || element.value[i] === '\r\n') {
+					count++;
+				}
+			}
+
+			return Math.max(1, count) * rowHeight;
+		}
+
+		return rowHeight;
 	}
 
 	getTemplateId(element: IReplElement): string {
@@ -740,7 +757,8 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	}
 
 	hasDynamicHeight?(element: IReplElement): boolean {
-		return true;
+		// Empty elements should not have dynamic height since they will be invisible
+		return element.toString().length > 0;
 	}
 }
 
@@ -835,6 +853,11 @@ registerEditorAction(AcceptReplInputAction);
 registerEditorAction(ReplCopyAllAction);
 
 class SelectReplActionItem extends FocusSessionActionItem {
+
+	protected getActionContext(_: string, index: number): any {
+		return this.debugService.getModel().getSessions(true)[index];
+	}
+
 	protected getSessions(): ReadonlyArray<IDebugSession> {
 		return this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s));
 	}
@@ -852,8 +875,7 @@ class SelectReplAction extends Action {
 		super(id, label);
 	}
 
-	run(sessionName: string): Promise<any> {
-		const session = this.debugService.getModel().getSessions(true).filter(p => p.getLabel() === sessionName).pop();
+	run(session: IDebugSession): Promise<any> {
 		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== this.debugService.getViewModel().focusedSession) {
 			this.debugService.focusStackFrame(undefined, undefined, session, true);

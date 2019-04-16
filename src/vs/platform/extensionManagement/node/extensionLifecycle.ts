@@ -54,7 +54,7 @@ export class ExtensionsLifecycle extends Disposable {
 		return new Promise<void>((c, e) => {
 
 			const extensionLifecycleProcess = this.start(lifecycleHook, lifecycleType, args, extension);
-			let timeoutHandler;
+			let timeoutHandler: any;
 
 			const onexit = (error?: string) => {
 				if (timeoutHandler) {

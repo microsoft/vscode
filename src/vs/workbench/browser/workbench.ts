@@ -23,7 +23,6 @@ import { Position, Parts, IWorkbenchLayoutService } from 'vs/workbench/services/
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IFileService, ILegacyFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -82,7 +81,7 @@ export class Workbench extends Layout {
 
 		// Inform user about loading issues from the loader
 		(<any>window).require.config({
-			onError: err => {
+			onError: (err: { errorCode: string; }) => {
 				if (err.errorCode === 'load') {
 					onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
 				}
@@ -91,7 +90,7 @@ export class Workbench extends Layout {
 	}
 
 	private previousUnexpectedError: { message: string | undefined, time: number } = { message: undefined, time: 0 };
-	private handleUnexpectedError(error: any, logService: ILogService): void {
+	private handleUnexpectedError(error: unknown, logService: ILogService): void {
 		const message = toErrorMessage(error, true);
 		if (!message) {
 			return;
@@ -173,10 +172,10 @@ export class Workbench extends Layout {
 		// Layout Service
 		serviceCollection.set(IWorkbenchLayoutService, this);
 
-		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// INSTEAD, CONTRIBUTE IT VIA WORKBENCH.MAIN.TS
-		//
+		// CONTRIBUTE IT VIA WORKBENCH.MAIN.TS AND registerSingleton().
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// All Contributed Services
 		const contributedServices = getServices();
@@ -190,17 +189,12 @@ export class Workbench extends Layout {
 		instantiationService.invokeFunction(accessor => {
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			// TODO@Ben legacy file service
-			const fileService = accessor.get(IFileService) as any;
-			if (typeof fileService.setImpl === 'function') {
-				fileService.setImpl(accessor.get(ILegacyFileService));
-			}
-
 			// TODO@Sandeep debt around cyclic dependencies
 			const configurationService = accessor.get(IConfigurationService) as any;
-			if (typeof configurationService.acquireFileService === 'function') {
-				configurationService.acquireFileService(fileService);
-				configurationService.acquireInstantiationService(instantiationService);
+			if (typeof configurationService.acquireInstantiationService === 'function') {
+				setTimeout(() => {
+					configurationService.acquireInstantiationService(instantiationService);
+				}, 0);
 			}
 
 			// Signal to lifecycle that services are set
@@ -385,7 +379,7 @@ export class Workbench extends Layout {
 
 		// Restore Zen Mode
 		if (this.state.zenMode.restore) {
-			this.toggleZenMode(true, true);
+			this.toggleZenMode(false, true);
 		}
 
 		// Restore Editor Center Mode

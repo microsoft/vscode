@@ -48,7 +48,7 @@ export class WalkThroughInput extends EditorInput {
 
 	private disposables: IDisposable[] = [];
 
-	private promise: Promise<WalkThroughModel> | null;
+	private promise: Promise<WalkThroughModel> | null = null;
 
 	private maxTopScroll = 0;
 	private maxBottomScroll = 0;
@@ -123,7 +123,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.promise;
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}

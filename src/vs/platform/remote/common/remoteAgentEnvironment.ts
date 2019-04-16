@@ -11,6 +11,7 @@ export interface IRemoteAgentEnvironment {
 	pid: number;
 	appRoot: URI;
 	appSettingsHome: URI;
+	settingsPath: URI;
 	logsPath: URI;
 	extensionsPath: URI;
 	extensionHostLogsPath: URI;
@@ -18,7 +19,6 @@ export interface IRemoteAgentEnvironment {
 	userHome: URI;
 	extensions: IExtensionDescription[];
 	os: OperatingSystem;
-	syncExtensions: boolean;
 }
 
 export interface RemoteAgentConnectionContext {

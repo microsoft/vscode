@@ -136,8 +136,9 @@ export class Debug extends Viewlet {
 		await this.waitForOutput(output => accept(output[output.length - 1] || ''));
 	}
 
-	async waitForVariableCount(count: number): Promise<void> {
-		await this.code.waitForElements(VARIABLE, false, els => els.length === count);
+	// Different node versions give different number of variables. As a workaround be more relaxed when checking for variable count
+	async waitForVariableCount(count: number, alternativeCount: number): Promise<void> {
+		await this.code.waitForElements(VARIABLE, false, els => els.length === count || els.length === alternativeCount);
 	}
 
 	private async waitForOutput(fn: (output: string[]) => boolean): Promise<string[]> {

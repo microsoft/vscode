@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
@@ -11,6 +12,7 @@ import { UriComponents } from 'vs/base/common/uri';
 import { ProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
@@ -121,7 +123,9 @@ export enum RevealKind {
 
 	/**
 	 * Only brings the terminal to front if a problem is detected executing the task
-	 * (e.g. the task couldn't be started because).
+	 * e.g. the task couldn't be started,
+	 * the task ended with an exit code other than zero,
+	 * or the problem matcher found an error.
 	 */
 	Silent = 2,
 
@@ -142,6 +146,39 @@ export namespace RevealKind {
 				return RevealKind.Never;
 			default:
 				return RevealKind.Always;
+		}
+	}
+}
+
+export enum RevealProblemKind {
+	/**
+	 * Never reveals the problems panel when this task is executed.
+	 */
+	Never = 1,
+
+
+	/**
+	 * Only reveals the problems panel if a problem is found.
+	 */
+	OnProblem = 2,
+
+	/**
+	 * Never reveals the problems panel when this task is executed.
+	 */
+	Always = 3
+}
+
+export namespace RevealProblemKind {
+	export function fromString(this: void, value: string): RevealProblemKind {
+		switch (value.toLowerCase()) {
+			case 'always':
+				return RevealProblemKind.Always;
+			case 'never':
+				return RevealProblemKind.Never;
+			case 'onproblem':
+				return RevealProblemKind.OnProblem;
+			default:
+				return RevealProblemKind.OnProblem;
 		}
 	}
 }
@@ -188,6 +225,12 @@ export interface PresentationOptions {
 	reveal: RevealKind;
 
 	/**
+	 * Controls whether the problems pane is revealed when running this task or not.
+	 * Defaults to `RevealProblemKind.Never`.
+	 */
+	revealProblem: RevealProblemKind;
+
+	/**
 	 * Controls whether the command associated with the task is echoed
 	 * in the user interface.
 	 */
@@ -223,7 +266,7 @@ export interface PresentationOptions {
 
 export namespace PresentationOptions {
 	export const defaults: PresentationOptions = {
-		echo: true, reveal: RevealKind.Always, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, revealProblem: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
 	};
 }
 
@@ -341,7 +384,7 @@ export interface TaskSourceConfigElement {
 }
 
 interface BaseTaskSource {
-	readonly kind;
+	readonly kind: string;
 	readonly label: string;
 }
 
@@ -467,7 +510,7 @@ export abstract class CommonTask {
 	 */
 	_label: string;
 
-	type;
+	type?: string;
 
 	runOptions: RunOptions;
 
@@ -477,7 +520,7 @@ export abstract class CommonTask {
 
 	private _taskLoadMessages: string[] | undefined;
 
-	protected constructor(id: string, label: string | undefined, type, runOptions: RunOptions,
+	protected constructor(id: string, label: string | undefined, type: string | undefined, runOptions: RunOptions,
 		configurationProperties: ConfigurationProperties, source: BaseTaskSource) {
 		this._id = id;
 		if (label) {
@@ -575,7 +618,7 @@ export class CustomTask extends CommonTask {
 	 */
 	command: CommandConfiguration;
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string, type, command: CommandConfiguration | undefined,
+	public constructor(id: string, source: WorkspaceTaskSource, label: string, type: string, command: CommandConfiguration | undefined,
 		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, undefined, runOptions, configurationProperties, source);
 		this._source = source;
@@ -677,7 +720,7 @@ export class ConfiguringTask extends CommonTask {
 
 	configures: KeyedTaskIdentifier;
 
-	public constructor(id: string, source: WorkspaceTaskSource, label: string | undefined, type,
+	public constructor(id: string, source: WorkspaceTaskSource, label: string | undefined, type: string | undefined,
 		configures: KeyedTaskIdentifier, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
 		this._source = source;
@@ -710,7 +753,7 @@ export class ContributedTask extends CommonTask {
 	 */
 	command: CommandConfiguration;
 
-	public constructor(id: string, source: ExtensionTaskSource, label: string, type, defines: KeyedTaskIdentifier,
+	public constructor(id: string, source: ExtensionTaskSource, label: string, type: string | undefined, defines: KeyedTaskIdentifier,
 		command: CommandConfiguration, hasDefinedMatchers: boolean, runOptions: RunOptions,
 		configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
@@ -770,7 +813,7 @@ export class InMemoryTask extends CommonTask {
 
 	type: 'inMemory';
 
-	public constructor(id: string, source: InMemoryTaskSource, label: string, type,
+	public constructor(id: string, source: InMemoryTaskSource, label: string, type: string,
 		runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
 		this._source = source;
@@ -886,7 +929,8 @@ export interface TaskEvent {
 }
 
 export const enum TaskRunSource {
-	User, // Default
+	System,
+	User,
 	FolderOpen,
 	ConfigurationChange
 }
@@ -920,5 +964,78 @@ export namespace TaskEvent {
 		} else {
 			return Object.freeze({ kind: TaskEventKind.Changed });
 		}
+	}
+}
+
+export namespace KeyedTaskIdentifier {
+	function sortedStringify(literal: any): string {
+		const keys = Object.keys(literal).sort();
+		let result: string = '';
+		for (let position in keys) {
+			let stringified = literal[keys[position]];
+			if (stringified instanceof Object) {
+				stringified = sortedStringify(stringified);
+			} else if (typeof stringified === 'string') {
+				stringified = stringified.replace(/,/g, ',,');
+			}
+			result += keys[position] + ',' + stringified + ',';
+		}
+		return result;
+	}
+	export function create(value: TaskIdentifier): KeyedTaskIdentifier {
+		const resultKey = sortedStringify(value);
+		let result = { _key: resultKey, type: value.taskType };
+		Objects.assign(result, value);
+		return result;
+	}
+}
+
+export namespace TaskDefinition {
+	export function createTaskIdentifier(external: TaskIdentifier, reporter: { error(message: string): void; }): KeyedTaskIdentifier | undefined {
+		let definition = TaskDefinitionRegistry.get(external.type);
+		if (definition === undefined) {
+			// We have no task definition so we can't sanitize the literal. Take it as is
+			let copy = Objects.deepClone(external);
+			delete copy._key;
+			return KeyedTaskIdentifier.create(copy);
+		}
+
+		let literal: { type: string;[name: string]: any } = Object.create(null);
+		literal.type = definition.taskType;
+		let required: Set<string> = new Set();
+		definition.required.forEach(element => required.add(element));
+
+		let properties = definition.properties;
+		for (let property of Object.keys(properties)) {
+			let value = external[property];
+			if (value !== undefined && value !== null) {
+				literal[property] = value;
+			} else if (required.has(property)) {
+				let schema = properties[property];
+				if (schema.default !== undefined) {
+					literal[property] = Objects.deepClone(schema.default);
+				} else {
+					switch (schema.type) {
+						case 'boolean':
+							literal[property] = false;
+							break;
+						case 'number':
+						case 'integer':
+							literal[property] = 0;
+							break;
+						case 'string':
+							literal[property] = '';
+							break;
+						default:
+							reporter.error(nls.localize(
+								'TaskDefinition.missingRequiredProperty',
+								'Error: the task identifier \'{0}\' is missing the required property \'{1}\'. The task identifier will be ignored.', JSON.stringify(external, undefined, 0), property
+							));
+							return undefined;
+					}
+				}
+			}
+		}
+		return KeyedTaskIdentifier.create(literal);
 	}
 }

@@ -38,7 +38,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 
 		const setVisibleChannel = () => {
 			const panel = this._panelService.getActivePanel();
-			const visibleChannel: IOutputChannel | null = panel && panel.getId() === OUTPUT_PANEL_ID ? this._outputService.getActiveChannel() : null;
+			const visibleChannel = panel && panel.getId() === OUTPUT_PANEL_ID ? this._outputService.getActiveChannel() : undefined;
 			this._proxy.$setVisibleChannel(visibleChannel ? visibleChannel.id : null);
 		};
 		this._register(Event.any<any>(this._outputService.onActiveOutputChannel, this._panelService.onDidPanelOpen, this._panelService.onDidPanelClose)(() => setVisibleChannel()));
@@ -104,7 +104,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		return undefined;
 	}
 
-	private _getChannel(channelId: string): IOutputChannel | null {
+	private _getChannel(channelId: string): IOutputChannel | undefined {
 		return this._outputService.getChannel(channelId);
 	}
 }

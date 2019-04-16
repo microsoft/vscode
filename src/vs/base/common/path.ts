@@ -43,7 +43,7 @@ const CHAR_QUESTION_MARK = 63; /* ? */
 
 class ErrorInvalidArgType extends Error {
 	code: 'ERR_INVALID_ARG_TYPE';
-	constructor(name: string, expected: string, actual: string) {
+	constructor(name: string, expected: string, actual: any) {
 		// determiner: 'must be' or 'must not be'
 		let determiner;
 		if (typeof expected === 'string' && expected.indexOf('not ') === 0) {
@@ -53,36 +53,35 @@ class ErrorInvalidArgType extends Error {
 			determiner = 'must be';
 		}
 
-		let msg;
 		const type = name.indexOf('.') !== -1 ? 'property' : 'argument';
-		msg = `The "${name}" ${type} ${determiner} of type ${expected}`;
+		let msg = `The "${name}" ${type} ${determiner} of type ${expected}`;
 
 		msg += `. Received type ${typeof actual}`;
 		super(msg);
 	}
 }
 
-function validateString(value: string, name) {
+function validateString(value: string, name: string) {
 	if (typeof value !== 'string') {
 		throw new ErrorInvalidArgType(name, 'string', value);
 	}
 }
 
-function isPathSeparator(code) {
+function isPathSeparator(code: number) {
 	return code === CHAR_FORWARD_SLASH || code === CHAR_BACKWARD_SLASH;
 }
 
-function isPosixPathSeparator(code) {
+function isPosixPathSeparator(code: number) {
 	return code === CHAR_FORWARD_SLASH;
 }
 
-function isWindowsDeviceRoot(code) {
+function isWindowsDeviceRoot(code: number) {
 	return code >= CHAR_UPPERCASE_A && code <= CHAR_UPPERCASE_Z ||
 		code >= CHAR_LOWERCASE_A && code <= CHAR_LOWERCASE_Z;
 }
 
 // Resolves . and .. elements in a path with directory names
-function normalizeString(path, allowAboveRoot, separator, isPathSeparator) {
+function normalizeString(path: string, allowAboveRoot: boolean, separator: string, isPathSeparator: (code?: number) => boolean) {
 	let res = '';
 	let lastSegmentLength = 0;
 	let lastSlash = -1;
@@ -155,7 +154,7 @@ function normalizeString(path, allowAboveRoot, separator, isPathSeparator) {
 	return res;
 }
 
-function _format(sep, pathObject) {
+function _format(sep: string, pathObject: ParsedPath) {
 	const dir = pathObject.dir || pathObject.root;
 	const base = pathObject.base ||
 		((pathObject.name || '') + (pathObject.ext || ''));
@@ -185,7 +184,7 @@ interface IPath {
 	dirname(path: string): string;
 	basename(path: string, ext?: string): string;
 	extname(path: string): string;
-	format(pathObject): string;
+	format(pathObject: ParsedPath): string;
 	parse(path: string): ParsedPath;
 	toNamespacedPath(path: string): string;
 	sep: '\\' | '/';
@@ -501,7 +500,7 @@ export const win32: IPath = {
 		}
 
 		let joined;
-		let firstPart;
+		let firstPart: string | undefined;
 		for (let i = 0; i < paths.length; ++i) {
 			const arg = paths[i];
 			validateString(arg, 'path');
@@ -534,7 +533,7 @@ export const win32: IPath = {
 		//   path.join('//server', 'share') -> '\\\\server\\share\\')
 		let needsReplace = true;
 		let slashCount = 0;
-		if (isPathSeparator(firstPart.charCodeAt(0))) {
+		if (typeof firstPart === 'string' && isPathSeparator(firstPart.charCodeAt(0))) {
 			++slashCount;
 			const firstLen = firstPart.length;
 			if (firstLen > 1) {

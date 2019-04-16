@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
 import { sep } from 'vs/base/common/path';
@@ -13,7 +13,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/contrib/files/browser/saveErrorHandler';
@@ -37,6 +37,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
+import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -157,7 +158,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
 		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
 			const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
-			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
+			const resource = !!fileInput.resourceJSON ? URI.revive(<UriComponents>fileInput.resourceJSON) : URI.parse(fileInput.resource);
 			const encoding = fileInput.encoding;
 
 			return accessor.get(IEditorService).createInput({ resource, encoding, forceFile: true }) as FileEditorInput;
@@ -312,11 +313,6 @@ configurationRegistry.registerConfiguration({
 				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set `#window.restoreWindows#` to `all`.')
 			],
 			'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
-		},
-		'files.useExperimentalFileWatcher': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('useExperimentalFileWatcher', "Use the new experimental file watcher.")
 		},
 		'files.defaultLanguage': {
 			'type': 'string',

@@ -8,11 +8,16 @@ import * as iconv from 'iconv-lite';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
 import { Readable, Writable } from 'stream';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
 export const UTF16be = 'utf16be';
 export const UTF16le = 'utf16le';
+
+export const UTF16be_BOM = [0xFE, 0xFF];
+export const UTF16le_BOM = [0xFF, 0xFE];
+export const UTF8_BOM = [0xEF, 0xBB, 0xBF];
 
 export interface IDecodeStreamOptions {
 	guessEncoding?: boolean;
@@ -20,7 +25,12 @@ export interface IDecodeStreamOptions {
 	overwriteEncoding?(detectedEncoding: string | null): string;
 }
 
-export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }> {
+export interface IDecodeStreamResult {
+	detected: IDetectedEncodingResult;
+	stream: NodeJS.ReadableStream;
+}
+
+export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
 	if (!options.minBytesRequiredForDetection) {
 		options.minBytesRequiredForDetection = options.guessEncoding ? AUTO_GUESS_BUFFER_MAX_LEN : NO_GUESS_BUFFER_MAX_LEN;
 	}
@@ -29,75 +39,85 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 		options.overwriteEncoding = detected => detected || UTF8;
 	}
 
-	return new Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }>((resolve, reject) => {
-
-		readable.on('error', reject);
-
-		readable.pipe(new class extends Writable {
-
-			private _decodeStream: NodeJS.ReadWriteStream;
-			private _decodeStreamConstruction: Promise<any>;
-			private _buffer: Buffer[] = [];
-			private _bytesBuffered = 0;
+	return new Promise<IDecodeStreamResult>((resolve, reject) => {
+		const writer = new class extends Writable {
+			private decodeStream: NodeJS.ReadWriteStream;
+			private decodeStreamConstruction: Promise<void>;
+			private buffer: Buffer[] = [];
+			private bytesBuffered = 0;
 
 			_write(chunk: any, encoding: string, callback: Function): void {
 				if (!Buffer.isBuffer(chunk)) {
 					callback(new Error('data must be a buffer'));
 				}
 
-				if (this._decodeStream) {
-					// just a forwarder now
-					this._decodeStream.write(chunk, callback);
+				if (this.decodeStream) {
+					this.decodeStream.write(chunk, callback); // just a forwarder now
+
 					return;
 				}
 
-				this._buffer.push(chunk);
-				this._bytesBuffered += chunk.length;
+				this.buffer.push(chunk);
+				this.bytesBuffered += chunk.length;
 
-				if (this._decodeStreamConstruction) {
-					// waiting for the decoder to be ready
-					this._decodeStreamConstruction.then(_ => callback(), err => callback(err));
+				// waiting for the decoder to be ready
+				if (this.decodeStreamConstruction) {
+					this.decodeStreamConstruction.then(() => callback(), err => callback(err));
+				}
 
-				} else if (typeof options.minBytesRequiredForDetection === 'number' && this._bytesBuffered >= options.minBytesRequiredForDetection) {
-					// buffered enough data, create stream and forward data
+				// buffered enough data, create stream and forward data
+				else if (typeof options.minBytesRequiredForDetection === 'number' && this.bytesBuffered >= options.minBytesRequiredForDetection) {
 					this._startDecodeStream(callback);
+				}
 
-				} else {
-					// only buffering
+				// only buffering
+				else {
 					callback();
 				}
 			}
 
 			_startDecodeStream(callback: Function): void {
-
-				this._decodeStreamConstruction = Promise.resolve(detectEncodingFromBuffer({
-					buffer: Buffer.concat(this._buffer), bytesRead: this._bytesBuffered
+				this.decodeStreamConstruction = Promise.resolve(detectEncodingFromBuffer({
+					buffer: Buffer.concat(this.buffer),
+					bytesRead: this.bytesBuffered
 				}, options.guessEncoding)).then(detected => {
 					if (options.overwriteEncoding) {
 						detected.encoding = options.overwriteEncoding(detected.encoding);
 					}
-					this._decodeStream = decodeStream(detected.encoding);
-					for (const buffer of this._buffer) {
-						this._decodeStream.write(buffer);
-					}
-					callback();
-					resolve({ detected, stream: this._decodeStream });
 
+					this.decodeStream = decodeStream(detected.encoding);
+
+					for (const buffer of this.buffer) {
+						this.decodeStream.write(buffer);
+					}
+
+					callback();
+					resolve({ detected, stream: this.decodeStream });
 				}, err => {
 					this.emit('error', err);
 					callback(err);
 				});
 			}
+
 			_final(callback: (err?: any) => any) {
-				if (this._decodeStream) {
-					// normal finish
-					this._decodeStream.end(callback);
-				} else {
-					// we were still waiting for data...
-					this._startDecodeStream(() => this._decodeStream.end(callback));
+
+				// normal finish
+				if (this.decodeStream) {
+					this.decodeStream.end(callback);
+				}
+
+				// we were still waiting for data...
+				else {
+					this._startDecodeStream(() => this.decodeStream.end(callback));
 				}
 			}
-		});
+		};
+
+		// errors
+		readable.on('error', reject);
+
+		// pipe through
+		readable.pipe(writer);
 	});
 }
 
@@ -141,7 +161,7 @@ function toNodeEncoding(enc: string | null): string {
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: Buffer | null, bytesRead: number): string | null {
+export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): string | null {
 	if (!buffer || bytesRead < 2) {
 		return null;
 	}
@@ -150,12 +170,12 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | null, bytesRead: 
 	const b1 = buffer.readUInt8(1);
 
 	// UTF-16 BE
-	if (b0 === 0xFE && b1 === 0xFF) {
+	if (b0 === UTF16be_BOM[0] && b1 === UTF16be_BOM[1]) {
 		return UTF16be;
 	}
 
 	// UTF-16 LE
-	if (b0 === 0xFF && b1 === 0xFE) {
+	if (b0 === UTF16le_BOM[0] && b1 === UTF16le_BOM[1]) {
 		return UTF16le;
 	}
 
@@ -166,7 +186,7 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | null, bytesRead: 
 	const b2 = buffer.readUInt8(2);
 
 	// UTF-8
-	if (b0 === 0xEF && b1 === 0xBB && b2 === 0xBF) {
+	if (b0 === UTF8_BOM[0] && b1 === UTF8_BOM[1] && b2 === UTF8_BOM[2]) {
 		return UTF8;
 	}
 
@@ -177,8 +197,14 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | null, bytesRead: 
  * Detects the Byte Order Mark in a given file.
  * If no BOM is detected, null will be passed to callback.
  */
-export function detectEncodingByBOM(file: string): Promise<string | null> {
-	return stream.readExactlyByFile(file, 3).then(({ buffer, bytesRead }) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
+export async function detectEncodingByBOM(file: string): Promise<string | null> {
+	try {
+		const { buffer, bytesRead } = await stream.readExactlyByFile(file, 3);
+
+		return detectEncodingByBOMFromBuffer(buffer, bytesRead);
+	} catch (error) {
+		return null; // ignore errors (like file not found)
+	}
 }
 
 const MINIMUM_THRESHOLD = 0.2;
@@ -187,25 +213,25 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 /**
  * Guesses the encoding from buffer.
  */
-export function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
-	return import('jschardet').then(jschardet => {
-		jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
+export async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
+	const jschardet = await import('jschardet');
 
-		const guessed = jschardet.detect(buffer);
-		if (!guessed || !guessed.encoding) {
-			return null;
-		}
+	jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
-		const enc = guessed.encoding.toLowerCase();
+	const guessed = jschardet.detect(buffer);
+	if (!guessed || !guessed.encoding) {
+		return null;
+	}
 
-		// Ignore encodings that cannot guess correctly
-		// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
-		if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
-			return null;
-		}
+	const enc = guessed.encoding.toLowerCase();
 
-		return toIconvLiteEncoding(guessed.encoding);
-	});
+	// Ignore encodings that cannot guess correctly
+	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
+	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
+		return null;
+	}
+
+	return toIconvLiteEncoding(guessed.encoding);
 }
 
 const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
@@ -353,7 +379,7 @@ const windowsTerminalEncodings = {
 	'1252': 'cp1252' // West European Latin
 };
 
-export function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
+export async function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
 	let rawEncodingPromise: Promise<string>;
 
 	// Support a global environment variable to win over other mechanics
@@ -399,24 +425,23 @@ export function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
 		});
 	}
 
-	return rawEncodingPromise.then(rawEncoding => {
-		if (verbose) {
-			console.log(`Detected raw terminal encoding: ${rawEncoding}`);
-		}
+	const rawEncoding = await rawEncodingPromise;
+	if (verbose) {
+		console.log(`Detected raw terminal encoding: ${rawEncoding}`);
+	}
 
-		if (!rawEncoding || rawEncoding.toLowerCase() === 'utf-8' || rawEncoding.toLowerCase() === UTF8) {
-			return UTF8;
-		}
-
-		const iconvEncoding = toIconvLiteEncoding(rawEncoding);
-		if (iconv.encodingExists(iconvEncoding)) {
-			return iconvEncoding;
-		}
-
-		if (verbose) {
-			console.log('Unsupported terminal encoding, falling back to UTF-8.');
-		}
-
+	if (!rawEncoding || rawEncoding.toLowerCase() === 'utf-8' || rawEncoding.toLowerCase() === UTF8) {
 		return UTF8;
-	});
+	}
+
+	const iconvEncoding = toIconvLiteEncoding(rawEncoding);
+	if (iconv.encodingExists(iconvEncoding)) {
+		return iconvEncoding;
+	}
+
+	if (verbose) {
+		console.log('Unsupported terminal encoding, falling back to UTF-8.');
+	}
+
+	return UTF8;
 }

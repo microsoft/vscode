@@ -439,7 +439,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 			}
 		}
 
-		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType });
+		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType });
 		template.deprecationWarningElement.innerText = element.setting.deprecationMessage || '';
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
@@ -698,7 +698,7 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 				}
 			}
 
-			const sortKeys = (obj) => {
+			const sortKeys = (obj: Object) => {
 				const keyArray = Object.keys(obj)
 					.map(key => ({ key, val: obj[key] }))
 					.sort((a, b) => a.key.localeCompare(b.key));
@@ -901,7 +901,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 			? parseInt : parseFloat;
 
 		const nullNumParseFn = (dataElement.valueType === 'nullable-integer' || dataElement.valueType === 'nullable-number')
-			? (v => v === '' ? null : numParseFn(v)) : numParseFn;
+			? ((v: string) => v === '' ? null : numParseFn(v)) : numParseFn;
 
 		const label = this.setElementAriaLabels(dataElement, SETTINGS_NUMBER_TEMPLATE_ID, template);
 
@@ -994,6 +994,9 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 				e.browserEvent.stopPropagation();
 			}
 		}));
+
+		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
+		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
 
 		return template;
 	}
@@ -1171,7 +1174,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 		}
 
 		// Non-user scope selected
-		if (element instanceof SettingsTreeSettingElement && this.viewState.settingsTarget !== ConfigurationTarget.USER) {
+		if (element instanceof SettingsTreeSettingElement && this.viewState.settingsTarget !== ConfigurationTarget.USER_LOCAL) {
 			if (!element.matchesScope(this.viewState.settingsTarget)) {
 				return false;
 			}
@@ -1217,7 +1220,16 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 }
 
 class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChild> {
-	getHeight(element: SettingsTreeElement): number {
+
+	private heightCache = new WeakMap<SettingsTreeGroupChild, number>();
+
+	getHeight(element: SettingsTreeGroupChild): number {
+		const cachedHeight = this.heightCache.get(element);
+
+		if (typeof cachedHeight === 'number') {
+			return cachedHeight;
+		}
+
 		if (element instanceof SettingsTreeGroupElement) {
 			if (element.isFirstGroup) {
 				return 31;
@@ -1269,6 +1281,10 @@ class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChil
 
 	hasDynamicHeight(element: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement): boolean {
 		return !(element instanceof SettingsTreeGroupElement);
+	}
+
+	setDynamicHeight(element: SettingsTreeGroupChild, height: number): void {
+		this.heightCache.set(element, height);
 	}
 }
 

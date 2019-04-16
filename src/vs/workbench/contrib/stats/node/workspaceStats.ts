@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
@@ -20,6 +20,7 @@ import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspa
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { joinPath } from 'vs/base/common/resources';
+import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -193,15 +194,18 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 	});
 }
 
-export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
+export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, textFileService: ITextFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
 	const path = workspaceUri.path;
 	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-	return fileService.resolveFile(uri).then(() => {
-		return fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+	return fileService.exists(uri).then(exists => {
+		if (!exists) {
+			return [];
+		}
+		return textFileService.read(uri, { acceptTextOnly: true }).then(
 			content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
 			err => [] // ignore missing or binary file
 		);
-	}, err => []);
+	});
 }
 
 export class WorkspaceStats implements IWorkbenchContribution {
@@ -214,11 +218,12 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWindowService private readonly windowService: IWindowService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		this.report();
 	}
@@ -226,7 +231,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	private report(): void {
 
 		// Workspace Stats
-		this.resolveWorkspaceTags(this.windowService.getConfiguration(), rootFiles => this.handleWorkspaceFiles(rootFiles))
+		this.resolveWorkspaceTags(this.environmentService.configuration, rootFiles => this.handleWorkspaceFiles(rootFiles))
 			.then(tags => this.reportWorkspaceTags(tags), error => onUnexpectedError(error));
 
 		// Cloud Stats
@@ -361,7 +366,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			return Promise.resolve(tags);
 		}
 
-		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
+		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
@@ -431,11 +436,15 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			function getFilePromises(filename, fileService, contentHandler): Promise<void>[] {
+			function getFilePromises(filename: string, fileService: IFileService, textFileService: ITextFileService, contentHandler: (content: ITextFileContent) => void): Promise<void>[] {
 				return !nameSet.has(filename) ? [] : (folders as URI[]).map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
-					return fileService.resolveFile(uri).then(() => {
-						return fileService.resolveContent(uri, { acceptTextOnly: true }).then(contentHandler);
+					return fileService.exists(uri).then(exists => {
+						if (!exists) {
+							return undefined;
+						}
+
+						return textFileService.read(uri, { acceptTextOnly: true }).then(contentHandler);
 					}, err => {
 						// Ignore missing file
 					});
@@ -461,7 +470,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 			}
 
-			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
+			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, this.textFileService, content => {
 				const dependencies: string[] = content.value.split(/\r\n|\r|\n/);
 				for (let dependency of dependencies) {
 					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
@@ -472,7 +481,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 			});
 
-			const pipfilePromises = getFilePromises('pipfile', this.fileService, content => {
+			const pipfilePromises = getFilePromises('pipfile', this.fileService, this.textFileService, content => {
 				let dependencies: string[] = content.value.split(/\r\n|\r|\n/);
 
 				// We're only interested in the '[packages]' section of the Pipfile
@@ -492,7 +501,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 			});
 
-			const packageJsonPromises = getFilePromises('package.json', this.fileService, content => {
+			const packageJsonPromises = getFilePromises('package.json', this.fileService, this.textFileService, content => {
 				try {
 					const packageJsonContents = JSON.parse(content.value);
 					if (packageJsonContents['dependencies']) {
@@ -526,7 +535,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		const workspace = this.contextService.getWorkspace();
 
 		// Handle top-level workspace files for local single folder workspace
-		if (state === WorkbenchState.FOLDER && workspace.folders[0].uri.scheme === Schemas.file) {
+		if (state === WorkbenchState.FOLDER) {
 			const workspaceFiles = rootFiles.filter(hasWorkspaceFileExtension);
 			if (workspaceFiles.length > 0) {
 				this.doHandleWorkspaceFiles(workspace.folders[0].uri, workspaceFiles);
@@ -551,7 +560,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
-				run: () => this.windowService.openWindow([{ uri: joinPath(folder, workspaceFile), typeHint: 'file' }])
+				run: () => this.windowService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
 			}, doNotShowAgain]);
 		}
 
@@ -564,7 +573,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
 						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
 							if (pick) {
-								this.windowService.openWindow([{ uri: joinPath(folder, pick.label), typeHint: 'file' }]);
+								this.windowService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
 							}
 						});
 				}
@@ -613,12 +622,15 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-			return this.fileService.resolveFile(uri).then(() => {
-				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+			return this.fileService.exists(uri).then(exists => {
+				if (!exists) {
+					return [];
+				}
+				return this.textFileService.read(uri, { acceptTextOnly: true }).then(
 					content => getDomainsOfRemotes(content.value, SecondLevelDomainWhitelist),
 					err => [] // ignore missing or binary file
 				);
-			}, err => []);
+			});
 		})).then(domains => {
 			const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
 			const list: string[] = [];
@@ -634,7 +646,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private reportRemotes(workspaceUris: URI[]): void {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
-			return getHashedRemotesFromUri(workspaceUri, this.fileService, true);
+			return getHashedRemotesFromUri(workspaceUri, this.fileService, this.textFileService, true);
 		})).then(hashedRemotes => {
 			/* __GDPR__
 					"workspace.hashedRemotes" : {
@@ -656,7 +668,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			const path = workspaceUri.path;
 			return workspaceUri.with({ path: `${path !== '/' ? path : ''}/node_modules` });
 		});
-		return this.fileService.resolveFiles(uris.map(resource => ({ resource }))).then(
+		return this.fileService.resolveAll(uris.map(resource => ({ resource }))).then(
 			results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 				const referencesAzure = WorkspaceStats.searchArray(names, /azure/i);
@@ -679,12 +691,15 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return Promise.all(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
-			return this.fileService.resolveFile(uri).then(stats => {
-				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+			return this.fileService.exists(uri).then(exists => {
+				if (!exists) {
+					return false;
+				}
+				return this.textFileService.read(uri, { acceptTextOnly: true }).then(
 					content => !!content.value.match(/azure/i),
 					err => false
 				);
-			}, err => false);
+			});
 		})).then(javas => {
 			if (javas.indexOf(true) !== -1) {
 				tags['java'] = true;

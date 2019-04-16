@@ -13,9 +13,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextFileService, SaveReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, SaveReason, IResolvedTextFileEditorModel, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { snapshotToString } from 'vs/platform/files/common/files';
 
 class ServiceAccessor {
 	constructor(@ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {

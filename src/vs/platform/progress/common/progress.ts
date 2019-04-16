@@ -30,7 +30,8 @@ export const enum ProgressLocation {
 	Scm = 3,
 	Extensions = 5,
 	Window = 10,
-	Notification = 15
+	Notification = 15,
+	Dialog = 20
 }
 
 export interface IProgressOptions {
@@ -52,7 +53,7 @@ export interface IProgressService2 {
 
 	_serviceBrand: any;
 
-	withProgress<R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
+	withProgress<R = any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
 }
 
 export interface IProgressRunner {

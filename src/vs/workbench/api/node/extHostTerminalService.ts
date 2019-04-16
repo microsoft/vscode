@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
@@ -293,7 +293,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
 	}
 
-	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
+	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, name);
 		terminal.create(shellPath, shellArgs);
 		this._terminals.push(terminal);

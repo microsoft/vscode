@@ -167,7 +167,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private collectFiles(extension: ILocalExtension): Promise<IFile[]> {
 
-		const collectFilesFromDirectory = async (dir): Promise<string[]> => {
+		const collectFilesFromDirectory = async (dir: string): Promise<string[]> => {
 			let entries = await pfs.readdir(dir);
 			entries = entries.map(e => path.join(dir, e));
 			const stats = await Promise.all(entries.map(e => pfs.stat(e)));
@@ -269,7 +269,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			this.reportTelemetry(this.getTelemetryEvent(operation), getGalleryExtensionTelemetryData(extension), new Date().getTime() - startTime, undefined);
 		};
 
-		const onDidInstallExtensionFailure = (extension: IGalleryExtension, operation: InstallOperation, error) => {
+		const onDidInstallExtensionFailure = (extension: IGalleryExtension, operation: InstallOperation, error: Error) => {
 			const errorCode = error && (<ExtensionManagementError>error).code ? (<ExtensionManagementError>error).code : ERROR_UNKNOWN;
 			this.logService.error(`Failed to install extension:`, extension.identifier.id, error ? error.message : errorCode);
 			this._onDidInstallExtension.fire({ identifier: extension.identifier, gallery: extension, operation, error: errorCode });
@@ -510,7 +510,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						// filter out installed extensions
 						const names = dependenciesAndPackExtensions.filter(id => installed.every(({ identifier: galleryIdentifier }) => !areSameExtensions(galleryIdentifier, { id })));
 						if (names.length) {
-							return this.galleryService.query({ names, pageSize: dependenciesAndPackExtensions.length })
+							return this.galleryService.query({ names, pageSize: dependenciesAndPackExtensions.length }, CancellationToken.None)
 								.then(galleryResult => {
 									const extensionsToInstall = galleryResult.firstPage;
 									return Promise.all(extensionsToInstall.map(async e => {
@@ -590,11 +590,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private findGalleryExtensionById(uuid: string): Promise<IGalleryExtension> {
-		return this.galleryService.query({ ids: [uuid], pageSize: 1 }).then(galleryResult => galleryResult.firstPage[0]);
+		return this.galleryService.query({ ids: [uuid], pageSize: 1 }, CancellationToken.None).then(galleryResult => galleryResult.firstPage[0]);
 	}
 
 	private findGalleryExtensionByName(name: string): Promise<IGalleryExtension> {
-		return this.galleryService.query({ names: [name], pageSize: 1 }).then(galleryResult => galleryResult.firstPage[0]);
+		return this.galleryService.query({ names: [name], pageSize: 1 }, CancellationToken.None).then(galleryResult => galleryResult.firstPage[0]);
 	}
 
 	private joinErrors(errorOrErrors: (Error | string) | (Array<Error | string>)): Error {

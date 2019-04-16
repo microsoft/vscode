@@ -33,7 +33,7 @@ export const enum TreeVisibility {
 export interface ITreeFilterDataResult<TFilterData> {
 
 	/**
-	 * Whether the node should be visibile.
+	 * Whether the node should be visible.
 	 */
 	visibility: boolean | TreeVisibility;
 

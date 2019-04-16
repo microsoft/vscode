@@ -206,7 +206,7 @@ export interface INotificationViewItem {
 	equals(item: INotificationViewItem): boolean;
 }
 
-export function isNotificationViewItem(obj: any): obj is INotificationViewItem {
+export function isNotificationViewItem(obj: unknown): obj is INotificationViewItem {
 	return obj instanceof NotificationViewItem;
 }
 
@@ -324,8 +324,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	private static MAX_MESSAGE_LENGTH = 1000;
 
 	// Example link: "Some message with [link text](http://link.href)."
-	// RegEx: [, anything not ], ], (, http:|https:, //, no whitespace)
-	private static LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^\)\s]+)\)/gi;
+	// RegEx: [, anything not ], ], (, http://|https://|command:, no whitespace)
+	private static LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)\)/gi;
 
 	private _expanded: boolean;
 

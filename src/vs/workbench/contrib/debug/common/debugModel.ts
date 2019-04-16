@@ -778,6 +778,13 @@ export class DebugModel implements IDebugModel {
 		return 'root';
 	}
 
+	getSession(sessionId: string | undefined, includeInactive = false): IDebugSession | undefined {
+		if (sessionId) {
+			return this.getSessions(includeInactive).filter(s => s.getId() === sessionId).pop();
+		}
+		return undefined;
+	}
+
 	getSessions(includeInactive = false): IDebugSession[] {
 		// By default do not return inactive sesions.
 		// However we are still holding onto inactive sessions due to repl and debug service session revival (eh scenario)
@@ -790,7 +797,7 @@ export class DebugModel implements IDebugModel {
 				// Make sure to de-dupe if a session is re-intialized. In case of EH debugging we are adding a session again after an attach.
 				return false;
 			}
-			if (s.state === State.Inactive && s.getLabel() === session.getLabel()) {
+			if (s.state === State.Inactive && s.configuration.name === session.configuration.name) {
 				// Make sure to remove all inactive sessions that are using the same configuration as the new session
 				return false;
 			}

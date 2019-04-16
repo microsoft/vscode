@@ -19,7 +19,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 
-
 const _ctxHasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false);
 
@@ -102,7 +101,6 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 				widget.showMessage(localize('no.item', "No results"));
 				return;
 			}
-
 			widget.showItem(item);
 		});
 	}
@@ -121,11 +119,11 @@ registerEditorAction(class extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.showCallHierarchy',
-			label: localize('title', "Call Hierarchy"),
-			alias: 'Call Hierarchy',
+			label: localize('title', "Peek Call Hierarchy"),
+			alias: 'Peek Call Hierarchy',
 			menuOpts: {
 				group: 'navigation',
-				order: 111
+				order: 1.48
 			},
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

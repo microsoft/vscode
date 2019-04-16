@@ -14,22 +14,22 @@ import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI as uri } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
+import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, ISearchConfiguration, IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawSearchService, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, isFileMatch, isProgressMessage } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { SearchChannelClient } from './searchIpc';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 export class SearchService extends Disposable implements ISearchService {
 	_serviceBrand: any;
@@ -46,7 +46,8 @@ export class SearchService extends Disposable implements ISearchService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 		this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, environmentService.debugSearch);
@@ -77,18 +78,18 @@ export class SearchService extends Disposable implements ISearchService {
 			arrays.coalesce(localResults.values()).forEach(onProgress);
 		}
 
-		const onProviderProgress = progress => {
-			if (progress.resource) {
+		const onProviderProgress = (progress: ISearchProgressItem) => {
+			if (isFileMatch(progress)) {
 				// Match
 				if (!localResults.has(progress.resource) && onProgress) { // don't override local results
 					onProgress(progress);
 				}
 			} else if (onProgress) {
 				// Progress
-				onProgress(<IProgress>progress);
+				onProgress(<IProgressMessage>progress);
 			}
 
-			if (progress.message) {
+			if (isProgressMessage(progress)) {
 				this.logService.debug('SearchService#search', progress.message);
 			}
 		};
@@ -141,7 +142,7 @@ export class SearchService extends Disposable implements ISearchService {
 				return <ISearchComplete>{
 					limitHit: completes[0] && completes[0].limitHit,
 					stats: completes[0].stats,
-					results: arrays.flatten(completes.map(c => c.results))
+					results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
 				};
 			});
 
@@ -376,7 +377,7 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Block walkthrough, webview, etc.
-				else if (resource.scheme !== Schemas.file && resource.scheme !== REMOTE_HOST_SCHEME) {
+				else if (!this.fileService.canHandleResource(resource)) {
 					return;
 				}
 
@@ -402,13 +403,6 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private matches(resource: uri, query: ITextQuery): boolean {
-		// includes
-		if (query.includePattern) {
-			if (resource.scheme !== Schemas.file) {
-				return false; // if we match on file patterns, we have to ignore non file resources
-			}
-		}
-
 		return pathIncludedInQuery(query, resource.fsPath);
 	}
 
@@ -496,7 +490,7 @@ export class DiskSearch implements ISearchResultProvider {
 				let event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 				event = this.raw.fileSearch(query);
 
-				const onProgress = (p: IProgress) => {
+				const onProgress = (p: IProgressMessage) => {
 					if (p.message) {
 						// Should only be for logs
 						this.logService.debug('SearchService#search', p.message);
@@ -560,7 +554,7 @@ export class DiskSearch implements ISearchResultProvider {
 
 					// Progress
 					else if (onProgress) {
-						onProgress(<IProgress>ev);
+						onProgress(<IProgressMessage>ev);
 					}
 				}
 			});

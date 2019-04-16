@@ -458,7 +458,7 @@ export class TypeScriptServer extends Disposable {
 	}
 }
 
-const fenceCommands = new Set(['change', 'close', 'open']);
+const fenceCommands = new Set(['change', 'close', 'open', 'updateOpen']);
 
 function getQueueingType(
 	command: string,

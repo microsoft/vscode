@@ -20,6 +20,7 @@ import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/s
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { regExpFlags } from 'vs/base/common/strings';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -57,12 +58,14 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		this._workerManager = this._register(new WorkerManager(this._modelService));
 
 		// todo@joh make sure this happens only once
-		this._register(modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
+		this._register(modes.LinkProviderRegistry.register('*', {
 			provideLinks: (model, token) => {
 				if (!canSyncModel(this._modelService, model.uri)) {
-					return Promise.resolve([]); // File too large
+					return Promise.resolve({ links: [] }); // File too large
 				}
-				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri));
+				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri)).then(links => {
+					return links && { links };
+				});
 			}
 		}));
 		this._register(modes.CompletionProviderRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
@@ -88,14 +91,15 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | null | undefined> {
-		if (!Array.isArray(edits) || edits.length === 0) {
-			return Promise.resolve(edits);
-		} else {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
+		if (isNonEmptyArray(edits)) {
 			if (!canSyncModel(this._modelService, resource)) {
 				return Promise.resolve(edits); // File too large
 			}
 			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
+
+		} else {
+			return Promise.resolve(undefined);
 		}
 	}
 

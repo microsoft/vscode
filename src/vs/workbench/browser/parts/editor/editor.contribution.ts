@@ -5,7 +5,7 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusbarItemDescriptor, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
@@ -51,6 +51,8 @@ import { Schemas } from 'vs/base/common/network';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { OpenWorkspaceButtonContribution } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { ZoomStatusbarItem } from 'vs/workbench/browser/parts/editor/resourceViewer';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { toLocalResource } from 'vs/base/common/resources';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -111,19 +113,20 @@ interface ISerializedUntitledEditorInput {
 class UntitledEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) { }
 
-	serialize(editorInput: EditorInput): string | null {
+	serialize(editorInput: EditorInput): string | undefined {
 		if (!this.textFileService.isHotExitEnabled) {
-			return null; // never restore untitled unless hot exit is enabled
+			return undefined; // never restore untitled unless hot exit is enabled
 		}
 
 		const untitledEditorInput = <UntitledEditorInput>editorInput;
 
 		let resource = untitledEditorInput.getResource();
 		if (untitledEditorInput.hasAssociatedFilePath) {
-			resource = resource.with({ scheme: Schemas.file }); // untitled with associated file path use the file schema
+			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority); // untitled with associated file path use the local schema
 		}
 
 		const serialized: ISerializedUntitledEditorInput = {
@@ -139,8 +142,8 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): UntitledEditorInput {
 		return instantiationService.invokeFunction<UntitledEditorInput>(accessor => {
 			const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
-			const resource = !!deserialized.resourceJSON ? URI.revive(deserialized.resourceJSON) : URI.parse(deserialized.resource);
-			const filePath = resource.scheme === Schemas.file ? resource.fsPath : undefined;
+			const resource = !!deserialized.resourceJSON ? URI.revive(<UriComponents>deserialized.resourceJSON) : URI.parse(deserialized.resource);
+			const filePath = resource.scheme === Schemas.untitled ? undefined : resource.scheme === Schemas.file ? resource.fsPath : resource.path;
 			const language = deserialized.modeId;
 			const encoding = deserialized.encoding;
 
@@ -165,7 +168,7 @@ interface ISerializedSideBySideEditorInput {
 // Register Side by Side Editor Input Factory
 class SideBySideEditorInputFactory implements IEditorInputFactory {
 
-	serialize(editorInput: EditorInput): string | null {
+	serialize(editorInput: EditorInput): string | undefined {
 		const input = <SideBySideEditorInput>editorInput;
 
 		if (input.details && input.master) {
@@ -190,10 +193,10 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | null {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
@@ -209,7 +212,7 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 			}
 		}
 
-		return null;
+		return undefined;
 	}
 }
 

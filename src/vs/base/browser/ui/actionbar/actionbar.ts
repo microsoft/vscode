@@ -364,7 +364,7 @@ export interface ActionTrigger {
 }
 
 export interface IActionItemProvider {
-	(action: IAction): IActionItem | null;
+	(action: IAction): IActionItem | undefined;
 }
 
 export interface IActionBarOptions {
@@ -609,7 +609,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 				e.stopPropagation();
 			}));
 
-			let item: IActionItem | null = null;
+			let item: IActionItem | undefined;
 
 			if (this.options.actionItemProvider) {
 				item = this.options.actionItemProvider(action);
@@ -678,7 +678,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	focus(index?: number): void;
 	focus(selectFirst?: boolean): void;
-	focus(arg?: any): void {
+	focus(arg?: number | boolean): void {
 		let selectFirst: boolean = false;
 		let index: number | undefined = undefined;
 		if (arg === undefined) {

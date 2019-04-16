@@ -111,6 +111,12 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
 
 	@memoize
+	get machineSettingsHome(): string { return path.join(this.userDataPath, 'Machine'); }
+
+	@memoize
+	get machineSettingsPath(): string { return path.join(this.machineSettingsHome, 'settings.json'); }
+
+	@memoize
 	get globalStorageHome(): string { return path.join(this.appSettingsHome, 'globalStorage'); }
 
 	@memoize
@@ -172,13 +178,20 @@ export class EnvironmentService implements IEnvironmentService {
 	}
 
 	@memoize
-	get extensionDevelopmentLocationURI(): URI | undefined {
+	get extensionDevelopmentLocationURI(): URI[] | undefined {
 		const s = this._args.extensionDevelopmentPath;
-		if (s) {
+		if (Array.isArray(s)) {
+			return s.map(p => {
+				if (/^[^:/?#]+?:\/\//.test(p)) {
+					return URI.parse(p);
+				}
+				return URI.file(path.normalize(p));
+			});
+		} else if (s) {
 			if (/^[^:/?#]+?:\/\//.test(s)) {
-				return URI.parse(s);
+				return [URI.parse(s)];
 			}
-			return URI.file(path.normalize(s));
+			return [URI.file(path.normalize(s))];
 		}
 		return undefined;
 	}

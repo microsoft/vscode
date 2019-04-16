@@ -17,7 +17,7 @@ import { isNumber } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { binarySearch } from 'vs/base/common/arrays';
-import { toUint8ArrayBuffer } from 'vs/base/common/uint';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDidAppendedContent: Event<void>;
@@ -129,6 +129,7 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	}
 }
 
+// TODO@ben see if new watchers can cope with spdlog and avoid polling then
 class OutputFileListener extends Disposable {
 
 	private readonly _onDidContentChange = new Emitter<number | undefined>();
@@ -160,7 +161,7 @@ class OutputFileListener extends Disposable {
 	}
 
 	private doWatch(): Promise<void> {
-		return this.fileService.resolveFile(this.file)
+		return this.fileService.resolve(this.file, { resolveMetadata: true })
 			.then(stat => {
 				if (stat.etag !== this.etag) {
 					this.etag = stat.etag;
@@ -209,11 +210,11 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 
 	loadModel(): Promise<ITextModel> {
-		this.loadModelPromise = this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
+		this.loadModelPromise = this.fileService.readFile(this.file, { position: this.startOffset })
 			.then(content => {
-				this.endOffset = this.startOffset + this.getByteLength(content.value);
+				this.endOffset = this.startOffset + content.value.byteLength;
 				this.etag = content.etag;
-				return this.createModel(content.value);
+				return this.createModel(content.value.toString());
 			});
 		return this.loadModelPromise;
 	}
@@ -232,12 +233,12 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 
 	protected updateModel(): void {
 		if (this.model) {
-			this.fileService.resolveContent(this.file, { position: this.endOffset, encoding: 'utf8' })
+			this.fileService.readFile(this.file, { position: this.endOffset })
 				.then(content => {
 					this.etag = content.etag;
 					if (content.value) {
-						this.endOffset = this.endOffset + this.getByteLength(content.value);
-						this.appendToModel(content.value);
+						this.endOffset = this.endOffset + content.value.byteLength;
+						this.appendToModel(content.value.toString());
 					}
 					this.updateInProgress = false;
 				}, () => this.updateInProgress = false);
@@ -259,10 +260,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 
 	protected getByteLength(str: string): number {
-		if (typeof Buffer !== 'undefined') {
-			return Buffer.from(str).byteLength;
-		}
-		return toUint8ArrayBuffer(str).byteLength;
+		return VSBuffer.fromString(str).byteLength;
 	}
 
 	update(size?: number): void {
@@ -279,7 +277,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 }
 
-class BufferredOutputChannel extends Disposable implements IOutputChannelModel {
+export class BufferredOutputChannel extends Disposable implements IOutputChannelModel {
 
 	readonly file: URI | null = null;
 	scrollLock: boolean = false;

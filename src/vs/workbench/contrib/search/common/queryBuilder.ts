@@ -230,7 +230,7 @@ export class QueryBuilder {
 	parseSearchPaths(pattern: string): ISearchPathsInfo {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
-			return path.isAbsolute(segment) || /^\.\.?[\/\\]/.test(segment);
+			return path.isAbsolute(segment) || /^\.\.?([\/\\]|$)/.test(segment);
 		};
 
 		const segments = splitGlobPattern(pattern)
@@ -339,7 +339,7 @@ export class QueryBuilder {
 			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
 
 			searchPath = normalizeSlashes(searchPath);
-			if (strings.startsWith(searchPath, '../')) {
+			if (strings.startsWith(searchPath, '../') || searchPath === '..') {
 				const resolvedPath = path.posix.resolve(workspaceUri.path, searchPath);
 				return [{
 					searchPath: workspaceUri.with({ path: resolvedPath })

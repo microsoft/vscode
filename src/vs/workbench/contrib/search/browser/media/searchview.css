@@ -394,5 +394,5 @@
 }
 
 .vs .search-panel .search-view .monaco-inputbox {
-	border: 1px solid #ddd;
+	border: 1px solid transparent;
 }

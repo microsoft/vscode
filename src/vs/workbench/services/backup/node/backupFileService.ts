@@ -8,15 +8,17 @@ import * as crypto from 'crypto';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri } from 'vs/base/common/uri';
 import { ResourceQueue } from 'vs/base/common/async';
-import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, ITextSnapshot } from 'vs/platform/files/common/files';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IFileService } from 'vs/platform/files/common/files';
 import { readToMatchingString } from 'vs/base/node/stream';
-import { ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): Promise<IBackupFilesModel>;
@@ -27,27 +29,6 @@ export interface IBackupFilesModel {
 	remove(resource: Uri): void;
 	count(): number;
 	clear(): void;
-}
-
-export class BackupSnapshot implements ITextSnapshot {
-	private preambleHandled: boolean;
-
-	constructor(private snapshot: ITextSnapshot, private preamble: string) { }
-
-	read(): string | null {
-		let value = this.snapshot.read();
-		if (!this.preambleHandled) {
-			this.preambleHandled = true;
-
-			if (typeof value === 'string') {
-				value = this.preamble + value;
-			} else {
-				value = this.preamble;
-			}
-		}
-
-		return value;
-	}
 }
 
 export class BackupFilesModel implements IBackupFilesModel {
@@ -114,10 +95,10 @@ export class BackupFileService implements IBackupFileService {
 	private impl: IBackupFileService;
 
 	constructor(
-		@IWindowService windowService: IWindowService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileService fileService: IFileService
 	) {
-		const backupWorkspacePath = windowService.getConfiguration().backupPath;
+		const backupWorkspacePath = environmentService.configuration.backupPath;
 		if (backupWorkspacePath) {
 			this.impl = new BackupFileServiceImpl(backupWorkspacePath, fileService);
 		} else {
@@ -232,7 +213,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 				const preamble = `${resource.toString()}${BackupFileServiceImpl.META_MARKER}`;
 
 				// Update content with value
-				return this.fileService.updateContent(backupResource, new BackupSnapshot(content, preamble), BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
+				return this.fileService.writeFile(backupResource, new TextSnapshotReadable(content, preamble)).then(() => model.add(backupResource, versionId));
 			});
 		});
 	}
@@ -242,7 +223,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 			const backupResource = this.toBackupResource(resource);
 
 			return this.ioOperationQueues.queueFor(backupResource).queue(() => {
-				return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
+				return pfs.rimraf(backupResource.fsPath, pfs.RimRafMode.MOVE).then(() => model.remove(backupResource));
 			});
 		});
 	}
@@ -251,7 +232,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		this.isShuttingDown = true;
 
 		return this.ready.then(model => {
-			return pfs.del(this.backupWorkspacePath).then(() => model.clear());
+			return pfs.rimraf(this.backupWorkspacePath, pfs.RimRafMode.MOVE).then(() => model.clear());
 		});
 	}
 
@@ -270,19 +251,21 @@ class BackupFileServiceImpl implements IBackupFileService {
 	}
 
 	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory> {
-		return this.fileService.resolveStreamContent(backup, BACKUP_FILE_RESOLVE_OPTIONS).then(content => {
+		return this.fileService.readFileStream(backup).then(content => {
 
 			// Add a filter method to filter out everything until the meta marker
 			let metaFound = false;
-			const metaPreambleFilter = (chunk: string) => {
+			const metaPreambleFilter = (chunk: VSBuffer) => {
+				const chunkString = chunk.toString();
+
 				if (!metaFound && chunk) {
-					const metaIndex = chunk.indexOf(BackupFileServiceImpl.META_MARKER);
+					const metaIndex = chunkString.indexOf(BackupFileServiceImpl.META_MARKER);
 					if (metaIndex === -1) {
-						return ''; // meta not yet found, return empty string
+						return VSBuffer.fromString(''); // meta not yet found, return empty string
 					}
 
 					metaFound = true;
-					return chunk.substr(metaIndex + 1); // meta found, return everything after
+					return VSBuffer.fromString(chunkString.substr(metaIndex + 1)); // meta found, return everything after
 				}
 
 				return chunk;

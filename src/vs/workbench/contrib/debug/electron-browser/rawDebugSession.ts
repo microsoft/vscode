@@ -497,7 +497,7 @@ export class RawDebugSession {
 			success: true
 		};
 
-		const safeSendResponse = (response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
+		const safeSendResponse = (response: DebugProtocol.Response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
 
 		switch (request.command) {
 			case 'launchVSCode':

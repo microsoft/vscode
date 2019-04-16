@@ -10,7 +10,7 @@ import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -99,7 +99,7 @@ export class TextFileEditor extends BaseTextEditor {
 		// React to editors closing to preserve or clear view state. This needs to happen
 		// in the onWillCloseEditor because at that time the editor has not yet
 		// been disposed and we can safely persist the view state still as needed.
-		this.groupListener = dispose(this.groupListener);
+		dispose(this.groupListener);
 		this.groupListener = ((group as IEditorGroupView).onWillCloseEditor(e => this.onWillCloseEditorInGroup(e)));
 	}
 
@@ -170,7 +170,7 @@ export class TextFileEditor extends BaseTextEditor {
 				// In case we tried to open a file inside the text editor and the response
 				// indicates that this is not a text file, reopen the file through the binary
 				// editor.
-				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY) {
+				if ((<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY) {
 					return this.openAsBinary(input, options);
 				}
 
@@ -178,7 +178,7 @@ export class TextFileEditor extends BaseTextEditor {
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
 					this.openAsFolder(input);
 
-					return Promise.reject<any>(new Error(nls.localize('openFolderError', "File is a directory")));
+					return Promise.reject(new Error(nls.localize('openFolderError', "File is a directory")));
 				}
 
 				// Offer to create a file from the error if we have a file not found and the name is valid
@@ -186,7 +186,7 @@ export class TextFileEditor extends BaseTextEditor {
 					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
 							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, () => {
-								return this.fileService.updateContent(input.getResource(), '').then(() => this.editorService.openEditor({
+								return this.textFileService.create(input.getResource()).then(() => this.editorService.openEditor({
 									resource: input.getResource(),
 									options: {
 										pinned: true // new file gets pinned by default
@@ -296,7 +296,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	dispose(): void {
-		this.groupListener = dispose(this.groupListener);
+		dispose(this.groupListener);
 
 		super.dispose();
 	}

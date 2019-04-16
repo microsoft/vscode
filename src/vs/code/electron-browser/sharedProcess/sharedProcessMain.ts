@@ -41,14 +41,13 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -102,7 +101,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
@@ -122,7 +121,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	instantiationService.invokeFunction(accessor => {
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
-		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
+		const { appRoot, extensionsPath, extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
 		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
 		telemetryLogService.info('===========================================================');

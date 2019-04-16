@@ -457,7 +457,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			return { children, box };
 
 		} else if (json.type === 'leaf') {
-			const view = deserializer.fromJSON(json.data) as T;
+			const view: T = deserializer.fromJSON(json.data);
 			return { view, box };
 		}
 
@@ -481,9 +481,9 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			throw new Error('Invalid JSON: \'height\' property must be a number.');
 		}
 
-		const orientation = json.orientation as Orientation;
-		const width = json.width as number;
-		const height = json.height as number;
+		const orientation = json.orientation;
+		const width = json.width;
+		const height = json.height;
 		const box: Box = { top: 0, left: 0, width, height };
 
 		const root = SerializableGrid.deserializeNode(json.root, orientation, box, deserializer) as GridBranchNode<T>;

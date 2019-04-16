@@ -11,6 +11,14 @@ import { Readable } from 'stream';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 suite('Encoding', () => {
+
+	test('detectBOM does not return error for non existing file', async () => {
+		const file = getPathFromAmdModule(require, './fixtures/not-exist.css');
+
+		const detectedEncoding = await encoding.detectEncodingByBOM(file);
+		assert.equal(detectedEncoding, null);
+	});
+
 	test('detectBOM UTF-8', async () => {
 		const file = getPathFromAmdModule(require, './fixtures/some_utf8.css');
 
@@ -132,13 +140,13 @@ suite('Encoding', () => {
 		assert.equal(mimes.encoding, 'windows1252');
 	});
 
-	async function readAndDecodeFromDisk(path, _encoding) {
+	async function readAndDecodeFromDisk(path: string, fileEncoding: string | null) {
 		return new Promise<string>((resolve, reject) => {
 			fs.readFile(path, (err, data) => {
 				if (err) {
 					reject(err);
 				} else {
-					resolve(encoding.decode(data, _encoding));
+					resolve(encoding.decode(data, fileEncoding!));
 				}
 			});
 		});

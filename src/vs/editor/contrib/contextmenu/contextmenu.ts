@@ -13,7 +13,7 @@ import { KeyCode, KeyMod, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution, IScrollEvent, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -21,6 +21,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITextModel } from 'vs/editor/common/model';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -45,8 +46,8 @@ export class ContextMenuController implements IEditorContribution {
 		this._editor = editor;
 
 		this._toDispose.push(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
-		this._toDispose.push(this._editor.onDidScrollChange((e: IScrollEvent) => {
-			if (this._contextMenuIsBeingShownCount > 0 && e.scrollTopChanged) {
+		this._toDispose.push(this._editor.onMouseWheel((e: IMouseWheelEvent) => {
+			if (this._contextMenuIsBeingShownCount > 0) {
 				this._contextViewService.hideContextView();
 			}
 		}));

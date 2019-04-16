@@ -120,6 +120,7 @@ export class Application {
 			verbose: this.options.verbose,
 			log: this.options.log,
 			extraArgs,
+			remote: this.options.remote
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
@@ -136,6 +137,6 @@ export class Application {
 
 		// wait a bit, since focus might be stolen off widgets
 		// as soon as they open (eg quick open)
-		await new Promise(c => setTimeout(c, 500));
+		await new Promise(c => setTimeout(c, 1000));
 	}
 }

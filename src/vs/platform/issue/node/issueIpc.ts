@@ -21,6 +21,8 @@ export class IssueChannel implements IServerChannel {
 				return this.service.openReporter(arg);
 			case 'openProcessExplorer':
 				return this.service.openProcessExplorer(arg);
+			case 'getSystemStatus':
+				return this.service.getSystemStatus();
 		}
 
 		throw new Error(`Call not found: ${command}`);

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -29,6 +28,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { StandaloneCodeEditorNLS } from 'vs/editor/common/standaloneStrings';
 
 /**
  * Description of an action contribution
@@ -168,11 +168,11 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		options = options || {};
-		options.ariaLabel = options.ariaLabel || nls.localize('editorViewAccessibleLabel', "Editor content");
+		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
 		options.ariaLabel = options.ariaLabel + ';' + (
 			browser.isIE
-				? nls.localize('accessibilityHelpMessageIE', "Press Ctrl+F1 for Accessibility Options.")
-				: nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.")
+				? StandaloneCodeEditorNLS.accessibilityHelpMessageIE
+				: StandaloneCodeEditorNLS.accessibilityHelpMessage
 		);
 		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
 

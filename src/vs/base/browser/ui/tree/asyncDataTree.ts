@@ -16,6 +16,8 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { toggleClass } from 'vs/base/browser/dom';
+import { values } from 'vs/base/common/map';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -26,7 +28,6 @@ interface IAsyncDataTreeNode<TInput, T> {
 	hasChildren: boolean;
 	stale: boolean;
 	slow: boolean;
-	disposed: boolean;
 }
 
 interface IAsyncDataTreeNodeRequiredProps<TInput, T> extends Partial<IAsyncDataTreeNode<TInput, T>> {
@@ -41,7 +42,6 @@ function createAsyncDataTreeNode<TInput, T>(props: IAsyncDataTreeNodeRequiredPro
 		children: [],
 		loading: false,
 		stale: true,
-		disposed: false,
 		slow: false
 	};
 }
@@ -274,6 +274,11 @@ interface IAsyncDataTreeViewStateContext<TInput, T> {
 	readonly focus: IAsyncDataTreeNode<TInput, T>[];
 }
 
+function dfs<TInput, T>(node: IAsyncDataTreeNode<TInput, T>, fn: (node: IAsyncDataTreeNode<TInput, T>) => void): void {
+	fn(node);
+	node.children.forEach(child => dfs(child, fn));
+}
+
 export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable {
 
 	private readonly tree: ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData>;
@@ -292,7 +297,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	protected readonly disposables: IDisposable[] = [];
 
-	get onDidScroll(): Event<void> { return this.tree.onDidScroll; }
+	get onDidScroll(): Event<ScrollEvent> { return this.tree.onDidScroll; }
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeFocus, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeSelection, asTreeEvent); }
@@ -629,11 +634,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private async refreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
-		if (node.disposed) {
-			console.error('Async data tree node is disposed');
-			return;
-		}
-
 		let result: Promise<void> | undefined;
 
 		this.subTreeRefreshPromises.forEach((refreshPromise, refreshNode) => {
@@ -748,37 +748,47 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return [];
 		}
 
-		let nodeChildren: Map<string, IAsyncDataTreeNode<TInput, T>> | undefined;
+		const nodesToForget = new Map<T, IAsyncDataTreeNode<TInput, T>>();
+		const childrenTreeNodesById = new Map<string, ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>>();
 
-		if (this.identityProvider) {
-			nodeChildren = new Map();
+		for (const child of node.children) {
+			nodesToForget.set(child.element as T, child);
 
-			for (const child of node.children) {
-				nodeChildren.set(child.id!, child);
+			if (this.identityProvider) {
+				childrenTreeNodesById.set(child.id!, this.tree.getNode(child));
 			}
 		}
 
-		let childrenToRefresh: IAsyncDataTreeNode<TInput, T>[] = [];
+		const childrenToRefresh: IAsyncDataTreeNode<TInput, T>[] = [];
 
 		const children = childrenElements.map<IAsyncDataTreeNode<TInput, T>>(element => {
 			if (!this.identityProvider) {
 				return createAsyncDataTreeNode({
 					element,
 					parent: node,
-					hasChildren: !!this.dataSource.hasChildren(element),
+					hasChildren: !!this.dataSource.hasChildren(element)
 				});
 			}
 
 			const id = this.identityProvider.getId(element).toString();
-			const asyncDataTreeNode = nodeChildren!.get(id);
+			const childNode = childrenTreeNodesById.get(id);
 
-			if (asyncDataTreeNode) {
+			if (childNode) {
+				const asyncDataTreeNode = childNode.element!;
+
+				nodesToForget.delete(asyncDataTreeNode.element as T);
+				this.nodes.delete(asyncDataTreeNode.element as T);
+				this.nodes.set(element, asyncDataTreeNode);
+
 				asyncDataTreeNode.element = element;
-				asyncDataTreeNode.stale = asyncDataTreeNode.stale || recursive;
 				asyncDataTreeNode.hasChildren = !!this.dataSource.hasChildren(element);
 
-				if (recursive && !this.tree.isCollapsed(asyncDataTreeNode)) {
-					childrenToRefresh.push(asyncDataTreeNode);
+				if (recursive) {
+					if (childNode.collapsed) {
+						dfs(asyncDataTreeNode, node => node.stale = true);
+					} else {
+						childrenToRefresh.push(asyncDataTreeNode);
+					}
 				}
 
 				return asyncDataTreeNode;
@@ -806,33 +816,22 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return childAsyncDataTreeNode;
 		});
 
+		for (const node of values(nodesToForget)) {
+			dfs(node, node => this.nodes.delete(node.element as T));
+		}
+
+		for (const child of children) {
+			this.nodes.set(child.element as T, child);
+		}
+
 		node.children.splice(0, node.children.length, ...children);
 
 		return childrenToRefresh;
 	}
 
 	private render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): void {
-		const insertedElements = new Set<T>();
-
-		const onDidCreateNode = (treeNode: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>) => {
-			if (treeNode.element.element) {
-				insertedElements.add(treeNode.element.element as T);
-				this.nodes.set(treeNode.element.element as T, treeNode.element);
-			}
-		};
-
-		const onDidDeleteNode = (treeNode: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>) => {
-			if (treeNode.element.element) {
-				if (!insertedElements.has(treeNode.element.element as T)) {
-					treeNode.element.disposed = true;
-					this.nodes.delete(treeNode.element.element as T);
-				}
-			}
-		};
-
 		const children = node.children.map(c => asTreeElement(c, viewStateContext));
-		this.tree.setChildren(node === this.root ? null : node, children, onDidCreateNode, onDidDeleteNode);
-
+		this.tree.setChildren(node === this.root ? null : node, children);
 		this._onDidRender.fire();
 	}
 

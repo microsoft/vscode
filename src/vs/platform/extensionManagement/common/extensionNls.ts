@@ -13,7 +13,7 @@ export interface ITranslations {
 }
 
 export function localizeManifest(manifest: IExtensionManifest, translations: ITranslations): IExtensionManifest {
-	const patcher = value => {
+	const patcher = (value: string) => {
 		if (typeof value !== 'string') {
 			return undefined;
 		}

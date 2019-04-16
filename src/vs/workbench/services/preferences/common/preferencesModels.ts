@@ -17,7 +17,7 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor';
@@ -565,7 +565,7 @@ export class DefaultSettings extends Disposable {
 			if (!settingsGroup) {
 				settingsGroup = find(result, g => g.title === title);
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, range: nullRange, contributedByExtension: !!config.contributedByExtension };
+					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, range: nullRange, contributedByExtension: !!config.extensionInfo };
 					result.push(settingsGroup);
 				}
 			} else {
@@ -574,11 +574,11 @@ export class DefaultSettings extends Disposable {
 		}
 		if (config.properties) {
 			if (!settingsGroup) {
-				settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: config.id || '', titleRange: nullRange, range: nullRange, contributedByExtension: !!config.contributedByExtension };
+				settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: config.id || '', titleRange: nullRange, range: nullRange, contributedByExtension: !!config.extensionInfo };
 				result.push(settingsGroup);
 			}
 			const configurationSettings: ISetting[] = [];
-			for (const setting of [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties)]) {
+			for (const setting of [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties, config.extensionInfo)]) {
 				if (!seenSettings[setting.key]) {
 					configurationSettings.push(setting);
 					seenSettings[setting.key] = true;
@@ -605,7 +605,7 @@ export class DefaultSettings extends Disposable {
 		return result;
 	}
 
-	private parseSettings(settingsObject: { [path: string]: IConfigurationPropertySchema; }): ISetting[] {
+	private parseSettings(settingsObject: { [path: string]: IConfigurationPropertySchema; }, extensionInfo?: IConfigurationExtensionInfo): ISetting[] {
 		const result: ISetting[] = [];
 		for (const key in settingsObject) {
 			const prop = settingsObject[key];
@@ -629,6 +629,7 @@ export class DefaultSettings extends Disposable {
 					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
 					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
 					tags: prop.tags,
+					extensionInfo: extensionInfo,
 					deprecationMessage: prop.deprecationMessage,
 					validator: createValidator(prop)
 				});
@@ -959,7 +960,7 @@ class SettingsContentBuilder {
 	}
 
 	private pushSettingDescription(setting: ISetting, indent: string): void {
-		const fixSettingLink = line => line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
+		const fixSettingLink = (line: string) => line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
 
 		setting.descriptionRanges = [];
 		const descriptionPreValue = indent + '// ';
@@ -1050,33 +1051,33 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		const numericValidations: Validator<number>[] = isNumeric ? [
 			{
 				enabled: exclusiveMax !== undefined && (prop.maximum === undefined || exclusiveMax <= prop.maximum),
-				isValid: (value => value < exclusiveMax!),
+				isValid: ((value: number) => value < exclusiveMax!),
 				message: nls.localize('validations.exclusiveMax', "Value must be strictly less than {0}.", exclusiveMax)
 			},
 			{
 				enabled: exclusiveMin !== undefined && (prop.minimum === undefined || exclusiveMin >= prop.minimum),
-				isValid: (value => value > exclusiveMin!),
+				isValid: ((value: number) => value > exclusiveMin!),
 				message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
 			},
 
 			{
 				enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
-				isValid: (value => value <= prop.maximum!),
+				isValid: ((value: number) => value <= prop.maximum!),
 				message: nls.localize('validations.max', "Value must be less than or equal to {0}.", prop.maximum)
 			},
 			{
 				enabled: prop.minimum !== undefined && (exclusiveMin === undefined || exclusiveMin < prop.minimum),
-				isValid: (value => value >= prop.minimum!),
+				isValid: ((value: number) => value >= prop.minimum!),
 				message: nls.localize('validations.min', "Value must be greater than or equal to {0}.", prop.minimum)
 			},
 			{
 				enabled: prop.multipleOf !== undefined,
-				isValid: (value => value % prop.multipleOf! === 0),
+				isValid: ((value: number) => value % prop.multipleOf! === 0),
 				message: nls.localize('validations.multipleOf', "Value must be a multiple of {0}.", prop.multipleOf)
 			},
 			{
 				enabled: isIntegral,
-				isValid: (value => value % 1 === 0),
+				isValid: ((value: number) => value % 1 === 0),
 				message: nls.localize('validations.expectedInteger', "Value must be an integer.")
 			},
 		].filter(validation => validation.enabled) : [];
@@ -1084,17 +1085,17 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		const stringValidations: Validator<string>[] = [
 			{
 				enabled: prop.maxLength !== undefined,
-				isValid: (value => value.length <= prop.maxLength!),
+				isValid: ((value: { length: number; }) => value.length <= prop.maxLength!),
 				message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
 			},
 			{
 				enabled: prop.minLength !== undefined,
-				isValid: (value => value.length >= prop.minLength!),
+				isValid: ((value: { length: number; }) => value.length >= prop.minLength!),
 				message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
 			},
 			{
 				enabled: patternRegex !== undefined,
-				isValid: (value => patternRegex!.test(value)),
+				isValid: ((value: string) => patternRegex!.test(value)),
 				message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
 			},
 		].filter(validation => validation.enabled);

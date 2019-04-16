@@ -783,7 +783,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	}
 
 	getResource(): URI | null {
-		return this.resource || null;
+		return types.withUndefinedAsNull(this.resource);
 	}
 
 	getInput(): IEditorInput | IResourceInput {
@@ -848,7 +848,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 
 			return <IHistoryPickEntry>{
 				input: h,
-				iconClasses: getIconClasses(this.modelService, this.modeService, entry.getResource() || undefined),
+				iconClasses: getIconClasses(this.modelService, this.modeService, types.withNullAsUndefined(entry.getResource())),
 				label: entry.getLabel(),
 				description: entry.getDescription()
 			};

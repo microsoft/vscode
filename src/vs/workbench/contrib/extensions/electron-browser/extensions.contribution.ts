@@ -48,6 +48,7 @@ import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/ele
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/electron-browser/extensionsDependencyChecker';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -245,6 +246,35 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'array',
 				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
 				default: []
+      },
+			'extensions.extensionKind': {
+				type: 'object',
+				description: localize('extensions.extensionKind', "Configure ui or workspace extensions and allow them to run locally or remotely in a remote window."),
+				properties: {
+					'ui': {
+						type: 'array',
+						items: {
+							type: 'string',
+							pattern: '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$',
+						}
+					},
+					'workspace': {
+						type: 'array',
+						items: {
+							type: 'string',
+							pattern: '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$',
+						}
+					}
+				},
+				default: {
+					ui: [],
+					workspace: []
+				}
+			},
+			'extensions.showInstalledExtensionsByDefault': {
+				type: 'boolean',
+				description: localize('extensions.showInstalledExtensionsByDefault', "When enabled, extensions view shows installed extensions view by default."),
+				default: false
 			}
 		}
 	});
@@ -264,7 +294,7 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 CommandsRegistry.registerCommand('extension.open', (accessor: ServicesAccessor, extensionId: string) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 
-	return extensionService.queryGallery({ names: [extensionId], pageSize: 1 }).then(pager => {
+	return extensionService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None).then(pager => {
 		if (pager.total !== 1) {
 			return;
 		}

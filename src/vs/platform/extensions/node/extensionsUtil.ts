@@ -11,14 +11,12 @@ import product from 'vs/platform/product/node/product';
 
 export function isUIExtension(manifest: IExtensionManifest, uiContributions: string[], configurationService: IConfigurationService): boolean {
 	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-	const configuredUIExtensions = configurationService.getValue<string[]>('_workbench.uiExtensions') || [];
-	if (configuredUIExtensions.length) {
-		if (configuredUIExtensions.indexOf(extensionId) !== -1) {
-			return true;
-		}
-		if (configuredUIExtensions.indexOf(`-${extensionId}`) !== -1) {
-			return false;
-		}
+	const { ui, workspace } = configurationService.getValue<{ ui: string[], workspace: string[] }>('extensions.extensionKind') || { ui: [], workspace: [] };
+	if (isNonEmptyArray(workspace) && workspace.some(id => areSameExtensions({ id }, { id: extensionId }))) {
+		return false;
+	}
+	if (isNonEmptyArray(ui) && ui.some(id => areSameExtensions({ id }, { id: extensionId }))) {
+		return true;
 	}
 	switch (manifest.extensionKind) {
 		case 'ui': return true;

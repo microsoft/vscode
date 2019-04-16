@@ -68,7 +68,7 @@ export class ViewModel implements IViewModel {
 		this.loadedScriptsSupportedContextKey.set(session ? !!session.capabilities.supportsLoadedSourcesRequest : false);
 		this.stepBackSupportedContextKey.set(session ? !!session.capabilities.supportsStepBack : false);
 		this.restartFrameSupportedContextKey.set(session ? !!session.capabilities.supportsRestartFrame : false);
-		const attach = !!session && session.configuration.request === 'attach' && !isExtensionHostDebugging(session.configuration);
+		const attach = !!session && !session.parentSession && session.configuration.request === 'attach' && !isExtensionHostDebugging(session.configuration);
 		this.focusedSessionIsAttach.set(attach);
 
 		if (shouldEmitForSession) {

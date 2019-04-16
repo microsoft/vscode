@@ -43,6 +43,7 @@
 .task-statusbar-item-label {
 	display: inline-block;
 	cursor: pointer;
+	padding: 0 5px 0 5px;
 }
 
 .task-statusbar-item-label > .task-statusbar-item-label-counter {
