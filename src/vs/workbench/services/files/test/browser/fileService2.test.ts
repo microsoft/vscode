@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { FileService2 } from 'vs/workbench/services/files/common/fileService2';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { URI } from 'vs/base/common/uri';
 import { IFileSystemProviderRegistrationEvent, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -15,7 +15,7 @@ import { timeout } from 'vs/base/common/async';
 suite('File Service 2', () => {
 
 	test('provider registration', async () => {
-		const service = new FileService2(new NullLogService());
+		const service = new FileService(new NullLogService());
 		const resource = URI.parse('test://foo/bar');
 
 		assert.equal(service.canHandleResource(resource), false);
@@ -64,7 +64,7 @@ suite('File Service 2', () => {
 	});
 
 	test('watch', async () => {
-		const service = new FileService2(new NullLogService());
+		const service = new FileService(new NullLogService());
 
 		let disposeCounter = 0;
 		service.registerProvider('test', new NullFileSystemProvider(() => {

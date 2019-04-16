@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { tmpdir } from 'os';
-import { FileService2 } from 'vs/workbench/services/files/common/fileService2';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -104,7 +104,7 @@ suite('Disk File Service', () => {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'diskfileservice');
 	const testSchema = 'test';
 
-	let service: FileService2;
+	let service: FileService;
 	let fileProvider: TestDiskFileSystemProvider;
 	let testProvider: TestDiskFileSystemProvider;
 	let testDir: string;
@@ -114,7 +114,7 @@ suite('Disk File Service', () => {
 	setup(async () => {
 		const logService = new NullLogService();
 
-		service = new FileService2(logService);
+		service = new FileService(logService);
 		disposables.push(service);
 
 		fileProvider = new TestDiskFileSystemProvider(logService);

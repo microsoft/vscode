@@ -16,14 +16,14 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
-import { FileService2 } from 'vs/workbench/services/files/common/fileService2';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
 
 export class WorkspaceWatcher extends Disposable {
 
 	private watches = new ResourceMap<IDisposable>();
 
 	constructor(
-		@IFileService private readonly fileService: FileService2,
+		@IFileService private readonly fileService: FileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,

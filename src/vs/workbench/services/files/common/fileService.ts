@@ -18,7 +18,7 @@ import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamT
 import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 
-export class FileService2 extends Disposable implements IFileService {
+export class FileService extends Disposable implements IFileService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 

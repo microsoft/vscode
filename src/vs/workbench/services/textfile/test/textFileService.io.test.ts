@@ -18,7 +18,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { rimraf, RimRafMode, copy, readFile, exists } from 'vs/base/node/pfs';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { FileService2 } from 'vs/workbench/services/files/common/fileService2';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { tmpdir } from 'os';
@@ -84,7 +84,7 @@ suite('Files - TextFileService i/o', () => {
 		accessor = instantiationService.createInstance(ServiceAccessor);
 
 		const logService = new NullLogService();
-		const fileService = new FileService2(logService);
+		const fileService = new FileService(logService);
 
 		const fileProvider = new DiskFileSystemProvider(logService);
 		disposables.push(fileService.registerProvider(Schemas.file, fileProvider));

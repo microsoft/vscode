@@ -19,7 +19,7 @@ import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remot
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { FileService2 } from 'vs/workbench/services/files/common/fileService2';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 
 class CodeRendererMain extends Disposable {
@@ -78,7 +78,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files
-		const fileService = this._register(new FileService2(logService));
+		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
 		const connection = remoteAgentService.getConnection();
