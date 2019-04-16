@@ -38,6 +38,15 @@
 					"items": {
 						"type": "string"
 					}
+				},
+				"shutdownAction": {
+					"type": "string",
+					"enum": ["none", "stopContainer"],
+					"description": "Action to take when VS Code is shutting down. The default is to stop the container."
+				},
+				"overrideCommand": {
+					"type": "boolean",
+					"description": "Whether to overwrite the command specified in the image. The default is true."
 				}
 			}
 		},
@@ -45,11 +54,11 @@
 			"properties": {
 				"dockerFile": {
 					"type": "string",
-					"description": "The location of the Dockerfile that defines the contents. The path is relative to the location of the '.vscode' folder."
+					"description": "The location of the Dockerfile that defines the contents. The path is relative to the `.devcontainer` folder."
 				},
 				"context": {
 					"type": "string",
-					"description": "The location of the context folder for building the Docker image. The path is relative to the location of the '.vscode' folder."
+					"description": "The location of the context folder for building the Docker image. The path is relative to the `.devcontainer` folder."
 				}
 			},
 			"required": ["dockerFile"]
@@ -79,6 +88,11 @@
 				"workspaceFolder": {
 					"type": "string",
 					"description": "The path of the workspace folder inside the container."
+				},
+				"shutdownAction": {
+					"type": "string",
+					"enum": ["none", "stopCompose"],
+					"description": "Action to take when VS Code is shutting down. The default is to do nothing."
 				}
 			},
 			"required": ["dockerComposeFile", "service", "workspaceFolder"]
