@@ -20,6 +20,9 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
 import { attachDialogStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventHelper } from 'vs/base/browser/dom';
 
 export class ProgressService2 implements IProgressService2 {
 
@@ -34,7 +37,8 @@ export class ProgressService2 implements IProgressService2 {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) { }
 
 	withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
@@ -276,6 +280,10 @@ export class ProgressService2 implements IProgressService2 {
 
 	private _withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressOptions, task: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
 		const disposables: IDisposable[] = [];
+		const allowableCommands = [
+			'workbench.action.quit',
+			'workbench.action.reloadWindow'
+		];
 
 		let dialog: Dialog;
 
@@ -284,7 +292,17 @@ export class ProgressService2 implements IProgressService2 {
 				this._layoutService.container,
 				message,
 				[options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss")],
-				{ type: 'pending' }
+				{
+					type: 'pending',
+					keyEventProcessor: (event: StandardKeyboardEvent) => {
+						const resolved = this._keybindingService.softDispatch(event, this._layoutService.container);
+						if (resolved && resolved.commandId) {
+							if (allowableCommands.indexOf(resolved.commandId) === -1) {
+								EventHelper.stop(event, true);
+							}
+						}
+					}
+				}
 			);
 
 			disposables.push(dialog);

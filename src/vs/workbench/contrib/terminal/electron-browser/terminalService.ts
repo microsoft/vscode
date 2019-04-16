@@ -28,6 +28,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { execFile } from 'child_process';
 import { URI } from 'vs/base/common/uri';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class TerminalService extends BrowserTerminalService implements ITerminalService {
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
@@ -45,9 +46,10 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		@IDialogService dialogService: IDialogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
-		super(contextKeyService, panelService, layoutService, lifecycleService, storageService, notificationService, dialogService, instantiationService, environmentService, extensionService, fileService);
+		super(contextKeyService, panelService, layoutService, lifecycleService, storageService, notificationService, dialogService, instantiationService, environmentService, extensionService, fileService, remoteAgentService);
 
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, linuxDistro);
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {

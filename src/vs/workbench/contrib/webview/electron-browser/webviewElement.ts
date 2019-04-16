@@ -11,21 +11,22 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import * as modes from 'vs/editor/common/modes';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
+import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
 import { WebviewFindWidget } from '../browser/webviewFindWidget';
-import { WebviewContentOptions, WebviewPortMapping, WebviewOptions, Webview } from 'vs/workbench/contrib/webview/common/webview';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 export interface WebviewPortMapping {
 	readonly port: number;
@@ -153,7 +154,7 @@ class WebviewPortMappingProvider extends Disposable {
 	constructor(
 		session: WebviewSession,
 		extensionLocation: URI | undefined,
-		mappings: () => ReadonlyArray<WebviewPortMapping>,
+		mappings: () => ReadonlyArray<modes.IWebviewPortMapping>,
 		private readonly tunnelService: ITunnelService,
 		extensionId: ExtensionIdentifier | undefined,
 		@ITelemetryService telemetryService: ITelemetryService
@@ -183,23 +184,23 @@ class WebviewPortMappingProvider extends Disposable {
 
 				const port = +localhostMatch[1];
 				for (const mapping of mappings()) {
-					if (mapping.port === port) {
+					if (mapping.webviewPort === port) {
 						if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
-							const tunnel = await this.getOrCreateTunnel(mapping.resolvedPort);
+							const tunnel = await this.getOrCreateTunnel(mapping.extensionHostPort);
 							if (tunnel) {
 								return {
 									redirectURL: details.url.replace(
-										new RegExp(`^${uri.scheme}://localhost:${mapping.port}/`),
+										new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}/`),
 										`${uri.scheme}://localhost:${tunnel.tunnelLocalPort}/`)
 								};
 							}
 						}
 
-						if (mapping.port !== mapping.resolvedPort) {
+						if (mapping.webviewPort !== mapping.extensionHostPort) {
 							return {
 								redirectURL: details.url.replace(
-									new RegExp(`^${uri.scheme}://localhost:${mapping.port}/`),
-									`${uri.scheme}://localhost:${mapping.resolvedPort}/`)
+									new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}/`),
+									`${uri.scheme}://localhost:${mapping.extensionHostPort}/`)
 							};
 						}
 					}
@@ -416,7 +417,7 @@ export class WebviewElement extends Disposable implements Webview {
 		this._register(new WebviewPortMappingProvider(
 			session,
 			_options.extension ? _options.extension.location : undefined,
-			() => (this._contentOptions.portMappings || [{ port: 3000, resolvedPort: 4000 }]),
+			() => (this._contentOptions.portMappings || []),
 			tunnelService,
 			_options.extension ? _options.extension.id : undefined,
 			telemetryService

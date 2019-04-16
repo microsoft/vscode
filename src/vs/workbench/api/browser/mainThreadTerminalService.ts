@@ -51,6 +51,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		if (activeInstance) {
 			this._proxy.$acceptActiveTerminalChanged(activeInstance.id);
 		}
+
+		this.terminalService.extHostReady(extHostContext.remoteAuthority);
 	}
 
 	public dispose(): void {

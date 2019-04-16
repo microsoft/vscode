@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { connectRemoteAgentManagement, IConnectionOptions, IWebSocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
+import { connectRemoteAgentManagement, IConnectionOptions, IWebSocketFactory, PersistenConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -73,15 +73,18 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	private readonly _onReconnecting = this._register(new Emitter<void>());
 	public readonly onReconnecting = this._onReconnecting.event;
 
+	private readonly _onDidStateChange = this._register(new Emitter<PersistenConnectionEvent>());
+	public readonly onDidStateChange = this._onDidStateChange.event;
+
 	readonly remoteAuthority: string;
 	private _connection: Promise<Client<RemoteAgentConnectionContext>> | null;
 
 	constructor(
 		remoteAuthority: string,
-		private _commit: string | undefined,
-		private _webSocketFactory: IWebSocketFactory,
-		private _environmentService: IEnvironmentService,
-		private _remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		private readonly _commit: string | undefined,
+		private readonly _webSocketFactory: IWebSocketFactory,
+		private readonly _environmentService: IEnvironmentService,
+		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
 		this.remoteAuthority = remoteAuthority;
@@ -121,8 +124,8 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 				}
 			}
 		};
-		const connection = await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`);
-		this._register(connection);
+		const connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
+		this._register(connection.onDidStateChange(e => this._onDidStateChange.fire(e)));
 		return connection.client;
 	}
 }
