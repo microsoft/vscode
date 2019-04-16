@@ -33,10 +33,10 @@ import { URI } from 'vs/base/common/uri';
 import { createHash } from 'crypto';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { ConfigurationFileService } from 'vs/workbench/services/configuration/node/configurationFileService';
@@ -109,7 +109,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);
-			const fileService = new FileService2(new NullLogService());
+			const fileService = new FileService(new NullLogService());
 			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));

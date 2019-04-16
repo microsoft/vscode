@@ -17,9 +17,9 @@ import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
@@ -55,7 +55,7 @@ class TestBackupEnvironmentService extends WorkbenchEnvironmentService {
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService2(new NullLogService());
+		const fileService = new FileService(new NullLogService());
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 
 		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
