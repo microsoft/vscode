@@ -1186,16 +1186,3 @@ export function etag(mtime: number | undefined, size: number | undefined): strin
 
 	return mtime.toString(29) + size.toString(31);
 }
-
-
-// TODO@ben remove traces of legacy file service
-export const ILegacyFileService = createDecorator<ILegacyFileService>('legacyFileService');
-export interface ILegacyFileService extends IDisposable {
-	_serviceBrand: any;
-
-	encoding: IResourceEncodings;
-
-	onAfterOperation: Event<FileOperationEvent>;
-
-	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
-}

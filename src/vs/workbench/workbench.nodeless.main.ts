@@ -119,7 +119,6 @@ import 'vs/workbench/services/dialogs/browser/fileDialogService';
 // import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
-// import 'vs/workbench/services/files/node/remoteFileService';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
 // import 'vs/workbench/services/keybinding/electron-browser/keybindingService';

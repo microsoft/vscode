@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService, TestEnvironmentService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -28,7 +28,6 @@ import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { detectEncodingByBOM, UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
 import { NodeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/node/textFileService';
-import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isWindows } from 'vs/base/common/platform';
@@ -90,13 +89,6 @@ suite('Files - TextFileService i/o', () => {
 		const fileProvider = new DiskFileSystemProvider(logService);
 		disposables.push(fileService.registerProvider(Schemas.file, fileProvider));
 		disposables.push(fileProvider);
-
-		fileService.setLegacyService(new LegacyFileService(
-			fileService,
-			accessor.contextService,
-			TestEnvironmentService,
-			new TestTextResourceConfigurationService()
-		));
 
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);

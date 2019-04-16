@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, ILegacyFileService, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -20,38 +20,12 @@ import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cance
 
 export class FileService2 extends Disposable implements IFileService {
 
-	//#region TODO@Ben HACKS
-
-	private _legacy: ILegacyFileService | null;
-	private joinOnLegacy: Promise<ILegacyFileService>;
-	private joinOnImplResolve: (service: ILegacyFileService) => void;
-
-	get whenReady(): Promise<void> { return this.joinOnLegacy.then(() => undefined); }
-
-	setLegacyService(legacy: ILegacyFileService): void {
-		this._legacy = this._register(legacy);
-
-		this._register(legacy.onAfterOperation(e => this._onAfterOperation.fire(e)));
-
-		this.provider.forEach((provider, scheme) => {
-			legacy.registerProvider(scheme, provider);
-		});
-
-		this.joinOnImplResolve(legacy);
-	}
-
-	//#endregion
-
 	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly BUFFER_SIZE = 64 * 1024;
 
 	constructor(@ILogService private logService: ILogService) {
 		super();
-
-		this.joinOnLegacy = new Promise(resolve => {
-			this.joinOnImplResolve = resolve;
-		});
 	}
 
 	//#region File System Provider
@@ -67,13 +41,6 @@ export class FileService2 extends Disposable implements IFileService {
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
 		if (this.provider.has(scheme)) {
 			throw new Error(`A provider for the scheme ${scheme} is already registered.`);
-		}
-
-		let legacyDisposal: IDisposable;
-		if (this._legacy) {
-			legacyDisposal = this._legacy.registerProvider(scheme, provider);
-		} else {
-			legacyDisposal = Disposable.None;
 		}
 
 		// Add provider with event
@@ -93,8 +60,7 @@ export class FileService2 extends Disposable implements IFileService {
 				this.provider.delete(scheme);
 
 				dispose(providerDisposables);
-			}),
-			legacyDisposal
+			})
 		]);
 	}
 
