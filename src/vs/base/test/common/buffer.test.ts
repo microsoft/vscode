@@ -220,4 +220,148 @@ suite('Buffer', () => {
 		assert.equal(chunks[0].toString(), 'Hello');
 		assert.equal(chunks[1].toString(), 'World');
 	});
+
+	test('bufferWriteableStream - pause/resume (simple)', async () => {
+		const stream = writeableBufferStream();
+
+		let chunks: VSBuffer[] = [];
+		stream.on('data', data => {
+			chunks.push(data);
+		});
+
+		let ended = false;
+		stream.on('end', () => {
+			ended = true;
+		});
+
+		let errors: Error[] = [];
+		stream.on('error', error => {
+			errors.push(error);
+		});
+
+		stream.pause();
+
+		await timeout(0);
+		stream.write(VSBuffer.fromString('Hello'));
+		await timeout(0);
+		stream.end(VSBuffer.fromString('World'));
+
+		assert.equal(chunks.length, 0);
+		assert.equal(errors.length, 0);
+		assert.equal(ended, false);
+
+		stream.resume();
+
+		assert.equal(chunks.length, 1);
+		assert.equal(chunks[0].toString(), 'HelloWorld');
+		assert.equal(ended, true);
+		assert.equal(errors.length, 0);
+	});
+
+	test('bufferWriteableStream - pause/resume (pause after first write)', async () => {
+		const stream = writeableBufferStream();
+
+		let chunks: VSBuffer[] = [];
+		stream.on('data', data => {
+			chunks.push(data);
+		});
+
+		let ended = false;
+		stream.on('end', () => {
+			ended = true;
+		});
+
+		let errors: Error[] = [];
+		stream.on('error', error => {
+			errors.push(error);
+		});
+
+		await timeout(0);
+		stream.write(VSBuffer.fromString('Hello'));
+
+		stream.pause();
+
+		await timeout(0);
+		stream.end(VSBuffer.fromString('World'));
+
+		assert.equal(chunks.length, 1);
+		assert.equal(chunks[0].toString(), 'Hello');
+		assert.equal(errors.length, 0);
+		assert.equal(ended, false);
+
+		stream.resume();
+
+		assert.equal(chunks.length, 2);
+		assert.equal(chunks[0].toString(), 'Hello');
+		assert.equal(chunks[1].toString(), 'World');
+		assert.equal(ended, true);
+		assert.equal(errors.length, 0);
+	});
+
+	test('bufferWriteableStream - pause/resume (error)', async () => {
+		const stream = writeableBufferStream();
+
+		let chunks: VSBuffer[] = [];
+		stream.on('data', data => {
+			chunks.push(data);
+		});
+
+		let ended = false;
+		stream.on('end', () => {
+			ended = true;
+		});
+
+		let errors: Error[] = [];
+		stream.on('error', error => {
+			errors.push(error);
+		});
+
+		stream.pause();
+
+		await timeout(0);
+		stream.write(VSBuffer.fromString('Hello'));
+		await timeout(0);
+		stream.end(new Error());
+
+		assert.equal(chunks.length, 0);
+		assert.equal(ended, false);
+		assert.equal(errors.length, 0);
+
+		stream.resume();
+
+		assert.equal(chunks.length, 1);
+		assert.equal(chunks[0].toString(), 'Hello');
+		assert.equal(ended, true);
+		assert.equal(errors.length, 1);
+	});
+
+	test('bufferWriteableStream - destroy', async () => {
+		const stream = writeableBufferStream();
+
+		let chunks: VSBuffer[] = [];
+		stream.on('data', data => {
+			chunks.push(data);
+		});
+
+		let ended = false;
+		stream.on('end', () => {
+			ended = true;
+		});
+
+		let errors: Error[] = [];
+		stream.on('error', error => {
+			errors.push(error);
+		});
+
+		stream.destroy();
+
+		await timeout(0);
+		stream.write(VSBuffer.fromString('Hello'));
+		await timeout(0);
+		stream.end(VSBuffer.fromString('World'));
+
+		assert.equal(chunks.length, 0);
+		assert.equal(ended, false);
+		assert.equal(errors.length, 0);
+	});
 });

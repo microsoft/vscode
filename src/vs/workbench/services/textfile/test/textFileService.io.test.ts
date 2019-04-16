@@ -247,7 +247,7 @@ suite('Files - TextFileService i/o', () => {
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, encoding);
 
-		const resolved = await service.legacyRead(resource);
+		const resolved = await service.read(resource);
 		assert.equal(resolved.encoding, encoding);
 
 		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), expectedContent);
@@ -274,18 +274,18 @@ suite('Files - TextFileService i/o', () => {
 	});
 
 	async function testEncodingKeepsData(resource: URI, encoding: string, expected: string) {
-		let resolved = await service.legacyRead(resource, { encoding });
+		let resolved = await service.read(resource, { encoding });
 		const content = snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false));
 		assert.equal(content, expected);
 
 		await service.write(resource, content, { encoding });
 
-		resolved = await service.legacyRead(resource, { encoding });
+		resolved = await service.read(resource, { encoding });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
 
 		await service.write(resource, TextModel.createFromString(content).createSnapshot(), { encoding });
 
-		resolved = await service.legacyRead(resource, { encoding });
+		resolved = await service.read(resource, { encoding });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
 	}
 
@@ -296,7 +296,7 @@ suite('Files - TextFileService i/o', () => {
 
 		await service.write(resource, content);
 
-		const resolved = await service.legacyRead(resource);
+		const resolved = await service.read(resource);
 		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
 	});
 
@@ -307,14 +307,14 @@ suite('Files - TextFileService i/o', () => {
 
 		await service.write(resource, TextModel.createFromString(content).createSnapshot());
 
-		const resolved = await service.legacyRead(resource);
+		const resolved = await service.read(resource);
 		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
 	});
 
 	test('write - encoding preserved (UTF 16 LE) - content as string', async () => {
 		const resource = URI.file(join(testDir, 'some_utf16le.css'));
 
-		const resolved = await service.legacyRead(resource);
+		const resolved = await service.read(resource);
 		assert.equal(resolved.encoding, UTF16le);
 
 		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, 'Hello\nWorld', 'Hello\nWorld');
@@ -323,7 +323,7 @@ suite('Files - TextFileService i/o', () => {
 	test('write - encoding preserved (UTF 16 LE) - content as snapshot', async () => {
 		const resource = URI.file(join(testDir, 'some_utf16le.css'));
 
-		const resolved = await service.legacyRead(resource);
+		const resolved = await service.read(resource);
 		assert.equal(resolved.encoding, UTF16le);
 
 		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, TextModel.createFromString('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
@@ -426,12 +426,50 @@ suite('Files - TextFileService i/o', () => {
 		await testReadFile(resource);
 	});
 
+	test('read - encoding picked up (CP1252)', async () => {
+		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
+		const encoding = 'windows1252';
+
+		const result = await service.read(resource, { encoding });
+		assert.equal(result.encoding, encoding);
+		assert.equal(result.value.getFirstLineText(999999), 'Private = "Persönlicheß Information"');
+	});
+
+	test('read - user overrides BOM', async () => {
+		const resource = URI.file(join(testDir, 'some_utf16le.css'));
+
+		const result = await service.read(resource, { encoding: 'windows1252' });
+		assert.equal(result.encoding, 'windows1252');
+	});
+
+	test('read - BOM removed', async () => {
+		const resource = URI.file(join(testDir, 'some_utf8_bom.txt'));
+
+		const result = await service.read(resource);
+		assert.equal(result.value.getFirstLineText(999999), 'This is some UTF 8 with BOM file.');
+	});
+
+	test('read - invalid encoding', async () => {
+		const resource = URI.file(join(testDir, 'index.html'));
+
+		const result = await service.read(resource, { encoding: 'superduper' });
+		assert.equal(result.encoding, 'utf8');
+	});
+
+	test('read - encoding override', async () => {
+		const resource = URI.file(join(testDir, 'some.utf16le'));
+
+		const result = await service.read(resource, { encoding: 'windows1252' });
+		assert.equal(result.encoding, 'utf16le');
+		assert.equal(result.value.getFirstLineText(999999), 'This is some UTF 16 with BOM file.');
+	});
+
 	async function testReadFile(resource: URI): Promise<void> {
 		const result = await service.read(resource);
+
 		assert.equal(result.name, basename(resource.fsPath));
 		assert.equal(result.size, statSync(resource.fsPath).size);
-
-		assert.equal(snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false)), readFileSync(resource.fsPath));
+		assert.equal(snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false)), snapshotToString(TextModel.createFromString(readFileSync(resource.fsPath).toString()).createSnapshot(false)));
 	}
 
 	test('read - FILE_IS_BINARY', async () => {

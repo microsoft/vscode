@@ -8,7 +8,6 @@ import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import * as assert from 'assert';
 import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
-import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { URI as uri } from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
@@ -52,26 +51,9 @@ suite('LegacyFileService', () => {
 		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
-	test('resolveContent - FILE_IS_BINARY', function () {
-		const resource = uri.file(path.join(testDir, 'binary.txt'));
 
-		return service.resolveContent(resource, { acceptTextOnly: true }).then(undefined, (e: FileOperationError) => {
-			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_BINARY);
 
-			return service.resolveContent(uri.file(path.join(testDir, 'small.txt')), { acceptTextOnly: true }).then(r => {
-				assert.equal(r.name, 'small.txt');
-			});
-		});
-	});
 
-	test('resolveContent - encoding picked up', function () {
-		const resource = uri.file(path.join(testDir, 'index.html'));
-		const encoding = 'windows1252';
-
-		return service.resolveContent(resource, { encoding: encoding }).then(c => {
-			assert.equal(c.encoding, encoding);
-		});
-	});
 
 	test('resolveContent - user overrides BOM', function () {
 		const resource = uri.file(path.join(testDir, 'some_utf16le.css'));

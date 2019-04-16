@@ -17,14 +17,15 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, IDetectedEncodingResult, detectEncodingByBOM, encodeStream, UTF8_BOM, UTF16be_BOM, UTF16le_BOM } from 'vs/base/node/encoding';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, IDetectedEncodingResult, detectEncodingByBOM, encodeStream, UTF8_BOM, UTF16be_BOM, UTF16le_BOM, toDecodeStream, IDecodeStreamOptions } from 'vs/base/node/encoding';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { joinPath, extname, isEqualOrParent } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { VSBufferReadable, VSBuffer } from 'vs/base/common/buffer';
+import { VSBufferReadable, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Readable } from 'stream';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 
 export class NodeTextFileService extends TextFileService {
 
@@ -38,7 +39,72 @@ export class NodeTextFileService extends TextFileService {
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
-		return super.read(resource, options);
+		const stream = await this.fileService.readFileStream(resource, options);
+
+		const readable = this.streamToNodeReadable(stream.value);
+
+		const decodeStreamOpts: IDecodeStreamOptions = {
+			guessEncoding: options && options.autoGuessEncoding,
+			overwriteEncoding: detected => {
+				return this.encoding.getReadEncoding(resource, options, { encoding: detected, seemsBinary: false });
+			}
+		};
+
+		const result = await toDecodeStream(readable, decodeStreamOpts);
+
+		if (options && options.acceptTextOnly && result.detected.seemsBinary) {
+			throw new FileOperationError(localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), FileOperationResult.FILE_IS_BINARY, options);
+		}
+
+		return {
+			...stream,
+			encoding: result.detected.encoding || UTF8,
+			value: await createTextBufferFactoryFromStream(result.stream)
+		};
+	}
+
+	private streamToNodeReadable(stream: VSBufferReadableStream): Readable {
+		return new class extends Readable {
+			private listening = false;
+
+			_read(size?: number): void {
+				if (!this.listening) {
+					this.listening = true;
+
+					// Data
+					stream.on('data', data => {
+						try {
+							if (!this.push(data.buffer)) {
+								stream.pause(); // pause the stream if we should not push anymore
+							}
+						} catch (error) {
+							this.emit(error);
+						}
+					});
+
+					// End
+					stream.on('end', () => {
+						try {
+							this.push(null); // signal EOS
+						} catch (error) {
+							this.emit(error);
+						}
+					});
+
+					// Error
+					stream.on('error', error => this.emit(error));
+				}
+
+				// ensure the stream is flowing
+				stream.resume();
+			}
+
+			_destroy(error: Error | null, callback: (error: Error | null) => void): void {
+				stream.destroy();
+
+				callback(null);
+			}
+		};
 	}
 
 	protected async doCreate(resource: URI, value?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
@@ -112,22 +178,15 @@ export class NodeTextFileService extends TextFileService {
 	}
 
 	private getEncodedReadable(value: string | ITextSnapshot, encoding: string, addBOM: boolean): VSBufferReadable {
-		const readable = this.toNodeReadable(value);
+		const readable = this.snapshotToNodeReadable(typeof value === 'string' ? stringToSnapshot(value) : value);
 		const encoder = encodeStream(encoding, { addBOM });
 
 		const encodedReadable = readable.pipe(encoder);
 
-		return this.toBufferReadable(encodedReadable, encoding, addBOM);
+		return this.nodeStreamToReadable(encodedReadable, encoding, addBOM);
 	}
 
-	private toNodeReadable(value: string | ITextSnapshot): Readable {
-		let snapshot: ITextSnapshot;
-		if (typeof value === 'string') {
-			snapshot = stringToSnapshot(value);
-		} else {
-			snapshot = value;
-		}
-
+	private snapshotToNodeReadable(snapshot: ITextSnapshot): Readable {
 		return new Readable({
 			read: function () {
 				try {
@@ -152,7 +211,7 @@ export class NodeTextFileService extends TextFileService {
 		});
 	}
 
-	private toBufferReadable(stream: NodeJS.ReadWriteStream, encoding: string, addBOM: boolean): VSBufferReadable {
+	private nodeStreamToReadable(stream: NodeJS.ReadWriteStream, encoding: string, addBOM: boolean): VSBufferReadable {
 		let bytesRead = 0;
 		let done = false;
 

@@ -374,6 +374,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 		// in case of acceptTextOnly: true, we check the first
 		// chunk for possibly being binary by looking for 0-bytes
+		// we limit this check to the first 512 bytes
 		let checkedForBinary = false;
 		const throwOnBinary = (data: VSBuffer): Error | undefined => {
 			if (!checkedForBinary) {

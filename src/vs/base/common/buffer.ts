@@ -138,6 +138,11 @@ export interface VSBufferReadable {
 	read(): VSBuffer | null;
 }
 
+/**
+ * A buffer readable stream emits data to listeners. The stream
+ * will only start emitting when the first data listener has
+ * been added or the resume() method has been called.
+ */
 export interface VSBufferReadableStream {
 
 	/**
@@ -157,6 +162,21 @@ export interface VSBufferReadableStream {
 	 * not be emitted unless the data is completely consumed.
 	 */
 	on(event: 'end', callback: () => void): void;
+
+	/**
+	 * Stops emitting any events until resume() is called.
+	 */
+	pause(): void;
+
+	/**
+	 * Starts emitting events again after pause() was called.
+	 */
+	resume(): void;
+
+	/**
+	 * Destroys the stream and stops emitting any event.
+	 */
+	destroy(): void;
 }
 
 /**
@@ -236,7 +256,7 @@ class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
 	private readonly state = {
 		flowing: false,
 		ended: false,
-		finished: false
+		destroyed: false
 	};
 
 	private readonly buffer = {
@@ -250,8 +270,31 @@ class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
 		end: [] as { (): void }[]
 	};
 
+	pause(): void {
+		if (this.state.destroyed) {
+			return;
+		}
+
+		this.state.flowing = false;
+	}
+
+	resume(): void {
+		if (this.state.destroyed) {
+			return;
+		}
+
+		if (!this.state.flowing) {
+			this.state.flowing = true;
+
+			// emit buffered events
+			this.flowData();
+			this.flowErrors();
+			this.flowEnd();
+		}
+	}
+
 	write(chunk: VSBuffer): void {
-		if (this.state.finished) {
+		if (this.state.destroyed) {
 			return;
 		}
 
@@ -267,7 +310,7 @@ class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
 	}
 
 	error(error: Error): void {
-		if (this.state.finished) {
+		if (this.state.destroyed) {
 			return;
 		}
 
@@ -283,7 +326,7 @@ class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
 	}
 
 	end(result?: VSBuffer | Error): void {
-		if (this.state.finished) {
+		if (this.state.destroyed) {
 			return;
 		}
 
@@ -298,7 +341,7 @@ class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
 		if (this.state.flowing) {
 			this.listeners.end.forEach(listener => listener());
 
-			this.finish();
+			this.destroy();
 		}
 
 		// not yet flowing: remember state
@@ -311,7 +354,7 @@ class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
 	on(event: 'error', callback: (err: any) => void): void;
 	on(event: 'end', callback: () => void): void;
 	on(event: 'data' | 'error' | 'end', callback: (arg0?: any) => void): void {
-		if (this.state.finished) {
+		if (this.state.destroyed) {
 			return;
 		}
 
@@ -321,14 +364,7 @@ class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
 
 				// switch into flowing mode as soon as the first 'data'
 				// listener is added and we are not yet in flowing mode
-				if (!this.state.flowing) {
-					this.state.flowing = true;
-
-					// emit buffered events
-					this.flowData();
-					this.flowErrors();
-					this.flowEnd();
-				}
+				this.resume();
 
 				break;
 
@@ -340,7 +376,7 @@ class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
 				//
 				// finish() when it went through
 				if (this.state.flowing && this.flowEnd()) {
-					this.finish();
+					this.destroy();
 				}
 
 				break;
@@ -388,9 +424,9 @@ class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
 		return false;
 	}
 
-	private finish(): void {
-		if (!this.state.finished) {
-			this.state.finished = true;
+	destroy(): void {
+		if (!this.state.destroyed) {
+			this.state.destroyed = true;
 			this.state.ended = true;
 
 			this.buffer.data.length = 0;
