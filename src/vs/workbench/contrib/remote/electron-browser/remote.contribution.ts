@@ -200,7 +200,8 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 						ipc.send(request.replyChannel, info);
 					})
 					.catch(e => {
-						ipc.send(request.replyChannel, { hostName, errorMessage: `Fetching remote diagnostics for '${hostName}' failed: ${e.message}` });
+						const errorMessage = e && e.message ? `Fetching remote diagnostics for '${hostName}' failed: ${e.message}` : `Fetching remote diagnostics for '${hostName}; failed.`;
+						ipc.send(request.replyChannel, { hostName, errorMessage });
 					});
 			} else {
 				ipc.send(request.replyChannel);
