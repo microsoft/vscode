@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "dependencies": {
     "applicationinsights": "1.0.8",
+    "getmac": "^1.4.6",
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.1",

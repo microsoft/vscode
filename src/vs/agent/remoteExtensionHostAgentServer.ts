@@ -231,19 +231,25 @@ function unmask(buffer: VSBuffer, mask: number): void {
 
 export class RemoteExtensionHostAgentServer {
 
-	private readonly _remoteExtensionManagementServer: RemoteExtensionManagementServer;
+	private _remoteExtensionManagementServer: RemoteExtensionManagementServer;
 	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection; };
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection; };
 
 	constructor(
 		private readonly _environmentService: EnvironmentService
 	) {
-		this._remoteExtensionManagementServer = new RemoteExtensionManagementServer(_environmentService);
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 	}
 
-	public start(port: number) {
+	public async start(port: number) {
+		// Wait for the extension management server to be set up, cache the result so it can be accessed sync while handling requests
+		const server = await RemoteExtensionManagementServer.create(this._environmentService);
+		this._remoteExtensionManagementServer = server;
+		return this._start(port);
+	}
+
+	private _start(port: number) {
 		const ifaces = os.networkInterfaces();
 
 		Object.keys(ifaces).forEach(function (ifname) {

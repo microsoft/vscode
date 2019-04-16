@@ -199,12 +199,40 @@ diagnostic-channel@0.2.0:
   dependencies:
     semver "^5.3.0"
 
+eachr@^3.2.0:
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/eachr/-/eachr-3.2.0.tgz#2c35e43ea086516f7997cf80b7aa64d55a4a4484"
+  integrity sha1-LDXkPqCGUW95l8+At6pk1VpKRIQ=
+  dependencies:
+    editions "^1.1.1"
+    typechecker "^4.3.0"
+
+editions@^1.1.1:
+  version "1.3.4"
+  resolved "https://registry.yarnpkg.com/editions/-/editions-1.3.4.tgz#3662cb592347c3168eb8e498a0ff73271d67f50b"
+  integrity sha512-gzao+mxnYDzIysXKMQi/+M1mjy/rjestjg6OPoYTtI+3Izp23oiGZitsl9lPDPiTGXbcSIk1iJWhliSaglxnUg==
+
+editions@^2.0.2, editions@^2.1.0, editions@^2.1.2:
+  version "2.1.3"
+  resolved "https://registry.yarnpkg.com/editions/-/editions-2.1.3.tgz#727ccf3ec2c7b12dcc652c71000f16c4824d6f7d"
+  integrity sha512-xDZyVm0A4nLgMNWVVLJvcwMjI80ShiH/27RyLiCnW1L273TcJIA25C4pwJ33AWV01OX6UriP35Xu+lH4S7HWQw==
+  dependencies:
+    errlop "^1.1.1"
+    semver "^5.6.0"
+
 end-of-stream@^1.0.0, end-of-stream@^1.1.0:
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/end-of-stream/-/end-of-stream-1.4.0.tgz#7a90d833efda6cfa6eac0f4949dbb0fad3a63206"
   integrity sha1-epDYM+/abPpurA9JSduw+tOmMgY=
   dependencies:
     once "^1.4.0"
+
+errlop@^1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/errlop/-/errlop-1.1.1.tgz#d9ae4c76c3e64956c5d79e6e035d6343bfd62250"
+  integrity sha512-WX7QjiPHhsny7/PQvrhS5VMizXXKoKCS3udaBp8gjlARdbn+XmK300eKBAAN0hGyRaTCtRpOaxK+xFVPUJ3zkw==
+  dependencies:
+    editions "^2.1.2"
 
 es6-promise@^4.0.3:
   version "4.2.4"
@@ -243,6 +271,15 @@ extglob@^0.3.1:
   integrity sha1-Lhj/PS9JqydlzskCPwEdqo2DSaE=
   dependencies:
     is-extglob "^1.0.0"
+
+extract-opts@^3.2.0:
+  version "3.3.1"
+  resolved "https://registry.yarnpkg.com/extract-opts/-/extract-opts-3.3.1.tgz#5abbedc98c0d5202e3278727f9192d7e086c6be1"
+  integrity sha1-WrvtyYwNUgLjJ4cn+Rktfghsa+E=
+  dependencies:
+    eachr "^3.2.0"
+    editions "^1.1.1"
+    typechecker "^4.3.0"
 
 fd-slicer@~1.0.1:
   version "1.0.1"
@@ -306,6 +343,14 @@ gauge@~2.7.3:
     string-width "^1.0.1"
     strip-ansi "^3.0.1"
     wide-align "^1.1.0"
+
+getmac@^1.4.6:
+  version "1.4.6"
+  resolved "https://registry.yarnpkg.com/getmac/-/getmac-1.4.6.tgz#ffe7db07900e222916939d44e4c7274adbecc662"
+  integrity sha512-3JPwiIr4P6Sgr6y6SVXX0+l2mrB6pyf4Cdyua7rvEV7SveWQkAp11vrkNym8wvRxzLrBenKRcwe93asdghuwWg==
+  dependencies:
+    editions "^2.0.2"
+    extract-opts "^3.2.0"
 
 github-from-package@0.0.0:
   version "0.0.0"
@@ -812,6 +857,11 @@ semver@^5.4.1, semver@^5.5.0:
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.5.0.tgz#dc4bbc7a6ca9d916dee5d43516f0092b58f7b8ab"
   integrity sha512-4SJ3dm0WAwWy/NVeioZh5AntkdJoWKxHxcmyP622fOkgHa4z3R0TdBJICINyaSDE6uNwVc8gZr+ZinwZAH4xIA==
 
+semver@^5.6.0:
+  version "5.7.0"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-5.7.0.tgz#790a7cf6fea5459bac96110b29b60412dc8ff96b"
+  integrity sha512-Ya52jSX2u7QKghxeoFGpLwCtGlt7j0oY9DYb5apt9nPlJ42ID+ulTXESnt/qAQcoSERyZ5sl3LDIOw0nAn/5DA==
+
 set-blocking@~2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/set-blocking/-/set-blocking-2.0.0.tgz#045f9782d011ae9a6803ddd382b24392b3d890f7"
@@ -955,6 +1005,13 @@ tunnel-agent@^0.6.0:
   integrity sha1-J6XeoGs2sEoKmWZ3SykIaPD8QP0=
   dependencies:
     safe-buffer "^5.0.1"
+
+typechecker@^4.3.0:
+  version "4.7.0"
+  resolved "https://registry.yarnpkg.com/typechecker/-/typechecker-4.7.0.tgz#5249f427358f45b7250c4924fd4d01ed9ba435e9"
+  integrity sha512-4LHc1KMNJ6NDGO+dSM/yNfZQRtp8NN7psYrPHUblD62Dvkwsp3VShsbM78kOgpcmMkRTgvwdKOTjctS+uMllgQ==
+  dependencies:
+    editions "^2.1.0"
 
 universalify@^0.1.0:
   version "0.1.2"

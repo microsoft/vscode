@@ -46,6 +46,7 @@ import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import pkg from 'vs/platform/product/node/package';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
+import { getMachineId } from 'vs/base/node/id';
 
 export interface IExtensionsManagementProcessInitData {
 	args: ParsedArgs;
@@ -120,15 +121,21 @@ export class RemoteExtensionManagementServer {
 	public readonly socketServer: SocketServer<RemoteAgentConnectionContext>;
 	private readonly _uriTransformerCache: { [remoteAuthority: string]: IURITransformer; };
 
-	constructor(
+	public static create(_environmentService: IEnvironmentService): Promise<RemoteExtensionManagementServer> {
+		const server = new RemoteExtensionManagementServer(_environmentService);
+		return server._createServices(server.socketServer).then(() => {
+			return server;
+		});
+	}
+
+	private constructor(
 		private readonly _environmentService: IEnvironmentService
 	) {
 		this.socketServer = new SocketServer<RemoteAgentConnectionContext>();
 		this._uriTransformerCache = Object.create(null);
-		this._createServices(this.socketServer);
 	}
 
-	private _createServices(server: SocketServer<RemoteAgentConnectionContext>): void {
+	private async _createServices(server: SocketServer<RemoteAgentConnectionContext>): Promise<void> {
 		const services = new ServiceCollection();
 
 		// TODO: @Sandy @Joao need dynamic context based router
@@ -148,10 +155,10 @@ export class RemoteExtensionManagementServer {
 				// disposables.push(appInsightsAppender); // TODO Ensure the AI appender is disposed so that it flushes remaining data
 			}
 
-			const tempMachineId = '0000005266c953d717196bce4bd4c1c6e7b058fe0a40ec6728c6654f9fe8ceba';
+			const machineId = await getMachineId();
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
-				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', tempMachineId, this._environmentService.installSourcePath),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', machineId, this._environmentService.installSourcePath),
 				piiPaths: [this._environmentService.appRoot]
 			};
 
