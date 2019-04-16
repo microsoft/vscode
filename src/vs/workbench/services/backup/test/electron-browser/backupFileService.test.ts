@@ -15,7 +15,6 @@ import { BackupFileService, BackupFilesModel, hashPath } from 'vs/workbench/serv
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { snapshotToString } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
@@ -23,6 +22,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
+import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 
 const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');

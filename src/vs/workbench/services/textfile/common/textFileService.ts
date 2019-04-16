@@ -11,11 +11,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IFileService, IReadTextFileOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, toBufferOrReadable, ICreateFileOptions, IResourceEncodings } from 'vs/platform/files/common/files';
+import { IFileService, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -38,6 +38,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ITextSnapshot } from 'vs/editor/common/model';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -418,7 +419,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		// we limit this check to the first 512 bytes
 		for (let i = 0; i < buffer.byteLength && i < 512; i++) {
 			if (buffer.readUint8(i) === 0) {
-				throw new FileOperationError(nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), FileOperationResult.FILE_IS_BINARY, options);
+				throw new TextFileOperationError(nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
 			}
 		}
 	}
@@ -884,7 +885,10 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		} catch (error) {
 
 			// binary model: delete the file and run the operation again
-			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+			if (
+				(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
+				(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
+			) {
 				await this.fileService.del(target);
 
 				return this.doSaveTextFileAs(sourceModel, resource, target, options);

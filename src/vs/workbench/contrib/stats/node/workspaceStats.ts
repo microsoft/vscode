@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as crypto from 'crypto';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, IFileStat, IResolveFileResult, IContent } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -20,7 +20,7 @@ import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspa
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { joinPath } from 'vs/base/common/resources';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -436,7 +436,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			function getFilePromises(filename: string, fileService: IFileService, textFileService: ITextFileService, contentHandler: (content: IContent) => void): Promise<void>[] {
+			function getFilePromises(filename: string, fileService: IFileService, textFileService: ITextFileService, contentHandler: (content: ITextFileContent) => void): Promise<void>[] {
 				return !nameSet.has(filename) ? [] : (folders as URI[]).map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
 					return fileService.exists(uri).then(exists => {

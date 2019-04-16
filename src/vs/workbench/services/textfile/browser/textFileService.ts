@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IResourceEncodings, IResourceEncoding } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IResourceEncodings, IResourceEncoding } from 'vs/platform/files/common/files';
 
 export class BrowserTextFileService extends TextFileService {
 

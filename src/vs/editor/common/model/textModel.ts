@@ -30,7 +30,6 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
@@ -47,9 +46,16 @@ export function createTextBufferFactory(text: string): model.ITextBufferFactory 
 	return builder.finish();
 }
 
-export function createTextBufferFactoryFromStream(stream: IStringStream, filter?: (chunk: string) => string, validator?: (chunk: string) => Error | undefined): Promise<model.ITextBufferFactory>;
+interface ITextStream {
+	on(event: 'data', callback: (data: string) => void): void;
+	on(event: 'error', callback: (err: Error) => void): void;
+	on(event: 'end', callback: () => void): void;
+	on(event: string, callback: any): void;
+}
+
+export function createTextBufferFactoryFromStream(stream: ITextStream, filter?: (chunk: string) => string, validator?: (chunk: string) => Error | undefined): Promise<model.ITextBufferFactory>;
 export function createTextBufferFactoryFromStream(stream: VSBufferReadableStream, filter?: (chunk: VSBuffer) => VSBuffer, validator?: (chunk: VSBuffer) => Error | undefined): Promise<model.ITextBufferFactory>;
-export function createTextBufferFactoryFromStream(stream: IStringStream | VSBufferReadableStream, filter?: (chunk: any) => string | VSBuffer, validator?: (chunk: any) => Error | undefined): Promise<model.ITextBufferFactory> {
+export function createTextBufferFactoryFromStream(stream: ITextStream | VSBufferReadableStream, filter?: (chunk: any) => string | VSBuffer, validator?: (chunk: any) => Error | undefined): Promise<model.ITextBufferFactory> {
 	return new Promise<model.ITextBufferFactory>((resolve, reject) => {
 		const builder = createTextBufferBuilder();
 
@@ -87,7 +93,7 @@ export function createTextBufferFactoryFromStream(stream: IStringStream | VSBuff
 	});
 }
 
-export function createTextBufferFactoryFromSnapshot(snapshot: ITextSnapshot): model.ITextBufferFactory {
+export function createTextBufferFactoryFromSnapshot(snapshot: model.ITextSnapshot): model.ITextBufferFactory {
 	let builder = createTextBufferBuilder();
 
 	let chunk: string | null;
@@ -123,12 +129,12 @@ function singleLetter(result: number): string {
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
 
-class TextModelSnapshot implements ITextSnapshot {
+class TextModelSnapshot implements model.ITextSnapshot {
 
-	private readonly _source: ITextSnapshot;
+	private readonly _source: model.ITextSnapshot;
 	private _eos: boolean;
 
-	constructor(source: ITextSnapshot) {
+	constructor(source: model.ITextSnapshot) {
 		this._source = source;
 		this._eos = false;
 	}
@@ -743,7 +749,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return fullModelValue;
 	}
 
-	public createSnapshot(preserveBOM: boolean = false): ITextSnapshot {
+	public createSnapshot(preserveBOM: boolean = false): model.ITextSnapshot {
 		return new TextModelSnapshot(this._buffer.createSnapshot(preserveBOM));
 	}
 

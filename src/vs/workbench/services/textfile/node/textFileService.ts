@@ -6,10 +6,10 @@
 import { tmpdir } from 'os';
 import { localize } from 'vs/nls';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { ITextFileService, ITextFileStreamContent, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IResourceEncoding, IReadTextFileOptions, IWriteTextFileOptions, stringToSnapshot, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IReadTextFileOptions, stringToSnapshot, ICreateFileOptions, FileOperationError, FileOperationResult, IResourceEncodings, IFileStreamContent } from 'vs/platform/files/common/files';
+import { IFileStatWithMetadata, ICreateFileOptions, FileOperationError, FileOperationResult, IFileStreamContent } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { exists, stat, chmod, rimraf } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
@@ -27,6 +27,7 @@ import { Readable } from 'stream';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
+import { ITextSnapshot } from 'vs/editor/common/model';
 
 export class NodeTextFileService extends TextFileService {
 
@@ -75,7 +76,7 @@ export class NodeTextFileService extends TextFileService {
 
 		// validate binary
 		if (options && options.acceptTextOnly && decoder.detected.seemsBinary) {
-			throw new FileOperationError(localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), FileOperationResult.FILE_IS_BINARY, options);
+			throw new TextFileOperationError(localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
 		}
 
 		return [bufferStream, decoder];

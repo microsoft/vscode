@@ -7,9 +7,9 @@ import { URI } from 'vs/base/common/uri';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, snapshotToString, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IFileService, ITextSnapshot, snapshotToString, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -28,7 +28,7 @@ import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { detectEncodingByBOM, UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
 import { NodeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/node/textFileService';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isWindows } from 'vs/base/common/platform';
 import { readFileSync, statSync } from 'fs';
@@ -566,7 +566,7 @@ suite('Files - TextFileService i/o', () => {
 		}
 
 		assert.ok(error);
-		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_IS_BINARY);
+		assert.equal(error!.fileOperationResult, TextFileOperationResult.FILE_IS_BINARY);
 
 		const result = await service.readStream(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
 		assert.equal(result.name, 'small.txt');
