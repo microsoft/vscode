@@ -234,6 +234,8 @@ export class QuickInputList {
 	onButtonTriggered = this._onButtonTriggered.event;
 	private _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
+	private _onCtrlClickElement = new Emitter<void>();
+	onCtrlClickElement = this._onCtrlClickElement.event;
 	private _fireCheckedEvents = true;
 	private elementDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
@@ -286,6 +288,10 @@ export class QuickInputList {
 			if (e.browserEvent.button !== 2) {
 				// Works around / fixes #64350.
 				e.browserEvent.preventDefault();
+			}
+			if (e.browserEvent.ctrlKey) {
+				this.list.setSelection([]);
+				this._onCtrlClickElement.fire();
 			}
 		}));
 		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {

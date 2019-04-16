@@ -1105,6 +1105,21 @@ export class QuickInputService extends Component implements IQuickInputService {
 				this.ui.inputBox.setAttribute('aria-activedescendant', this.ui.list.getActiveDescendant() || '');
 			}
 		}));
+		this._register(list.onCtrlClickElement(() => {
+			if (this.controller instanceof QuickPick) {
+				if (!this.controller.canSelectMany) {
+					this.controller.canSelectMany = true;
+				} else {
+					// Defer to avoid the list reacting to the selection change
+					setTimeout(() => {
+						console.log('SETTING!!!!!');
+						if (this.controller instanceof QuickPick) {
+							this.controller.canSelectMany = false;
+						}
+					}, 0);
+				}
+			}
+		}));
 
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);

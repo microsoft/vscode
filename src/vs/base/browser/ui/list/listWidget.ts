@@ -610,7 +610,7 @@ export class MouseController<T> implements IDisposable {
 
 		this.list.setFocus([focus], e.browserEvent);
 
-		if (!isMouseRightClick(e.browserEvent)) {
+		if (!isMouseRightClick(e.browserEvent) && !e.browserEvent.ctrlKey) {
 			this.list.setSelection([focus], e.browserEvent);
 
 			if (this.openController.shouldOpen(e.browserEvent)) {

@@ -78,7 +78,7 @@ export class RemoteFileDialog {
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
 	}
 
-	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
+	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI[] | undefined> {
 		this.scheme = this.getScheme(options.defaultUri, options.availableFileSystems);
 		this.userHome = await this.getUserHome();
 		const newOptions = await this.getOptions(options);
@@ -103,7 +103,7 @@ export class RemoteFileDialog {
 
 		return new Promise<URI | undefined>((resolve) => {
 			this.pickResource(true).then(folderUri => {
-				resolve(folderUri);
+				resolve(folderUri ? folderUri[0] : undefined);
 			});
 		});
 	}
@@ -145,7 +145,7 @@ export class RemoteFileDialog {
 		return URI.from({ scheme: this.scheme, path: this.environmentService.userHome });
 	}
 
-	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {
+	private async pickResource(isSave: boolean = false): Promise<URI[] | undefined> {
 		this.allowFolderSelection = !!this.options.canSelectFolders;
 		this.allowFileSelection = !!this.options.canSelectFiles;
 		this.hidden = false;
@@ -175,7 +175,7 @@ export class RemoteFileDialog {
 			}
 		}
 
-		return new Promise<URI | undefined>(async (resolve) => {
+		return new Promise<URI[] | undefined>(async (resolve) => {
 			this.filePickBox = this.quickInputService.createQuickPick<FileQuickPickItem>();
 			this.filePickBox.matchOnLabel = false;
 			this.filePickBox.autoFocusOnList = false;
@@ -198,13 +198,13 @@ export class RemoteFileDialog {
 			this.currentFolder = homedir;
 			this.userEnteredPathSegment = '';
 			this.autoCompletePathSegment = '';
-
+			// this.filePickBox.canSelectMany = true;
 			this.filePickBox.title = this.options.title;
 			this.filePickBox.value = this.pathFromUri(this.currentFolder, true);
 			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			this.filePickBox.items = [];
 
-			function doResolve(dialog: RemoteFileDialog, uri: URI | undefined) {
+			function doResolve(dialog: RemoteFileDialog, uri: URI[] | undefined) {
 				resolve(uri);
 				dialog.contextKey.set(false);
 				dialog.filePickBox.dispose();
@@ -223,11 +223,11 @@ export class RemoteFileDialog {
 				this.options.defaultUri = undefined;
 				if (this.requiresTrailing) {
 					return this.fileDialogService.showSaveDialog(this.options).then(result => {
-						doResolve(this, result);
+						doResolve(this, result ? [result] : undefined);
 					});
 				} else {
 					return this.fileDialogService.showOpenDialog(this.options).then(result => {
-						doResolve(this, result ? result[0] : undefined);
+						doResolve(this, result);
 					});
 				}
 			});
@@ -254,10 +254,17 @@ export class RemoteFileDialog {
 			this.filePickBox.onDidChangeActive(i => {
 				isAcceptHandled = false;
 				// update input box to match the first selected item
-				if ((i.length === 1) && this.isChangeFromUser()) {
+				if (this.isChangeFromUser()) {
 					this.filePickBox.validationMessage = undefined;
-					this.setAutoComplete(this.constructFullUserPath(), this.userEnteredPathSegment, i[0], true);
+					if (i.length === 1) {
+						this.setAutoComplete(this.constructFullUserPath(), this.userEnteredPathSegment, i[0], true);
+					} else {
+						this.setAutoComplete(this.constructFullUserPath(), '', undefined);
+					}
 				}
+			});
+			this.filePickBox.onDidChangeSelection(i => {
+				this.setAutoComplete(this.constructFullUserPath(), '', undefined);
 			});
 
 			this.filePickBox.onDidChangeValue(async value => {
@@ -314,8 +321,8 @@ export class RemoteFileDialog {
 		return this.pathAppend(this.currentFolder, this.userEnteredPathSegment);
 	}
 
-	private async onDidAccept(): Promise<URI | undefined> {
-		let resolveValue: URI | undefined;
+	private async onDidAccept(): Promise<URI[] | undefined> {
+		let resolveValue: URI[] | undefined;
 		let navigateValue: URI | undefined;
 		const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
 		const inputUri = this.remoteUriFrom(trimmedPickBoxValue);
@@ -330,11 +337,16 @@ export class RemoteFileDialog {
 		}
 
 		// Find resolve value
-		if (this.filePickBox.activeItems.length === 0) {
+		if (this.filePickBox.selectedItems && this.filePickBox.selectedItems.length > 0) {
+			resolveValue = [];
+			this.filePickBox.selectedItems.forEach(selectedItem => {
+				resolveValue!.push(selectedItem.uri);
+			});
+		} else if (this.filePickBox.activeItems.length === 0) {
 			if (!this.requiresTrailing && resources.isEqual(this.currentFolder, inputUri, true)) {
-				resolveValue = inputUri;
+				resolveValue = [inputUri];
 			} else if (statDirname && statDirname.isDirectory) {
-				resolveValue = inputUri;
+				resolveValue = [inputUri];
 			} else if (stat && stat.isDirectory) {
 				navigateValue = inputUri;
 			}
@@ -342,7 +354,7 @@ export class RemoteFileDialog {
 			const item = this.filePickBox.selectedItems[0];
 			if (item) {
 				if (!item.isFolder) {
-					resolveValue = item.uri;
+					resolveValue = [item.uri];
 				} else {
 					navigateValue = item.uri;
 				}
@@ -350,7 +362,9 @@ export class RemoteFileDialog {
 		}
 
 		if (resolveValue) {
-			resolveValue = this.addPostfix(resolveValue);
+			if (resolveValue.length === 1) {
+				resolveValue[0] = this.addPostfix(resolveValue[0]);
+			}
 			if (await this.validate(resolveValue)) {
 				return Promise.resolve(resolveValue);
 			}
@@ -434,8 +448,14 @@ export class RemoteFileDialog {
 		}
 	}
 
-	private setAutoComplete(startingValue: string, startingBasename: string, quickPickItem: FileQuickPickItem, force: boolean = false): boolean {
-		if (this.filePickBox.busy) {
+	private setAutoComplete(startingValue: string, startingBasename: string, quickPickItem: FileQuickPickItem | undefined, force: boolean = false): boolean {
+		if (!quickPickItem) {
+			this.autoCompletePathSegment = '';
+			this.userEnteredPathSegment = '';
+			this.filePickBox.valueSelection = [startingValue.length, this.filePickBox.value.length];
+			this.insertText(startingValue, '');
+			return false;
+		} else if (this.filePickBox.busy) {
 			// We're in the middle of something else. Doing an auto complete now can result jumbled or incorrect autocompletes.
 			this.userEnteredPathSegment = startingBasename;
 			this.autoCompletePathSegment = '';
@@ -536,49 +556,55 @@ export class RemoteFileDialog {
 		});
 	}
 
-	private async validate(uri: URI): Promise<boolean> {
-		let stat: IFileStat | undefined;
-		let statDirname: IFileStat | undefined;
-		try {
-			statDirname = await this.fileService.resolve(resources.dirname(uri));
-			stat = await this.fileService.resolve(uri);
-		} catch (e) {
-			// do nothing
-		}
-
-		if (this.requiresTrailing) { // save
-			if (stat && stat.isDirectory) {
-				// Can't do this
-				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolder', 'The folder already exists. Please use a new file name.');
-				return Promise.resolve(false);
-			} else if (stat && !this.shouldOverwriteFile) {
-				// Replacing a file.
-				this.shouldOverwriteFile = true;
-				// Show a yes/no prompt
-				const message = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri));
-				return this.yesNoPrompt(message);
-			} else if (!this.isValidBaseName(resources.basename(uri))) {
-				// Filename not allowed
-				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
-				return Promise.resolve(false);
-			} else if (!statDirname || !statDirname.isDirectory) {
-				// Folder to save in doesn't exist
-				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
-				return Promise.resolve(false);
+	private async validate(uri: URI[]): Promise<boolean> {
+		for (let i = 0; i < uri.length; i++) {
+			let stat: IFileStat | undefined;
+			let statDirname: IFileStat | undefined;
+			try {
+				statDirname = await this.fileService.resolve(resources.dirname(uri[i]));
+				stat = await this.fileService.resolve(uri[i]);
+			} catch (e) {
+				// do nothing
 			}
-		} else { // open
-			if (!stat) {
-				// File or folder doesn't exist
-				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
-				return Promise.resolve(false);
-			} else if (stat.isDirectory && !this.allowFolderSelection) {
-				// Folder selected when folder selection not permitted
-				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFileOnly', 'Please select a file.');
-				return Promise.resolve(false);
-			} else if (!stat.isDirectory && !this.allowFileSelection) {
-				// File selected when file selection not permitted
-				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolderOnly', 'Please select a folder.');
-				return Promise.resolve(false);
+
+			if (this.requiresTrailing) { // save
+				if (uri.length > 1) {
+					// The uri array can only have one value in it. Something has gone very wrong otherwise.
+					this.filePickBox.validationMessage = nls.localize('remoteFileDialog.tooMany', 'Can only Save As one item.');
+					return Promise.resolve(false);
+				} else if (stat && stat.isDirectory) {
+					// Can't do this
+					this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolder', 'The folder already exists. Please use a new file name.');
+					return Promise.resolve(false);
+				} else if (stat && !this.shouldOverwriteFile) {
+					// Replacing a file.
+					this.shouldOverwriteFile = true;
+					// Show a yes/no prompt
+					const message = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri[i]));
+					return this.yesNoPrompt(message);
+				} else if (!this.isValidBaseName(resources.basename(uri[i]))) {
+					// Filename not allowed
+					this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
+					return Promise.resolve(false);
+				} else if (!statDirname || !statDirname.isDirectory) {
+					// Folder to save in doesn't exist
+					this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
+					return Promise.resolve(false);
+				}
+			} else { // open
+				if (!stat) {
+					// File or folder doesn't exist
+					this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
+					return Promise.resolve(false);
+				} else if (stat.isDirectory && !this.allowFolderSelection) {
+					// Folder selected when folder selection not permitted
+					this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFileOnly', 'Please select a file.');
+					return Promise.resolve(false);
+				} else if (!stat.isDirectory && !this.allowFileSelection) {
+					// File selected when file selection not permitted
+					this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolderOnly', 'Please select a folder.');
+					return Promise.resolve(false);
+				}
 			}
 		}
 		return Promise.resolve(true);
