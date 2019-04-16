@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewState, WebviewInsetHandle } from './extHost.protocol';
 import { Disposable } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import * as modes from 'vs/editor/common/modes';
 
 type IconPath = URI | { light: URI, dark: URI };
 
@@ -58,7 +59,7 @@ export class ExtHostWebview implements vscode.Webview {
 
 	public set options(newOptions: vscode.WebviewOptions) {
 		this.assertNotDisposed();
-		this._proxy.$setOptions(this._handle, newOptions);
+		this._proxy.$setOptions(this._handle, convertWebviewOptions(newOptions));
 		this._options = newOptions;
 	}
 
@@ -257,7 +258,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		};
 
 		const handle = ExtHostWebviews.newHandle();
-		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, options, extension.identifier, extension.extensionLocation);
+		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, convertWebviewOptions(options), extension.identifier, extension.extensionLocation);
 
 		const webview = new ExtHostWebview(handle, this._proxy, options);
 		const panel = new ExtHostWebviewPanel(handle, this._proxy, viewType, title, viewColumn, options, webview);
@@ -325,7 +326,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		title: string,
 		state: any,
 		position: EditorViewColumn,
-		options: vscode.WebviewOptions & vscode.WebviewPanelOptions
+		options: modes.IWebviewOptions & modes.IWebviewPanelOptions
 	): Promise<void> {
 		const serializer = this._serializers.get(viewType);
 		if (!serializer) {
@@ -341,4 +342,21 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewPanel | undefined {
 		return this._webviewPanels.get(handle);
 	}
+}
+
+function convertWebviewOptions(
+	options: vscode.WebviewPanelOptions & vscode.WebviewOptions
+): modes.IWebviewOptions {
+	return {
+		...options,
+		portMapping: options.portMapping
+			? options.portMapping.map((x): modes.IWebviewPortMapping => {
+				// Handle old proposed api
+				if ('port' in x) {
+					return { webviewPort: (x as any).port, extensionHostPort: (x as any).resolvedPort };
+				}
+				return { webviewPort: x.webviewPort, extensionHostPort: x.extensionHostPort };
+			})
+			: undefined,
+	};
 }

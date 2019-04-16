@@ -22,6 +22,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IFileService } from 'vs/platform/files/common/files';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export abstract class TerminalService extends CommonTerminalService implements ITerminalService {
 	protected _configHelper: IBrowserTerminalConfigHelper;
@@ -38,8 +39,9 @@ export abstract class TerminalService extends CommonTerminalService implements I
 		@IWorkbenchEnvironmentService private _environmentService: IWorkbenchEnvironmentService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
-		super(contextKeyService, panelService, lifecycleService, storageService, notificationService, dialogService, extensionService, fileService);
+		super(contextKeyService, panelService, lifecycleService, storageService, notificationService, dialogService, extensionService, fileService, remoteAgentService);
 	}
 
 	protected abstract _getDefaultShell(p: platform.Platform): string;

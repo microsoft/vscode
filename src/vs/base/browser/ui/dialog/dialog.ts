@@ -20,6 +20,7 @@ export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
 	type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
+	keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 }
 
 export interface IDialogStyles extends IButtonStyles {
@@ -103,19 +104,26 @@ export class Dialog extends Disposable {
 					return;
 				}
 
+				let eventHandled = false;
 				if (this.buttonGroup) {
 					if (evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
 						focusedButton = focusedButton + this.buttonGroup.buttons.length - 1;
 						focusedButton = focusedButton % this.buttonGroup.buttons.length;
 						this.buttonGroup.buttons[focusedButton].focus();
+						eventHandled = true;
 					} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
 						focusedButton++;
 						focusedButton = focusedButton % this.buttonGroup.buttons.length;
 						this.buttonGroup.buttons[focusedButton].focus();
+						eventHandled = true;
 					}
 				}
 
-				EventHelper.stop(e, true);
+				if (eventHandled) {
+					EventHelper.stop(e, true);
+				} else if (this.options.keyEventProcessor) {
+					this.options.keyEventProcessor(evt);
+				}
 			}));
 
 			this._register(domEvent(window, 'keyup', true)((e: KeyboardEvent) => {

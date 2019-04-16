@@ -23,11 +23,19 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { RemoteFileDialogContext } from 'vs/workbench/common/contextkeys';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { equalsIgnoreCase, format } from 'vs/base/common/strings';
+import { OpenLocalFileAction, OpenLocalFileFolderAction, OpenLocalFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
 	isFolder: boolean;
+}
+
+enum UpdateResult {
+	Updated,
+	NotUpdated,
+	InvalidPath
 }
 
 // Reference: https://en.wikipedia.org/wiki/Filename
@@ -50,6 +58,7 @@ export class RemoteFileDialog {
 	private autoCompletePathSegment: string;
 	private activeItem: FileQuickPickItem;
 	private userHome: URI;
+	private badPath: string | undefined;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -62,8 +71,8 @@ export class RemoteFileDialog {
 		@IModeService private readonly modeService: IModeService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IContextKeyService contextKeyService: IContextKeyService
-
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this.remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
@@ -174,6 +183,14 @@ export class RemoteFileDialog {
 			if (this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
 				this.filePickBox.customButton = true;
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
+				const action = this.allowFileSelection ? (this.allowFolderSelection ? OpenLocalFileFolderAction : OpenLocalFileAction) : OpenLocalFolderAction;
+				const keybinding = this.keybindingService.lookupKeybinding(action.ID);
+				if (keybinding) {
+					const label = keybinding.getLabel();
+					if (label) {
+						this.filePickBox.customHover = format('{0} ({1})', action.LABEL, label);
+					}
+				}
 			}
 
 			let isResolving = false;
@@ -183,7 +200,8 @@ export class RemoteFileDialog {
 			this.autoCompletePathSegment = '';
 
 			this.filePickBox.title = this.options.title;
-			this.filePickBox.value = this.pathFromUri(this.currentFolder);
+			this.filePickBox.value = this.pathFromUri(this.currentFolder, true);
+			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			this.filePickBox.items = [];
 
 			function doResolve(dialog: RemoteFileDialog, uri: URI | undefined) {
@@ -244,15 +262,16 @@ export class RemoteFileDialog {
 			this.filePickBox.onDidChangeValue(async value => {
 				// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
 				if (this.isChangeFromUser()) {
-					if (value !== this.constructFullUserPath()) {
+					// If the user has just entered more bad path, don't change anything
+					if (value !== this.constructFullUserPath() && !this.isBadSubpath(value)) {
 						this.filePickBox.validationMessage = undefined;
 						this.shouldOverwriteFile = false;
 						const valueUri = this.remoteUriFrom(this.trimTrailingSlash(this.filePickBox.value));
-						let isUpdate = false;
+						let updated: UpdateResult = UpdateResult.NotUpdated;
 						if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), valueUri, true)) {
-							isUpdate = await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
+							updated = await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
 						}
-						if (!isUpdate) {
+						if (updated === UpdateResult.NotUpdated) {
 							this.setActiveItems(value);
 						}
 					} else {
@@ -276,6 +295,10 @@ export class RemoteFileDialog {
 				this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			}
 		});
+	}
+
+	private isBadSubpath(value: string) {
+		return this.badPath && (value.length > this.badPath.length) && equalsIgnoreCase(value.substring(0, this.badPath.length), this.badPath);
 	}
 
 	private isChangeFromUser(): boolean {
@@ -339,10 +362,11 @@ export class RemoteFileDialog {
 		return Promise.resolve(undefined);
 	}
 
-	private async tryUpdateItems(value: string, valueUri: URI): Promise<boolean> {
+	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
 		if (value[value.length - 1] === '~') {
 			await this.updateItems(this.userHome);
-			return true;
+			this.badPath = undefined;
+			return UpdateResult.Updated;
 		} else if (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true))) {
 			let stat: IFileStat | undefined;
 			try {
@@ -352,7 +376,14 @@ export class RemoteFileDialog {
 			}
 			if (stat && stat.isDirectory && (resources.basename(valueUri) !== '.') && this.endsWithSlash(value)) {
 				await this.updateItems(valueUri);
-				return true;
+				return UpdateResult.Updated;
+			} else if (this.endsWithSlash(value)) {
+				// The input box contains a path that doesn't exist on the system.
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.badPath', 'The path does not exist.');
+				// Save this bad path. It can take too long to to a stat on every user entered character, but once a user enters a bad path they are likely
+				// to keep typing more bad path. We can compare against this bad path and see if the user entered path starts with it.
+				this.badPath = value;
+				return UpdateResult.InvalidPath;
 			} else {
 				const inputUriDirname = resources.dirname(valueUri);
 				if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), inputUriDirname, true)) {
@@ -364,12 +395,14 @@ export class RemoteFileDialog {
 					}
 					if (statWithoutTrailing && statWithoutTrailing.isDirectory && (resources.basename(valueUri) !== '.')) {
 						await this.updateItems(inputUriDirname, resources.basename(valueUri));
-						return true;
+						this.badPath = undefined;
+						return UpdateResult.Updated;
 					}
 				}
 			}
 		}
-		return false;
+		this.badPath = undefined;
+		return UpdateResult.NotUpdated;
 	}
 
 	private setActiveItems(value: string) {
@@ -407,7 +440,7 @@ export class RemoteFileDialog {
 			this.autoCompletePathSegment = '';
 			return false;
 		}
-		const itemBasename = (quickPickItem.label === '..') ? quickPickItem.label : resources.basename(quickPickItem.uri);
+		const itemBasename = quickPickItem.label;
 		// Either force the autocomplete, or the old value should be one smaller than the new value and match the new value.
 		if (!force && (itemBasename.length >= startingBasename.length) && equalsIgnoreCase(itemBasename.substr(0, startingBasename.length), startingBasename)) {
 			this.userEnteredPathSegment = startingBasename;
@@ -561,8 +594,11 @@ export class RemoteFileDialog {
 			if (this.allowFolderSelection) {
 				this.filePickBox.activeItems = [];
 			}
-			this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
-			this.insertText(newValue, newValue);
+			if (!equalsIgnoreCase(this.filePickBox.value, newValue)) {
+				this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
+				this.insertText(newValue, newValue);
+			}
+			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			this.filePickBox.busy = false;
 		});
 	}

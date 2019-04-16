@@ -135,47 +135,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(hasRemoteAuthority ? REMOTE_HOST_SCHEME : undefined);
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
 		} else {
-			if (!shellLaunchConfig.executable) {
-				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
-			}
-
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-			const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, this._environmentService.userHome, activeWorkspaceRootUri, this._configHelper.config.cwd);
-
-			// Compel type system as process.env should not have any undefined entries
-			let env: platform.IProcessEnvironment = {};
-
-			if (shellLaunchConfig.strictEnv) {
-				// Only base the terminal process environment on this environment and add the
-				// various mixins when strictEnv is false
-				env = { ...shellLaunchConfig.env } as any;
-			} else {
-				// Merge process env with the env from config and from shellLaunchConfig
-				env = { ...process.env } as any;
-
-				// Resolve env vars from config and shell
-				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
-				const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-				const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
-				const envFromConfigValue = this._workspaceConfigurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
-				const allowedEnvFromConfig = (isWorkspaceShellAllowed ? envFromConfigValue.value : envFromConfigValue.user);
-				const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...allowedEnvFromConfig }, lastActiveWorkspaceRoot);
-				const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-				shellLaunchConfig.env = envFromShell;
-
-				terminalEnvironment.mergeEnvironments(env, envFromConfig);
-				terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
-
-				// Sanitize the environment, removing any undesirable VS Code and Electron environment
-				// variables
-				sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
-
-				// Adding other env keys necessary to create the process
-				terminalEnvironment.addTerminalEnvironmentKeys(env, this._productService.version, platform.locale, this._configHelper.config.setLocaleVariables);
-			}
-
-			this._logService.debug(`Terminal process launching`, shellLaunchConfig, initialCwd, cols, rows, env);
-			this._process = this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
+			this._process = this._launchProcess(shellLaunchConfig, cols, rows);
 		}
 		this.processState = ProcessState.LAUNCHING;
 
@@ -209,6 +169,50 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 				this.processState = ProcessState.RUNNING;
 			}
 		}, LAUNCHING_DURATION);
+	}
+
+	private _launchProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): ITerminalChildProcess {
+		if (!shellLaunchConfig.executable) {
+			this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
+		}
+
+		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
+		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, this._environmentService.userHome, activeWorkspaceRootUri, this._configHelper.config.cwd);
+
+		// Compel type system as process.env should not have any undefined entries
+		let env: platform.IProcessEnvironment = {};
+
+		if (shellLaunchConfig.strictEnv) {
+			// Only base the terminal process environment on this environment and add the
+			// various mixins when strictEnv is false
+			env = { ...shellLaunchConfig.env } as any;
+		} else {
+			// Merge process env with the env from config and from shellLaunchConfig
+			env = { ...process.env } as any;
+
+			// Resolve env vars from config and shell
+			const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
+			const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+			const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
+			const envFromConfigValue = this._workspaceConfigurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
+			const allowedEnvFromConfig = (isWorkspaceShellAllowed ? envFromConfigValue.value : envFromConfigValue.user);
+			const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...allowedEnvFromConfig }, lastActiveWorkspaceRoot);
+			const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
+			shellLaunchConfig.env = envFromShell;
+
+			terminalEnvironment.mergeEnvironments(env, envFromConfig);
+			terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
+
+			// Sanitize the environment, removing any undesirable VS Code and Electron environment
+			// variables
+			sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
+
+			// Adding other env keys necessary to create the process
+			terminalEnvironment.addTerminalEnvironmentKeys(env, this._productService.version, platform.locale, this._configHelper.config.setLocaleVariables);
+		}
+
+		this._logService.debug(`Terminal process launching`, shellLaunchConfig, initialCwd, cols, rows, env);
+		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
 	}
 
 	public setDimensions(cols: number, rows: number): void {

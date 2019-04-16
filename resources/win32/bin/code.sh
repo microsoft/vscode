@@ -5,6 +5,7 @@
 COMMIT="@@COMMIT@@"
 APP_NAME="@@APPNAME@@"
 QUALITY="@@QUALITY@@"
+NAME="@@NAME@@"
 
 set -e
 
@@ -21,6 +22,8 @@ if grep -qi Microsoft /proc/version; then
 		exit $?
 	fi
 fi
+
+VSCODE_PATH="$(dirname "$(dirname "$(realpath "$0")")")"
 
 if [ -x "$(command -v cygpath)" ]; then
 	CLI=$(cygpath -m "$VSCODE_PATH/resources/app/out/cli.js")

@@ -163,7 +163,7 @@ function darkenColor(color) {
 	for (let i = 1; i < 7; i += 2) {
 		let newVal = Math.round(parseInt('0x' + color.substr(i, 2), 16) * 0.9);
 		let hex = newVal.toString(16);
-		if (hex.length == 1) {
+		if (hex.length === 1) {
 			res += '0';
 		}
 		res += hex;

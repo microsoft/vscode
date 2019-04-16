@@ -197,12 +197,14 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 	help.push('');
 	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}][${localize('paths', 'paths')}...]`);
 	help.push('');
-	if (os.platform() === 'win32') {
-		help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
-	} else {
-		help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
+	if (isPipeSupported) {
+		if (os.platform() === 'win32') {
+			help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
+		} else {
+			help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
+		}
+		help.push('');
 	}
-	help.push('');
 	for (let key in categories) {
 		let categoryOptions = options.filter(o => !!o.description && o.cat === key && isOptionSupported(o));
 		if (categoryOptions.length) {
