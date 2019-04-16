@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from 'vs/workbench/common/theme';
 
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { RemoteExtensionLogFileName, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -102,7 +102,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 
 	private renderWindowIndicator(text: string, tooltip?: string, command?: string): void {
 		const properties: IStatusbarEntry = {
-			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND), text, tooltip, command
+			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND), color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND), text, tooltip, command
 		};
 		if (this.windowIndicatorEntry) {
 			this.windowIndicatorEntry.update(properties);
