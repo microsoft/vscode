@@ -2840,7 +2840,7 @@ export class InstallVSIXAction extends Action {
 					for (const extension of extensions) {
 						const requireReload = !(extension.local && this.extensionService.canAddExtension(toExtensionDescription(extension.local)));
 						const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.identifier.id)
-							: localize('InstallVSIXAction.success', "Installing the extension {0} is completed.", extension.identifier.id);
+							: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.identifier.id);
 						const actions = requireReload ? [{
 							label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
 							run: () => this.windowService.reloadWindow()

@@ -72,6 +72,10 @@ declare module 'vscode' {
 
 	//#region Alex - resolvers
 
+	export interface RemoteAuthorityResolverContext {
+		resolveAttempt: number;
+	}
+
 	export class ResolvedAuthority {
 		readonly host: string;
 		readonly port: number;
@@ -79,8 +83,15 @@ declare module 'vscode' {
 		constructor(host: string, port: number);
 	}
 
+	export class RemoteAuthorityResolverError extends Error {
+		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
+		static TemporarilyNotAvailable(message?: string): RemoteAuthorityResolverError;
+
+		constructor(message?: string);
+	}
+
 	export interface RemoteAuthorityResolver {
-		resolve(authority: string): ResolvedAuthority | Thenable<ResolvedAuthority>;
+		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolvedAuthority | Thenable<ResolvedAuthority>;
 	}
 
 	export interface ResourceLabelFormatter {
