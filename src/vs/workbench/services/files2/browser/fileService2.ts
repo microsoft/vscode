@@ -5,7 +5,7 @@
 
 import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
 import { URI } from 'vs/base/common/uri';
-import { IResolveContentOptions, IStreamContent, IStringStream, IContent, IFileSystemProvider, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IReadTextFileOptions, IStreamContent, IStringStream, IContent, IFileSystemProvider, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { basename } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { localize } from 'vs/nls';
@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 // TODO@ben temporary for testing only
 export class FileService3 extends FileService2 {
 
-	async resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent> {
+	async resolveContent(resource: URI, options?: IReadTextFileOptions): Promise<IContent> {
 		return this.resolveStreamContent(resource, options).then(streamContent => {
 			return new Promise<IContent>((resolve, reject) => {
 
@@ -37,7 +37,7 @@ export class FileService3 extends FileService2 {
 		});
 	}
 
-	async resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent> {
+	async resolveStreamContent(resource: URI, options?: IReadTextFileOptions): Promise<IStreamContent> {
 		const provider = await this.withProvider(resource);
 		if (provider && provider.readFile) {
 			const listeners: { [type: string]: any[]; } = Object.create(null);

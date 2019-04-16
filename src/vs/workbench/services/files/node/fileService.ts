@@ -6,7 +6,7 @@
 import * as paths from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as assert from 'assert';
-import { FileOperationEvent, IContent, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IContentData, ILegacyFileService, IFileService, IFileSystemProvider } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IContent, IReadTextFileOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IContentData, ILegacyFileService, IFileService, IFileSystemProvider } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
@@ -55,7 +55,7 @@ export class LegacyFileService extends Disposable implements ILegacyFileService 
 
 	//#region Read File
 
-	resolveContent(resource: uri, options?: IResolveContentOptions): Promise<IContent> {
+	resolveContent(resource: uri, options?: IReadTextFileOptions): Promise<IContent> {
 		return this.resolveStreamContent(resource, options).then(streamContent => {
 			return new Promise<IContent>((resolve, reject) => {
 
@@ -79,7 +79,7 @@ export class LegacyFileService extends Disposable implements ILegacyFileService 
 		});
 	}
 
-	resolveStreamContent(resource: uri, options?: IResolveContentOptions): Promise<IStreamContent> {
+	resolveStreamContent(resource: uri, options?: IReadTextFileOptions): Promise<IStreamContent> {
 
 		// Guard early against attempts to resolve an invalid file path
 		if (resource.scheme !== Schemas.file || !resource.fsPath) {
@@ -220,14 +220,14 @@ export class LegacyFileService extends Disposable implements ILegacyFileService 
 		});
 	}
 
-	private fillInContents(content: Partial<IStreamContent>, resource: uri, options: IResolveContentOptions | undefined, token: CancellationToken): Promise<void> {
+	private fillInContents(content: Partial<IStreamContent>, resource: uri, options: IReadTextFileOptions | undefined, token: CancellationToken): Promise<void> {
 		return this.resolveFileData(resource, options, token).then(data => {
 			content.encoding = data.encoding;
 			content.value = data.stream;
 		});
 	}
 
-	private resolveFileData(resource: uri, options: IResolveContentOptions | undefined, token: CancellationToken): Promise<IContentData> {
+	private resolveFileData(resource: uri, options: IReadTextFileOptions | undefined, token: CancellationToken): Promise<IContentData> {
 		const chunkBuffer = Buffer.allocUnsafe(64 * 1024);
 
 		const result: Partial<IContentData> = {

@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
-import { IResolveContentOptions, ITextSnapshot, IBaseStatWithMetadata, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncodings } from 'vs/platform/files/common/files';
+import { IReadTextFileOptions, ITextSnapshot, IBaseStatWithMetadata, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncodings } from 'vs/platform/files/common/files';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
@@ -103,7 +103,7 @@ export interface ITextFileService extends IDisposable {
 	/**
 	 * Read the contents of a file identified by the resource.
 	 */
-	read(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent>;
+	read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent>;
 
 	/**
 	 * Update a file with given contents.
@@ -262,7 +262,7 @@ export const enum LoadReason {
 	OTHER = 3
 }
 
-export interface IRawTextContent extends IBaseStatWithMetadata {
+export interface ITextFileContent extends IBaseStatWithMetadata {
 
 	/**
 	 * The line grouped content of a text file.

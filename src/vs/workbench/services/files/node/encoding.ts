@@ -6,7 +6,7 @@
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import * as encoding from 'vs/base/node/encoding';
 import { URI } from 'vs/base/common/uri';
-import { IResolveContentOptions, isParent, IResourceEncodings, IResourceEncoding } from 'vs/platform/files/common/files';
+import { IReadTextFileOptions, isParent, IResourceEncodings, IResourceEncoding } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { extname } from 'vs/base/common/path';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -49,7 +49,7 @@ export class ResourceEncodings extends Disposable implements IResourceEncodings 
 		}));
 	}
 
-	getReadEncoding(resource: URI, options: IResolveContentOptions | undefined, detected: encoding.IDetectedEncodingResult): string {
+	getReadEncoding(resource: URI, options: IReadTextFileOptions | undefined, detected: encoding.IDetectedEncodingResult): string {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option

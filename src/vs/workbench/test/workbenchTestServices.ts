@@ -25,11 +25,11 @@ import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/serv
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncoding, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IReadTextFileOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncoding, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -235,7 +235,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		this.resolveTextContentError = error;
 	}
 
-	public read(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent> {
+	public read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
@@ -243,7 +243,7 @@ export class TestTextFileService extends BrowserTextFileService {
 			return Promise.reject(error);
 		}
 
-		return this.fileService.resolveContent(resource, options).then((content): IRawTextContent => {
+		return this.fileService.resolveContent(resource, options).then((content): ITextFileContent => {
 			return {
 				resource: content.resource,
 				name: content.name,
@@ -949,7 +949,7 @@ export class TestFileService implements IFileService {
 		return Promise.resolve(true);
 	}
 
-	resolveContent(resource: URI, _options?: IResolveContentOptions): Promise<IContent> {
+	resolveContent(resource: URI, _options?: IReadTextFileOptions): Promise<IContent> {
 		return Promise.resolve({
 			resource: resource,
 			value: this.content,
@@ -961,7 +961,7 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveStreamContent(resource: URI, _options?: IResolveContentOptions): Promise<IStreamContent> {
+	resolveStreamContent(resource: URI, _options?: IReadTextFileOptions): Promise<IStreamContent> {
 		return Promise.resolve({
 			resource: resource,
 			value: {

@@ -11,11 +11,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, toBufferOrReadable, ICreateFileOptions, IResourceEncodings } from 'vs/platform/files/common/files';
+import { IFileService, IReadTextFileOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration, ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, toBufferOrReadable, ICreateFileOptions, IResourceEncodings } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -368,7 +368,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	//#region primitives (resolve, create, move, delete, update)
 
-	async read(resource: URI, options?: IResolveContentOptions): Promise<IRawTextContent> {
+	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 		const streamContent = await this.fileService.resolveStreamContent(resource, options);
 		const value = await createTextBufferFactoryFromStream(streamContent.value);
 

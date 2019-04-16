@@ -104,12 +104,12 @@ export interface IFileService {
 	/**
 	 * @deprecated use readFile() instead.
 	 */
-	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent>;
+	resolveContent(resource: URI, options?: IReadTextFileOptions): Promise<IContent>;
 
 	/**
 	 * @deprecated use readFileStream() instead.
 	 */
-	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
+	resolveStreamContent(resource: URI, options?: IReadTextFileOptions): Promise<IStreamContent>;
 
 	/**
 	 * Read the contents of the provided resource unbuffered.
@@ -787,7 +787,7 @@ export interface IReadFileOptions {
 	};
 }
 
-export interface IResolveContentOptions extends IReadFileOptions {
+export interface IReadTextFileOptions extends IReadFileOptions {
 
 	/**
 	 * The optional acceptTextOnly parameter allows to fail this request early if the file
@@ -878,7 +878,7 @@ export interface ICreateFileOptions {
 }
 
 export class FileOperationError extends Error {
-	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IResolveContentOptions & IWriteTextFileOptions & ICreateFileOptions) {
+	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IReadTextFileOptions & IWriteTextFileOptions & ICreateFileOptions) {
 		super(message);
 	}
 
@@ -1209,7 +1209,7 @@ export interface ILegacyFileService extends IDisposable {
 
 	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
-	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent>;
+	resolveContent(resource: URI, options?: IReadTextFileOptions): Promise<IContent>;
 
-	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent>;
+	resolveStreamContent(resource: URI, options?: IReadTextFileOptions): Promise<IStreamContent>;
 }

@@ -11,7 +11,7 @@ import { IDecodeStreamOptions, toDecodeStream } from 'vs/base/node/encoding';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperationError, FileOperationResult, IContent, IFileSystemProvider, IResolveContentOptions, IStreamContent, ILegacyFileService, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IContent, IFileSystemProvider, IReadTextFileOptions, IStreamContent, ILegacyFileService, IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { createReadableOfProvider } from 'vs/workbench/services/files/node/streams';
@@ -77,7 +77,7 @@ export class LegacyRemoteFileService extends LegacyFileService {
 
 	// --- resolve
 
-	resolveContent(resource: URI, options?: IResolveContentOptions): Promise<IContent> {
+	resolveContent(resource: URI, options?: IReadTextFileOptions): Promise<IContent> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveContent(resource, options);
 		} else {
@@ -85,7 +85,7 @@ export class LegacyRemoteFileService extends LegacyFileService {
 		}
 	}
 
-	resolveStreamContent(resource: URI, options?: IResolveContentOptions): Promise<IStreamContent> {
+	resolveStreamContent(resource: URI, options?: IReadTextFileOptions): Promise<IStreamContent> {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveStreamContent(resource, options);
 		} else {
@@ -93,7 +93,7 @@ export class LegacyRemoteFileService extends LegacyFileService {
 		}
 	}
 
-	private _readFile(resource: URI, options: IResolveContentOptions = Object.create(null)): Promise<IStreamContent> {
+	private _readFile(resource: URI, options: IReadTextFileOptions = Object.create(null)): Promise<IStreamContent> {
 		return this._withProvider(resource).then(provider => {
 
 			return this.fileService.resolve(resource).then(fileStat => {

@@ -9,7 +9,7 @@ import { TextFileService } from 'vs/workbench/services/textfile/common/textFileS
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IResolveContentOptions, stringToSnapshot, ICreateFileOptions, FileOperationError, FileOperationResult, IResourceEncodings } from 'vs/platform/files/common/files';
+import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IReadTextFileOptions, stringToSnapshot, ICreateFileOptions, FileOperationError, FileOperationResult, IResourceEncodings } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { exists, stat, chmod, rimraf } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
@@ -311,7 +311,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		};
 	}
 
-	getReadEncoding(resource: URI, options: IResolveContentOptions | undefined, detected: IDetectedEncodingResult): string {
+	getReadEncoding(resource: URI, options: IReadTextFileOptions | undefined, detected: IDetectedEncodingResult): string {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option
