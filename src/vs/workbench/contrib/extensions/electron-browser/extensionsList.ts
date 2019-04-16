@@ -65,7 +65,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const element = append(root, $('.extension'));
 		const iconContainer = append(element, $('.icon-container'));
 		const icon = append(iconContainer, $<HTMLImageElement>('img.icon'));
-		const badgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer);
+		const iconRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer);
 		const details = append(element, $('.details'));
 		const headerContainer = append(details, $('.header-container'));
 		const header = append(headerContainer, $('.header'));
@@ -73,6 +73,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const version = append(header, $('span.version'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
+		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header);
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
@@ -102,7 +103,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const tooltipWidget = this.instantiationService.createInstance(TooltipWidget, root, disabledLabelAction, recommendationWidget);
 		const widgets = [
 			recommendationWidget,
-			badgeWidget,
+			iconRemoteBadgeWidget,
+			headerRemoteBadgeWidget,
 			tooltipWidget,
 			this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
