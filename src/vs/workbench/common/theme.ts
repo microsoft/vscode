@@ -313,13 +313,13 @@ export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.host
 	dark: STATUS_BAR_PROMINENT_ITEM_BACKGROUND,
 	light: STATUS_BAR_PROMINENT_ITEM_BACKGROUND,
 	hc: STATUS_BAR_PROMINENT_ITEM_BACKGROUND
-}, nls.localize('statusBarItemHostBackground', "Background color for the remote indiciator on the status bar."));
+}, nls.localize('statusBarItemHostBackground', "Background color for the host indicator on the status bar."));
 
 export const STATUS_BAR_HOST_NAME_FOREGROUND = registerColor('statusBarItem.hostForeground', {
 	dark: STATUS_BAR_PROMINENT_ITEM_FOREGROUND,
 	light: STATUS_BAR_PROMINENT_ITEM_FOREGROUND,
 	hc: STATUS_BAR_PROMINENT_ITEM_FOREGROUND
-}, nls.localize('statusBarItemHostForeground', "Foregorund color for the host indiciator on the status bar."));
+}, nls.localize('statusBarItemHostForeground', "Foreground color for the host indicator on the status bar."));
 
 
 // < --- Activity Bar --- >
