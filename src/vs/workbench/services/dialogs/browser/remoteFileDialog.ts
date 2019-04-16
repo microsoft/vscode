@@ -255,6 +255,7 @@ export class RemoteFileDialog {
 				isAcceptHandled = false;
 				// update input box to match the first selected item
 				if ((i.length === 1) && this.isChangeFromUser()) {
+					this.filePickBox.validationMessage = undefined;
 					this.setAutoComplete(this.constructFullUserPath(), this.userEnteredPathSegment, i[0], true);
 				}
 			});
