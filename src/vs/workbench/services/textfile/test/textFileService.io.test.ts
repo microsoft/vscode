@@ -26,12 +26,13 @@ import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFil
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { detectEncodingByBOM, UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
+import { UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
 import { NodeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/node/textFileService';
 import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isWindows } from 'vs/base/common/platform';
 import { readFileSync, statSync } from 'fs';
+import { detectEncodingByBOM } from 'vs/base/test/node/encoding/encoding.test';
 
 class ServiceAccessor {
 	constructor(

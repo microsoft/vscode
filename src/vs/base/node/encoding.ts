@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as stream from 'vs/base/node/stream';
 import * as iconv from 'iconv-lite';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
@@ -121,18 +120,6 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 	});
 }
 
-export function bomLength(encoding: string): number {
-	switch (encoding) {
-		case UTF8:
-			return 3;
-		case UTF16be:
-		case UTF16le:
-			return 2;
-	}
-
-	return 0;
-}
-
 export function decode(buffer: Buffer, encoding: string): string {
 	return iconv.decode(buffer, toNodeEncoding(encoding));
 }
@@ -145,7 +132,7 @@ export function encodingExists(encoding: string): boolean {
 	return iconv.encodingExists(toNodeEncoding(encoding));
 }
 
-export function decodeStream(encoding: string | null): NodeJS.ReadWriteStream {
+function decodeStream(encoding: string | null): NodeJS.ReadWriteStream {
 	return iconv.decodeStream(toNodeEncoding(encoding));
 }
 
@@ -193,27 +180,13 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, 
 	return null;
 }
 
-/**
- * Detects the Byte Order Mark in a given file.
- * If no BOM is detected, null will be passed to callback.
- */
-export async function detectEncodingByBOM(file: string): Promise<string | null> {
-	try {
-		const { buffer, bytesRead } = await stream.readExactlyByFile(file, 3);
-
-		return detectEncodingByBOMFromBuffer(buffer, bytesRead);
-	} catch (error) {
-		return null; // ignore errors (like file not found)
-	}
-}
-
 const MINIMUM_THRESHOLD = 0.2;
 const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 
 /**
  * Guesses the encoding from buffer.
  */
-export async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
+async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
 	const jschardet = await import('jschardet');
 
 	jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
@@ -292,9 +265,14 @@ export interface IDetectedEncodingResult {
 	seemsBinary: boolean;
 }
 
-export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false): IDetectedEncodingResult;
-export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult>;
-export function detectEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult> | IDetectedEncodingResult {
+export interface IReadResult {
+	buffer: Buffer | null;
+	bytesRead: number;
+}
+
+export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: false): IDetectedEncodingResult;
+export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult>;
+export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult> | IDetectedEncodingResult {
 
 	// Always first check for BOM to find out about encoding
 	let encoding = detectEncodingByBOMFromBuffer(buffer, bytesRead);

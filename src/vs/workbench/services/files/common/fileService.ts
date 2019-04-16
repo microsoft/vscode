@@ -560,17 +560,21 @@ export class FileService extends Disposable implements IFileService {
 
 			// same provider with fast copy: leverage copy() functionality
 			if (sourceProvider === targetProvider && hasFileFolderCopyCapability(sourceProvider)) {
-				return sourceProvider.copy(source, target, { overwrite: !!overwrite }).then(() => mode);
+				await sourceProvider.copy(source, target, { overwrite: !!overwrite });
 			}
 
 			// when copying via buffer/unbuffered, we have to manually
 			// traverse the source if it is a folder and not a file
-			const sourceFile = await this.resolve(source);
-			if (sourceFile.isDirectory) {
-				return this.doCopyFolder(sourceProvider, sourceFile, targetProvider, target).then(() => mode);
-			} else {
-				return this.doCopyFile(sourceProvider, source, targetProvider, target).then(() => mode);
+			else {
+				const sourceFile = await this.resolve(source);
+				if (sourceFile.isDirectory) {
+					await this.doCopyFolder(sourceProvider, sourceFile, targetProvider, target);
+				} else {
+					await this.doCopyFile(sourceProvider, source, targetProvider, target);
+				}
 			}
+
+			return mode;
 		}
 
 		// move source => target
@@ -578,14 +582,18 @@ export class FileService extends Disposable implements IFileService {
 
 			// same provider: leverage rename() functionality
 			if (sourceProvider === targetProvider) {
-				return sourceProvider.rename(source, target, { overwrite: !!overwrite }).then(() => mode);
+				await sourceProvider.rename(source, target, { overwrite: !!overwrite });
+
+				return mode;
 			}
 
 			// across providers: copy to target & delete at source
 			else {
 				await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
 
-				return this.del(source, { recursive: true }).then(() => 'copy' as 'move' | 'copy');
+				await this.del(source, { recursive: true });
+
+				return 'copy';
 			}
 		}
 	}
