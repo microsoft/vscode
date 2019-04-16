@@ -61,8 +61,8 @@ const vscodeResources = [
 	'out-build/remoteCli.js',
 
 	// Watcher
-	'out-build/vs/workbench/services/files2/**/*.exe',
-	'out-build/vs/workbench/services/files2/**/*.md',
+	'out-build/vs/workbench/services/files/**/*.exe',
+	'out-build/vs/workbench/services/files/**/*.md',
 
 	// Workbench
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
@@ -98,11 +98,11 @@ const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
 				exclude: ['vs/css', 'vs/nls']
 			},
 			{
-				name: 'vs/workbench/services/files2/node/watcher/unix/watcherApp',
+				name: 'vs/workbench/services/files/node/watcher/unix/watcherApp',
 				exclude: ['vs/css', 'vs/nls']
 			},
 			{
-				name: 'vs/workbench/services/files2/node/watcher/nsfw/watcherApp',
+				name: 'vs/workbench/services/files/node/watcher/nsfw/watcherApp',
 				exclude: ['vs/css', 'vs/nls']
 			},
 

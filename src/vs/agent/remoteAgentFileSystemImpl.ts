@@ -12,7 +12,7 @@ import { FileDeleteOptions, FileOverwriteOptions, FileType, FileWriteOptions, IF
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRemoteURITransformer } from 'vs/agent/remoteUriTransformer';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 class SessionFileWatcher extends Disposable {
