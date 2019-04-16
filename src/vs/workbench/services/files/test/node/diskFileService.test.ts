@@ -928,6 +928,67 @@ suite('Disk File Service', () => {
 		assert.equal(contents.value.toString(), 'mlaut');
 	});
 
+
+	test('readFile - 3 bytes (ASCII) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const contents = await service.readFile(resource, { length: 3 });
+
+		assert.equal(contents.value.toString(), 'Sma');
+	});
+
+	test('readFile - 3 bytes (ASCII) - unbuffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const contents = await service.readFile(resource, { length: 3 });
+
+		assert.equal(contents.value.toString(), 'Sma');
+	});
+
+	test('readFile - 20000 bytes (large) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const contents = await service.readFile(resource, { length: 20000 });
+
+		assert.equal(contents.value.byteLength, 20000);
+	});
+
+	test('readFile - 20000 bytes (large) - unbuffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const contents = await service.readFile(resource, { length: 20000 });
+
+		assert.equal(contents.value.byteLength, 20000);
+	});
+
+	test('readFile - 80000 bytes (large) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const contents = await service.readFile(resource, { length: 80000 });
+
+		assert.equal(contents.value.byteLength, 80000);
+	});
+
+	test('readFile - 80000 bytes (large) - unbuffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const contents = await service.readFile(resource, { length: 80000 });
+
+		assert.equal(contents.value.byteLength, 80000);
+	});
+
 	test('readFile - FILE_IS_DIRECTORY', async () => {
 		const resource = URI.file(join(testDir, 'deep'));
 

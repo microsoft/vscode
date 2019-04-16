@@ -8,6 +8,7 @@ import * as iconv from 'iconv-lite';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
 import { Readable, Writable } from 'stream';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -160,7 +161,7 @@ function toNodeEncoding(enc: string | null): string {
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: Buffer | null, bytesRead: number): string | null {
+export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): string | null {
 	if (!buffer || bytesRead < 2) {
 		return null;
 	}

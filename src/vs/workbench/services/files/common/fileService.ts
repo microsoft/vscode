@@ -420,11 +420,13 @@ export class FileService extends Disposable implements IFileService {
 		const handle = await provider.open(resource, { create: false });
 
 		try {
-			let buffer = VSBuffer.alloc(this.BUFFER_SIZE);
-
 			let totalBytesRead = 0;
-			let posInFile = options && typeof options.position === 'number' ? options.position : 0;
 			let bytesRead = 0;
+			let allowedRemainingBytes = (options && typeof options.length === 'number') ? options.length : undefined;
+
+			let buffer = VSBuffer.alloc(Math.min(this.BUFFER_SIZE, typeof allowedRemainingBytes === 'number' ? allowedRemainingBytes : this.BUFFER_SIZE));
+
+			let posInFile = options && typeof options.position === 'number' ? options.position : 0;
 			let posInBuffer = 0;
 			do {
 				// read from source (handle) at current position (pos) into buffer (buffer) at
@@ -435,19 +437,28 @@ export class FileService extends Disposable implements IFileService {
 				posInBuffer += bytesRead;
 				totalBytesRead += bytesRead;
 
+				if (typeof allowedRemainingBytes === 'number') {
+					allowedRemainingBytes -= bytesRead;
+				}
+
 				// when buffer full, create a new one and emit it through stream
 				if (posInBuffer === buffer.byteLength) {
 					stream.write(buffer);
 
-					buffer = VSBuffer.alloc(this.BUFFER_SIZE);
+					buffer = VSBuffer.alloc(Math.min(this.BUFFER_SIZE, typeof allowedRemainingBytes === 'number' ? allowedRemainingBytes : this.BUFFER_SIZE));
 
 					posInBuffer = 0;
 				}
-			} while (bytesRead > 0 && this.throwIfCancelled(token) && this.throwIfTooLarge(totalBytesRead, options));
+			} while (bytesRead > 0 && (typeof allowedRemainingBytes !== 'number' || allowedRemainingBytes > 0) && this.throwIfCancelled(token) && this.throwIfTooLarge(totalBytesRead, options));
 
-			// wrap up with last buffer
+			// wrap up with last buffer (also respect maxBytes if provided)
 			if (posInBuffer > 0) {
-				stream.write(buffer.slice(0, posInBuffer));
+				let lastChunkLength = posInBuffer;
+				if (typeof allowedRemainingBytes === 'number') {
+					lastChunkLength = Math.min(posInBuffer, allowedRemainingBytes);
+				}
+
+				stream.write(buffer.slice(0, lastChunkLength));
 			}
 		} catch (error) {
 			throw error;
@@ -462,6 +473,11 @@ export class FileService extends Disposable implements IFileService {
 		// respect position option
 		if (options && typeof options.position === 'number') {
 			buffer = buffer.slice(options.position);
+		}
+
+		// respect length option
+		if (options && typeof options.length === 'number') {
+			buffer = buffer.slice(0, options.length);
 		}
 
 		return bufferToStream(VSBuffer.wrap(buffer));

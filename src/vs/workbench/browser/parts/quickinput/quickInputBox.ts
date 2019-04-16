@@ -101,6 +101,10 @@ export class QuickInputBox {
 		}
 	}
 
+	stylesForType(decoration: Severity) {
+		return this.inputBox.stylesForType(decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR);
+	}
+
 	setFocus(): void {
 		this.inputBox.focus();
 	}

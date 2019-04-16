@@ -50,6 +50,13 @@
 	padding: 6px 6px 4px 6px;
 }
 
+.quick-input-and-message {
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	position: relative;
+}
+
 .quick-input-check-all {
 	align-self: center;
 	margin: 0;
@@ -65,7 +72,8 @@
 	flex-grow: 1;
 }
 
-.quick-input-widget.show-checkboxes .quick-input-box {
+.quick-input-widget.show-checkboxes .quick-input-box,
+.quick-input-widget.show-checkboxes .quick-input-message {
 	margin-left: 5px;
 }
 
@@ -95,7 +103,8 @@
 }
 
 .quick-input-message {
-	margin: 0px 11px;
+	margin-top: -1px;
+	padding: 6px 5px 2px 5px;
 }
 
 .quick-input-progress.monaco-progress-container {
