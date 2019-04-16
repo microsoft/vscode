@@ -26,12 +26,13 @@ import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFil
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { detectEncodingByBOM, UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
+import { UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
 import { NodeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/node/textFileService';
 import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isWindows } from 'vs/base/common/platform';
 import { readFileSync, statSync } from 'fs';
+import { detectEncodingByBOM } from 'vs/base/test/node/encoding/encoding.test';
 
 class ServiceAccessor {
 	constructor(
@@ -554,6 +555,20 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(contents.indexOf(needle), 0);
 		assert.ok(contents.indexOf(needle, 10) > 0);
 	}
+
+	test('readStream - UTF16 LE (no BOM)', async () => {
+		const resource = URI.file(join(testDir, 'utf16_le_nobom.txt'));
+
+		const result = await service.readStream(resource);
+		assert.equal(result.encoding, 'utf16le');
+	});
+
+	test('readStream - UTF16 BE (no BOM)', async () => {
+		const resource = URI.file(join(testDir, 'utf16_be_nobom.txt'));
+
+		const result = await service.readStream(resource);
+		assert.equal(result.encoding, 'utf16be');
+	});
 
 	test('readStream - FILE_IS_BINARY', async () => {
 		const resource = URI.file(join(testDir, 'binary.txt'));

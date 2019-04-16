@@ -154,6 +154,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		// Model does not exist
 		else {
 			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined);
+			model = newModel;
 			modelPromise = model.load(options);
 
 			// Install state change listener
@@ -208,7 +209,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		} catch (error) {
 
 			// Free resources of this invalid model
-			if (model) {
+			if (model && typeof model.dispose === 'function') { // workaround for https://github.com/Microsoft/vscode/issues/72404
 				model.dispose();
 			}
 
