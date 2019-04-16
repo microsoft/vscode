@@ -464,6 +464,24 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(result.value, 'Private = "Persönlicheß Information"');
 	});
 
+	test('read - encoding picked up (binary)', async () => {
+		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
+		const encoding = 'binary';
+
+		const result = await service.read(resource, { encoding });
+		assert.equal(result.encoding, encoding);
+		assert.equal(result.value, 'Private = "Persönlicheß Information"');
+	});
+
+	test('read - encoding picked up (base64)', async () => {
+		const resource = URI.file(join(testDir, 'some_small_cp1252.txt'));
+		const encoding = 'base64';
+
+		const result = await service.read(resource, { encoding });
+		assert.equal(result.encoding, encoding);
+		assert.equal(result.value, btoa('Private = "Persönlicheß Information"'));
+	});
+
 	test('readStream - user overrides BOM', async () => {
 		const resource = URI.file(join(testDir, 'some_utf16le.css'));
 
