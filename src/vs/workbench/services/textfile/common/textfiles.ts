@@ -101,6 +101,11 @@ export interface ITextFileService extends IDisposable {
 	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
 
 	/**
+	 * @deprecated use read() instead
+	 */
+	legacyRead(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent>;
+
+	/**
 	 * Read the contents of a file identified by the resource.
 	 */
 	read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent>;

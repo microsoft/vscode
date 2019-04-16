@@ -656,8 +656,8 @@ export interface IContentData {
  * A Stream emitting strings.
  */
 export interface IStringStream {
-	on(event: 'data', callback: (chunk: string) => void): void;
-	on(event: 'error', callback: (err: any) => void): void;
+	on(event: 'data', callback: (data: string) => void): void;
+	on(event: 'error', callback: (err: Error) => void): void;
 	on(event: 'end', callback: () => void): void;
 	on(event: string, callback: any): void;
 }

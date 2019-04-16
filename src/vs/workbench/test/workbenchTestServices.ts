@@ -235,6 +235,10 @@ export class TestTextFileService extends BrowserTextFileService {
 		this.resolveTextContentError = error;
 	}
 
+	public legacyRead(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
+		return this.read(resource, options);
+	}
+
 	public read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;

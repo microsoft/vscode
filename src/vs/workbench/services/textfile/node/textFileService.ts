@@ -6,7 +6,7 @@
 import { tmpdir } from 'os';
 import { localize } from 'vs/nls';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IReadTextFileOptions, stringToSnapshot, ICreateFileOptions, FileOperationError, FileOperationResult, IResourceEncodings } from 'vs/platform/files/common/files';
@@ -35,6 +35,10 @@ export class NodeTextFileService extends TextFileService {
 		}
 
 		return this._encoding;
+	}
+
+	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
+		return super.read(resource, options);
 	}
 
 	protected async doCreate(resource: URI, value?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {

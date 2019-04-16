@@ -37,6 +37,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -366,9 +367,36 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	//#endregion
 
-	//#region primitives (resolve, create, move, delete, update)
+	//#region primitives (read, create, move, delete, update)
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
+		const stream = await this.fileService.readFileStream(resource, options);
+
+		// in case of acceptTextOnly: true, we check the first
+		// chunk for possibly being binary by looking for 0-bytes
+		let checkedForBinary = false;
+		const throwOnBinary = (data: VSBuffer): Error | undefined => {
+			if (!checkedForBinary) {
+				checkedForBinary = true;
+
+				for (let i = 0; i < data.byteLength && i < 512; i++) {
+					if (data.readUint8(i) === 0) {
+						throw new FileOperationError(nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), FileOperationResult.FILE_IS_BINARY, options);
+					}
+				}
+			}
+
+			return undefined;
+		};
+
+		return {
+			...stream,
+			encoding: 'utf8',
+			value: await createTextBufferFactoryFromStream(stream.value, undefined, options && options.acceptTextOnly ? throwOnBinary : undefined)
+		};
+	}
+
+	async legacyRead(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 		const streamContent = await this.fileService.resolveStreamContent(resource, options);
 		const value = await createTextBufferFactoryFromStream(streamContent.value);
 

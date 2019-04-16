@@ -9,7 +9,7 @@ import { workbenchInstantiationService, TestLifecycleService, TestTextFileServic
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IFileService, ITextSnapshot, snapshotToString } from 'vs/platform/files/common/files';
+import { IFileService, ITextSnapshot, snapshotToString, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -24,7 +24,7 @@ import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { tmpdir } from 'os';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
 import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'vs/base/common/path';
+import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { detectEncodingByBOM, UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
 import { NodeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/node/textFileService';
@@ -32,6 +32,7 @@ import { LegacyFileService } from 'vs/workbench/services/files/node/fileService'
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isWindows } from 'vs/base/common/platform';
+import { readFileSync, statSync } from 'fs';
 
 class ServiceAccessor {
 	constructor(
@@ -246,7 +247,7 @@ suite('Files - TextFileService i/o', () => {
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, encoding);
 
-		const resolved = await service.read(resource);
+		const resolved = await service.legacyRead(resource);
 		assert.equal(resolved.encoding, encoding);
 
 		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), expectedContent);
@@ -273,18 +274,18 @@ suite('Files - TextFileService i/o', () => {
 	});
 
 	async function testEncodingKeepsData(resource: URI, encoding: string, expected: string) {
-		let resolved = await service.read(resource, { encoding });
+		let resolved = await service.legacyRead(resource, { encoding });
 		const content = snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false));
 		assert.equal(content, expected);
 
 		await service.write(resource, content, { encoding });
 
-		resolved = await service.read(resource, { encoding });
+		resolved = await service.legacyRead(resource, { encoding });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
 
 		await service.write(resource, TextModel.createFromString(content).createSnapshot(), { encoding });
 
-		resolved = await service.read(resource, { encoding });
+		resolved = await service.legacyRead(resource, { encoding });
 		assert.equal(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).createSnapshot(false)), content);
 	}
 
@@ -295,7 +296,7 @@ suite('Files - TextFileService i/o', () => {
 
 		await service.write(resource, content);
 
-		const resolved = await service.read(resource);
+		const resolved = await service.legacyRead(resource);
 		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
 	});
 
@@ -306,14 +307,14 @@ suite('Files - TextFileService i/o', () => {
 
 		await service.write(resource, TextModel.createFromString(content).createSnapshot());
 
-		const resolved = await service.read(resource);
+		const resolved = await service.legacyRead(resource);
 		assert.equal(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(false)), content);
 	});
 
 	test('write - encoding preserved (UTF 16 LE) - content as string', async () => {
 		const resource = URI.file(join(testDir, 'some_utf16le.css'));
 
-		const resolved = await service.read(resource);
+		const resolved = await service.legacyRead(resource);
 		assert.equal(resolved.encoding, UTF16le);
 
 		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, 'Hello\nWorld', 'Hello\nWorld');
@@ -322,7 +323,7 @@ suite('Files - TextFileService i/o', () => {
 	test('write - encoding preserved (UTF 16 LE) - content as snapshot', async () => {
 		const resource = URI.file(join(testDir, 'some_utf16le.css'));
 
-		const resolved = await service.read(resource);
+		const resolved = await service.legacyRead(resource);
 		assert.equal(resolved.encoding, UTF16le);
 
 		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, TextModel.createFromString('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
@@ -411,5 +412,42 @@ suite('Files - TextFileService i/o', () => {
 
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.equal(detectedEncoding, UTF8);
+	});
+
+	test('read - small text', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await testReadFile(resource);
+	});
+
+	test('read - large text', async () => {
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		await testReadFile(resource);
+	});
+
+	async function testReadFile(resource: URI): Promise<void> {
+		const result = await service.read(resource);
+		assert.equal(result.name, basename(resource.fsPath));
+		assert.equal(result.size, statSync(resource.fsPath).size);
+
+		assert.equal(snapshotToString(result.value.create(DefaultEndOfLine.LF).createSnapshot(false)), readFileSync(resource.fsPath));
+	}
+
+	test('read - FILE_IS_BINARY', async () => {
+		const resource = URI.file(join(testDir, 'binary.txt'));
+
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.read(resource, { acceptTextOnly: true });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_IS_BINARY);
+
+		const result = await service.read(URI.file(join(testDir, 'small.txt')), { acceptTextOnly: true });
+		assert.equal(result.name, 'small.txt');
 	});
 });

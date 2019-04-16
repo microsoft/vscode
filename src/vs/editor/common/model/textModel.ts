@@ -33,6 +33,7 @@ import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/comm
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 
 const CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048;
 
@@ -46,30 +47,41 @@ export function createTextBufferFactory(text: string): model.ITextBufferFactory 
 	return builder.finish();
 }
 
-export function createTextBufferFactoryFromStream(stream: IStringStream, filter?: (chunk: string) => string): Promise<model.ITextBufferFactory> {
-	return new Promise<model.ITextBufferFactory>((c, e) => {
-		let done = false;
-		let builder = createTextBufferBuilder();
+export function createTextBufferFactoryFromStream(stream: IStringStream, filter?: (chunk: string) => string, validator?: (chunk: string) => Error | undefined): Promise<model.ITextBufferFactory>;
+export function createTextBufferFactoryFromStream(stream: VSBufferReadableStream, filter?: (chunk: VSBuffer) => VSBuffer, validator?: (chunk: VSBuffer) => Error | undefined): Promise<model.ITextBufferFactory>;
+export function createTextBufferFactoryFromStream(stream: IStringStream | VSBufferReadableStream, filter?: (chunk: any) => string | VSBuffer, validator?: (chunk: any) => Error | undefined): Promise<model.ITextBufferFactory> {
+	return new Promise<model.ITextBufferFactory>((resolve, reject) => {
+		const builder = createTextBufferBuilder();
 
-		stream.on('data', (chunk) => {
+		let done = false;
+
+		stream.on('data', (chunk: string | VSBuffer) => {
+			if (validator) {
+				const error = validator(chunk);
+				if (error) {
+					done = true;
+					reject(error);
+				}
+			}
+
 			if (filter) {
 				chunk = filter(chunk);
 			}
 
-			builder.acceptChunk(chunk);
+			builder.acceptChunk((typeof chunk === 'string') ? chunk : chunk.toString());
 		});
 
 		stream.on('error', (error) => {
 			if (!done) {
 				done = true;
-				e(error);
+				reject(error);
 			}
 		});
 
 		stream.on('end', () => {
 			if (!done) {
 				done = true;
-				c(builder.finish());
+				resolve(builder.finish());
 			}
 		});
 	});
