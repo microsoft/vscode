@@ -133,16 +133,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			}
 
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(hasRemoteAuthority ? REMOTE_HOST_SCHEME : undefined);
-			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
+			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
 		} else {
 			this._process = this._launchProcess(shellLaunchConfig, cols, rows);
 		}
 		this.processState = ProcessState.LAUNCHING;
 
-		// The process is non-null, but TS isn't clever enough to know
-		const p = this._process!;
-
-		p.onProcessData(data => {
+		this._process.onProcessData(data => {
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
 			this._onBeforeProcessData.fire(beforeProcessDataEvent);
 			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
@@ -150,19 +147,19 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			}
 		});
 
-		p.onProcessIdReady(pid => {
+		this._process.onProcessIdReady(pid => {
 			this.shellProcessId = pid;
 			this._onProcessReady.fire();
 
 			// Send any queued data that's waiting
-			if (this._preLaunchInputQueue.length > 0) {
-				p.input(this._preLaunchInputQueue.join(''));
+			if (this._preLaunchInputQueue.length > 0 && this._process) {
+				this._process.input(this._preLaunchInputQueue.join(''));
 				this._preLaunchInputQueue.length = 0;
 			}
 		});
 
-		p.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
-		p.onProcessExit(exitCode => this._onExit(exitCode));
+		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
+		this._process.onProcessExit(exitCode => this._onExit(exitCode));
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.LAUNCHING) {

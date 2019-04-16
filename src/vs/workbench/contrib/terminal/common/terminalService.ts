@@ -118,7 +118,7 @@ export abstract class TerminalService implements ITerminalService {
 		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
 	}
 
-	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void {
+	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
 		this._extensionService.whenInstalledExtensionsRegistered().then(async () => {
 			// Wait for the remoteAuthority to be ready (and listening for events) before proceeding
 			const conn = this._remoteAgentService.getConnection();
@@ -127,7 +127,7 @@ export abstract class TerminalService implements ITerminalService {
 			while (!this._extHostsReady[remoteAuthority] && ++retries < 50) {
 				await timeout(100);
 			}
-			this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows });
+			this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, isWorkspaceShellAllowed });
 		});
 	}
 

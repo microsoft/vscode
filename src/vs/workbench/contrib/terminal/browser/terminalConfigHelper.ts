@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -14,6 +13,7 @@ import Severity from 'vs/base/common/severity';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { mergeDefaultShellPathAndArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -167,9 +167,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, defaultValue);
 	}
 
-	public checkWorkspaceShellPermissions(platformOverride: platform.Platform = platform.platform): boolean {
+	public checkWorkspaceShellPermissions(osOverride: platform.OperatingSystem = platform.OS): boolean {
 		// Check whether there is a workspace setting
-		const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
+		const platformKey = osOverride === platform.OperatingSystem.Windows ? 'windows' : osOverride === platform.OperatingSystem.Macintosh ? 'osx' : 'linux';
 		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
 		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 		const envConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.env.${platformKey}`);
@@ -228,28 +228,8 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	}
 
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride: platform.Platform = platform.platform): void {
-		const isWorkspaceShellAllowed = this.checkWorkspaceShellPermissions(platformOverride);
-		const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
-		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
-		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
-
-		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;
-		shell.args = (isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default;
-
-		// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
-		// safe to assume that this was used by accident as Sysnative does not
-		// exist and will break the terminal in non-WoW64 environments.
-		if ((platformOverride === platform.Platform.Windows) && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && process.env.windir) {
-			const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
-			if (shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
-				shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
-			}
-		}
-
-		// Convert / to \ on Windows for convenience
-		if (platformOverride === platform.Platform.Windows) {
-			shell.executable = shell.executable.replace(/\//g, '\\');
-		}
+		const isWorkspaceShellAllowed = this.checkWorkspaceShellPermissions(platformOverride === platform.Platform.Windows ? platform.OperatingSystem.Windows : (platformOverride === platform.Platform.Mac ? platform.OperatingSystem.Macintosh : platform.OperatingSystem.Linux));
+		mergeDefaultShellPathAndArgs(shell, (key) => this._workspaceConfigurationService.inspect(key), isWorkspaceShellAllowed);
 	}
 
 	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {
