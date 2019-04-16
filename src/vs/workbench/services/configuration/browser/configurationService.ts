@@ -10,7 +10,7 @@ import { equals, deepClone } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue, Barrier } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { isLinux } from 'vs/base/common/platform';
 import { ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -340,16 +340,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	private createSingleFolderWorkspace(singleFolder: ISingleFolderWorkspaceInitializationPayload): Promise<Workspace> {
-		const folder = singleFolder.folder;
-
-		let configuredFolders: IStoredWorkspaceFolder[];
-		if (folder.scheme === 'file') {
-			configuredFolders = [{ path: folder.fsPath }];
-		} else {
-			configuredFolders = [{ uri: folder.toString() }];
-		}
-
-		const workspace = new Workspace(singleFolder.id, toWorkspaceFolders(configuredFolders));
+		const workspace = new Workspace(singleFolder.id, [toWorkspaceFolder(singleFolder.folder)]);
 		this.releaseWorkspaceBarrier(); // Release barrier as workspace is complete because it is single folder.
 		return Promise.resolve(workspace);
 	}

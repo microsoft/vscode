@@ -57,7 +57,6 @@ class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
 		const fileService = new FileService(new NullLogService());
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-
 		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
 
 		super(environmentService, fileService);

@@ -51,7 +51,7 @@ import { ExportData } from 'vs/base/common/performance';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { IWorkspaceContextService, Workspace, toWorkspaceFolders, IWorkspaceFolder, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace, toWorkspaceFolder, IWorkspaceFolder, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -1365,10 +1365,7 @@ export class SimpleWorkspaceService implements IWorkspaceContextService {
 	readonly onDidChangeWorkbenchState = Event.None;
 
 	constructor() {
-		this.workspace = new Workspace(
-			workspaceResource.toString(),
-			toWorkspaceFolders([{ uri: workspaceResource.toString() }])
-		);
+		this.workspace = new Workspace(workspaceResource.toString(), [toWorkspaceFolder(workspaceResource)]);
 	}
 
 	getFolders(): IWorkspaceFolder[] {

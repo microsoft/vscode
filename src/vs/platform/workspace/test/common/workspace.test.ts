@@ -46,7 +46,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with single absolute folder', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test' }]);
+		const actual = toWorkspaceFolders([{ path: '/src/test' }], URI.file('/workspaces'));
 
 		assert.equal(actual.length, 1);
 		assert.equal(actual[0].uri.fsPath, URI.file('/src/test').fsPath);
@@ -66,7 +66,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with single absolute folder with name', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test', name: 'hello' }]);
+		const actual = toWorkspaceFolders([{ path: '/src/test', name: 'hello' }], URI.file('/workspaces'));
 
 		assert.equal(actual.length, 1);
 
@@ -77,7 +77,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with multiple unique absolute folders', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3' }, { path: '/src/test1' }]);
+		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3' }, { path: '/src/test1' }], URI.file('/workspaces'));
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, URI.file('/src/test2').fsPath);
@@ -97,7 +97,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with multiple unique absolute folders with names', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3', name: 'noName' }, { path: '/src/test1' }]);
+		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3', name: 'noName' }, { path: '/src/test1' }], URI.file('/workspaces'));
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, URI.file('/src/test2').fsPath);
@@ -137,7 +137,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with multiple absolute folders with duplicates', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test2', name: 'noName' }, { path: '/src/test1' }]);
+		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test2', name: 'noName' }, { path: '/src/test1' }], URI.file('/workspaces'));
 
 		assert.equal(actual.length, 2);
 		assert.equal(actual[0].uri.fsPath, URI.file('/src/test2').fsPath);
