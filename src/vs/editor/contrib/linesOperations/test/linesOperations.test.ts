@@ -268,7 +268,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 					editor.setSelections([new Selection(2, 2, 2, 2), new Selection(2, 4, 2, 5)]);
 					deleteAllLeftAction.run(null!, editor);
-					assert.equal(model.getLineContent(2), 'ord', '002');
+					assert.equal(model.getLineContent(2), 'd', '002');
 
 					editor.setSelections([new Selection(3, 2, 3, 5), new Selection(3, 7, 3, 7)]);
 					deleteAllLeftAction.run(null!, editor);
@@ -276,11 +276,11 @@ suite('Editor Contrib - Line Operations', () => {
 
 					editor.setSelections([new Selection(4, 3, 4, 3), new Selection(4, 5, 5, 4)]);
 					deleteAllLeftAction.run(null!, editor);
-					assert.equal(model.getLineContent(4), 'lljour', '004');
+					assert.equal(model.getLineContent(4), 'jour', '004');
 
 					editor.setSelections([new Selection(5, 3, 6, 3), new Selection(6, 5, 7, 5), new Selection(7, 7, 7, 7)]);
 					deleteAllLeftAction.run(null!, editor);
-					assert.equal(model.getLineContent(5), 'horlworld', '005');
+					assert.equal(model.getLineContent(5), 'world', '005');
 				});
 		});
 
