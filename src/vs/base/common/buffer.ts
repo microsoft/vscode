@@ -226,7 +226,7 @@ export function writeableBufferStream(): VSBufferWriteableStream {
 }
 
 export interface VSBufferWriteableStream extends VSBufferReadableStream {
-	data(chunk: VSBuffer): void;
+	write(chunk: VSBuffer): void;
 	error(error: Error): void;
 	end(result?: VSBuffer | Error): void;
 }
@@ -250,7 +250,7 @@ class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
 		end: [] as { (): void }[]
 	};
 
-	data(chunk: VSBuffer): void {
+	write(chunk: VSBuffer): void {
 		if (this.state.finished) {
 			return;
 		}
@@ -291,7 +291,7 @@ class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
 		if (result instanceof Error) {
 			this.error(result);
 		} else if (result) {
-			this.data(result);
+			this.write(result);
 		}
 
 		// flowing: send end event to listeners

@@ -48,7 +48,7 @@ suite('Buffer', () => {
 		});
 
 		await timeout(0);
-		stream.data(VSBuffer.fromString('Hello'));
+		stream.write(VSBuffer.fromString('Hello'));
 		await timeout(0);
 		stream.end(VSBuffer.fromString('World'));
 
@@ -78,7 +78,7 @@ suite('Buffer', () => {
 		});
 
 		await timeout(0);
-		stream.data(VSBuffer.fromString('Hello'));
+		stream.write(VSBuffer.fromString('Hello'));
 		await timeout(0);
 		stream.end(new Error());
 
@@ -92,7 +92,7 @@ suite('Buffer', () => {
 		const stream = writeableBufferStream();
 
 		await timeout(0);
-		stream.data(VSBuffer.fromString('Hello'));
+		stream.write(VSBuffer.fromString('Hello'));
 		await timeout(0);
 		stream.end(VSBuffer.fromString('World'));
 
@@ -121,7 +121,7 @@ suite('Buffer', () => {
 		const stream = writeableBufferStream();
 
 		await timeout(0);
-		stream.data(VSBuffer.fromString('Hello'));
+		stream.write(VSBuffer.fromString('Hello'));
 		await timeout(0);
 		stream.error(new Error());
 
@@ -152,7 +152,7 @@ suite('Buffer', () => {
 		const stream = writeableBufferStream();
 
 		await timeout(0);
-		stream.data(VSBuffer.fromString('Hello'));
+		stream.write(VSBuffer.fromString('Hello'));
 		await timeout(0);
 		stream.end(VSBuffer.fromString('World'));
 
@@ -186,7 +186,7 @@ suite('Buffer', () => {
 		});
 
 		await timeout(0);
-		stream.data(VSBuffer.fromString('Hello'));
+		stream.write(VSBuffer.fromString('Hello'));
 		await timeout(0);
 		stream.end(VSBuffer.fromString('World'));
 
@@ -206,7 +206,7 @@ suite('Buffer', () => {
 		});
 
 		await timeout(0);
-		stream.data(VSBuffer.fromString('Hello'));
+		stream.write(VSBuffer.fromString('Hello'));
 		await timeout(0);
 		stream.error(new Error());
 		await timeout(0);

@@ -44,7 +44,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
-	private readonly BUFFER_SIZE = 16 * 1024;
+	private readonly BUFFER_SIZE = 64 * 1024;
 
 	constructor(@ILogService private logService: ILogService) {
 		super();
@@ -471,7 +471,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 				// when buffer full, create a new one and emit it through stream
 				if (posInBuffer === buffer.byteLength) {
-					stream.data(buffer);
+					stream.write(buffer);
 
 					buffer = VSBuffer.alloc(this.BUFFER_SIZE);
 
@@ -481,7 +481,7 @@ export class FileService2 extends Disposable implements IFileService {
 
 			// wrap up with last buffer
 			if (posInBuffer > 0) {
-				stream.data(buffer.slice(0, posInBuffer));
+				stream.write(buffer.slice(0, posInBuffer));
 			}
 		} catch (error) {
 			throw error;
@@ -985,43 +985,11 @@ export class FileService2 extends Disposable implements IFileService {
 
 	private async doPipeBufferedToUnbuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
 
-		// Open handle
-		const sourceHandle = await sourceProvider.open(source, { create: false });
+		// Read buffer via stream buffered
+		const buffer = await streamToBuffer(this.readFileBuffered(sourceProvider, source, CancellationToken.None));
 
-		try {
-			const buffers: VSBuffer[] = [];
-
-			let buffer = VSBuffer.alloc(this.BUFFER_SIZE);
-
-			let posInFile = 0;
-			let totalBytesRead = 0;
-			let bytesRead = 0;
-			let posInBuffer = 0;
-			do {
-				// read from source (sourceHandle) at current position (pos) into buffer (buffer) at
-				// buffer position (posInBuffer) up to the size of the buffer (buffer.byteLength).
-				bytesRead = await sourceProvider.read(sourceHandle, posInFile, buffer.buffer, posInBuffer, buffer.byteLength - posInBuffer);
-
-				posInFile += bytesRead;
-				posInBuffer += bytesRead;
-				totalBytesRead += bytesRead;
-
-				// when buffer full, create a new one
-				if (posInBuffer === buffer.byteLength) {
-					buffers.push(buffer);
-					buffer = VSBuffer.alloc(this.BUFFER_SIZE);
-
-					posInBuffer = 0;
-				}
-			} while (bytesRead > 0);
-
-			// Write buffer into target at once
-			await this.doWriteUnbuffered(targetProvider, target, VSBuffer.concat([...buffers, buffer.slice(0, posInBuffer)], totalBytesRead));
-		} catch (error) {
-			throw error;
-		} finally {
-			await sourceProvider.close(sourceHandle);
-		}
+		// Write buffer into target at once
+		await this.doWriteUnbuffered(targetProvider, target, buffer);
 	}
 
 	protected throwIfFileSystemIsReadonly<T extends IFileSystemProvider>(provider: T): T {
