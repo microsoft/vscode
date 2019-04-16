@@ -1,0 +1,116 @@
+{
+	"$schema": "http://json-schema.org/schema#",
+	"description": "Defines a dev container",
+	"allowComments": true,
+	"type": "object",
+	"definitions": {
+		"devContainerCommon": {
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "A name to show for the workspace folder."
+				},
+				"extensions": {
+					"type": "array",
+					"description": "An array of extensions that should be installed into the container.",
+					"items": {
+						"type": "string"
+					}
+				},
+				"devPort": {
+					"type": "integer",
+					"description": "The port VS Code can use to connect to its backend."
+				}
+			}
+		},
+		"nonComposeBase": {
+			"properties": {
+				"appPort": {
+					"type": ["integer", "string", "array"],
+					"description": "Application ports that are exposed by the container. This can be a single port or an array of ports. Each port can be a number or a string. A number is mapped to the same port on the host. A string is passed to Docker unchanged and can be used to map ports differently, e.g. \"8000:8010\".",
+					"items": {
+						"type": ["integer", "string"]
+					}
+				},
+				"runArgs": {
+					"type": "array",
+					"description": "The arguments required when starting in the container.",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"dockerFileContainer": {
+			"properties": {
+				"dockerFile": {
+					"type": "string",
+					"description": "The location of the Dockerfile that defines the contents. The path is relative to the location of the '.vscode' folder."
+				},
+				"context": {
+					"type": "string",
+					"description": "The location of the context folder for building the Docker image. The path is relative to the location of the '.vscode' folder."
+				}
+			},
+			"required": ["dockerFile"]
+		},
+		"imageContainer": {
+			"properties": {
+				"image": {
+					"type": "string",
+					"description": "The docker image that will be used to create the container."
+				}
+			},
+			"required": ["image"]
+		},
+		"composeContainer": {
+			"properties": {
+				"dockerComposeFile": {
+					"type": ["string", "array"],
+					"description": "The name of the docker-compose file(s) used to start the services.",
+					"items": {
+						"type": "string"
+					}
+				},
+				"service": {
+					"type": "string",
+					"description": "The service you want to work on."
+				},
+				"workspaceFolder": {
+					"type": "string",
+					"description": "The path of the workspace folder inside the container."
+				}
+			},
+			"required": ["dockerComposeFile", "service", "workspaceFolder"]
+		}
+	},
+	"allOf": [
+		{
+			"oneOf": [
+				{
+					"allOf": [
+						{
+							"oneOf": [
+								{
+									"$ref": "#/definitions/dockerFileContainer"
+								},
+								{
+									"$ref": "#/definitions/imageContainer"
+								}
+							]
+						},
+						{
+							"$ref": "#/definitions/nonComposeBase"
+						}
+					]
+				},
+				{
+					"$ref": "#/definitions/composeContainer"
+				}
+			]
+		},
+		{
+			"$ref": "#/definitions/devContainerCommon"
+		}
+	]
+}

@@ -83,6 +83,8 @@
 				"src/vs/workbench/services/extensions/electron-browser/remoteExtensionHostClient.ts",
 				"src/vs/workbench/services/remote/node/tunnelService.ts",
 				"src/vs/workbench/workbench.main.ts",
+				"extensions/configuration-editing/schemas/devContainer.schema.json",
+				"extensions/configuration-editing/package.json"
 			]
 		},
 		{
