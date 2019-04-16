@@ -301,6 +301,18 @@ class QuickInput implements IQuickInput {
 		return '';
 	}
 
+	protected showMessageDecoration(severity: Severity) {
+		this.ui.inputBox.showDecoration(severity);
+		if (severity === Severity.Error) {
+			const styles = this.ui.inputBox.stylesForType(severity);
+			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : null;
+			this.ui.message.style.border = styles.border ? `1px solid ${styles.border}` : null;
+		} else {
+			this.ui.message.style.backgroundColor = '';
+			this.ui.message.style.border = '';
+		}
+	}
+
 	public dispose(): void {
 		this.hide();
 		this.disposables = dispose(this.disposables);
@@ -742,10 +754,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		if (this.validationMessage) {
 			this.ui.message.textContent = this.validationMessage;
-			this.ui.inputBox.showDecoration(Severity.Error);
+			this.showMessageDecoration(Severity.Error);
 		} else {
 			this.ui.message.textContent = null;
-			this.ui.inputBox.showDecoration(Severity.Ignore);
+			this.showMessageDecoration(Severity.Info);
 		}
 		this.ui.customButton.label = this.customLabel;
 		this.ui.customButton.element.title = this.customHover;
@@ -876,11 +888,11 @@ class InputBox extends QuickInput implements IInputBox {
 		}
 		if (!this.validationMessage && this.ui.message.textContent !== this.noValidationMessage) {
 			this.ui.message.textContent = this.noValidationMessage;
-			this.ui.inputBox.showDecoration(Severity.Ignore);
+			this.showMessageDecoration(Severity.Info);
 		}
 		if (this.validationMessage && this.ui.message.textContent !== this.validationMessage) {
 			this.ui.message.textContent = this.validationMessage;
-			this.ui.inputBox.showDecoration(Severity.Error);
+			this.showMessageDecoration(Severity.Error);
 		}
 		this.ui.setVisibilities({ title: !!this.title || !!this.step, inputBox: true, message: true });
 	}
@@ -1044,7 +1056,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}));
 
-		this.filterContainer = dom.append(headerContainer, $('.quick-input-filter'));
+		const extraContainer = dom.append(headerContainer, $('.quick-input-and-message'));
+		this.filterContainer = dom.append(extraContainer, $('.quick-input-filter'));
 
 		const inputBox = this._register(new QuickInputBox(this.filterContainer));
 		inputBox.setAttribute('aria-describedby', `${this.idPrefix}message`);
@@ -1075,7 +1088,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			this.onDidCustomEmitter.fire();
 		}));
 
-		const message = dom.append(container, $(`#${this.idPrefix}message.quick-input-message`));
+		const message = dom.append(extraContainer, $(`#${this.idPrefix}message.quick-input-message`));
 
 		const progressBar = new ProgressBar(container);
 		dom.addClass(progressBar.getContainer(), 'quick-input-progress');

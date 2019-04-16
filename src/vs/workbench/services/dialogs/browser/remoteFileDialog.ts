@@ -179,6 +179,7 @@ export class RemoteFileDialog {
 			this.filePickBox = this.quickInputService.createQuickPick<FileQuickPickItem>();
 			this.filePickBox.matchOnLabel = false;
 			this.filePickBox.autoFocusOnList = false;
+			this.filePickBox.ignoreFocusOut = true;
 			this.filePickBox.ok = true;
 			if (this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
 				this.filePickBox.customButton = true;
