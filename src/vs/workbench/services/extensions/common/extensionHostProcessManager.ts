@@ -14,7 +14,7 @@ import { ExtHostCustomersRegistry } from 'vs/workbench/api/common/extHostCustome
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ResolvedAuthority, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
@@ -51,6 +51,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
 	private _extensionHostProcessProxy: Promise<{ value: ExtHostExtensionServiceShape; } | null> | null;
+	private _resolveAuthorityAttempt: number;
 
 	constructor(
 		extensionHostProcessWorker: IExtensionHostStarter,
@@ -82,6 +83,7 @@ export class ExtensionHostProcessManager extends Disposable {
 				measure: () => this.measure()
 			}));
 		});
+		this._resolveAuthorityAttempt = 0;
 	}
 
 	public dispose(): void {
@@ -259,7 +261,13 @@ export class ExtensionHostProcessManager extends Disposable {
 		if (!proxy) {
 			throw new Error(`Cannot resolve authority`);
 		}
-		return proxy.$resolveAuthority(remoteAuthority);
+		this._resolveAuthorityAttempt++;
+		const result = await proxy.$resolveAuthority(remoteAuthority, this._resolveAuthorityAttempt);
+		if (result.type === 'ok') {
+			return result.value;
+		} else {
+			throw new RemoteAuthorityResolverError(result.error.message, result.error.code, result.error.detail);
+		}
 	}
 
 	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
