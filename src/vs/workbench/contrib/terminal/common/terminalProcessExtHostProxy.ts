@@ -8,6 +8,9 @@ import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig, ITe
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import * as nls from 'vs/nls';
+
+let hasReceivedResponse: boolean = false;
 
 export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	private _disposables: IDisposable[] = [];
@@ -54,7 +57,9 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 			}
 			this._terminalService.requestExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper.checkWorkspaceShellPermissions(env.os));
 		});
-		setTimeout(() => this._onProcessTitleChanged.fire('Starting...'), 0);
+		if (!hasReceivedResponse) {
+			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
+		}
 	}
 
 	public dispose(): void {
@@ -67,6 +72,7 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	}
 
 	public emitTitle(title: string): void {
+		// hasReceivedResponse = true;
 		this._onProcessTitleChanged.fire(title);
 	}
 
