@@ -8,15 +8,17 @@ import * as crypto from 'crypto';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri } from 'vs/base/common/uri';
 import { ResourceQueue } from 'vs/base/common/async';
-import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, ITextSnapshot, TextSnapshotReadable } from 'vs/platform/files/common/files';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IFileService } from 'vs/platform/files/common/files';
 import { readToMatchingString } from 'vs/base/node/stream';
-import { ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): Promise<IBackupFilesModel>;
@@ -249,19 +251,21 @@ class BackupFileServiceImpl implements IBackupFileService {
 	}
 
 	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory> {
-		return this.fileService.resolveStreamContent(backup, BACKUP_FILE_RESOLVE_OPTIONS).then(content => {
+		return this.fileService.readFileStream(backup).then(content => {
 
 			// Add a filter method to filter out everything until the meta marker
 			let metaFound = false;
-			const metaPreambleFilter = (chunk: string) => {
+			const metaPreambleFilter = (chunk: VSBuffer) => {
+				const chunkString = chunk.toString();
+
 				if (!metaFound && chunk) {
-					const metaIndex = chunk.indexOf(BackupFileServiceImpl.META_MARKER);
+					const metaIndex = chunkString.indexOf(BackupFileServiceImpl.META_MARKER);
 					if (metaIndex === -1) {
-						return ''; // meta not yet found, return empty string
+						return VSBuffer.fromString(''); // meta not yet found, return empty string
 					}
 
 					metaFound = true;
-					return chunk.substr(metaIndex + 1); // meta found, return everything after
+					return VSBuffer.fromString(chunkString.substr(metaIndex + 1)); // meta found, return everything after
 				}
 
 				return chunk;

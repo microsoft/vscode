@@ -5,12 +5,9 @@
 
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResolveContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
-import { ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
-
-export const BACKUP_FILE_RESOLVE_OPTIONS: IResolveContentOptions = { acceptTextOnly: true, encoding: 'utf8' };
 
 /**
  * A service that handles any I/O and state associated with the backup system.

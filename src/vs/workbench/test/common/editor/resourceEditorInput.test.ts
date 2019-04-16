@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { snapshotToString } from 'vs/platform/files/common/files';
+import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 
 class ServiceAccessor {
 	constructor(

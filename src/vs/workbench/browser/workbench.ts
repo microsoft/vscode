@@ -23,7 +23,6 @@ import { Position, Parts, IWorkbenchLayoutService } from 'vs/workbench/services/
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IFileService, ILegacyFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -190,20 +189,12 @@ export class Workbench extends Layout {
 		instantiationService.invokeFunction(accessor => {
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			// TODO@Ben legacy file service
-			const fileService = accessor.get(IFileService) as any;
-			if (typeof fileService.setLegacyService === 'function') {
-				try {
-					fileService.setLegacyService(accessor.get(ILegacyFileService));
-				} catch (error) {
-					//ignore, legacy file service might not be registered
-				}
-			}
-
 			// TODO@Sandeep debt around cyclic dependencies
 			const configurationService = accessor.get(IConfigurationService) as any;
 			if (typeof configurationService.acquireInstantiationService === 'function') {
-				configurationService.acquireInstantiationService(instantiationService);
+				setTimeout(() => {
+					configurationService.acquireInstantiationService(instantiationService);
+				}, 0);
 			}
 
 			// Signal to lifecycle that services are set

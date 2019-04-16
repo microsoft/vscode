@@ -99,7 +99,9 @@ export class CLIServer {
 			for (const s of folderURIs) {
 				try {
 					urisToOpen.push({ folderUri: URI.parse(s) });
-					forceNewWindow = true;
+					if (!addMode && !forceReuseWindow) {
+						forceNewWindow = true;
+					}
 				} catch (e) {
 					// ignore
 				}
@@ -110,7 +112,9 @@ export class CLIServer {
 				try {
 					if (hasWorkspaceFileExtension(s)) {
 						urisToOpen.push({ workspaceUri: URI.parse(s) });
-						forceNewWindow = true;
+						if (!forceReuseWindow) {
+							forceNewWindow = true;
+						}
 					} else {
 						urisToOpen.push({ fileUri: URI.parse(s) });
 					}

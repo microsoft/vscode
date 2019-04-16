@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -266,14 +266,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// If we have a backup, continue loading with it
 		if (!!backup) {
-			const content: IRawTextContent = {
+			const content: ITextFileStreamContent = {
 				resource: this.resource,
 				name: basename(this.resource),
 				mtime: Date.now(),
 				size: 0,
 				etag: etag(Date.now(), 0),
 				value: createTextBufferFactory(''), /* will be filled later from backup */
-				encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding).encoding,
+				encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding,
 				isReadonly: false
 			};
 
@@ -306,7 +306,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Resolve Content
 		try {
-			const content = await this.textFileService.resolve(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding });
+			const content = await this.textFileService.readStream(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding });
 
 			// Clear orphaned state when loading was successful
 			this.setOrphaned(false);
@@ -346,34 +346,33 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private loadWithContent(content: IRawTextContent, options?: ILoadOptions, backup?: URI): Promise<TextFileEditorModel> {
-		return this.doLoadWithContent(content, backup).then(model => {
+	private async loadWithContent(content: ITextFileStreamContent, options?: ILoadOptions, backup?: URI): Promise<TextFileEditorModel> {
+		const model = await this.doLoadWithContent(content, backup);
 
-			// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
-			const settingsType = this.getTypeIfSettings();
-			if (settingsType) {
-				/* __GDPR__
-					"settingsRead" : {
-						"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
-			} else {
-				/* __GDPR__
-					"fileGet" : {
-						"${include}": [
-							"${FileTelemetryData}"
-						]
-					}
-				*/
-				this.telemetryService.publicLog('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
-			}
+		// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
+		const settingsType = this.getTypeIfSettings();
+		if (settingsType) {
+			/* __GDPR__
+				"settingsRead" : {
+					"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
+		} else {
+			/* __GDPR__
+				"fileGet" : {
+					"${include}": [
+						"${FileTelemetryData}"
+					]
+				}
+			*/
+			this.telemetryService.publicLog('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
+		}
 
-			return model;
-		});
+		return model;
 	}
 
-	private doLoadWithContent(content: IRawTextContent, backup?: URI): Promise<TextFileEditorModel> {
+	private doLoadWithContent(content: ITextFileStreamContent, backup?: URI): Promise<TextFileEditorModel> {
 		this.logService.trace('load() - resolved content', this.resource);
 
 		// Update our resolved disk stat model

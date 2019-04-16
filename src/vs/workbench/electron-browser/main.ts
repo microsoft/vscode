@@ -297,7 +297,7 @@ class CodeRendererMain extends Disposable {
 
 	private createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService2, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
 		const configurationFileService = new ConfigurationFileService();
-		fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+		configurationFileService.fileService = fileService;
 
 		const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 
