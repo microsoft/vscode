@@ -226,10 +226,11 @@ export function toWorkspaceFolder(resource: URI): WorkspaceFolder {
 	return new WorkspaceFolder({ uri: resource, index: 0, name: resources.basenameOrAuthority(resource) }, { uri: resource.toString() });
 }
 
-export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI): WorkspaceFolder[] {
+export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI): WorkspaceFolder[] {
 	let result: WorkspaceFolder[] = [];
 	let seen: { [uri: string]: boolean } = Object.create(null);
 
+	const relativeTo = resources.dirname(workspaceConfigFile);
 	for (let configuredFolder of configuredFolders) {
 		let uri: URI | null = null;
 		if (isRawFileWorkspaceFolder(configuredFolder)) {

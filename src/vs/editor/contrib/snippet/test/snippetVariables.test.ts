@@ -332,9 +332,8 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'folderName');
 
 		// workspace with config
-		const workspaceFile = URI.file('testWorkspace.code-workspace');
-		const workspaceDir = URI.file('workspace');
-		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }], workspaceDir), workspaceFile);
+		const workspaceConfigPath = URI.file('testWorkspace.code-workspace');
+		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }], workspaceConfigPath), workspaceConfigPath);
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'testWorkspace');
 	});
 });
