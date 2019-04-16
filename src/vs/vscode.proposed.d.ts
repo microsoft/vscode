@@ -1,5 +1,3 @@
-import { ICommandEvent } from 'vs/platform/commands/common/commands'
-
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -558,6 +556,10 @@ declare module 'vscode' {
 		 */
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 
+		export interface ICommandEvent {
+			commandId: string;
+			args: any[];
+		}
 
 		/**
 		 * An event that is emitted when a [command](#Command) is executed.

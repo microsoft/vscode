@@ -231,9 +231,9 @@ export function createApiFactory(
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);
 			},
-			onDidExecuteCommand: (listener, thisArgs?, disposables?) => {
+			onDidExecuteCommand: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
 				return extHostCommands.onDidExecuteCommand(listener, thisArgs, disposables);
-			},
+			}),
 		};
 
 		// namespace: env

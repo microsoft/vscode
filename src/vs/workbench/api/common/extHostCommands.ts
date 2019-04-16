@@ -32,8 +32,8 @@ export interface ArgumentProcessor {
 }
 
 export class ExtHostCommands implements ExtHostCommandsShape {
-	private readonly _onDidExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
-	public readonly onDidExecuteCommandEmitter: Event<ICommandEvent> = this._onDidExecuteCommand.event;
+	private readonly _onDidExecuteCommand: Emitter<ICommandEvent>;
+	public readonly onDidExecuteCommandEmitter: Event<ICommandEvent>;
 
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _proxy: MainThreadCommandsShape;
@@ -47,6 +47,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadCommands);
+		this._onDidExecuteCommand = new Emitter<ICommandEvent>({
+			onFirstListenerDidAdd: this._proxy.$onDidExecuteCommand,
+			onLastListenerRemove: this._proxy.$disposeListeners,
+		});
+		this.onDidExecuteCommandEmitter = this._onDidExecuteCommand.event;
 		this._logService = logService;
 		this._converter = new CommandsConverter(this, heapService);
 		this._argumentProcessors = [
@@ -112,7 +117,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	}
 
 	onDidExecuteCommand(listener: (command: ICommandEvent) => any, thisArgs?: any, disposables?: IDisposable[]) {
-		this._proxy.$onDidExecuteCommand();
 		return this.onDidExecuteCommandEmitter(listener, thisArgs, disposables);
 	}
 
@@ -146,9 +150,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			});
 
-			return this._proxy.$executeCommand<T>(id, args).then(result => {
-				return revive(result, 0);
-			});
+			return this._proxy.$executeCommand<T>(id, args).then(result => revive(result, 0));
 		}
 	}
 
@@ -170,6 +172,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 		try {
 			const result = callback.apply(thisArg, args);
+			this._onDidExecuteCommand.fire({ commandId: id, args });
 			return Promise.resolve(result);
 		} catch (err) {
 			this._logService.error(err, id);

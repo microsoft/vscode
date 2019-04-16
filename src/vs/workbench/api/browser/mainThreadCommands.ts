@@ -82,6 +82,10 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		return this._commandService.onDidExecuteCommand((command) => this.handleExecuteCommand(command));
 	}
 
+	$disposeListeners() {
+		return this._commandService.disposeListeners();
+	}
+
 	$getCommands(): Promise<string[]> {
 		return Promise.resolve(Object.keys(CommandsRegistry.getCommands()));
 	}
