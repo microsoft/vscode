@@ -29,7 +29,7 @@ import { FileOperationEvent, IFileService, IReadTextFileOptions, FileOperationEr
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextFileContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -235,7 +235,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		this.resolveTextContentError = error;
 	}
 
-	public read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
+	public readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
@@ -243,7 +243,7 @@ export class TestTextFileService extends BrowserTextFileService {
 			return Promise.reject(error);
 		}
 
-		return this.fileService.resolveContent(resource, options).then((content): ITextFileContent => {
+		return this.fileService.resolveContent(resource, options).then((content): ITextFileStreamContent => {
 			return {
 				resource: content.resource,
 				name: content.name,

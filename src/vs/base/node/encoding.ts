@@ -24,7 +24,12 @@ export interface IDecodeStreamOptions {
 	overwriteEncoding?(detectedEncoding: string | null): string;
 }
 
-export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }> {
+export interface IDecodeStreamResult {
+	detected: IDetectedEncodingResult;
+	stream: NodeJS.ReadableStream;
+}
+
+export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
 	if (!options.minBytesRequiredForDetection) {
 		options.minBytesRequiredForDetection = options.guessEncoding ? AUTO_GUESS_BUFFER_MAX_LEN : NO_GUESS_BUFFER_MAX_LEN;
 	}
@@ -33,7 +38,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 		options.overwriteEncoding = detected => detected || UTF8;
 	}
 
-	return new Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }>((resolve, reject) => {
+	return new Promise<IDecodeStreamResult>((resolve, reject) => {
 
 		readable.on('error', reject);
 

@@ -6,10 +6,10 @@
 import { tmpdir } from 'os';
 import { localize } from 'vs/nls';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IReadTextFileOptions, stringToSnapshot, ICreateFileOptions, FileOperationError, FileOperationResult, IResourceEncodings } from 'vs/platform/files/common/files';
+import { ITextSnapshot, IWriteTextFileOptions, IFileStatWithMetadata, IResourceEncoding, IReadTextFileOptions, stringToSnapshot, ICreateFileOptions, FileOperationError, FileOperationResult, IResourceEncodings, IFileStreamContent } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { exists, stat, chmod, rimraf } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
@@ -17,7 +17,7 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, IDetectedEncodingResult, detectEncodingByBOM, encodeStream, UTF8_BOM, UTF16be_BOM, UTF16le_BOM, toDecodeStream, IDecodeStreamOptions } from 'vs/base/node/encoding';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, IDetectedEncodingResult, detectEncodingByBOM, encodeStream, UTF8_BOM, UTF16be_BOM, UTF16le_BOM, toDecodeStream, IDecodeStreamResult } from 'vs/base/node/encoding';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { joinPath, extname, isEqualOrParent } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -26,6 +26,7 @@ import { VSBufferReadable, VSBuffer, VSBufferReadableStream } from 'vs/base/comm
 import { Readable } from 'stream';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
 
 export class NodeTextFileService extends TextFileService {
 
@@ -39,28 +40,72 @@ export class NodeTextFileService extends TextFileService {
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
-		const stream = await this.fileService.readFileStream(resource, options);
+		const [bufferStream, decoder] = await this.doRead(resource, options);
 
-		const readable = this.streamToNodeReadable(stream.value);
-
-		const decodeStreamOpts: IDecodeStreamOptions = {
-			guessEncoding: options && options.autoGuessEncoding,
-			overwriteEncoding: detected => {
-				return this.encoding.getReadEncoding(resource, options, { encoding: detected, seemsBinary: false });
-			}
+		return {
+			...bufferStream,
+			encoding: decoder.detected.encoding || UTF8,
+			value: await this.nodeReadableToString(decoder.stream)
 		};
+	}
 
-		const result = await toDecodeStream(readable, decodeStreamOpts);
+	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+		const [bufferStream, decoder] = await this.doRead(resource, options);
 
-		if (options && options.acceptTextOnly && result.detected.seemsBinary) {
+		return {
+			...bufferStream,
+			encoding: decoder.detected.encoding || UTF8,
+			value: await createTextBufferFactoryFromStream(decoder.stream)
+		};
+	}
+
+	private async doRead(resource: URI, options?: IReadTextFileOptions): Promise<[IFileStreamContent, IDecodeStreamResult]> {
+
+		// ensure limits
+		options = this.ensureLimits(options);
+
+		// read stream raw
+		const bufferStream = await this.fileService.readFileStream(resource, options);
+
+		// read through encoding library
+		const decoder = await toDecodeStream(this.streamToNodeReadable(bufferStream.value), {
+			guessEncoding: options && options.autoGuessEncoding,
+			overwriteEncoding: detected => this.encoding.getReadEncoding(resource, options, { encoding: detected, seemsBinary: false })
+		});
+
+		// validate binary
+		if (options && options.acceptTextOnly && decoder.detected.seemsBinary) {
 			throw new FileOperationError(localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), FileOperationResult.FILE_IS_BINARY, options);
 		}
 
-		return {
-			...stream,
-			encoding: result.detected.encoding || UTF8,
-			value: await createTextBufferFactoryFromStream(result.stream)
-		};
+		return [bufferStream, decoder];
+	}
+
+	private ensureLimits(options?: IReadTextFileOptions): IReadTextFileOptions {
+		let ensuredOptions: IReadTextFileOptions;
+		if (!options) {
+			ensuredOptions = Object.create(null);
+		} else {
+			ensuredOptions = options;
+		}
+
+		let ensuredLimits: { size?: number; memory?: number; };
+		if (!ensuredOptions.limits) {
+			ensuredLimits = Object.create(null);
+			ensuredOptions.limits = ensuredLimits;
+		} else {
+			ensuredLimits = ensuredOptions.limits;
+		}
+
+		if (typeof ensuredLimits.size !== 'number') {
+			ensuredLimits.size = MAX_FILE_SIZE;
+		}
+
+		if (typeof ensuredLimits.memory !== 'number') {
+			ensuredLimits.memory = Math.max(typeof this.environmentService.args['max-memory'] === 'string' ? parseInt(this.environmentService.args['max-memory']) * 1024 * 1024 || 0 : 0, MAX_HEAP_SIZE);
+		}
+
+		return ensuredOptions;
 	}
 
 	private streamToNodeReadable(stream: VSBufferReadableStream): Readable {
@@ -105,6 +150,16 @@ export class NodeTextFileService extends TextFileService {
 				callback(null);
 			}
 		};
+	}
+
+	private nodeReadableToString(stream: NodeJS.ReadableStream): Promise<string> {
+		return new Promise((resolve, reject) => {
+			let result = '';
+
+			stream.on('data', chunk => result += chunk);
+			stream.on('error', reject);
+			stream.on('end', () => resolve(result));
+		});
 	}
 
 	protected async doCreate(resource: URI, value?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {

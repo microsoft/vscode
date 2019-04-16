@@ -106,6 +106,11 @@ export interface ITextFileService extends IDisposable {
 	read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent>;
 
 	/**
+	 * Read the contents of a file identified by the resource as stream.
+	 */
+	readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent>;
+
+	/**
 	 * Update a file with given contents.
 	 */
 	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
@@ -262,17 +267,28 @@ export const enum LoadReason {
 	OTHER = 3
 }
 
-export interface ITextFileContent extends IBaseStatWithMetadata {
-
-	/**
-	 * The line grouped content of a text file.
-	 */
-	value: ITextBufferFactory;
+interface IBaseTextFileContent extends IBaseStatWithMetadata {
 
 	/**
 	 * The encoding of the content if known.
 	 */
 	encoding: string;
+}
+
+export interface ITextFileContent extends IBaseTextFileContent {
+
+	/**
+	 * The content of a text file.
+	 */
+	value: string;
+}
+
+export interface ITextFileStreamContent extends IBaseTextFileContent {
+
+	/**
+	 * The line grouped content of a text file.
+	 */
+	value: ITextBufferFactory;
 }
 
 export interface IModelLoadOrCreateOptions {

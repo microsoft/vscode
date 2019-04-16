@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -266,7 +266,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// If we have a backup, continue loading with it
 		if (!!backup) {
-			const content: ITextFileContent = {
+			const content: ITextFileStreamContent = {
 				resource: this.resource,
 				name: basename(this.resource),
 				mtime: Date.now(),
@@ -306,7 +306,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Resolve Content
 		try {
-			const content = await this.textFileService.read(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding });
+			const content = await this.textFileService.readStream(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding });
 
 			// Clear orphaned state when loading was successful
 			this.setOrphaned(false);
@@ -346,7 +346,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private async loadWithContent(content: ITextFileContent, options?: ILoadOptions, backup?: URI): Promise<TextFileEditorModel> {
+	private async loadWithContent(content: ITextFileStreamContent, options?: ILoadOptions, backup?: URI): Promise<TextFileEditorModel> {
 		const model = await this.doLoadWithContent(content, backup);
 
 		// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
@@ -372,7 +372,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return model;
 	}
 
-	private doLoadWithContent(content: ITextFileContent, backup?: URI): Promise<TextFileEditorModel> {
+	private doLoadWithContent(content: ITextFileStreamContent, backup?: URI): Promise<TextFileEditorModel> {
 		this.logService.trace('load() - resolved content', this.resource);
 
 		// Update our resolved disk stat model
