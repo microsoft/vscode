@@ -52,7 +52,6 @@ export class RemoteFileDialog {
 	private remoteAuthority: string | undefined;
 	private requiresTrailing: boolean;
 	private scheme: string = REMOTE_HOST_SCHEME;
-	private shouldOverwriteFile: boolean = false;
 	private contextKey: IContextKey<boolean>;
 	private userEnteredPathSegment: string;
 	private autoCompletePathSegment: string;
@@ -267,7 +266,6 @@ export class RemoteFileDialog {
 					// If the user has just entered more bad path, don't change anything
 					if (value !== this.constructFullUserPath() && !this.isBadSubpath(value)) {
 						this.filePickBox.validationMessage = undefined;
-						this.shouldOverwriteFile = false;
 						const valueUri = this.remoteUriFrom(this.trimTrailingSlash(this.filePickBox.value));
 						let updated: UpdateResult = UpdateResult.NotUpdated;
 						if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), valueUri, true)) {
@@ -552,9 +550,8 @@ export class RemoteFileDialog {
 				// Can't do this
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolder', 'The folder already exists. Please use a new file name.');
 				return Promise.resolve(false);
-			} else if (stat && !this.shouldOverwriteFile) {
+			} else if (stat) {
 				// Replacing a file.
-				this.shouldOverwriteFile = true;
 				// Show a yes/no prompt
 				const message = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri));
 				return this.yesNoPrompt(message);
