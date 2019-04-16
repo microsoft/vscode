@@ -38,7 +38,7 @@ suite('Workspace', () => {
 		const expected = new WorkspaceFolder({ uri: testFolderUri, name: '', index: 0 });
 		let testObject = new Workspace('', [expected, new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 1 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 2 })]);
 
-		const actual = testObject.getFolder(URI.file('/src/test/a'));
+		const actual = testObject.getFolder(URI.file(path.join(fileFolder, 'test/a')));
 
 		assert.equal(actual, expected);
 	});
@@ -47,7 +47,7 @@ suite('Workspace', () => {
 		const expected = new WorkspaceFolder({ uri: testFolderUri, name: '', index: 2 });
 		let testObject = new Workspace('', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 }), expected]);
 
-		const actual = testObject.getFolder(URI.file('/src/test/a'));
+		const actual = testObject.getFolder(URI.file(path.join(fileFolder, 'test/a')));
 
 		assert.equal(actual, expected);
 	});
@@ -55,7 +55,7 @@ suite('Workspace', () => {
 	test('getFolder returns null if the uri is not sub', () => {
 		let testObject = new Workspace('', [new WorkspaceFolder({ uri: testFolderUri, name: '', index: 0 }), new WorkspaceFolder({ uri: URI.file('/src/code'), name: '', index: 1 })]);
 
-		const actual = testObject.getFolder(URI.file('/src/main/a'));
+		const actual = testObject.getFolder(URI.file(path.join(fileFolder, 'main/a')));
 
 		assert.equal(actual, undefined);
 	});
