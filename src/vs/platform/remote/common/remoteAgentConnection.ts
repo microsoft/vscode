@@ -335,7 +335,7 @@ abstract class PersistentConnection extends Disposable {
 			return;
 		}
 		this._onDidStateChange.fire(new ConnectionLostEvent());
-		const TIMES = [1, 9, 20, 30, 30, 30, 60, 60, 60, 300];
+		const TIMES = [10, 30, 30, 30, 30, 30, 60, 60, 60, 300];
 		let attempt = -1;
 		do {
 			attempt++;
