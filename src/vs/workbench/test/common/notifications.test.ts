@@ -124,7 +124,7 @@ suite('Notifications', () => {
 
 		assert.equal(links[2].name, 'Link 3');
 		assert.equal(links[2].href, 'command:without.title');
-		assert.equal(links[2].title, 'Click to execute command \'command:without.title\'');
+		assert.equal(links[2].title, 'Click to execute command \'without.title\'');
 		assert.equal(links[2].length, '[Link 3](command:without.title)'.length);
 		assert.equal(links[2].offset, 'Unable to [Link 1](http://link1.com) open [Link 2](command:open.me "Open This") and '.length);
 	});

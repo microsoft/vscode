@@ -400,7 +400,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			if (title && title.length > 0) {
 				massagedTitle = title;
 			} else if (startsWith(href, 'command:')) {
-				massagedTitle = localize('executeCommand', "Click to execute command '{0}'", href);
+				massagedTitle = localize('executeCommand', "Click to execute command '{0}'", href.substr('command:'.length));
 			} else {
 				massagedTitle = href;
 			}
