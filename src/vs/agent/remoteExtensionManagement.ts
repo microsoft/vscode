@@ -153,13 +153,13 @@ export class RemoteExtensionManagementServer {
 		if (!this._environmentService.args['disable-telemetry'] && product.enableTelemetry && this._environmentService.isBuilt) {
 			if (product.aiConfig && product.aiConfig.asimovKey) {
 				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, logService);
-				// disposables.push(appInsightsAppender); // TODO Ensure the AI appender is disposed so that it flushes remaining data
+				// disposables.push(appInsightsAppender); // TODO@rob Ensure the AI appender is disposed so that it flushes remaining data
 			}
 
 			const machineId = await getMachineId();
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
-				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', machineId, this._environmentService.installSourcePath),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', machineId, this._environmentService.installSourcePath, 'remoteAgent'),
 				piiPaths: [this._environmentService.appRoot]
 			};
 
