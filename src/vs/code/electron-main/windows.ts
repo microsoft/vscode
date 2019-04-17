@@ -1581,7 +1581,8 @@ export class WindowsManager implements IWindowsMainService {
 			cli = { ...cli, remote };
 		}
 		const forceReuseWindow = options && options.reuseWindow;
-		return this.open({ context, cli, forceEmpty: true, forceReuseWindow });
+		const forceNewWindow = !forceReuseWindow;
+		return this.open({ context, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
 	}
 
 	openNewTabbedWindow(context: OpenContext): ICodeWindow[] {
