@@ -35,6 +35,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IProgressService2, IProgress, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 const WINDOW_ACTIONS_COMMAND_ID = '_remote.showWindowActions';
 
@@ -282,3 +283,33 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnost
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		id: 'remote',
+		title: nls.localize('remote title', "Remote"),
+		type: 'object',
+		properties: {
+			'remote.extensionKind': {
+				type: 'object',
+				description: nls.localize('remote.extensionKind', "Configure ui or workspace extensions and allow them to enable locally or remotely in a remote window."),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
+						type: 'string',
+						enum: [
+							'ui',
+							'workspace'
+						],
+						enumDescriptions: [
+							nls.localize('ui', "UI extension kind. Such extensions are enabled only when available locally in a remote window."),
+							nls.localize('workspace', "Workspace extension kind. Such extensions are enabled only when avialable on remote server in a remote window.")
+						],
+						default: 'ui'
+					},
+				},
+				default: {
+					'pub.name': 'ui'
+				}
+			}
+		}
+	});
