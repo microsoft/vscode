@@ -231,7 +231,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					break;
 			}
 
-			SetWindowCompositionAttribute(this._win.getNativeWindowHandle(), attribValue, 0x00000001);
+			SetWindowCompositionAttribute(this._win.getNativeWindowHandle(), attribValue, 0);
 		}
 
 		if (isFullscreenOrMaximized) {
