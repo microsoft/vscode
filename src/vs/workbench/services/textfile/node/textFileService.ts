@@ -417,7 +417,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		const overwriteEncoding = options && options.overwriteEncoding;
 		if (!overwriteEncoding && encoding === UTF8) {
 			try {
-				const buffer = (await this.fileService.readFile(resource, { length: 3 })).value;
+				const buffer = (await this.fileService.readFile(resource, { length: UTF8_BOM.length })).value;
 				if (detectEncodingByBOMFromBuffer(buffer, buffer.byteLength) === UTF8) {
 					return { encoding, addBOM: true };
 				}

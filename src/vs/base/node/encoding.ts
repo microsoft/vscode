@@ -149,7 +149,7 @@ function toNodeEncoding(enc: string | null): string {
 }
 
 export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): string | null {
-	if (!buffer || bytesRead < 2) {
+	if (!buffer || bytesRead < UTF16be_BOM.length) {
 		return null;
 	}
 
@@ -166,7 +166,7 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, 
 		return UTF16le;
 	}
 
-	if (bytesRead < 3) {
+	if (bytesRead < UTF8_BOM.length) {
 		return null;
 	}
 
