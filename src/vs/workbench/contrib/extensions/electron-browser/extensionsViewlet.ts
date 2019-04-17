@@ -507,7 +507,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	private doSearch(): Promise<void> {
 		const value = this.normalizedQuery();
-		this.defaultViewsContextKey.set(!value);
 		const isRecommendedExtensionsQuery = ExtensionsListView.isRecommendedExtensionsQuery(value);
 		this.searchInstalledExtensionsContextKey.set(ExtensionsListView.isInstalledExtensionsQuery(value));
 		this.searchOutdatedExtensionsContextKey.set(ExtensionsListView.isOutdatedExtensionsQuery(value));
@@ -517,6 +516,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
 		this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery);
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
+		this.defaultViewsContextKey.set(!value);
 
 		return this.progress(Promise.all(this.panels.map(view =>
 			(<ExtensionsListView>view).show(this.normalizedQuery())
