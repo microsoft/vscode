@@ -115,7 +115,7 @@ export class ManagementConnection {
 	}
 }
 
-const eventPrefix = 'remoteAgent';
+const eventPrefix = 'monacoworkbench';
 
 export class RemoteExtensionManagementServer {
 
