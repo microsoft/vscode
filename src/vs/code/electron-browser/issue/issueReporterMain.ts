@@ -40,7 +40,7 @@ import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { SystemInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
@@ -938,15 +938,24 @@ export class IssueReporter extends Disposable {
 			</table>`;
 
 			systemInfo.remoteData.forEach(remote => {
-				renderedData += `
-				<hr>
-				<table>
-					<tr><td>Remote</td><td>${remote.hostName}</td></tr>
-					<tr><td>OS</td><td>${remote.machineInfo.os}</td></tr>
-					<tr><td>CPUs</td><td>${remote.machineInfo.cpus}</td></tr>
-					<tr><td>Memory (System)</td><td>${remote.machineInfo.memory}</td></tr>
-					<tr><td>VM</td><td>${remote.machineInfo.vmHint}</td></tr>
-				</table>`;
+				if (isRemoteDiagnosticError(remote)) {
+					renderedData += `
+					<hr>
+					<table>
+						<tr><td>Remote</td><td>${remote.hostName}</td></tr>
+						<tr><td></td><td>${remote.errorMessage}</td></tr>
+					</table>`;
+				} else {
+					renderedData += `
+					<hr>
+					<table>
+						<tr><td>Remote</td><td>${remote.hostName}</td></tr>
+						<tr><td>OS</td><td>${remote.machineInfo.os}</td></tr>
+						<tr><td>CPUs</td><td>${remote.machineInfo.cpus}</td></tr>
+						<tr><td>Memory (System)</td><td>${remote.machineInfo.memory}</td></tr>
+						<tr><td>VM</td><td>${remote.machineInfo.vmHint}</td></tr>
+					</table>`;
+				}
 			});
 
 			target.innerHTML = renderedData;

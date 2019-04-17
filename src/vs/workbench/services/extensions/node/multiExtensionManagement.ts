@@ -8,7 +8,6 @@ import {
 	IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata,
 	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { flatten } from 'vs/base/common/arrays';
 import { ExtensionType, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -46,8 +45,10 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 	}
 
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type)))
-			.then(result => flatten(result));
+		const installedExtensions: ILocalExtension[] = [];
+		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type).then(extensions => installedExtensions.push(...extensions))))
+			.then(_ => installedExtensions)
+			.catch(e => installedExtensions);
 	}
 
 	async uninstall(extension: ILocalExtension, force?: boolean): Promise<void> {
