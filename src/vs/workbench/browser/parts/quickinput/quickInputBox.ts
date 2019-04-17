@@ -81,6 +81,10 @@ export class QuickInputBox {
 		this.inputBox.setEnabled(enabled);
 	}
 
+	hasFocus(): boolean {
+		return this.inputBox.hasFocus();
+	}
+
 	setAttribute(name: string, value: string) {
 		this.inputBox.inputElement.setAttribute(name, value);
 	}
@@ -95,6 +99,10 @@ export class QuickInputBox {
 		} else {
 			this.inputBox.showMessage({ type: decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR, content: '' });
 		}
+	}
+
+	stylesForType(decoration: Severity) {
+		return this.inputBox.stylesForType(decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR);
 	}
 
 	setFocus(): void {

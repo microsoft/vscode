@@ -37,6 +37,11 @@ export interface IStatusbarEntry {
 	readonly color?: string | ThemeColor;
 
 	/**
+	 * An optional background color to use for the entry
+	 */
+	readonly backgroundColor?: string | ThemeColor;
+
+	/**
 	 * An optional id of a command that is known to the workbench to execute on click
 	 */
 	readonly command?: string;
@@ -62,13 +67,21 @@ export interface IStatusbarService {
 	_serviceBrand: any;
 
 	/**
-	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned IDisposable
-	 * to remove the statusbar entry.
+	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
+	 * to update or remove the statusbar entry.
 	 */
-	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority?: number): IDisposable;
+	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
 
 	/**
 	 * Prints something to the status bar area with optional auto dispose and delay.
 	 */
 	setStatusMessage(message: string, autoDisposeAfter?: number, delayBy?: number): IDisposable;
+}
+
+export interface IStatusbarEntryAccessor extends IDisposable {
+
+	/**
+	 * Allows to update an existing status bar entry.
+	 */
+	update(properties: IStatusbarEntry): void;
 }

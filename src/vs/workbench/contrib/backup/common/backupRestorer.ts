@@ -47,7 +47,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	}
 
 	private doResolveOpenedBackups(backups: URI[]): Promise<URI[]> {
-		const restorePromises: Promise<any>[] = [];
+		const restorePromises: Promise<unknown>[] = [];
 		const unresolved: URI[] = [];
 
 		backups.forEach(backup => {

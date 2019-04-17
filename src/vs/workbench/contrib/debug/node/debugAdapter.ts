@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import { exists } from 'vs/base/node/pfs';
 import * as cp from 'child_process';
 import * as stream from 'stream';
 import * as nls from 'vs/nls';
@@ -12,170 +12,11 @@ import * as path from 'vs/base/common/path';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { IDebugAdapter, IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
-
-/**
- * Abstract implementation of the low level API for a debug adapter.
- * Missing is how this API communicates with the debug adapter.
- */
-export abstract class AbstractDebugAdapter implements IDebugAdapter {
-
-	private sequence: number;
-	private pendingRequests: Map<number, (e: DebugProtocol.Response) => void>;
-	private requestCallback: (request: DebugProtocol.Request) => void;
-	private eventCallback: (request: DebugProtocol.Event) => void;
-	private messageCallback: (message: DebugProtocol.ProtocolMessage) => void;
-
-	protected readonly _onError: Emitter<Error>;
-	protected readonly _onExit: Emitter<number | null>;
-
-	constructor() {
-		this.sequence = 1;
-		this.pendingRequests = new Map();
-
-		this._onError = new Emitter<Error>();
-		this._onExit = new Emitter<number>();
-	}
-
-	abstract startSession(): Promise<void>;
-	abstract stopSession(): Promise<void>;
-
-	abstract sendMessage(message: DebugProtocol.ProtocolMessage): void;
-
-	get onError(): Event<Error> {
-		return this._onError.event;
-	}
-
-	get onExit(): Event<number | null> {
-		return this._onExit.event;
-	}
-
-	onMessage(callback: (message: DebugProtocol.ProtocolMessage) => void): void {
-		if (this.eventCallback) {
-			this._onError.fire(new Error(`attempt to set more than one 'Message' callback`));
-		}
-		this.messageCallback = callback;
-	}
-
-	onEvent(callback: (event: DebugProtocol.Event) => void): void {
-		if (this.eventCallback) {
-			this._onError.fire(new Error(`attempt to set more than one 'Event' callback`));
-		}
-		this.eventCallback = callback;
-	}
-
-	onRequest(callback: (request: DebugProtocol.Request) => void): void {
-		if (this.requestCallback) {
-			this._onError.fire(new Error(`attempt to set more than one 'Request' callback`));
-		}
-		this.requestCallback = callback;
-	}
-
-	sendResponse(response: DebugProtocol.Response): void {
-		if (response.seq > 0) {
-			this._onError.fire(new Error(`attempt to send more than one response for command ${response.command}`));
-		} else {
-			this.internalSend('response', response);
-		}
-	}
-
-	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void {
-
-		const request: any = {
-			command: command
-		};
-		if (args && Object.keys(args).length > 0) {
-			request.arguments = args;
-		}
-
-		this.internalSend('request', request);
-
-		if (typeof timeout === 'number') {
-			const timer = setTimeout(() => {
-				clearTimeout(timer);
-				const clb = this.pendingRequests.get(request.seq);
-				if (clb) {
-					this.pendingRequests.delete(request.seq);
-					const err: DebugProtocol.Response = {
-						type: 'response',
-						seq: 0,
-						request_seq: request.seq,
-						success: false,
-						command,
-						message: `timeout after ${timeout} ms`
-					};
-					clb(err);
-				}
-			}, timeout);
-		}
-
-		if (clb) {
-			// store callback for this request
-			this.pendingRequests.set(request.seq, clb);
-		}
-	}
-
-	acceptMessage(message: DebugProtocol.ProtocolMessage): void {
-		if (this.messageCallback) {
-			this.messageCallback(message);
-		} else {
-			switch (message.type) {
-				case 'event':
-					if (this.eventCallback) {
-						this.eventCallback(<DebugProtocol.Event>message);
-					}
-					break;
-				case 'request':
-					if (this.requestCallback) {
-						this.requestCallback(<DebugProtocol.Request>message);
-					}
-					break;
-				case 'response':
-					const response = <DebugProtocol.Response>message;
-					const clb = this.pendingRequests.get(response.request_seq);
-					if (clb) {
-						this.pendingRequests.delete(response.request_seq);
-						clb(response);
-					}
-					break;
-			}
-		}
-	}
-
-	private internalSend(typ: 'request' | 'response' | 'event', message: DebugProtocol.ProtocolMessage): void {
-
-		message.type = typ;
-		message.seq = this.sequence++;
-
-		this.sendMessage(message);
-	}
-
-	protected cancelPending() {
-		const pending = this.pendingRequests;
-		this.pendingRequests = new Map();
-		setTimeout(_ => {
-			pending.forEach((callback, request_seq) => {
-				const err: DebugProtocol.Response = {
-					type: 'response',
-					seq: 0,
-					request_seq,
-					success: false,
-					command: 'canceled',
-					message: 'canceled'
-				};
-				callback(err);
-			});
-		}, 1000);
-	}
-
-	dispose(): void {
-		this.cancelPending();
-	}
-}
+import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
 
 /**
  * An implementation that communicates via two streams with the debug adapter.
@@ -310,65 +151,67 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		super();
 	}
 
-	startSession(): Promise<void> {
+	async startSession(): Promise<void> {
 
-		return new Promise<void>((resolve, reject) => {
+		const command = this.adapterExecutable.command;
+		const args = this.adapterExecutable.args;
+		const options = this.adapterExecutable.options || {};
 
-			// verify executables
-			if (this.adapterExecutable.command) {
-				if (path.isAbsolute(this.adapterExecutable.command)) {
-					if (!fs.existsSync(this.adapterExecutable.command)) {
-						reject(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", this.adapterExecutable.command)));
+		try {
+			// verify executables asynchronously
+			if (command) {
+				if (path.isAbsolute(command)) {
+					const commandExists = await exists(command);
+					if (!commandExists) {
+						throw new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", command));
 					}
 				} else {
 					// relative path
-					if (this.adapterExecutable.command.indexOf('/') < 0 && this.adapterExecutable.command.indexOf('\\') < 0) {
+					if (command.indexOf('/') < 0 && command.indexOf('\\') < 0) {
 						// no separators: command looks like a runtime name like 'node' or 'mono'
 						// TODO: check that the runtime is available on PATH
 					}
 				}
 			} else {
-				reject(new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
-					"Cannot determine executable for debug adapter '{0}'.", this.debugType)));
+				throw new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
+					"Cannot determine executable for debug adapter '{0}'.", this.debugType));
 			}
 
 			let env = objects.mixin({}, process.env);
-			if (this.adapterExecutable.options && this.adapterExecutable.options.env) {
-				env = objects.mixin(env, this.adapterExecutable.options.env);
+			if (options.env) {
+				env = objects.mixin(env, options.env);
 			}
 			delete env.VSCODE_PREVENT_FOREIGN_INSPECT;
 
-			if (this.adapterExecutable.command === 'node') {
-				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
+			if (command === 'node') {
+				if (Array.isArray(args) && args.length > 0) {
 					const isElectron = !!process.env['ELECTRON_RUN_AS_NODE'] || !!process.versions['electron'];
-					const options: cp.ForkOptions = {
+					const forkOptions: cp.ForkOptions = {
 						env: env,
 						execArgv: isElectron ? ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'] : [],
 						silent: true
 					};
-					if (this.adapterExecutable.options && this.adapterExecutable.options.cwd) {
-						options.cwd = this.adapterExecutable.options.cwd;
+					if (options.cwd) {
+						forkOptions.cwd = options.cwd;
 					}
-					const child = cp.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), options);
+					const child = cp.fork(args[0], args.slice(1), forkOptions);
 					if (!child.pid) {
-						reject(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
+						throw new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", args[0]));
 					}
 					this.serverProcess = child;
-					resolve();
 				} else {
-					reject(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
+					throw new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter."));
 				}
 			} else {
-				const options: cp.SpawnOptions = {
+				const spawnOptions: cp.SpawnOptions = {
 					env: env
 				};
-				if (this.adapterExecutable.options && this.adapterExecutable.options.cwd) {
-					options.cwd = this.adapterExecutable.options.cwd;
+				if (options.cwd) {
+					spawnOptions.cwd = options.cwd;
 				}
-				this.serverProcess = cp.spawn(this.adapterExecutable.command, this.adapterExecutable.args, options);
-				resolve();
+				this.serverProcess = cp.spawn(command, args, spawnOptions);
 			}
-		}).then(_ => {
+
 			this.serverProcess.on('error', err => {
 				this._onError.fire(err);
 			});
@@ -394,14 +237,19 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
 				// });
 				this.serverProcess.stderr.on('data', (data: string) => {
-					outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
+					const channel = outputService.getChannel(ExtensionsChannelId);
+					if (channel) {
+						channel.append(sanitize(data));
+					}
 				});
 			}
 
+			// finally connect to the DA
 			this.connect(this.serverProcess.stdout, this.serverProcess.stdin);
-		}, (err: Error) => {
+
+		} catch (err) {
 			this._onError.fire(err);
-		});
+		}
 	}
 
 	stopSession(): Promise<void> {
@@ -432,32 +280,34 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		}
 	}
 
-	private static extract(contribution: IDebuggerContribution, extensionFolderPath: string): IDebuggerContribution | undefined {
-		if (!contribution) {
+	private static extract(platformContribution: IPlatformSpecificAdapterContribution, extensionFolderPath: string): IDebuggerContribution | undefined {
+		if (!platformContribution) {
 			return undefined;
 		}
 
 		const result: IDebuggerContribution = Object.create(null);
-		if (contribution.runtime) {
-			if (contribution.runtime.indexOf('./') === 0) {	// TODO
-				result.runtime = path.join(extensionFolderPath, contribution.runtime);
+		if (platformContribution.runtime) {
+			if (platformContribution.runtime.indexOf('./') === 0) {	// TODO
+				result.runtime = path.join(extensionFolderPath, platformContribution.runtime);
 			} else {
-				result.runtime = contribution.runtime;
+				result.runtime = platformContribution.runtime;
 			}
 		}
-		if (contribution.runtimeArgs) {
-			result.runtimeArgs = contribution.runtimeArgs;
+		if (platformContribution.runtimeArgs) {
+			result.runtimeArgs = platformContribution.runtimeArgs;
 		}
-		if (contribution.program) {
-			if (!path.isAbsolute(contribution.program)) {
-				result.program = path.join(extensionFolderPath, contribution.program);
+		if (platformContribution.program) {
+			if (!path.isAbsolute(platformContribution.program)) {
+				result.program = path.join(extensionFolderPath, platformContribution.program);
 			} else {
-				result.program = contribution.program;
+				result.program = platformContribution.program;
 			}
 		}
-		if (contribution.args) {
-			result.args = contribution.args;
+		if (platformContribution.args) {
+			result.args = platformContribution.args;
 		}
+
+		const contribution = platformContribution as IDebuggerContribution;
 
 		if (contribution.win) {
 			result.win = ExecutableDebugAdapter.extract(contribution.win, extensionFolderPath);
@@ -487,7 +337,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
 				if (debuggers && debuggers.length > 0) {
 					debuggers.filter(dbg => typeof dbg.type === 'string' && strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
-						// extract relevant attributes and make then absolute where needed
+						// extract relevant attributes and make them absolute where needed
 						const extractedDbg = ExecutableDebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
 						// merge

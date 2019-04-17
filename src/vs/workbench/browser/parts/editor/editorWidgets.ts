@@ -101,7 +101,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 
 	private static readonly ID = 'editor.contrib.openWorkspaceButton';
 
-	private openWorkspaceButton: FloatingClickWidget;
+	private openWorkspaceButton: FloatingClickWidget | undefined;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -163,7 +163,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			this._register(this.openWorkspaceButton.onClick(() => {
 				const model = this.editor.getModel();
 				if (model) {
-					this.windowService.openWindow([{ uri: model.uri, typeHint: 'file' }]);
+					this.windowService.openWindow([{ workspaceUri: model.uri }]);
 				}
 			}));
 
@@ -172,7 +172,8 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 	}
 
 	private disposeOpenWorkspaceWidgetRenderer(): void {
-		this.openWorkspaceButton = dispose(this.openWorkspaceButton);
+		dispose(this.openWorkspaceButton);
+		this.openWorkspaceButton = undefined;
 	}
 
 	dispose(): void {

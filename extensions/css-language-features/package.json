@@ -42,6 +42,12 @@
             },
             "scope": "resource"
           },
+          "css.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.completion.triggerPropertyValueCompletion.desc%"
+          },
           "css.validate": {
             "type": "boolean",
             "scope": "resource",
@@ -726,7 +732,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^5.1.0",
+    "vscode-languageclient": "^5.2.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {

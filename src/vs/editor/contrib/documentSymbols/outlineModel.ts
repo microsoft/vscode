@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, coalesceInPlace } from 'vs/base/common/arrays';
+import { binarySearch, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { first, forEach, size } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -13,7 +13,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 export abstract class TreeElement {
 
@@ -86,6 +86,14 @@ export abstract class TreeElement {
 	}
 }
 
+export interface IOutlineMarker {
+	startLineNumber: number;
+	startColumn: number;
+	endLineNumber: number;
+	endColumn: number;
+	severity: MarkerSeverity;
+}
+
 export class OutlineElement extends TreeElement {
 
 	children: { [id: string]: OutlineElement; } = Object.create(null);
@@ -140,13 +148,13 @@ export class OutlineGroup extends TreeElement {
 		return undefined;
 	}
 
-	updateMarker(marker: IMarker[]): void {
+	updateMarker(marker: IOutlineMarker[]): void {
 		for (const key in this.children) {
 			this._updateMarker(marker, this.children[key]);
 		}
 	}
 
-	private _updateMarker(markers: IMarker[], item: OutlineElement): void {
+	private _updateMarker(markers: IOutlineMarker[], item: OutlineElement): void {
 		item.marker = undefined;
 
 		// find the proper start index to check for item/marker overlap.
@@ -161,7 +169,7 @@ export class OutlineGroup extends TreeElement {
 			start = idx;
 		}
 
-		let myMarkers: IMarker[] = [];
+		let myMarkers: IOutlineMarker[] = [];
 		let myTopSev: MarkerSeverity | undefined;
 
 		for (; start < markers.length && Range.areIntersecting(item.symbol.range, markers[start]); start++) {
@@ -169,7 +177,7 @@ export class OutlineGroup extends TreeElement {
 			// and store them in a 'private' array.
 			let marker = markers[start];
 			myMarkers.push(marker);
-			(markers as Array<IMarker | undefined>)[start] = undefined;
+			(markers as Array<IOutlineMarker | undefined>)[start] = undefined;
 			if (!myTopSev || marker.severity > myTopSev) {
 				myTopSev = marker.severity;
 			}
@@ -266,13 +274,15 @@ export class OutlineModel extends TreeElement {
 
 	static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
-		let result = new OutlineModel(textModel);
-		let promises = DocumentSymbolProviderRegistry.ordered(textModel).map((provider, index) => {
+		const cts = new CancellationTokenSource(token);
+		const result = new OutlineModel(textModel);
+		const provider = DocumentSymbolProviderRegistry.ordered(textModel);
+		const promises = provider.map((provider, index) => {
 
 			let id = TreeElement.findId(`provider_${index}`, result);
 			let group = new OutlineGroup(id, result, provider, index);
 
-			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, token)).then(result => {
+			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, cts.token)).then(result => {
 				for (const info of result || []) {
 					OutlineModel._makeOutlineElement(info, group);
 				}
@@ -289,7 +299,22 @@ export class OutlineModel extends TreeElement {
 			});
 		});
 
-		return Promise.all(promises).then(() => result._compact());
+		const listener = DocumentSymbolProviderRegistry.onDidChange(() => {
+			const newProvider = DocumentSymbolProviderRegistry.ordered(textModel);
+			if (!equals(newProvider, provider)) {
+				cts.cancel();
+			}
+		});
+
+		return Promise.all(promises).then(() => {
+			if (cts.token.isCancellationRequested && !token.isCancellationRequested) {
+				return OutlineModel._create(textModel, token);
+			} else {
+				return result._compact();
+			}
+		}).finally(() => {
+			listener.dispose();
+		});
 	}
 
 	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
@@ -394,7 +419,7 @@ export class OutlineModel extends TreeElement {
 		return TreeElement.getElementById(id, this);
 	}
 
-	updateMarker(marker: IMarker[]): void {
+	updateMarker(marker: IOutlineMarker[]): void {
 		// sort markers by start range so that we can use
 		// outline element starts for quicker look up
 		marker.sort(Range.compareRangesUsingStarts);

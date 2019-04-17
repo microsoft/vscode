@@ -15,10 +15,10 @@ import { IIntegrityService } from 'vs/workbench/services/integrity/common/integr
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
 
@@ -66,7 +66,7 @@ export class FeedbackDropdown extends Dropdown {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
@@ -99,7 +99,7 @@ export class FeedbackDropdown extends Dropdown {
 			y: position.top - 9, // above status bar
 			width: position.width,
 			height: position.height
-		} as IAnchor;
+		};
 	}
 
 	protected renderContents(container: HTMLElement): IDisposable {
@@ -310,6 +310,12 @@ export class FeedbackDropdown extends Dropdown {
 		};
 	}
 
+	private updateFeedbackDescription() {
+		if (this.feedbackDescriptionInput && this.feedbackDescriptionInput.textLength > this.maxFeedbackCharacters) {
+			this.feedbackDescriptionInput.value = this.feedbackDescriptionInput.value.substring(0, this.maxFeedbackCharacters);
+		}
+	}
+
 	private getCharCountText(charCount: number): string {
 		const remaining = this.maxFeedbackCharacters - charCount;
 		const text = (remaining === 1)
@@ -349,6 +355,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.sentiment = smile ? 1 : 0;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
+		this.updateFeedbackDescription();
 		this.updateCharCountText();
 		if (this.feedbackDescriptionInput) {
 			this.feedbackDescriptionInput.maxLength = this.maxFeedbackCharacters;

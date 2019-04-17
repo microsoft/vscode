@@ -55,12 +55,12 @@ export class FoldingController implements IEditorContribution {
 		return editor.getContribution<FoldingController>(ID);
 	}
 
-	private editor: ICodeEditor;
+	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
 	private _autoHideFoldingControls: boolean;
 	private _useFoldingProviders: boolean;
 
-	private foldingDecorationProvider: FoldingDecorationProvider;
+	private readonly foldingDecorationProvider: FoldingDecorationProvider;
 
 	private foldingModel: FoldingModel | null;
 	private hiddenRangeModel: HiddenRangeModel | null;

@@ -15,7 +15,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/editor/resourceViewer';
 import { URI } from 'vs/base/common/uri';
 import { Dimension, size, clearNode } from 'vs/base/browser/dom';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -37,17 +37,17 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	get onDidOpenInPlace(): Event<void> { return this._onDidOpenInPlace.event; }
 
 	private callbacks: IOpenCallbacks;
-	private metadata: string | null;
+	private metadata: string | undefined;
 	private binaryContainer: HTMLElement;
 	private scrollbar: DomScrollableElement;
-	private resourceViewerContext: ResourceViewerContext;
+	private resourceViewerContext: ResourceViewerContext | undefined;
 
 	constructor(
 		id: string,
 		callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		@IFileService private readonly _fileService: IFileService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, telemetryService, themeService, storageService);
@@ -89,7 +89,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 				// Render Input
 				this.resourceViewerContext = ResourceViewer.show(
 					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() },
-					this._fileService,
+					this.textFileService,
 					this.binaryContainer,
 					this.scrollbar,
 					resource => this.handleOpenInternalCallback(input, options),
@@ -110,24 +110,25 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		});
 	}
 
-	private handleMetadataChanged(meta: string | null): void {
+	private handleMetadataChanged(meta: string | undefined): void {
 		this.metadata = meta;
 
 		this._onMetadataChanged.fire();
 	}
 
-	getMetadata() {
+	getMetadata(): string | undefined {
 		return this.metadata;
 	}
 
 	clearInput(): void {
 
 		// Clear Meta
-		this.handleMetadataChanged(null);
+		this.handleMetadataChanged(undefined);
 
 		// Clear Resource Viewer
 		clearNode(this.binaryContainer);
-		this.resourceViewerContext = dispose(this.resourceViewerContext);
+		dispose(this.resourceViewerContext);
+		this.resourceViewerContext = undefined;
 
 		super.clearInput();
 	}
@@ -149,7 +150,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	dispose(): void {
 		this.binaryContainer.remove();
 
-		this.resourceViewerContext = dispose(this.resourceViewerContext);
+		dispose(this.resourceViewerContext);
+		this.resourceViewerContext = undefined;
 
 		super.dispose();
 	}

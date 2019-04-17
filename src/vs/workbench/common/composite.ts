@@ -35,12 +35,12 @@ export interface IComposite {
 	/**
 	 * Returns the action item for a specific action.
 	 */
-	getActionItem(action: IAction): IActionItem | null;
+	getActionItem(action: IAction): IActionItem | undefined;
 
 	/**
 	 * Returns the underlying control of this composite.
 	 */
-	getControl(): ICompositeControl | null;
+	getControl(): ICompositeControl | undefined;
 
 	/**
 	 * Asks the underlying control to focus.

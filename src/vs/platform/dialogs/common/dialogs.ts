@@ -11,9 +11,11 @@ import { localize } from 'vs/nls';
 import { FileFilter } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
+export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
+
 export interface IConfirmation {
 	title?: string;
-	type?: 'none' | 'info' | 'error' | 'question' | 'warning';
+	type?: DialogType;
 	message: string;
 	detail?: string;
 	primaryButton?: string;
@@ -43,6 +45,7 @@ export interface IPickAndOpenOptions {
 	forceNewWindow?: boolean;
 	defaultUri?: URI;
 	telemetryExtraData?: ITelemetryData;
+	availableFileSystems?: string[];
 }
 
 export interface ISaveDialogOptions {
@@ -181,22 +184,22 @@ export interface IFileDialogService {
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.
 	 */
-	pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any>;
+	pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
 	 * Shows a file selection dialog and opens the selected entry.
 	 */
-	pickFileAndOpen(options: IPickAndOpenOptions): Promise<any>;
+	pickFileAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
 	 * Shows a folder selection dialog and opens the selected entry.
 	 */
-	pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any>;
+	pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
 	 * Shows a workspace selection dialog and opens the selected entry.
 	 */
-	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<any>;
+	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
 	 * Shows a save file dialog and returns the chosen file URI.

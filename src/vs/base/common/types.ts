@@ -93,7 +93,6 @@ export function isUndefinedOrNull(obj: any): obj is undefined | null {
 	return isUndefined(obj) || obj === null;
 }
 
-
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
@@ -160,31 +159,6 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 	}
 }
 
-/**
- * Creates a new object of the provided class and will call the constructor with
- * any additional argument supplied.
- */
-export function create(ctor: Function, ...args: any[]): any {
-	if (isNativeClass(ctor)) {
-		return new (ctor as any)(...args);
-	} else {
-		let obj = Object.create(ctor.prototype);
-		ctor.apply(obj, args);
-		return obj;
-	}
-}
-
-// https://stackoverflow.com/a/32235645/1499159
-function isNativeClass(thing): boolean {
-	return typeof thing === 'function'
-		&& thing.hasOwnProperty('prototype')
-		&& !thing.hasOwnProperty('arguments');
-}
-
-/**
- *
- *
- */
 export function getAllPropertyNames(obj: object): string[] {
 	let res: string[] = [];
 	let proto = Object.getPrototypeOf(obj);
@@ -193,4 +167,18 @@ export function getAllPropertyNames(obj: object): string[] {
 		proto = Object.getPrototypeOf(proto);
 	}
 	return res;
+}
+
+/**
+ * Converts null to undefined, passes all other values through.
+ */
+export function withNullAsUndefined<T>(x: T | null): T | undefined {
+	return x === null ? undefined : x;
+}
+
+/**
+ * Converts undefined to null, passes all other values through.
+ */
+export function withUndefinedAsNull<T>(x: T | undefined): T | null {
+	return typeof x === 'undefined' ? null : x;
 }

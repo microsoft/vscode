@@ -5,7 +5,6 @@
 
 import { parse as jsonParse } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { extname, basename } from 'vs/base/common/path';
 import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
@@ -13,6 +12,7 @@ import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVari
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class Snippet {
 
@@ -198,7 +198,7 @@ export class SnippetFile {
 
 	load(): Promise<this> {
 		if (!this._loadPromise) {
-			this._loadPromise = Promise.resolve(this._fileService.resolveContent(this.location, { encoding: 'utf8' })).then(content => {
+			this._loadPromise = Promise.resolve(this._fileService.readFile(this.location)).then(content => {
 				const data = <JsonSerializedSnippets>jsonParse(content.value.toString());
 				if (typeof data === 'object') {
 					forEach(data, entry => {

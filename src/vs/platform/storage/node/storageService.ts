@@ -105,8 +105,8 @@ export class StorageService extends Disposable implements IStorageService {
 		};
 
 		// Dispose old (if any)
-		this.workspaceStorage = dispose(this.workspaceStorage);
-		this.workspaceStorageListener = dispose(this.workspaceStorageListener);
+		dispose(this.workspaceStorage);
+		dispose(this.workspaceStorageListener);
 
 		// Create new
 		this.workspaceStoragePath = workspaceStoragePath;
@@ -123,7 +123,7 @@ export class StorageService extends Disposable implements IStorageService {
 	private prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload): Promise<{ path: string, wasCreated: boolean }> {
 		const workspaceStorageFolderPath = this.getWorkspaceStorageFolderPath(payload);
 
-		return exists(workspaceStorageFolderPath).then(exists => {
+		return exists(workspaceStorageFolderPath).then<{ path: string, wasCreated: boolean }>(exists => {
 			if (exists) {
 				return { path: workspaceStorageFolderPath, wasCreated: false };
 			}
@@ -170,13 +170,13 @@ export class StorageService extends Disposable implements IStorageService {
 		return this.getStorage(scope).getBoolean(key, fallbackValue);
 	}
 
-	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
-	getInteger(key: string, scope: StorageScope): number | undefined;
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		return this.getStorage(scope).getInteger(key, fallbackValue);
+	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: StorageScope): number | undefined;
+	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
+		return this.getStorage(scope).getNumber(key, fallbackValue);
 	}
 
-	store(key: string, value: string | boolean | number, scope: StorageScope): void {
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
 		this.getStorage(scope).set(key, value);
 	}
 

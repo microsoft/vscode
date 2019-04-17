@@ -23,8 +23,8 @@ import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contri
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
-import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
+import { coalesce, isNonEmptyArray, asArray } from 'vs/base/common/arrays';
+import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { basename } from 'vs/base/common/resources';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -40,6 +40,8 @@ import { applyCodeAction, QuickFixAction } from 'vs/editor/contrib/codeAction/co
 import { Action } from 'vs/base/common/actions';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 const $ = dom.$;
 
@@ -64,13 +66,13 @@ type HoverPart = MarkdownHover | ColorHover | MarkerHover;
 
 class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _result: HoverPart[];
 	private _range: Range | null;
 
 	constructor(
 		editor: ICodeEditor,
-		private _markerDecorationsService: IMarkerDecorationsService
+		private readonly _markerDecorationsService: IMarkerDecorationsService
 	) {
 		this._editor = editor;
 		this._range = null;
@@ -147,16 +149,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 					return null;
 				}
 
-				let contents: IMarkdownString[] = [];
-
-				if (d.options.hoverMessage) {
-					if (Array.isArray(d.options.hoverMessage)) {
-						contents = [...d.options.hoverMessage];
-					} else {
-						contents = [d.options.hoverMessage];
-					}
-				}
-
+				const contents: IMarkdownString[] = d.options.hoverMessage ? asArray(d.options.hoverMessage) : [];
 				return { contents, range };
 			}
 		});
@@ -190,7 +183,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 	private _getLoadingMessage(): HoverPart {
 		return {
-			range: this._range || undefined,
+			range: withNullAsUndefined(this._range),
 			contents: [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
@@ -202,8 +195,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	private _messages: HoverPart[];
 	private _lastRange: Range | null;
-	private _computer: ModesContentComputer;
-	private _hoverOperation: HoverOperation<HoverPart[]>;
+	private readonly _computer: ModesContentComputer;
+	private readonly _hoverOperation: HoverOperation<HoverPart[]>;
 	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
 	private _shouldFocus: boolean;
@@ -393,10 +386,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					model.guessColorPresentation(color, originalText);
 
 					const updateEditorModel = () => {
-						let textEdits;
-						let newRange;
+						let textEdits: IIdentifiedSingleEditOperation[];
+						let newRange: Range;
 						if (model.presentation.textEdit) {
-							textEdits = [model.presentation.textEdit];
+							textEdits = [model.presentation.textEdit as IIdentifiedSingleEditOperation];
 							newRange = new Range(
 								model.presentation.textEdit.range.startLineNumber,
 								model.presentation.textEdit.range.startColumn,
@@ -413,7 +406,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						this._editor.executeEdits('colorpicker', textEdits);
 
 						if (model.presentation.additionalTextEdits) {
-							textEdits = [...model.presentation.additionalTextEdits];
+							textEdits = [...model.presentation.additionalTextEdits as IIdentifiedSingleEditOperation[]];
 							this._editor.executeEdits('colorpicker', textEdits);
 							this.hide();
 						}
@@ -474,7 +467,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		if (markerMessages.length) {
 			markerMessages.forEach(msg => fragment.appendChild(this.renderMarkerHover(msg)));
-			fragment.appendChild(this.renderMarkerStatusbar(markerMessages[0]));
+			const markerHoverForStatusbar = markerMessages.length === 1 ? markerMessages[0] : markerMessages.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
+			fragment.appendChild(this.renderMarkerStatusbar(markerHoverForStatusbar));
 		}
 
 		// show
@@ -550,15 +544,17 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				});
 			}
 		}));
-		disposables.push(this.renderAction(actionsElement, {
-			label: nls.localize('peek problem', "Peek Problem"),
-			commandId: NextMarkerAction.ID,
-			run: () => {
-				this.hide();
-				MarkerController.get(this._editor).show(markerHover.marker);
-				this._editor.focus();
-			}
-		}));
+		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
+			disposables.push(this.renderAction(actionsElement, {
+				label: nls.localize('peek problem', "Peek Problem"),
+				commandId: NextMarkerAction.ID,
+				run: () => {
+					this.hide();
+					MarkerController.get(this._editor).show(markerHover.marker);
+					this._editor.focus();
+				}
+			}));
+		}
 		this.renderDisposable = combinedDisposable(disposables);
 		return hoverElement;
 	}
@@ -566,8 +562,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private getCodeActions(marker: IMarker): CancelablePromise<Action[]> {
 		return createCancelablePromise(async cancellationToken => {
 			const codeActions = await getCodeActions(this._editor.getModel()!, new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
-			if (codeActions.length) {
-				return codeActions.map(codeAction => new Action(
+			if (codeActions.actions.length) {
+				return codeActions.actions.map(codeAction => new Action(
 					codeAction.command ? codeAction.command.id : codeAction.title,
 					codeAction.title,
 					undefined,

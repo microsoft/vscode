@@ -132,6 +132,9 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
+			"env": {
+				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null
+			},
 			"breakOnLoad": false,
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
@@ -194,8 +197,8 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Unit Tests",
-			"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+			"name": "Run Unit Tests",
+			"program": "${workspaceFolder}/test/electron/index.js",
 			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
@@ -205,14 +208,9 @@
 			},
 			"outputCapture": "std",
 			"args": [
-				"--delay",
-				"--timeout",
-				"2000"
+				"--remote-debugging-port=9222"
 			],
 			"cwd": "${workspaceFolder}",
-			"env": {
-				"ELECTRON_RUN_AS_NODE": "true"
-			},
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -269,6 +267,13 @@
 				"Launch VS Code",
 				"Attach to Extension Host"
 			]
-		}
+		},
+		{
+			"name": "Debug Unit Tests",
+			"configurations": [
+				"Attach to VS Code",
+				"Run Unit Tests"
+			]
+		},
 	]
 }

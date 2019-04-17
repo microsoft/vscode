@@ -9,7 +9,7 @@ import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IBroadcastService } from 'vs/workbench/services/broadcast/electron-browser/broadcastService';
+import { IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
@@ -17,10 +17,12 @@ import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/th
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import * as themes from 'vs/workbench/common/theme';
-import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class PartsSplash {
 
@@ -28,22 +30,29 @@ class PartsSplash {
 
 	private readonly _disposables: IDisposable[] = [];
 
+	private _didChangeTitleBarStyle: boolean;
 	private _lastBaseTheme: string;
 	private _lastBackground?: string;
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
-		@IPartService private readonly _partService: IPartService,
-		@IFileService private readonly _fileService: IFileService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@IBroadcastService private readonly _broadcastService: IBroadcastService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IConfigurationService configService: IConfigurationService,
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => this._removePartsSplash());
 		Event.debounce(Event.any<any>(
 			onDidChangeFullscreen,
-			_partService.onEditorLayout
+			editorGroupsService.onDidLayout
 		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
+
+		configService.onDidChangeConfiguration(e => {
+			this._didChangeTitleBarStyle = e.affectsConfiguration('window.titleBarStyle');
+		}, this, this._disposables);
 	}
 
 	dispose(): void {
@@ -62,14 +71,14 @@ class PartsSplash {
 			statusBarNoFolderBackground: this._getThemeColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND),
 		};
 		const layoutInfo = !this._shouldSaveLayoutInfo() ? undefined : {
-			sideBarSide: this._partService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
+			sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
 			editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
-			titleBarHeight: getTotalHeight(this._partService.getContainer(Parts.TITLEBAR_PART)!),
-			activityBarWidth: getTotalWidth(this._partService.getContainer(Parts.ACTIVITYBAR_PART)!),
-			sideBarWidth: getTotalWidth(this._partService.getContainer(Parts.SIDEBAR_PART)!),
-			statusBarHeight: getTotalHeight(this._partService.getContainer(Parts.STATUSBAR_PART)!),
+			titleBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.TITLEBAR_PART)),
+			activityBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART)),
+			sideBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.SIDEBAR_PART)),
+			statusBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.STATUSBAR_PART)),
 		};
-		this._fileService.updateContent(
+		this._textFileService.write(
 			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),
 			JSON.stringify({
 				id: PartsSplash._splashElementId,
@@ -77,7 +86,7 @@ class PartsSplash {
 				layoutInfo,
 				baseTheme
 			}),
-			{ encoding: 'utf8' }
+			{ encoding: 'utf8', overwriteEncoding: true }
 		);
 
 		if (baseTheme !== this._lastBaseTheme || colorInfo.editorBackground !== this._lastBackground) {
@@ -100,7 +109,7 @@ class PartsSplash {
 	}
 
 	private _shouldSaveLayoutInfo(): boolean {
-		return !isFullscreen() && !this._envService.isExtensionDevelopment;
+		return !isFullscreen() && !this._envService.isExtensionDevelopment && !this._didChangeTitleBarStyle;
 	}
 
 	private _removePartsSplash(): void {

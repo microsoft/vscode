@@ -31,6 +31,7 @@ export class TelemetryService implements ITelemetryService {
 	private _commonProperties: Promise<{ [name: string]: any; }>;
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
+	private _enabled: boolean;
 
 	private _disposables: IDisposable[] = [];
 	private _cleanupPatterns: RegExp[] = [];
@@ -43,6 +44,7 @@ export class TelemetryService implements ITelemetryService {
 		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
 		this._userOptIn = true;
+		this._enabled = true;
 
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
@@ -74,13 +76,17 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
+	setEnabled(value: boolean): void {
+		this._enabled = value;
+	}
+
 	private _updateUserOptIn(): void {
 		const config = this._configurationService.getValue<any>(TELEMETRY_SECTION_ID);
 		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
 	}
 
 	get isOptedIn(): boolean {
-		return this._userOptIn;
+		return this._userOptIn && this._enabled;
 	}
 
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
@@ -100,7 +106,7 @@ export class TelemetryService implements ITelemetryService {
 
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
 		// don't send events when the user is optout
-		if (!this._userOptIn) {
+		if (!this.isOptedIn) {
 			return Promise.resolve(undefined);
 		}
 

@@ -16,8 +16,7 @@ import * as os from 'os';
 import { debounce } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
-import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
+import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -28,9 +27,10 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
+import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
+import { MainProcessService, IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
+import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-browser/issue/issueReporterModel';
 import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
@@ -39,6 +39,8 @@ import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { withUndefinedAsNull } from 'vs/base/common/types';
+import { SystemInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
@@ -58,33 +60,37 @@ export function startup(configuration: IssueReporterConfiguration) {
 	const issueReporter = new IssueReporter(configuration);
 	issueReporter.render();
 	document.body.style.display = 'block';
+	issueReporter.setInitialFocus();
 }
 
 export class IssueReporter extends Disposable {
 	private environmentService: IEnvironmentService;
 	private telemetryService: ITelemetryService;
 	private logService: ILogService;
-	private issueReporterModel: IssueReporterModel;
+	private readonly issueReporterModel: IssueReporterModel;
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
 
-	private previewButton: Button;
+	private readonly previewButton: Button;
 
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
 
 		this.initServices(configuration);
 
+		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
-				os: `${os.type()} ${os.arch()} ${os.release()}`
+				os: `${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
 			},
 			extensionsDisabled: !!this.environmentService.disableExtensions,
+			fileOnExtension: configuration.data.extensionId ? true : undefined,
+			selectedExtension: configuration.data.extensionId ? configuration.data.enabledExtensions.filter(extension => extension.id === configuration.data.extensionId)[0] : undefined
 		});
 
 		const issueReporterElement = this.getElementById('issue-reporter');
@@ -92,7 +98,7 @@ export class IssueReporter extends Disposable {
 			this.previewButton = new Button(issueReporterElement);
 		}
 
-		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (_, info) => {
+		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (_: unknown, info: Partial<IssueReporterData>) => {
 			this.logService.trace('issueReporter: Received performance data');
 			this.issueReporterModel.update(info);
 			this.receivedPerformanceInfo = true;
@@ -103,7 +109,7 @@ export class IssueReporter extends Disposable {
 			this.updatePreviewButtonState();
 		});
 
-		ipcRenderer.on('vscode:issueSystemInfoResponse', (_, info) => {
+		ipcRenderer.on('vscode:issueSystemInfoResponse', (_: unknown, info: SystemInfo) => {
 			this.logService.trace('issueReporter: Received system data');
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
@@ -135,6 +141,21 @@ export class IssueReporter extends Disposable {
 
 	render(): void {
 		this.renderBlocks();
+	}
+
+	setInitialFocus() {
+		const { fileOnExtension } = this.issueReporterModel.getData();
+		if (fileOnExtension) {
+			const issueTitle = document.getElementById('issue-title');
+			if (issueTitle) {
+				issueTitle.focus();
+			}
+		} else {
+			const issueType = document.getElementById('issue-type');
+			if (issueType) {
+				issueType.focus();
+			}
+		}
 	}
 
 	private applyZoom(zoomLevel: number) {
@@ -211,7 +232,7 @@ export class IssueReporter extends Disposable {
 
 		styleTag.innerHTML = content.join('\n');
 		document.head.appendChild(styleTag);
-		document.body.style.color = styles.color || null;
+		document.body.style.color = withUndefinedAsNull(styles.color);
 	}
 
 	private handleExtensionData(extensions: IssueReporterExtensionData[]) {
@@ -273,14 +294,14 @@ export class IssueReporter extends Disposable {
 
 	private initServices(configuration: IWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
-		const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
+		const mainProcessService = new MainProcessService(configuration.windowId);
+		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		const windowsChannel = mainProcessClient.getChannel('windows');
-		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
+		serviceCollection.set(IWindowsService, new WindowsService(mainProcessService));
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
 
 		const logService = createSpdLogService(`issuereporter${configuration.windowId}`, getLogLevel(this.environmentService), this.environmentService.logsPath);
-		const logLevelClient = new LogLevelSetterChannelClient(mainProcessClient.getChannel('loglevel'));
+		const logLevelClient = new LogLevelSetterChannelClient(mainProcessService.getChannel('loglevel'));
 		this.logService = new FollowerLogService(logLevelClient, logService);
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
@@ -695,9 +716,13 @@ export class IssueReporter extends Disposable {
 
 	private setSourceOptions(): void {
 		const sourceSelect = this.getElementById('issue-source')! as HTMLSelectElement;
-		const selected = sourceSelect.selectedIndex;
+		const { issueType, fileOnExtension } = this.issueReporterModel.getData();
+		let selected = sourceSelect.selectedIndex;
+		if (selected === -1 && fileOnExtension !== undefined) {
+			selected = fileOnExtension ? 2 : 1;
+		}
+
 		sourceSelect.innerHTML = '';
-		const { issueType } = this.issueReporterModel.getData();
 		if (issueType === IssueType.FeatureRequest) {
 			sourceSelect.append(...[
 				this.makeOption('', localize('selectSource', "Select source"), true),
@@ -897,22 +922,34 @@ export class IssueReporter extends Disposable {
 		return `${repositoryUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
 	}
 
-	private updateSystemInfo = (state) => {
+	private updateSystemInfo(state: IssueReporterModelData) {
 		const target = document.querySelector('.block-system .block-info');
 		if (target) {
-			let tableHtml = '';
-			Object.keys(state.systemInfo).forEach(k => {
-				const data = typeof state.systemInfo[k] === 'object'
-					? Object.keys(state.systemInfo[k]).map(key => `${key}: ${state.systemInfo[k][key]}`).join('<br>')
-					: state.systemInfo[k];
+			const systemInfo = state.systemInfo!;
+			let renderedData = `
+			<table>
+				<tr><td>CPUs</td><td>${systemInfo.cpus}</td></tr>
+				<tr><td>GPU Status</td><td>${Object.keys(systemInfo.gpuStatus).map(key => `${key}: ${systemInfo.gpuStatus[key]}`).join('<br>')}</td></tr>
+				<tr><td>Load (avg)</td><td>${systemInfo.load}</td></tr>
+				<tr><td>Memory (System)</td><td>${systemInfo.memory}</td></tr>
+				<tr><td>Process Argv</td><td>${systemInfo.processArgs}</td></tr>
+				<tr><td>Screen Reader</td><td>${systemInfo.screenReader}</td></tr>
+				<tr><td>VM</td><td>${systemInfo.vmHint}</td></tr>
+			</table>`;
 
-				tableHtml += `
-					<tr>
-						<td>${k}</td>
-						<td>${data}</td>
-					</tr>`;
+			systemInfo.remoteData.forEach(remote => {
+				renderedData += `
+				<hr>
+				<table>
+					<tr><td>Remote</td><td>${remote.hostName}</td></tr>
+					<tr><td>OS</td><td>${remote.machineInfo.os}</td></tr>
+					<tr><td>CPUs</td><td>${remote.machineInfo.cpus}</td></tr>
+					<tr><td>Memory (System)</td><td>${remote.machineInfo.memory}</td></tr>
+					<tr><td>VM</td><td>${remote.machineInfo.vmHint}</td></tr>
+				</table>`;
 			});
-			target.innerHTML = `<table>${tableHtml}</table>`;
+
+			target.innerHTML = renderedData;
 		}
 	}
 
@@ -944,10 +981,15 @@ export class IssueReporter extends Disposable {
 			return 0;
 		});
 
-		const makeOption = (extension: IOption) => `<option value="${extension.id}">${escape(extension.name)}</option>`;
+		const makeOption = (extension: IOption, selectedExtension?: IssueReporterExtensionData) => {
+			const selected = selectedExtension && extension.id === selectedExtension.id;
+			return `<option value="${extension.id}" ${selected ? 'selected' : ''}>${escape(extension.name)}</option>`;
+		};
+
 		const extensionsSelector = this.getElementById('extension-selector');
 		if (extensionsSelector) {
-			extensionsSelector.innerHTML = '<option></option>' + extensionOptions.map(makeOption).join('\n');
+			const { selectedExtension } = this.issueReporterModel.getData();
+			extensionsSelector.innerHTML = '<option></option>' + extensionOptions.map(extension => makeOption(extension, selectedExtension)).join('\n');
 
 			this.addEventListener('extension-selector', 'change', (e: Event) => {
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
@@ -966,14 +1008,14 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private updateProcessInfo = (state) => {
+	private updateProcessInfo(state: IssueReporterModelData) {
 		const target = document.querySelector('.block-process .block-info');
 		if (target) {
 			target.innerHTML = `<code>${state.processInfo}</code>`;
 		}
 	}
 
-	private updateWorkspaceInfo = (state) => {
+	private updateWorkspaceInfo(state: IssueReporterModelData) {
 		document.querySelector('.block-workspace .block-info code')!.textContent = '\n' + state.workspaceInfo;
 	}
 
@@ -1073,9 +1115,13 @@ export class IssueReporter extends Disposable {
 
 // helper functions
 
-function hide(el) {
-	el.classList.add('hidden');
+function hide(el: Element | undefined | null) {
+	if (el) {
+		el.classList.add('hidden');
+	}
 }
-function show(el) {
-	el.classList.remove('hidden');
+function show(el: Element | undefined | null) {
+	if (el) {
+		el.classList.remove('hidden');
+	}
 }

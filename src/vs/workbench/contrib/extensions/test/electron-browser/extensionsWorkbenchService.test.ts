@@ -12,12 +12,12 @@ import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurat
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServerService, IExtensionManagementServer
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServerService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionTipsService';
-import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/electron-browser/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -26,7 +26,7 @@ import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestWindowService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -37,9 +37,9 @@ import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/node/remoteAgentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -65,19 +65,17 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(IURLService, URLService);
+		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IConfigurationService, {
-			onDidUpdateConfiguration: () => { },
-			onDidChangeConfiguration: () => { },
-			getConfiguration: () => ({}),
-			getValue: (key) => {
+		instantiationService.stub(IConfigurationService, <Partial<IConfigurationService>>{
+			onDidChangeConfiguration: () => { return undefined!; },
+			getValue: (key?: string) => {
 				return (key === AutoCheckUpdatesConfigurationKey || key === AutoUpdateConfigurationKey) ? true : undefined;
 			}
 		});
 
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
-		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(ExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
@@ -85,11 +83,17 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 
+		instantiationService.stub(IExtensionManagementServerService, <IExtensionManagementServerService>{
+			localExtensionManagementServer: {
+				extensionManagementService: instantiationService.get(IExtensionManagementService)
+			}
+		});
+
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
 		instantiationService.set(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
 
-		instantiationService.stub(INotificationService, { prompt: () => null });
+		instantiationService.stub(INotificationService, { prompt: () => null! });
 	});
 
 	setup(async () => {
@@ -131,7 +135,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(expected));
 
-		return testObject.queryGallery().then(pagedResponse => {
+		return testObject.queryGallery(CancellationToken.None).then(pagedResponse => {
 			assert.equal(1, pagedResponse.firstPage.length);
 			const actual = pagedResponse.firstPage[0];
 
@@ -330,7 +334,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		return testObject.queryGallery().then(page => {
+		return testObject.queryGallery(CancellationToken.None).then(page => {
 			const extension = page.firstPage[0];
 			assert.equal(ExtensionState.Uninstalled, extension.state);
 
@@ -414,7 +418,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		const target = sinon.spy();
 
-		return testObject.queryGallery().then(page => {
+		return testObject.queryGallery(CancellationToken.None).then(page => {
 			const extension = page.firstPage[0];
 			assert.equal(ExtensionState.Uninstalled, extension.state);
 
@@ -435,7 +439,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		const target = sinon.spy();
 
-		return testObject.queryGallery().then(page => {
+		return testObject.queryGallery(CancellationToken.None).then(page => {
 			const extension = page.firstPage[0];
 			assert.equal(ExtensionState.Uninstalled, extension.state);
 
@@ -480,7 +484,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a')));
 
-		return testObject.queryGallery().then(page => {
+		return testObject.queryGallery(CancellationToken.None).then(page => {
 			return testObject.loadDependencies(page.firstPage[0], CancellationToken.None).then(dependencies => {
 				assert.equal(null, dependencies);
 			});
@@ -492,7 +496,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {}, { dependencies: ['pub.b', 'pub.c', 'pub.d'] })));
 		instantiationService.stubPromise(IExtensionGalleryService, 'loadAllDependencies', [aGalleryExtension('b'), aGalleryExtension('c'), aGalleryExtension('d')]);
 
-		return testObject.queryGallery().then(page => {
+		return testObject.queryGallery(CancellationToken.None).then(page => {
 			const extension = page.firstPage[0];
 			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
 				assert.ok(actual!.hasDependencies);
@@ -531,7 +535,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {}, { dependencies: ['pub.b', 'pub.a'] })));
 		instantiationService.stubPromise(IExtensionGalleryService, 'loadAllDependencies', [aGalleryExtension('b'), aGalleryExtension('a')]);
 
-		return testObject.queryGallery().then(page => {
+		return testObject.queryGallery(CancellationToken.None).then(page => {
 			const extension = page.firstPage[0];
 			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
 				assert.ok(actual!.hasDependencies);
@@ -563,7 +567,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {}, { dependencies: ['pub.b', 'pub.a'] })));
 		instantiationService.stubPromise(IExtensionGalleryService, 'loadAllDependencies', [aGalleryExtension('a')]);
 
-		return testObject.queryGallery().then(page => {
+		return testObject.queryGallery(CancellationToken.None).then(page => {
 			const extension = page.firstPage[0];
 			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
 				assert.ok(actual!.hasDependencies);
@@ -597,7 +601,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {}, { dependencies: ['pub.inbuilt', 'pub.a'] })));
 		instantiationService.stubPromise(IExtensionGalleryService, 'loadAllDependencies', [aGalleryExtension('a')]);
 
-		return testObject.queryGallery().then(page => {
+		return testObject.queryGallery(CancellationToken.None).then(page => {
 			const extension = page.firstPage[0];
 			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
 				assert.ok(actual!.hasDependencies);
@@ -635,7 +639,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			aGalleryExtension('d', {}, { dependencies: ['pub.f', 'pub.c'] }),
 			aGalleryExtension('e')]);
 
-		return testObject.queryGallery().then(page => {
+		return testObject.queryGallery(CancellationToken.None).then(page => {
 			const extension = page.firstPage[0];
 			return testObject.loadDependencies(extension, CancellationToken.None).then(a => {
 				assert.ok(a!.hasDependencies);
@@ -724,7 +728,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			.then(async () => {
 				testObject = await aWorkbenchService();
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a')));
-				return testObject.queryGallery().then(pagedResponse => {
+				return testObject.queryGallery(CancellationToken.None).then(pagedResponse => {
 					const actual = pagedResponse.firstPage[0];
 					assert.equal(actual.enablementState, EnablementState.Enabled);
 				});

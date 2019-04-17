@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickopen/browser/commandsHandler';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
+import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
@@ -157,7 +157,7 @@ class WelcomeOverlay {
 	private _overlay: HTMLElement;
 
 	constructor(
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -168,9 +168,9 @@ class WelcomeOverlay {
 	}
 
 	private create(): void {
-		const container = this.partService.getContainer(Parts.EDITOR_PART)!;
+		const container = this.layoutService.getContainer(Parts.EDITOR_PART)!;
 
-		const offset = this.partService.getTitleBarOffset();
+		const offset = this.layoutService.getTitleBarOffset();
 		this._overlay = dom.append(container.parentElement!, $('.welcomeOverlay'));
 		this._overlay.style.top = `${offset}px`;
 		this._overlay.style.height = `calc(100% - ${offset}px)`;

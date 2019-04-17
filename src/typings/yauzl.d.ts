@@ -31,18 +31,19 @@ declare module 'yauzl' {
 	}
 
 	export class ZipFile extends EventEmitter {
-		readEntry();
-		openReadStream(entry: Entry, callback: (err?: Error, stream?: Readable) => void);
-		close();
+		readEntry(): void;
+		openReadStream(entry: Entry, callback: (err?: Error, stream?: Readable) => void): void;
+		close(): void;
 		isOpen: boolean;
 		entryCount: number;
 		comment: string;
 	}
 
 	export interface IOptions {
-		autoClose: boolean;
+		autoClose?: boolean;
+		lazyEntries?: boolean;
 	}
 
 	export function open(path: string, callback: (err?: Error, zipfile?: ZipFile) => void): void;
-	export function open(path: string, options: IOptions, callback: (err?: Error, zipfile?: ZipFile) => void): void;
+	export function open(path: string, options: IOptions | undefined, callback: (err?: Error, zipfile?: ZipFile) => void): void;
 }

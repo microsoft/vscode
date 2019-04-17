@@ -10,6 +10,7 @@ import { Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbenc
 import { isUndefinedOrNull, isObject } from 'vs/base/common/types';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { endsWith } from 'vs/base/common/strings';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
@@ -23,9 +24,9 @@ export class ReplModel {
 		return this.replElements;
 	}
 
-	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
+	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
 		const expression = new Expression(name);
-		this.addReplElements([expression]);
+		this.addReplElement(expression);
 		return expression.evaluate(this.session, stackFrame, 'repl');
 	}
 
@@ -39,26 +40,23 @@ export class ReplModel {
 		}
 
 		if (typeof data === 'string') {
-			const previousElement = this.replElements.length && (this.replElements[this.replElements.length - 1] as SimpleReplElement);
-
-			const toAdd = data.split('\n').map((line, index) => new SimpleReplElement(`topReplElement:${topReplElementCounter++}`, line, sev, index === 0 ? source : undefined));
-			if (previousElement && previousElement.value === '') {
-				// remove potential empty lines between different repl types
-				this.replElements.pop();
-			} else if (previousElement instanceof SimpleReplElement && sev === previousElement.severity && toAdd.length && toAdd[0].sourceData === previousElement.sourceData) {
-				previousElement.value += toAdd.shift().value;
+			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
+			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev && !endsWith(previousElement.value, '\n') && !endsWith(previousElement.value, '\r\n')) {
+				previousElement.value += data;
+			} else {
+				const element = new SimpleReplElement(`topReplElement:${topReplElementCounter++}`, data, sev, source);
+				this.addReplElement(element);
 			}
-			this.addReplElements(toAdd);
 		} else {
 			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
 			(<any>data).severity = sev;
 			(<any>data).sourceData = source;
-			this.addReplElements([data]);
+			this.addReplElement(data);
 		}
 	}
 
-	private addReplElements(newElements: IReplElement[]): void {
-		this.replElements.push(...newElements);
+	private addReplElement(newElement: IReplElement): void {
+		this.replElements.push(newElement);
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
 		}

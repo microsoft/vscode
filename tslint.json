@@ -376,6 +376,21 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/api/common/**",
+				"restrictions": [
+					"vscode",
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/platform/*/common/**",
+					"**/vs/editor/common/**",
+					"**/vs/editor/contrib/*/common/**",
+					"**/vs/workbench/api/common/**",
+					"**/vs/workbench/common/**",
+					"**/vs/workbench/services/*/common/**",
+					"**/vs/workbench/contrib/*/common/**"
+				]
+			},
+			{
 				"target": "**/vs/workbench/electron-browser/**",
 				"restrictions": [
 					"vs/nls",
@@ -413,7 +428,8 @@
 					"**/vs/platform/**/common/**",
 					"**/vs/editor/common/**",
 					"**/vs/workbench/common/**",
-					"**/vs/workbench/services/**/common/**"
+					"**/vs/workbench/services/**/common/**",
+					"**/vs/workbench/api/**/common/**"
 				]
 			},
 			{
@@ -486,6 +502,13 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/contrib/terminal/browser/**",
+				"restrictions": [
+					"vscode-xterm",
+					"**/vs/**"
+				]
+			},
+			{
 				"target": "**/vs/code/node/**",
 				"restrictions": [
 					"vs/nls",
@@ -550,7 +573,8 @@
 		"duplicate-imports": true,
 		"no-new-buffer": true,
 		"translation-remind": true,
-		"no-standalone-editor": true
+		"no-standalone-editor": true,
+		"no-nls-in-standalone-editor": true
 	},
 	"defaultSeverity": "warning"
 }

@@ -70,7 +70,7 @@ export class RawDebugSession {
 		debugAdapter: IDebugAdapter,
 		dbgr: IDebugger,
 		private telemetryService: ITelemetryService,
-		public customTelemetryService: ITelemetryService,
+		public customTelemetryService: ITelemetryService | undefined,
 		private environmentService: IEnvironmentService
 	) {
 		this.debugAdapter = debugAdapter;
@@ -497,7 +497,7 @@ export class RawDebugSession {
 			success: true
 		};
 
-		const safeSendResponse = (response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
+		const safeSendResponse = (response: DebugProtocol.Response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
 
 		switch (request.command) {
 			case 'launchVSCode':

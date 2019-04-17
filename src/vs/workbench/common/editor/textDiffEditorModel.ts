@@ -13,6 +13,10 @@ import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
  * and the modified version.
  */
 export class TextDiffEditorModel extends DiffEditorModel {
+
+	protected readonly _originalModel: BaseTextEditorModel;
+	protected readonly _modifiedModel: BaseTextEditorModel;
+
 	private _textDiffEditorModel: IDiffEditorModel | null;
 
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
@@ -22,11 +26,11 @@ export class TextDiffEditorModel extends DiffEditorModel {
 	}
 
 	get originalModel(): BaseTextEditorModel {
-		return this._originalModel as BaseTextEditorModel;
+		return this._originalModel;
 	}
 
 	get modifiedModel(): BaseTextEditorModel {
-		return this._modifiedModel as BaseTextEditorModel;
+		return this._modifiedModel;
 	}
 
 	load(): Promise<EditorModel> {

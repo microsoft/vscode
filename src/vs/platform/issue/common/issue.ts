@@ -56,6 +56,7 @@ export interface IssueReporterData extends WindowData {
 	styles: IssueReporterStyles;
 	enabledExtensions: IssueReporterExtensionData[];
 	issueType?: IssueType;
+	extensionId?: string;
 }
 
 export interface ISettingSearchResult {
@@ -89,4 +90,5 @@ export interface IIssueService {
 	_serviceBrand: any;
 	openReporter(data: IssueReporterData): Promise<void>;
 	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
+	getSystemStatus(): Promise<string>;
 }

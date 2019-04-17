@@ -467,28 +467,6 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 	return document.defaultView!.getComputedStyle(el, null);
 }
 
-// Adapted from WinJS
-// Converts a CSS positioning string for the specified element to pixels.
-const convertToPixels: (element: HTMLElement, value: string) => number = (function () {
-	return function (element: HTMLElement, value: string): number {
-		return parseFloat(value) || 0;
-	};
-})();
-
-function getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
-	let computedStyle: CSSStyleDeclaration = getComputedStyle(element);
-	let value = '0';
-	if (computedStyle) {
-		if (computedStyle.getPropertyValue) {
-			value = computedStyle.getPropertyValue(cssPropertyName);
-		} else {
-			// IE8
-			value = (<any>computedStyle).getAttribute(jsPropertyName);
-		}
-	}
-	return convertToPixels(element, value);
-}
-
 export function getClientArea(element: HTMLElement): Dimension {
 
 	// Try with DOM clientWidth / clientHeight
@@ -514,48 +492,66 @@ export function getClientArea(element: HTMLElement): Dimension {
 	throw new Error('Unable to figure out browser width and height');
 }
 
-const sizeUtils = {
+class SizeUtils {
+	// Adapted from WinJS
+	// Converts a CSS positioning string for the specified element to pixels.
+	private static convertToPixels(element: HTMLElement, value: string): number {
+		return parseFloat(value) || 0;
+	}
 
-	getBorderLeftWidth: function (element: HTMLElement): number {
-		return getDimension(element, 'border-left-width', 'borderLeftWidth');
-	},
-	getBorderRightWidth: function (element: HTMLElement): number {
-		return getDimension(element, 'border-right-width', 'borderRightWidth');
-	},
-	getBorderTopWidth: function (element: HTMLElement): number {
-		return getDimension(element, 'border-top-width', 'borderTopWidth');
-	},
-	getBorderBottomWidth: function (element: HTMLElement): number {
-		return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
-	},
+	private static getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
+		let computedStyle: CSSStyleDeclaration = getComputedStyle(element);
+		let value = '0';
+		if (computedStyle) {
+			if (computedStyle.getPropertyValue) {
+				value = computedStyle.getPropertyValue(cssPropertyName);
+			} else {
+				// IE8
+				value = (<any>computedStyle).getAttribute(jsPropertyName);
+			}
+		}
+		return SizeUtils.convertToPixels(element, value);
+	}
 
-	getPaddingLeft: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-left', 'paddingLeft');
-	},
-	getPaddingRight: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-right', 'paddingRight');
-	},
-	getPaddingTop: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-top', 'paddingTop');
-	},
-	getPaddingBottom: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-bottom', 'paddingBottom');
-	},
+	static getBorderLeftWidth(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'border-left-width', 'borderLeftWidth');
+	}
+	static getBorderRightWidth(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'border-right-width', 'borderRightWidth');
+	}
+	static getBorderTopWidth(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'border-top-width', 'borderTopWidth');
+	}
+	static getBorderBottomWidth(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'border-bottom-width', 'borderBottomWidth');
+	}
 
-	getMarginLeft: function (element: HTMLElement): number {
-		return getDimension(element, 'margin-left', 'marginLeft');
-	},
-	getMarginTop: function (element: HTMLElement): number {
-		return getDimension(element, 'margin-top', 'marginTop');
-	},
-	getMarginRight: function (element: HTMLElement): number {
-		return getDimension(element, 'margin-right', 'marginRight');
-	},
-	getMarginBottom: function (element: HTMLElement): number {
-		return getDimension(element, 'margin-bottom', 'marginBottom');
-	},
-	__commaSentinel: false
-};
+	static getPaddingLeft(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'padding-left', 'paddingLeft');
+	}
+	static getPaddingRight(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'padding-right', 'paddingRight');
+	}
+	static getPaddingTop(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'padding-top', 'paddingTop');
+	}
+	static getPaddingBottom(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'padding-bottom', 'paddingBottom');
+	}
+
+	static getMarginLeft(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'margin-left', 'marginLeft');
+	}
+	static getMarginTop(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'margin-top', 'marginTop');
+	}
+	static getMarginRight(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'margin-right', 'marginRight');
+	}
+	static getMarginBottom(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'margin-bottom', 'marginBottom');
+	}
+}
 
 // ----------------------------------------------------------------------------------------
 // Position & Dimension
@@ -594,8 +590,8 @@ export function getTopLeftOffset(element: HTMLElement): { left: number; top: num
 		}
 
 		if (element === offsetParent) {
-			left += sizeUtils.getBorderLeftWidth(element);
-			top += sizeUtils.getBorderTopWidth(element);
+			left += SizeUtils.getBorderLeftWidth(element);
+			top += SizeUtils.getBorderTopWidth(element);
 			top += element.offsetTop;
 			left += element.offsetLeft;
 			offsetParent = element.offsetParent;
@@ -615,7 +611,7 @@ export interface IDomNodePagePosition {
 	height: number;
 }
 
-export function size(element: HTMLElement, width: number, height: number): void {
+export function size(element: HTMLElement, width: number | null, height: number | null): void {
 	if (typeof width === 'number') {
 		element.style.width = `${width}px`;
 	}
@@ -686,33 +682,33 @@ export const StandardWindow: IStandardWindow = new class implements IStandardWin
 // Adapted from WinJS
 // Gets the width of the element, including margins.
 export function getTotalWidth(element: HTMLElement): number {
-	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
+	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
 	return element.offsetWidth + margin;
 }
 
 export function getContentWidth(element: HTMLElement): number {
-	let border = sizeUtils.getBorderLeftWidth(element) + sizeUtils.getBorderRightWidth(element);
-	let padding = sizeUtils.getPaddingLeft(element) + sizeUtils.getPaddingRight(element);
+	let border = SizeUtils.getBorderLeftWidth(element) + SizeUtils.getBorderRightWidth(element);
+	let padding = SizeUtils.getPaddingLeft(element) + SizeUtils.getPaddingRight(element);
 	return element.offsetWidth - border - padding;
 }
 
 export function getTotalScrollWidth(element: HTMLElement): number {
-	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
+	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
 	return element.scrollWidth + margin;
 }
 
 // Adapted from WinJS
 // Gets the height of the content of the specified element. The content height does not include borders or padding.
 export function getContentHeight(element: HTMLElement): number {
-	let border = sizeUtils.getBorderTopWidth(element) + sizeUtils.getBorderBottomWidth(element);
-	let padding = sizeUtils.getPaddingTop(element) + sizeUtils.getPaddingBottom(element);
+	let border = SizeUtils.getBorderTopWidth(element) + SizeUtils.getBorderBottomWidth(element);
+	let padding = SizeUtils.getPaddingTop(element) + SizeUtils.getPaddingBottom(element);
 	return element.offsetHeight - border - padding;
 }
 
 // Adapted from WinJS
 // Gets the height of the element, including its margins.
 export function getTotalHeight(element: HTMLElement): number {
-	let margin = sizeUtils.getMarginTop(element) + sizeUtils.getMarginBottom(element);
+	let margin = SizeUtils.getMarginTop(element) + SizeUtils.getMarginBottom(element);
 	return element.offsetHeight + margin;
 }
 
@@ -836,53 +832,53 @@ export function isHTMLElement(o: any): o is HTMLElement {
 
 export const EventType = {
 	// Mouse
-	CLICK: 'click' as 'click',
-	DBLCLICK: 'dblclick' as 'dblclick',
-	MOUSE_UP: 'mouseup' as 'mouseup',
-	MOUSE_DOWN: 'mousedown' as 'mousedown',
-	MOUSE_OVER: 'mouseover' as 'mouseover',
-	MOUSE_MOVE: 'mousemove' as 'mousemove',
-	MOUSE_OUT: 'mouseout' as 'mouseout',
-	MOUSE_ENTER: 'mouseenter' as 'mouseenter',
-	MOUSE_LEAVE: 'mouseleave' as 'mouseleave',
-	CONTEXT_MENU: 'contextmenu' as 'contextmenu',
-	WHEEL: 'wheel' as 'wheel',
+	CLICK: 'click',
+	DBLCLICK: 'dblclick',
+	MOUSE_UP: 'mouseup',
+	MOUSE_DOWN: 'mousedown',
+	MOUSE_OVER: 'mouseover',
+	MOUSE_MOVE: 'mousemove',
+	MOUSE_OUT: 'mouseout',
+	MOUSE_ENTER: 'mouseenter',
+	MOUSE_LEAVE: 'mouseleave',
+	CONTEXT_MENU: 'contextmenu',
+	WHEEL: 'wheel',
 	// Keyboard
-	KEY_DOWN: 'keydown' as 'keydown',
-	KEY_PRESS: 'keypress' as 'keypress',
-	KEY_UP: 'keyup' as 'keyup',
+	KEY_DOWN: 'keydown',
+	KEY_PRESS: 'keypress',
+	KEY_UP: 'keyup',
 	// HTML Document
-	LOAD: 'load' as 'load',
-	UNLOAD: 'unload' as 'unload',
-	ABORT: 'abort' as 'abort',
-	ERROR: 'error' as 'error',
-	RESIZE: 'resize' as 'resize',
-	SCROLL: 'scroll' as 'scroll',
+	LOAD: 'load',
+	UNLOAD: 'unload',
+	ABORT: 'abort',
+	ERROR: 'error',
+	RESIZE: 'resize',
+	SCROLL: 'scroll',
 	// Form
-	SELECT: 'select' as 'select',
-	CHANGE: 'change' as 'change',
-	SUBMIT: 'submit' as 'submit',
-	RESET: 'reset' as 'reset',
-	FOCUS: 'focus' as 'focus',
-	FOCUS_IN: 'focusin' as 'focusin',
-	FOCUS_OUT: 'focusout' as 'focusout',
-	BLUR: 'blur' as 'blur',
-	INPUT: 'input' as 'input',
+	SELECT: 'select',
+	CHANGE: 'change',
+	SUBMIT: 'submit',
+	RESET: 'reset',
+	FOCUS: 'focus',
+	FOCUS_IN: 'focusin',
+	FOCUS_OUT: 'focusout',
+	BLUR: 'blur',
+	INPUT: 'input',
 	// Local Storage
-	STORAGE: 'storage' as 'storage',
+	STORAGE: 'storage',
 	// Drag
-	DRAG_START: 'dragstart' as 'dragstart',
-	DRAG: 'drag' as 'drag',
-	DRAG_ENTER: 'dragenter' as 'dragenter',
-	DRAG_LEAVE: 'dragleave' as 'dragleave',
-	DRAG_OVER: 'dragover' as 'dragover',
-	DROP: 'drop' as 'drop',
-	DRAG_END: 'dragend' as 'dragend',
+	DRAG_START: 'dragstart',
+	DRAG: 'drag',
+	DRAG_ENTER: 'dragenter',
+	DRAG_LEAVE: 'dragleave',
+	DRAG_OVER: 'dragover',
+	DROP: 'drop',
+	DRAG_END: 'dragend',
 	// Animation
 	ANIMATION_START: browser.isWebKit ? 'webkitAnimationStart' : 'animationstart',
 	ANIMATION_END: browser.isWebKit ? 'webkitAnimationEnd' : 'animationend',
 	ANIMATION_ITERATION: browser.isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
-};
+} as const;
 
 export interface EventLike {
 	preventDefault(): void;

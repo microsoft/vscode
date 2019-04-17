@@ -60,10 +60,13 @@ export class Application {
 		return this.options.userDataDir;
 	}
 
-	async start(): Promise<any> {
+	async start(expectWalkthroughPart = true): Promise<any> {
 		await this._start();
 		await this.code.waitForElement('.explorer-folders-view');
-		await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
+
+		if (expectWalkthroughPart) {
+			await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
+		}
 	}
 
 	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
@@ -117,6 +120,7 @@ export class Application {
 			verbose: this.options.verbose,
 			log: this.options.log,
 			extraArgs,
+			remote: this.options.remote
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
@@ -133,6 +137,6 @@ export class Application {
 
 		// wait a bit, since focus might be stolen off widgets
 		// as soon as they open (eg quick open)
-		await new Promise(c => setTimeout(c, 500));
+		await new Promise(c => setTimeout(c, 1000));
 	}
 }

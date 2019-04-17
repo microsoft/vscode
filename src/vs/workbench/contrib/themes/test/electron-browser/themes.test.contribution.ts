@@ -234,14 +234,14 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 		let fileName = basename(resource);
 		let snapper = accessor.get(IInstantiationService).createInstance(Snapper);
 
-		return fileService.resolveContent(resource).then(content => {
-			return snapper.captureSyntaxTokens(fileName, content.value);
+		return fileService.readFile(resource).then(content => {
+			return snapper.captureSyntaxTokens(fileName, content.value.toString());
 		});
 	};
 
 	if (!resource) {
 		const editorService = accessor.get(IEditorService);
-		const file = editorService.activeEditor ? toResource(editorService.activeEditor, { filter: 'file' }) : null;
+		const file = editorService.activeEditor ? toResource(editorService.activeEditor, { filterByScheme: 'file' }) : null;
 		if (file) {
 			process(file).then(result => {
 				console.log(result);

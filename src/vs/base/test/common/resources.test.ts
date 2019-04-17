@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase, normalizePath, isAbsolutePath, isMalformedFileUri, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator, resolvePath } from 'vs/base/common/resources';
-import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
+import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase, normalizePath, isAbsolutePath, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator, resolvePath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { toSlashes } from 'vs/base/common/extpath';
 import { startsWith } from 'vs/base/common/strings';
@@ -296,6 +296,9 @@ suite('Resources', () => {
 
 			assertResolve(URI.file('\\\\server\\share\\some\\'), 'b1\\file.js', URI.file('\\\\server\\share\\some\\b1\\file.js'));
 			assertResolve(URI.file('\\\\server\\share\\some\\'), '\\file.js', URI.file('\\\\server\\share\\file.js'));
+
+			assertResolve(URI.file('c:\\'), '\\\\server\\share\\some\\', URI.file('\\\\server\\share\\some'));
+			assertResolve(URI.file('\\\\server\\share\\some\\'), 'c:\\', URI.file('c:\\'));
 		} else {
 			assertResolve(URI.file('/foo/bar'), 'file.js', URI.file('/foo/bar/file.js'));
 			assertResolve(URI.file('/foo/bar'), './file.js', URI.file('/foo/bar/file.js'));
@@ -356,28 +359,5 @@ suite('Resources', () => {
 		assert.equal(isEqualOrParent(fileURI3, fileURI4, false), true, '14');
 		assert.equal(isEqualOrParent(fileURI3, fileURI, true), false, '15');
 		assert.equal(isEqualOrParent(fileURI5, fileURI5, true), true, '16');
-	});
-
-	function assertMalformedFileUri(path: string, expected: string | undefined) {
-		const old = setUriThrowOnMissingScheme(false);
-		const newURI = isMalformedFileUri(URI.parse(path));
-		assert.equal(newURI && newURI.toString(), expected);
-		setUriThrowOnMissingScheme(old);
-	}
-
-	test('isMalformedFileUri', () => {
-		if (isWindows) {
-			assertMalformedFileUri('c:/foo/bar', 'file:///c%3A/foo/bar');
-			assertMalformedFileUri('c:\\foo\\bar', 'file:///c%3A/foo/bar');
-			assertMalformedFileUri('C:\\foo\\bar', 'file:///c%3A/foo/bar');
-			assertMalformedFileUri('\\\\localhost\\c$\\devel\\test', 'file://localhost/c%24/devel/test');
-		}
-		assertMalformedFileUri('/foo/bar', 'file:///foo/bar');
-
-		assertMalformedFileUri('file:///foo/bar', undefined);
-		assertMalformedFileUri('file:///c%3A/foo/bar', undefined);
-		assertMalformedFileUri('file://localhost/c$/devel/test', undefined);
-		assertMalformedFileUri('foo://dadie/foo/bar', undefined);
-		assertMalformedFileUri('foo:///dadie/foo/bar', undefined);
 	});
 });

@@ -10,20 +10,11 @@ const json = require('gulp-json-editor');
 const buffer = require('gulp-buffer');
 const filter = require('gulp-filter');
 const es = require('event-stream');
-const util = require('./lib/util');
-const remote = require('gulp-remote-src');
-const zip = require('gulp-vinyl-zip');
-
-const pkg = require('../package.json');
+const vfs = require('vinyl-fs');
+const fancyLog = require('fancy-log');
+const ansiColors = require('ansi-colors');
 
 gulp.task('mixin', function () {
-	const repo = process.env['VSCODE_MIXIN_REPO'];
-
-	if (!repo) {
-		console.log('Missing VSCODE_MIXIN_REPO, skipping mixin');
-		return;
-	}
-
 	const quality = process.env['VSCODE_QUALITY'];
 
 	if (!quality) {
@@ -31,38 +22,18 @@ gulp.task('mixin', function () {
 		return;
 	}
 
-	const url = `https://github.com/${repo}/archive/${pkg.distro}.zip`;
-	const opts = { base: url };
-	const username = process.env['VSCODE_MIXIN_USERNAME'];
-	const password = process.env['VSCODE_MIXIN_PASSWORD'];
+	const productJsonFilter = filter('product.json', { restore: true });
 
-	if (username || password) {
-		opts.auth = { user: username || '', pass: password || '' };
-	}
-
-	console.log('Mixing in sources from \'' + url + '\':');
-
-	let all = remote('', opts)
-		.pipe(zip.src())
+	fancyLog(ansiColors.blue('[mixin]'), `Mixing in sources:`);
+	return vfs
+		.src(`quality/${quality}/**`, { base: `quality/${quality}` })
 		.pipe(filter(function (f) { return !f.isDirectory(); }))
-		.pipe(util.rebase(1));
-
-	if (quality) {
-		const productJsonFilter = filter('product.json', { restore: true });
-		const mixin = all
-			.pipe(filter(['quality/' + quality + '/**']))
-			.pipe(util.rebase(2))
-			.pipe(productJsonFilter)
-			.pipe(buffer())
-			.pipe(json(o => Object.assign({}, require('../product.json'), o)))
-			.pipe(productJsonFilter.restore);
-
-		all = es.merge(mixin);
-	}
-
-	return all
+		.pipe(productJsonFilter)
+		.pipe(buffer())
+		.pipe(json(o => Object.assign({}, require('../product.json'), o)))
+		.pipe(productJsonFilter.restore)
 		.pipe(es.mapSync(function (f) {
-			console.log(f.relative);
+			fancyLog(ansiColors.blue('[mixin]'), f.relative, ansiColors.green('✔︎'));
 			return f;
 		}))
 		.pipe(gulp.dest('.'));

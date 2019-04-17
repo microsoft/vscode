@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../browser/media/exceptionWidget';
+import 'vs/css!./media/exceptionWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
@@ -36,7 +36,6 @@ export class ExceptionWidget extends ZoneWidget {
 
 		this._applyTheme(themeService.getTheme());
 		this._disposables.push(themeService.onThemeChange(this._applyTheme.bind(this)));
-
 
 		this.create();
 		const onDidLayoutChangeScheduler = new RunOnceScheduler(() => this._doLayout(undefined, undefined), 50);

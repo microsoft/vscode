@@ -34,7 +34,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: '_files.pickFolderAndOpen',
-	handler: (accessor: ServicesAccessor, forceNewWindow: boolean) => accessor.get(IFileDialogService).pickFolderAndOpen({ forceNewWindow })
+	handler: (accessor: ServicesAccessor, options: { forceNewWindow: boolean }) => accessor.get(IFileDialogService).pickFolderAndOpen(options)
 });
 
 CommandsRegistry.registerCommand({
@@ -70,7 +70,7 @@ CommandsRegistry.registerCommand({
 			}
 
 			// Add and show Files Explorer viewlet
-			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: folder })))
+			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: resources.removeTrailingPathSeparator(folder) })))
 				.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
 				.then(() => undefined);
 		});
@@ -89,13 +89,13 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 		return undefined;
 	}
 
-	const folderPicks = folders.map(folder => {
+	const folderPicks: IQuickPickItem[] = folders.map(folder => {
 		return {
 			label: folder.name,
 			description: labelService.getUriLabel(resources.dirname(folder.uri), { relative: true }),
 			folder,
 			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
-		} as IQuickPickItem;
+		};
 	});
 
 	const options: IPickOptions<IQuickPickItem> = (args ? args[0] : undefined) || Object.create(null);

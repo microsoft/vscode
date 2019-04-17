@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MainThreadMessageService } from 'vs/workbench/api/electron-browser/mainThreadMessageService';
+import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -90,7 +90,7 @@ suite('ExtHostMessageService', function () {
 	suite('modal', () => {
 		test('calls dialog service', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				show(severity, message, buttons) {
+				show(severity: Severity, message: string, buttons: string[]) {
 					assert.equal(severity, 1);
 					assert.equal(message, 'h');
 					assert.equal(buttons.length, 2);
@@ -105,7 +105,7 @@ suite('ExtHostMessageService', function () {
 
 		test('returns undefined when cancelled', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				show(severity, message, buttons) {
+				show() {
 					return Promise.resolve(1);
 				}
 			} as IDialogService);
@@ -116,7 +116,7 @@ suite('ExtHostMessageService', function () {
 
 		test('hides Cancel button when not needed', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				show(severity, message, buttons) {
+				show(severity: Severity, message: string, buttons: string[]) {
 					assert.equal(buttons.length, 1);
 					return Promise.resolve(0);
 				}

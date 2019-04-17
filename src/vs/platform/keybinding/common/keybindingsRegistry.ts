@@ -19,7 +19,7 @@ export interface IKeybindingItem {
 }
 
 export interface IKeybindings {
-	primary: number;
+	primary?: number;
 	secondary?: number[];
 	win?: {
 		primary: number;
@@ -49,7 +49,7 @@ export interface IKeybindingRule2 {
 	id: string;
 	args?: any;
 	weight: number;
-	when: ContextKeyExpr | null;
+	when: ContextKeyExpr | undefined;
 }
 
 export const enum KeybindingWeight {

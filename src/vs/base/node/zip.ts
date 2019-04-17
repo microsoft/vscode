@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import { createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
-import { nfcall, ninvoke, Sequencer, createCancelablePromise } from 'vs/base/common/async';
+import { Sequencer, createCancelablePromise } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
@@ -17,7 +17,7 @@ import { Event } from 'vs/base/common/event';
 export interface IExtractOptions {
 	overwrite?: boolean;
 
-	/**	
+	/**
 	 * Source path within the ZIP archive. Only the files contained in this
 	 * path will be extracted.
 	 */
@@ -49,7 +49,7 @@ export class ExtractError extends Error {
 }
 
 function modeFromEntry(entry: Entry) {
-	let attr = entry.externalFileAttributes >> 16 || 33188;
+	const attr = entry.externalFileAttributes >> 16 || 33188;
 
 	return [448 /* S_IRWXU */, 56 /* S_IRWXG */, 7 /* S_IRWXO */]
 		.map(mask => attr & mask)
@@ -153,7 +153,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 				return;
 			}
 
-			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
+			const stream = openZipStream(zipfile, entry);
 			const mode = modeFromEntry(entry);
 
 			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))).then(null!, e));
@@ -162,8 +162,27 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 }
 
 function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile> {
-	return nfcall<ZipFile>(_openZip, zipFile, lazy ? { lazyEntries: true } : undefined)
-		.then(undefined, err => Promise.reject(toExtractError(err)));
+	return new Promise((resolve, reject) => {
+		_openZip(zipFile, lazy ? { lazyEntries: true } : undefined, (error?: Error, zipfile?: ZipFile) => {
+			if (error) {
+				reject(toExtractError(error));
+			} else {
+				resolve(zipfile);
+			}
+		});
+	});
+}
+
+function openZipStream(zipFile: ZipFile, entry: Entry): Promise<Readable> {
+	return new Promise((resolve, reject) => {
+		zipFile.openReadStream(entry, (error?: Error, stream?: Readable) => {
+			if (error) {
+				reject(toExtractError(error));
+			} else {
+				resolve(stream);
+			}
+		});
+	});
 }
 
 export interface IFile {
@@ -210,7 +229,7 @@ function read(zipPath: string, filePath: string): Promise<Readable> {
 		return new Promise<Readable>((c, e) => {
 			zipfile.on('entry', (entry: Entry) => {
 				if (entry.fileName === filePath) {
-					ninvoke<Readable>(zipfile, zipfile.openReadStream, entry).then(stream => c(stream), err => e(err));
+					openZipStream(zipfile, entry).then(stream => c(stream), err => e(err));
 				}
 			});
 
@@ -224,7 +243,7 @@ export function buffer(zipPath: string, filePath: string): Promise<Buffer> {
 		return new Promise<Buffer>((c, e) => {
 			const buffers: Buffer[] = [];
 			stream.once('error', e);
-			stream.on('data', b => buffers.push(b as Buffer));
+			stream.on('data', (b: Buffer) => buffers.push(b));
 			stream.on('end', () => c(Buffer.concat(buffers)));
 		});
 	});

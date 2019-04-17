@@ -123,6 +123,17 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+
+	subId: string | undefined;
+
+	setSubId(subId: string | undefined): void {
+		throw new Error('Method not implemented.');
+	}
+
+	get parentSession(): IDebugSession | undefined {
+		return undefined;
+	}
+
 	getReplElements(): IReplElement[] {
 		return [];
 	}

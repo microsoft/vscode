@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { guessMimeTypes } from 'vs/base/common/mime';
-import { extname } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
 import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
@@ -17,6 +14,7 @@ export const NullTelemetryService = new class implements ITelemetryService {
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
 	}
+	setEnabled() { }
 	isOptedIn: true;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
@@ -75,11 +73,6 @@ export interface URIDescriptor {
 	scheme?: string;
 	ext?: string;
 	path?: string;
-}
-
-export function telemetryURIDescriptor(uri: URI, hashPath: (path: string) => string): URIDescriptor {
-	const fsPath = uri && uri.fsPath;
-	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), scheme: uri.scheme, ext: extname(fsPath), path: hashPath(fsPath) } : {};
 }
 
 /**

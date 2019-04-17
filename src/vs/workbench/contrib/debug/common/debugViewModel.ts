@@ -4,25 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_RESTART_FRAME_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { isExtensionHostDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export class ViewModel implements IViewModel {
 
 	firstSessionStart = true;
 
-	private _focusedStackFrame: IStackFrame;
-	private _focusedSession: IDebugSession;
-	private _focusedThread: IThread;
-	private selectedExpression: IExpression;
-	private selectedFunctionBreakpoint: IFunctionBreakpoint;
+	private _focusedStackFrame: IStackFrame | undefined;
+	private _focusedSession: IDebugSession | undefined;
+	private _focusedThread: IThread | undefined;
+	private selectedExpression: IExpression | undefined;
+	private selectedFunctionBreakpoint: IFunctionBreakpoint | undefined;
 	private readonly _onDidFocusSession: Emitter<IDebugSession | undefined>;
-	private readonly _onDidFocusStackFrame: Emitter<{ stackFrame: IStackFrame, explicit: boolean }>;
-	private readonly _onDidSelectExpression: Emitter<IExpression>;
+	private readonly _onDidFocusStackFrame: Emitter<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
+	private readonly _onDidSelectExpression: Emitter<IExpression | undefined>;
 	private multiSessionView: boolean;
 	private expressionSelectedContextKey: IContextKey<boolean>;
 	private breakpointSelectedContextKey: IContextKey<boolean>;
 	private loadedScriptsSupportedContextKey: IContextKey<boolean>;
+	private stepBackSupportedContextKey: IContextKey<boolean>;
+	private focusedSessionIsAttach: IContextKey<boolean>;
+	private restartFrameSupportedContextKey: IContextKey<boolean>;
 
 	constructor(contextKeyService: IContextKeyService) {
 		this._onDidFocusSession = new Emitter<IDebugSession | undefined>();
@@ -32,25 +36,28 @@ export class ViewModel implements IViewModel {
 		this.expressionSelectedContextKey = CONTEXT_EXPRESSION_SELECTED.bindTo(contextKeyService);
 		this.breakpointSelectedContextKey = CONTEXT_BREAKPOINT_SELECTED.bindTo(contextKeyService);
 		this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
+		this.stepBackSupportedContextKey = CONTEXT_STEP_BACK_SUPPORTED.bindTo(contextKeyService);
+		this.focusedSessionIsAttach = CONTEXT_FOCUSED_SESSION_IS_ATTACH.bindTo(contextKeyService);
+		this.restartFrameSupportedContextKey = CONTEXT_RESTART_FRAME_SUPPORTED.bindTo(contextKeyService);
 	}
 
 	getId(): string {
 		return 'root';
 	}
 
-	get focusedSession(): IDebugSession {
+	get focusedSession(): IDebugSession | undefined {
 		return this._focusedSession;
 	}
 
-	get focusedThread(): IThread {
+	get focusedThread(): IThread | undefined {
 		return this._focusedThread;
 	}
 
-	get focusedStackFrame(): IStackFrame {
+	get focusedStackFrame(): IStackFrame | undefined {
 		return this._focusedStackFrame;
 	}
 
-	setFocus(stackFrame: IStackFrame, thread: IThread, session: IDebugSession, explicit: boolean): void {
+	setFocus(stackFrame: IStackFrame | undefined, thread: IThread | undefined, session: IDebugSession | undefined, explicit: boolean): void {
 		const shouldEmitForStackFrame = this._focusedStackFrame !== stackFrame;
 		const shouldEmitForSession = this._focusedSession !== session;
 
@@ -59,6 +66,10 @@ export class ViewModel implements IViewModel {
 		this._focusedSession = session;
 
 		this.loadedScriptsSupportedContextKey.set(session ? !!session.capabilities.supportsLoadedSourcesRequest : false);
+		this.stepBackSupportedContextKey.set(session ? !!session.capabilities.supportsStepBack : false);
+		this.restartFrameSupportedContextKey.set(session ? !!session.capabilities.supportsRestartFrame : false);
+		const attach = !!session && !session.parentSession && session.configuration.request === 'attach' && !isExtensionHostDebugging(session.configuration);
+		this.focusedSessionIsAttach.set(attach);
 
 		if (shouldEmitForSession) {
 			this._onDidFocusSession.fire(session);
@@ -72,29 +83,29 @@ export class ViewModel implements IViewModel {
 		return this._onDidFocusSession.event;
 	}
 
-	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame, explicit: boolean }> {
+	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }> {
 		return this._onDidFocusStackFrame.event;
 	}
 
-	getSelectedExpression(): IExpression {
+	getSelectedExpression(): IExpression | undefined {
 		return this.selectedExpression;
 	}
 
-	setSelectedExpression(expression: IExpression) {
+	setSelectedExpression(expression: IExpression | undefined) {
 		this.selectedExpression = expression;
 		this.expressionSelectedContextKey.set(!!expression);
 		this._onDidSelectExpression.fire(expression);
 	}
 
-	get onDidSelectExpression(): Event<IExpression> {
+	get onDidSelectExpression(): Event<IExpression | undefined> {
 		return this._onDidSelectExpression.event;
 	}
 
-	getSelectedFunctionBreakpoint(): IFunctionBreakpoint {
+	getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined {
 		return this.selectedFunctionBreakpoint;
 	}
 
-	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void {
+	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void {
 		this.selectedFunctionBreakpoint = functionBreakpoint;
 		this.breakpointSelectedContextKey.set(!!functionBreakpoint);
 	}

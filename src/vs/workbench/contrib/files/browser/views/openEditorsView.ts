@@ -25,7 +25,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
-import { ResourceLabels, IResourceLabel, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
+import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -41,6 +41,7 @@ import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
 import { ElementsDragAndDropData, DesktopDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const $ = dom.$;
 
@@ -142,16 +143,16 @@ export class OpenEditorsView extends ViewletPanel {
 					case GroupChangeKind.EDITOR_DIRTY:
 					case GroupChangeKind.EDITOR_LABEL:
 					case GroupChangeKind.EDITOR_PIN: {
-						this.list.splice(index, 1, [new OpenEditor(e.editor, group)]);
+						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
 						break;
 					}
 					case GroupChangeKind.EDITOR_OPEN: {
-						this.list.splice(index, 0, [new OpenEditor(e.editor, group)]);
+						this.list.splice(index, 0, [new OpenEditor(e.editor!, group)]);
 						setTimeout(() => this.updateSize(), this.structuralRefreshDelay);
 						break;
 					}
 					case GroupChangeKind.EDITOR_CLOSE: {
-						const previousIndex = this.getIndex(group, undefined) + e.editorIndex + (this.showGroups ? 1 : 0);
+						const previousIndex = this.getIndex(group, undefined) + (e.editorIndex || 0) + (this.showGroups ? 1 : 0);
 						this.list.splice(previousIndex, 1);
 						this.updateSize();
 						break;
@@ -162,7 +163,7 @@ export class OpenEditorsView extends ViewletPanel {
 					}
 				}
 			}));
-			this.disposables.push(groupDisposables.get(group.id));
+			this.disposables.push(groupDisposables.get(group.id)!);
 		};
 
 		this.editorGroupService.groups.forEach(g => addGroupListener(g));
@@ -211,7 +212,7 @@ export class OpenEditorsView extends ViewletPanel {
 		if (this.listLabels) {
 			this.listLabels.clear();
 		}
-		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility } as IResourceLabelsContainer);
+		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
@@ -243,7 +244,7 @@ export class OpenEditorsView extends ViewletPanel {
 			this.dirtyEditorFocusedContext.reset();
 			const element = e.elements.length ? e.elements[0] : undefined;
 			if (element instanceof OpenEditor) {
-				this.dirtyEditorFocusedContext.set(this.textFileService.isDirty(element.getResource()));
+				this.dirtyEditorFocusedContext.set(this.textFileService.isDirty(withNullAsUndefined(element.getResource())));
 				this.resourceContext.set(element.getResource());
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);
@@ -325,7 +326,7 @@ export class OpenEditorsView extends ViewletPanel {
 		return result;
 	}
 
-	private getIndex(group: IEditorGroup, editor: IEditorInput): number {
+	private getIndex(group: IEditorGroup, editor: IEditorInput | undefined | null): number {
 		let index = editor ? group.getIndexOfEditor(editor) : 0;
 		if (!this.showGroups) {
 			return index;
@@ -357,7 +358,7 @@ export class OpenEditorsView extends ViewletPanel {
 				this.editorGroupService.activateGroup(element.groupId); // needed for https://github.com/Microsoft/vscode/issues/6672
 			}
 			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-				if (editor && !preserveActivateGroup) {
+				if (editor && !preserveActivateGroup && editor.group) {
 					this.editorGroupService.activateGroup(editor.group);
 				}
 			});
@@ -607,13 +608,13 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		return null;
 	}
 
-	getDragLabel?(elements: (OpenEditor | IEditorGroup)[]): string {
+	getDragLabel?(elements: (OpenEditor | IEditorGroup)[]): string | undefined {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}
 		const element = elements[0];
 
-		return element instanceof OpenEditor ? element.editor.getName() : element.label;
+		return element instanceof OpenEditor ? withNullAsUndefined(element.editor.getName()) : element.label;
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
@@ -622,7 +623,10 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		if (items) {
 			items.forEach(i => {
 				if (i instanceof OpenEditor) {
-					resources.push(i.getResource());
+					const resource = i.getResource();
+					if (resource) {
+						resources.push(resource);
+					}
 				}
 			});
 		}
@@ -634,7 +638,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
-		if (data instanceof DesktopDragAndDropData) {
+		if (data instanceof DesktopDragAndDropData && originalEvent.dataTransfer) {
 			const types = originalEvent.dataTransfer.types;
 			const typesArray: string[] = [];
 			for (let i = 0; i < types.length; i++) {

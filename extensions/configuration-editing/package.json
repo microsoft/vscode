@@ -58,6 +58,10 @@
         "url": "vscode://schemas/settings/user"
       },
       {
+        "fileMatch": "%MACHINE_SETTINGS_HOME%/settings.json",
+        "url": "vscode://schemas/settings/machine"
+      },
+      {
         "fileMatch": "%APP_WORKSPACES_HOME%/*/workspace.json",
         "url": "vscode://schemas/workspaceConfig"
       },

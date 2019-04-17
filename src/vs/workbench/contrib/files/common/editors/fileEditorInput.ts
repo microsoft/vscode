@@ -6,18 +6,16 @@
 import { localize } from 'vs/nls';
 import { memoize } from 'vs/base/common/decorators';
 import { basename } from 'vs/base/common/path';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, LoadReason, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference } from 'vs/base/common/lifecycle';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 
@@ -36,16 +34,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	 */
 	constructor(
 		private resource: URI,
-		preferredEncoding: string,
+		preferredEncoding: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IHashService private readonly hashService: IHashService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
-		this.setPreferredEncoding(preferredEncoding);
+		if (preferredEncoding) {
+			this.setPreferredEncoding(preferredEncoding);
+		}
 
 		this.registerListeners();
 	}
@@ -100,10 +99,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	setPreferredEncoding(encoding: string): void {
 		this.preferredEncoding = encoding;
-
-		if (encoding) {
-			this.forceOpenAsText = true; // encoding is a good hint to open the file as text
-		}
+		this.forceOpenAsText = true; // encoding is a good hint to open the file as text
 	}
 
 	setForceOpenAsText(): void {
@@ -122,7 +118,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	getName(): string {
 		if (!this.name) {
-			this.name = basenameOrAuthority(this.resource);
+			this.name = basename(this.labelService.getUriLabel(this.resource));
 		}
 
 		return this.decorateLabel(this.name);
@@ -199,6 +195,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		if (model && model.hasState(ModelState.ORPHAN)) {
 			return localize('orphanedFile', "{0} (deleted from disk)", label);
 		}
+
 		if (model && model.isReadonly()) {
 			return localize('readonlyFile', "{0} (read-only)", label);
 		}
@@ -272,7 +269,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
-			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+			if (
+				(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
+				(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
+			) {
 				return this.doResolveAsBinary();
 			}
 
@@ -289,18 +289,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return !!this.textFileService.models.get(this.resource);
 	}
 
-	getTelemetryDescriptor(): object {
-		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resource'] = telemetryURIDescriptor(this.getResource(), path => this.hashService.createSHA1(path));
-
-		/* __GDPR__FRAGMENT__
-			"EditorTelemetryDescriptor" : {
-				"resource": { "${inline}": [ "${URIDescriptor}" ] }
-			}
-		*/
-		return descriptor;
-	}
-
 	dispose(): void {
 
 		// Model reference
@@ -312,7 +300,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		super.dispose();
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}

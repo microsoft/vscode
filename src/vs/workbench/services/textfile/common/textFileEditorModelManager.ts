@@ -117,11 +117,11 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return 250;
 	}
 
-	get(resource: URI): ITextFileEditorModel {
+	get(resource: URI): ITextFileEditorModel | undefined {
 		return this.mapResourceToModel.get(resource);
 	}
 
-	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel> {
+	async loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);
@@ -153,12 +153,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// Model does not exist
 		else {
-			model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined);
+			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined);
+			model = newModel;
 			modelPromise = model.load(options);
 
 			// Install state change listener
 			this.mapResourceToStateChangeListener.set(resource, model.onDidStateChange(state => {
-				const event = new TextFileModelChangeEvent(model, state);
+				const event = new TextFileModelChangeEvent(newModel, state);
 				switch (state) {
 					case StateChange.DIRTY:
 						this._onModelDirty.fire(event);
@@ -183,14 +184,15 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			// Install model content change listener
 			this.mapResourceToModelContentChangeListener.set(resource, model.onDidContentChange(e => {
-				this._onModelContentChanged.fire(new TextFileModelChangeEvent(model, e));
+				this._onModelContentChanged.fire(new TextFileModelChangeEvent(newModel, e));
 			}));
 		}
 
 		// Store pending loads to avoid race conditions
 		this.mapResourceToPendingModelLoaders.set(resource, modelPromise);
 
-		return modelPromise.then(model => {
+		try {
+			const model = await modelPromise;
 
 			// Make known to manager (if not already known)
 			this.add(resource, model);
@@ -204,16 +206,18 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			this.mapResourceToPendingModelLoaders.delete(resource);
 
 			return model;
-		}, error => {
+		} catch (error) {
 
 			// Free resources of this invalid model
-			model.dispose();
+			if (model && typeof model.dispose === 'function') { // workaround for https://github.com/Microsoft/vscode/issues/72404
+				model.dispose();
+			}
 
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders.delete(resource);
 
-			return Promise.reject<ITextFileEditorModel>(error);
-		});
+			throw error;
+		}
 	}
 
 	getAll(resource?: URI, filter?: (model: ITextFileEditorModel) => boolean): ITextFileEditorModel[] {
@@ -312,5 +316,11 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 
 		model.dispose();
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.clear();
 	}
 }

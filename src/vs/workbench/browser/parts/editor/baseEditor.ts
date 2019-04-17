@@ -248,7 +248,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 	}
 
-	private doGetResource(resourceOrEditor: URI | EditorInput): URI | null {
+	private doGetResource(resourceOrEditor: URI | EditorInput): URI | undefined {
 		if (resourceOrEditor instanceof EditorInput) {
 			return resourceOrEditor.getResource();
 		}

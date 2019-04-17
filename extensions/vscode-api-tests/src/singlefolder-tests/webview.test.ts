@@ -7,7 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { join } from 'path';
-import { closeAllEditors, disposeAll } from '../utils';
+import { closeAllEditors, disposeAll, conditionalTest } from '../utils';
 
 const webviewId = 'myWebview';
 
@@ -82,7 +82,7 @@ suite('Webview tests', () => {
 		}
 	});
 
-	test('webviews should preserve vscode API state when they are hidden', async () => {
+	conditionalTest('webviews should preserve vscode API state when they are hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const ready = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -125,7 +125,7 @@ suite('Webview tests', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webviews should preserve their context when they are moved between view columns', async () => {
+	conditionalTest('webviews should preserve their context when they are moved between view columns', async () => {
 		const doc = await vscode.workspace.openTextDocument(testDocument);
 		await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
 
@@ -163,7 +163,7 @@ suite('Webview tests', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webviews with retainContextWhenHidden should preserve their context when they are hidden', async () => {
+	conditionalTest('webviews with retainContextWhenHidden should preserve their context when they are hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMesssage(webview);
 
@@ -203,7 +203,7 @@ suite('Webview tests', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webviews with retainContextWhenHidden should preserve their page position when hidden', async () => {
+	conditionalTest('webviews with retainContextWhenHidden should preserve their page position when hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -244,7 +244,7 @@ suite('Webview tests', () => {
 		assert.strictEqual(secondResponse.value, 100);
 	});
 
-	test('webviews should only be able to load resources from workspace by default', async () => {
+	conditionalTest('webviews should only be able to load resources from workspace by default', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -278,7 +278,7 @@ suite('Webview tests', () => {
 		}
 	});
 
-	test('webviews should allow overriding allowed resource paths using localResourceRoots', async () => {
+	conditionalTest('webviews should allow overriding allowed resource paths using localResourceRoots', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
 			localResourceRoots: [vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub'))]
