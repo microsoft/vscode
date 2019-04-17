@@ -70,7 +70,7 @@ export class NodeTextFileService extends TextFileService {
 
 		// read through encoding library
 		const decoder = await toDecodeStream(this.streamToNodeReadable(bufferStream.value), {
-			guessEncoding: options && options.autoGuessEncoding,
+			guessEncoding: (options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
 			overwriteEncoding: detected => this.encoding.getReadEncoding(resource, options, { encoding: detected, seemsBinary: false })
 		});
 
