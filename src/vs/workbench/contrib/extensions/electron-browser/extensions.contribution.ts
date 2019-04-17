@@ -244,26 +244,23 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.extensionKind': {
 				type: 'object',
-				description: localize('extensions.extensionKind', "Configure ui or workspace extensions and allow them to run locally or remotely in a remote window."),
-				properties: {
-					'ui': {
-						type: 'array',
-						items: {
-							type: 'string',
-							pattern: '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$',
-						}
+				description: localize('extensions.extensionKind', "Configure ui or workspace extensions and allow them to enable locally or remotely in a remote window."),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
+						type: 'string',
+						enum: [
+							'ui',
+							'workspace'
+						],
+						enumDescriptions: [
+							localize('ui', "UI extension kind. Such extensions are enabled only when available locally in a remote window."),
+							localize('workspace', "Workspace extension kind. Such extensions are enabled only when avialable on remote server in a remote window.")
+						],
+						default: 'ui'
 					},
-					'workspace': {
-						type: 'array',
-						items: {
-							type: 'string',
-							pattern: '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$',
-						}
-					}
 				},
 				default: {
-					ui: [],
-					workspace: []
+					'pub.name': 'ui'
 				}
 			}
 		}
