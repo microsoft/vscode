@@ -200,7 +200,8 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		super(
 			contextService,
@@ -219,7 +220,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			contextKeyService,
 			dialogService,
 			fileDialogService,
-			editorService
+			editorService,
+			textResourceConfigurationService
 		);
 	}
 
