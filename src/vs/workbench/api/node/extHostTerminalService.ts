@@ -447,6 +447,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Merge in shell and args from settings
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		if (!shellLaunchConfig.executable) {
 			const fetchSetting = (key: string) => {
 				const setting = configProvider
@@ -462,7 +463,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 
 		// Get the initial cwd
-		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
 		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), activeWorkspaceRootUri, terminalConfig.cwd);
