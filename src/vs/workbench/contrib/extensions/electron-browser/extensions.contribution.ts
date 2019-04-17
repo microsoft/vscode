@@ -246,7 +246,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'array',
 				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
 				default: []
-      },
+			},
 			'extensions.extensionKind': {
 				type: 'object',
 				description: localize('extensions.extensionKind', "Configure ui or workspace extensions and allow them to enable locally or remotely in a remote window."),
