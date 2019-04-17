@@ -229,7 +229,7 @@ function unmask(buffer: VSBuffer, mask: number): void {
 	}
 }
 
-export class RemoteExtensionHostAgentServer {
+export class RemoteExtensionHostAgentServer extends Disposable {
 
 	private _remoteExtensionManagementServer: RemoteExtensionManagementServer;
 	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection; };
@@ -238,6 +238,7 @@ export class RemoteExtensionHostAgentServer {
 	constructor(
 		private readonly _environmentService: EnvironmentService
 	) {
+		super();
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 	}
@@ -245,7 +246,7 @@ export class RemoteExtensionHostAgentServer {
 	public async start(port: number) {
 		// Wait for the extension management server to be set up, cache the result so it can be accessed sync while handling requests
 		const server = await RemoteExtensionManagementServer.create(this._environmentService);
-		this._remoteExtensionManagementServer = server;
+		this._remoteExtensionManagementServer = this._register(server);
 		return this._start(port);
 	}
 

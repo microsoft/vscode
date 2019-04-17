@@ -57,39 +57,9 @@ if (RemoteExtensionManagementCli.shouldSpawnCli(args)) {
 			eventuallyExit(1);
 		});
 } else {
-
-	const onUnexpectedError = (err: any) => {
-		console.log(err);
-		console.log(err.stack);
-	};
-
-	// Print a console message when rejection isn't handled within N seconds. For details:
-	// see https://nodejs.org/api/process.html#process_event_unhandledrejection
-	// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-	const unhandledPromises: Promise<any>[] = [];
-	process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
-		unhandledPromises.push(promise);
-		setTimeout(() => {
-			const idx = unhandledPromises.indexOf(promise);
-			if (idx >= 0) {
-				unhandledPromises.splice(idx, 1);
-				console.warn('rejected promise not handled within 1 second');
-				onUnexpectedError(reason);
-			}
-		}, 1000);
+	const server = new RemoteExtensionHostAgentServer(environmentService);
+	server.start(PORT);
+	process.on('exit', () => {
+		server.dispose();
 	});
-
-	process.on('rejectionHandled', (promise: Promise<any>) => {
-		const idx = unhandledPromises.indexOf(promise);
-		if (idx >= 0) {
-			unhandledPromises.splice(idx, 1);
-		}
-	});
-
-	// Print a console message when an exception isn't handled.
-	process.on('uncaughtException', function (err: Error) {
-		onUnexpectedError(err);
-	});
-
-	new RemoteExtensionHostAgentServer(environmentService).start(PORT);
 }

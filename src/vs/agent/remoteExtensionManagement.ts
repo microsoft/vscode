@@ -47,6 +47,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import pkg from 'vs/platform/product/node/package';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { getMachineId } from 'vs/base/node/id';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IExtensionsManagementProcessInitData {
 	args: ParsedArgs;
@@ -117,7 +118,7 @@ export class ManagementConnection {
 
 const eventPrefix = 'monacoworkbench';
 
-export class RemoteExtensionManagementServer {
+export class RemoteExtensionManagementServer extends Disposable {
 
 	public readonly socketServer: SocketServer<RemoteAgentConnectionContext>;
 	private readonly _uriTransformerCache: { [remoteAuthority: string]: IURITransformer; };
@@ -132,6 +133,7 @@ export class RemoteExtensionManagementServer {
 	private constructor(
 		private readonly _environmentService: IEnvironmentService
 	) {
+		super();
 		this.socketServer = new SocketServer<RemoteAgentConnectionContext>();
 		this._uriTransformerCache = Object.create(null);
 	}
@@ -153,7 +155,7 @@ export class RemoteExtensionManagementServer {
 		if (!this._environmentService.args['disable-telemetry'] && product.enableTelemetry && this._environmentService.isBuilt) {
 			if (product.aiConfig && product.aiConfig.asimovKey) {
 				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, logService);
-				// disposables.push(appInsightsAppender); // TODO@rob Ensure the AI appender is disposed so that it flushes remaining data
+				this._register(appInsightsAppender);
 			}
 
 			const machineId = await getMachineId();
@@ -195,8 +197,7 @@ export class RemoteExtensionManagementServer {
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
 
-			// tslint:disable-next-line: no-unused-expression
-			new ErrorTelemetry(accessor.get(ITelemetryService)); // TODO dispose
+			this._register(new ErrorTelemetry(accessor.get(ITelemetryService)));
 		});
 	}
 
