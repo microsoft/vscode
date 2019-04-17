@@ -265,11 +265,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					ui: [],
 					workspace: []
 				}
-			},
-			'extensions.showInstalledExtensionsByDefault': {
-				type: 'boolean',
-				description: localize('extensions.showInstalledExtensionsByDefault', "When enabled, extensions view shows installed extensions view by default."),
-				default: false
 			}
 		}
 	});
