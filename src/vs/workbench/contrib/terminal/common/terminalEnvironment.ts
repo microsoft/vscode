@@ -9,6 +9,7 @@ import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -59,7 +60,7 @@ export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, ve
 	}
 }
 
-export function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | NodeJS.ProcessEnv | undefined) {
+function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | NodeJS.ProcessEnv | undefined) {
 	if (!other) {
 		return;
 	}
@@ -71,7 +72,7 @@ export function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerm
 	}
 }
 
-export function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | null): ITerminalEnvironment {
+function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | null): ITerminalEnvironment {
 	Object.keys(env).forEach((key) => {
 		const value = env[key];
 		if (typeof value === 'string' && lastActiveWorkspaceRoot !== null) {
@@ -188,4 +189,50 @@ export function mergeDefaultShellPathAndArgs(
 	if (shell.executable && platformOverride === platform.Platform.Windows) {
 		shell.executable = shell.executable.replace(/\//g, '\\');
 	}
+}
+
+export function createTerminalEnvironment(
+	shellLaunchConfig: IShellLaunchConfig,
+	lastActiveWorkspace: IWorkspaceFolder | null,
+	envFromConfig: { user: ITerminalEnvironment | undefined, value: ITerminalEnvironment | undefined, default: ITerminalEnvironment | undefined },
+	configurationResolverService: IConfigurationResolverService | undefined,
+	isWorkspaceShellAllowed: boolean,
+	version: string | undefined,
+	setLocaleVariables: boolean
+): platform.IProcessEnvironment {
+	// Create a terminal environment based on settings, launch config and permissions
+	let env: platform.IProcessEnvironment = {};
+	if (shellLaunchConfig.strictEnv) {
+		// strictEnv is true, only use the requested env (ignoring null entries)
+		mergeNonNullKeys(env, shellLaunchConfig.env);
+	} else {
+		// Merge process env with the env from config and from shellLaunchConfig
+		mergeNonNullKeys(env, process.env);
+
+		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		// const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
+		const allowedEnvFromConfig = { ...(isWorkspaceShellAllowed ? envFromConfig.value : envFromConfig.user) };
+
+		// Resolve env vars from config and shell
+		if (configurationResolverService) {
+			if (allowedEnvFromConfig) {
+				resolveConfigurationVariables(configurationResolverService, allowedEnvFromConfig, lastActiveWorkspace);
+			}
+			if (shellLaunchConfig.env) {
+				resolveConfigurationVariables(configurationResolverService, shellLaunchConfig.env, lastActiveWorkspace);
+			}
+		}
+
+		// Merge config (settings) and ShellLaunchConfig environments
+		mergeEnvironments(env, allowedEnvFromConfig);
+		mergeEnvironments(env, shellLaunchConfig.env);
+
+		// Sanitize the environment, removing any undesirable VS Code and Electron environment
+		// variables
+		sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
+
+		// Adding other env keys necessary to create the process
+		addTerminalEnvironmentKeys(env, version, platform.locale, setLocaleVariables);
+	}
+	return env;
 }
