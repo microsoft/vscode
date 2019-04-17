@@ -125,6 +125,8 @@ export class TextAreaInput extends Disposable {
 		this._isDoingComposition = false;
 		this._nextCommand = ReadFromTextArea.Type;
 
+		this._installSelectionChangeListener();
+
 		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => {
 			if (this._isDoingComposition &&
 				(e.keyCode === KeyCode.KEY_IN_COMPOSITION || e.keyCode === KeyCode.Backspace)) {
@@ -137,10 +139,22 @@ export class TextAreaInput extends Disposable {
 				// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
 				e.preventDefault();
 			}
+
+			if (browser.isIPad && (e.equals(KeyCode.LeftArrow) || e.equals(KeyCode.RightArrow) || e.equals(KeyCode.UpArrow) || e.equals(KeyCode.DownArrow))) {
+				console.log('arrows down');
+				e.stopPropagation();
+				return;
+			}
 			this._onKeyDown.fire(e);
 		}));
 
 		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keyup', (e: IKeyboardEvent) => {
+			if (browser.isIPad && (e.equals(KeyCode.LeftArrow) || e.equals(KeyCode.RightArrow) || e.equals(KeyCode.UpArrow) || e.equals(KeyCode.DownArrow))) {
+				console.log('arrows up');
+				e.stopPropagation();
+				return;
+			}
+
 			this._onKeyUp.fire(e);
 		}));
 
@@ -354,13 +368,14 @@ export class TextAreaInput extends Disposable {
 		// so throttle multiple `selectionchange` events that burst in a short period of time.
 		let previousSelectionChangeEventTime = 0;
 		return dom.addDisposableListener(document, 'selectionchange', (e) => {
-			if (!this._hasFocus) {
+			if (!this._hasFocus && !browser.isIPad) {
 				return;
 			}
 			if (this._isDoingComposition) {
 				return;
 			}
-			if (!browser.isChrome || !platform.isWindows) {
+
+			if (!((browser.isChrome && platform.isWindows) || browser.isIPad)) {
 				// Support only for Chrome on Windows until testing happens on other browsers + OS configurations
 				return;
 			}

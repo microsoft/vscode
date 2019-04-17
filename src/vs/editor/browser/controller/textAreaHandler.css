@@ -15,6 +15,7 @@
 	overflow: hidden;
 	color: transparent;
 	background-color: transparent;
+	/* background-color: grey; */
 }
 /*.monaco-editor .inputarea {
 	position: fixed !important;

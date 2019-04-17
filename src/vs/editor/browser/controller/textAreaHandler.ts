@@ -43,7 +43,7 @@ class VisibleTextAreaData {
 	constructor(top: number, left: number, width: number) {
 		this.top = top;
 		this.left = left;
-		this.width = width;
+		this.width = width; //100;
 	}
 
 	public setWidth(width: number): VisibleTextAreaData {
@@ -202,10 +202,10 @@ export class TextAreaHandler extends ViewPart {
 
 			getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
 
-				if (browser.isIPad) {
-					// Do not place anything in the textarea for the iPad
-					return TextAreaState.EMPTY;
-				}
+				// if (browser.isIPad) {
+				// 	// Do not place anything in the textarea for the iPad
+				// 	return TextAreaState.EMPTY;
+				// }
 
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
