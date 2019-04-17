@@ -1480,16 +1480,16 @@ suite('Disk File Service', () => {
 		setTimeout(() => unlinkSync(file.fsPath), 50);
 	});
 
-	// test('watch - folder (non recursive) - add folder', done => {
-	// 	const watchDir = URI.file(join(testDir, 'watch6'));
-	// 	mkdirSync(watchDir.fsPath);
+	test('watch - folder (non recursive) - add folder', done => {
+		const watchDir = URI.file(join(testDir, 'watch6'));
+		mkdirSync(watchDir.fsPath);
 
-	// 	const folder = URI.file(join(watchDir.fsPath, 'folder'));
+		const folder = URI.file(join(watchDir.fsPath, 'folder'));
 
-	// 	assertWatch(watchDir, [[FileChangeType.ADDED, folder]], done);
+		assertWatch(watchDir, [[FileChangeType.ADDED, folder]], done);
 
-	// 	setTimeout(() => mkdirSync(folder.fsPath), 50);
-	// });
+		setTimeout(() => mkdirSync(folder.fsPath), 50);
+	});
 
 	test('watch - folder (non recursive) - delete folder', done => {
 		const watchDir = URI.file(join(testDir, 'watch7'));
