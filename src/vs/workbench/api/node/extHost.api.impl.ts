@@ -532,6 +532,12 @@ export function createApiFactory(
 			set name(value) {
 				throw errors.readonly();
 			},
+			get workspaceFile() {
+				return extHostWorkspace.workspaceFile;
+			},
+			set workspaceFile(value) {
+				throw errors.readonly();
+			},
 			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
 				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
 			},
