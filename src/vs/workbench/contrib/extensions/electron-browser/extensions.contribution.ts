@@ -241,27 +241,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsCloseExtensionDetailsOnViewChange', "When enabled, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
 				default: false
-			},
-			'extensions.extensionKind': {
-				type: 'object',
-				description: localize('extensions.extensionKind', "Configure ui or workspace extensions and allow them to enable locally or remotely in a remote window."),
-				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
-						type: 'string',
-						enum: [
-							'ui',
-							'workspace'
-						],
-						enumDescriptions: [
-							localize('ui', "UI extension kind. Such extensions are enabled only when available locally in a remote window."),
-							localize('workspace', "Workspace extension kind. Such extensions are enabled only when avialable on remote server in a remote window.")
-						],
-						default: 'ui'
-					},
-				},
-				default: {
-					'pub.name': 'ui'
-				}
 			}
 		}
 	});
