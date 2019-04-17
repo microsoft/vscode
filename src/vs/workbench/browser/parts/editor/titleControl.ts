@@ -92,7 +92,7 @@ export abstract class TitleControl extends Themable {
 
 	private registerListeners(): void {
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.updateEditorActionsToolbar()));
-		this._register(this.labelService.onDidChangeFormatters(() => this.updateEditorLabel()));
+		this._register(this.labelService.onDidChangeFormatters(() => this.updateEditorLabels()));
 	}
 
 	protected abstract create(parent: HTMLElement): void;
@@ -342,7 +342,9 @@ export abstract class TitleControl extends Themable {
 
 	abstract setActive(isActive: boolean): void;
 
-	abstract updateEditorLabel(editor?: IEditorInput): void;
+	abstract updateEditorLabel(editor: IEditorInput): void;
+
+	abstract updateEditorLabels(): void;
 
 	abstract updateEditorDirty(editor: IEditorInput): void;
 

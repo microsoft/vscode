@@ -11,14 +11,8 @@ import product from 'vs/platform/product/node/product';
 
 export function isUIExtension(manifest: IExtensionManifest, uiContributions: string[], configurationService: IConfigurationService): boolean {
 	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-	const { ui, workspace } = configurationService.getValue<{ ui: string[], workspace: string[] }>('extensions.extensionKind') || { ui: [], workspace: [] };
-	if (isNonEmptyArray(workspace) && workspace.some(id => areSameExtensions({ id }, { id: extensionId }))) {
-		return false;
-	}
-	if (isNonEmptyArray(ui) && ui.some(id => areSameExtensions({ id }, { id: extensionId }))) {
-		return true;
-	}
-	switch (manifest.extensionKind) {
+	const extensionKind = getExtensionKind(manifest, configurationService);
+	switch (extensionKind) {
 		case 'ui': return true;
 		case 'workspace': return false;
 		default: {
@@ -37,4 +31,15 @@ export function isUIExtension(manifest: IExtensionManifest, uiContributions: str
 			return true;
 		}
 	}
+}
+
+function getExtensionKind(manifest: IExtensionManifest, configurationService: IConfigurationService): string | undefined {
+	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+	const configuredExtensionKinds = configurationService.getValue<{ [key: string]: string }>('remote.extensionKind') || {};
+	for (const id of Object.keys(configuredExtensionKinds)) {
+		if (areSameExtensions({ id: extensionId }, { id })) {
+			return configuredExtensionKinds[id];
+		}
+	}
+	return manifest.extensionKind;
 }

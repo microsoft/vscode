@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/5381f0d02bd043a279ad6c2e55dc5de6812cb15a",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/f5552b7edebe79fee79961f16f2c5459cfee0cf1",
 	"name": "C++",
 	"scopeName": "source.cpp",
 	"patterns": [
@@ -280,7 +280,7 @@
 							"name": "keyword.other.using.directive.cpp"
 						},
 						"2": {
-							"name": "entity.name.namespace.cpp"
+							"name": "entity.name.type.namespace.cpp"
 						}
 					}
 				},
@@ -294,7 +294,7 @@
 				},
 				{
 					"match": "(?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w)(?=::)",
-					"name": "entity.name.namespace.cpp"
+					"name": "entity.name.type.namespace.cpp"
 				},
 				{
 					"match": "(?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w)",
@@ -599,13 +599,13 @@
 					"name": "keyword.operator.functionlike.cpp keyword.operator.sizeof.cpp"
 				},
 				"2": {
-					"name": "punctuation.section.arguments.begin.bracket.round.operator.sizeof.cpp keyword.operator.functionlike.cpp keyword.operator.sizeof.cpp"
+					"name": "punctuation.section.arguments.begin.bracket.round.operator.sizeof.cpp"
 				}
 			},
 			"end": "(\\))",
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.section.arguments.end.bracket.round.operator.sizeof.cpp keyword.operator.functionlike.cpp keyword.operator.sizeof.cpp"
+					"name": "punctuation.section.arguments.end.bracket.round.operator.sizeof.cpp"
 				}
 			},
 			"patterns": [
@@ -622,13 +622,13 @@
 					"name": "keyword.operator.functionlike.cpp keyword.operator.alignof.cpp"
 				},
 				"2": {
-					"name": "punctuation.section.arguments.begin.bracket.round.operator.alignof.cpp keyword.operator.functionlike.cpp keyword.operator.alignof.cpp"
+					"name": "punctuation.section.arguments.begin.bracket.round.operator.alignof.cpp"
 				}
 			},
 			"end": "(\\))",
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.section.arguments.end.bracket.round.operator.alignof.cpp keyword.operator.functionlike.cpp keyword.operator.alignof.cpp"
+					"name": "punctuation.section.arguments.end.bracket.round.operator.alignof.cpp"
 				}
 			},
 			"patterns": [
@@ -645,13 +645,13 @@
 					"name": "keyword.operator.functionlike.cpp keyword.operator.alignas.cpp"
 				},
 				"2": {
-					"name": "punctuation.section.arguments.begin.bracket.round.operator.alignas.cpp keyword.operator.functionlike.cpp keyword.operator.alignas.cpp"
+					"name": "punctuation.section.arguments.begin.bracket.round.operator.alignas.cpp"
 				}
 			},
 			"end": "(\\))",
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.section.arguments.end.bracket.round.operator.alignas.cpp keyword.operator.functionlike.cpp keyword.operator.alignas.cpp"
+					"name": "punctuation.section.arguments.end.bracket.round.operator.alignas.cpp"
 				}
 			},
 			"patterns": [
@@ -668,13 +668,13 @@
 					"name": "keyword.operator.functionlike.cpp keyword.operator.typeid.cpp"
 				},
 				"2": {
-					"name": "punctuation.section.arguments.begin.bracket.round.operator.typeid.cpp keyword.operator.functionlike.cpp keyword.operator.typeid.cpp"
+					"name": "punctuation.section.arguments.begin.bracket.round.operator.typeid.cpp"
 				}
 			},
 			"end": "(\\))",
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.section.arguments.end.bracket.round.operator.typeid.cpp keyword.operator.functionlike.cpp keyword.operator.typeid.cpp"
+					"name": "punctuation.section.arguments.end.bracket.round.operator.typeid.cpp"
 				}
 			},
 			"patterns": [
@@ -691,13 +691,13 @@
 					"name": "keyword.operator.functionlike.cpp keyword.other.decltype.cpp storage.type.decltype.cpp"
 				},
 				"2": {
-					"name": "punctuation.section.arguments.begin.bracket.round.decltype.cpp keyword.operator.functionlike.cpp storage.type.decltype.cpp"
+					"name": "punctuation.section.arguments.begin.bracket.round.decltype.cpp"
 				}
 			},
 			"end": "(\\))",
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.section.arguments.end.bracket.round.decltype.cpp keyword.operator.functionlike.cpp storage.type.decltype.cpp"
+					"name": "punctuation.section.arguments.end.bracket.round.decltype.cpp"
 				}
 			},
 			"patterns": [
@@ -1633,7 +1633,7 @@
 							]
 						},
 						"4": {
-							"name": "entity.name.namespace.cpp"
+							"name": "entity.name.type.namespace.cpp"
 						}
 					},
 					"end": "(;)",
@@ -1668,7 +1668,7 @@
 							]
 						},
 						"5": {
-							"name": "entity.name.namespace.cpp"
+							"name": "entity.name.type.namespace.cpp"
 						}
 					},
 					"end": "(?:(?<=\\})|(?=[;()>\\[\\]=]))",
@@ -1754,7 +1754,7 @@
 									"name": "storage.type.modifier.access.$0.cpp"
 								},
 								{
-									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))(\\w+)",
+									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))",
 									"captures": {
 										"1": {
 											"name": "entity.name.type.inherited.cpp"
@@ -1805,7 +1805,7 @@
 									"name": "storage.type.modifier.access.$0.cpp"
 								},
 								{
-									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))(\\w+)",
+									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))",
 									"captures": {
 										"1": {
 											"name": "entity.name.type.inherited.cpp"
@@ -1934,7 +1934,7 @@
 									"name": "storage.type.modifier.access.$0.cpp"
 								},
 								{
-									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))(\\w+)",
+									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))",
 									"captures": {
 										"1": {
 											"name": "entity.name.type.inherited.cpp"
@@ -1985,7 +1985,7 @@
 									"name": "storage.type.modifier.access.$0.cpp"
 								},
 								{
-									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))(\\w+)",
+									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))",
 									"captures": {
 										"1": {
 											"name": "entity.name.type.inherited.cpp"
@@ -2114,7 +2114,7 @@
 									"name": "storage.type.modifier.access.$0.cpp"
 								},
 								{
-									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))(\\w+)",
+									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))",
 									"captures": {
 										"1": {
 											"name": "entity.name.type.inherited.cpp"
@@ -2165,7 +2165,7 @@
 									"name": "storage.type.modifier.access.$0.cpp"
 								},
 								{
-									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))(\\w+)",
+									"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))",
 									"captures": {
 										"1": {
 											"name": "entity.name.type.inherited.cpp"

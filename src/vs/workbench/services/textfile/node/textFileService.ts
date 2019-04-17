@@ -17,7 +17,7 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, IDetectedEncodingResult, encodeStream, UTF8_BOM, UTF16be_BOM, UTF16le_BOM, toDecodeStream, IDecodeStreamResult, detectEncodingByBOMFromBuffer } from 'vs/base/node/encoding';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, encodeStream, UTF8_BOM, UTF16be_BOM, UTF16le_BOM, toDecodeStream, IDecodeStreamResult, detectEncodingByBOMFromBuffer } from 'vs/base/node/encoding';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { joinPath, extname, isEqualOrParent } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -70,8 +70,8 @@ export class NodeTextFileService extends TextFileService {
 
 		// read through encoding library
 		const decoder = await toDecodeStream(this.streamToNodeReadable(bufferStream.value), {
-			guessEncoding: options && options.autoGuessEncoding,
-			overwriteEncoding: detected => this.encoding.getReadEncoding(resource, options, { encoding: detected, seemsBinary: false })
+			guessEncoding: (options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
 		});
 
 		// validate binary
@@ -417,7 +417,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		const overwriteEncoding = options && options.overwriteEncoding;
 		if (!overwriteEncoding && encoding === UTF8) {
 			try {
-				const buffer = (await this.fileService.readFile(resource, { length: 3 })).value;
+				const buffer = (await this.fileService.readFile(resource, { length: UTF8_BOM.length })).value;
 				if (detectEncodingByBOMFromBuffer(buffer, buffer.byteLength) === UTF8) {
 					return { encoding, addBOM: true };
 				}
@@ -438,12 +438,12 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		};
 	}
 
-	getReadEncoding(resource: URI, options: IReadTextFileOptions | undefined, detected: IDetectedEncodingResult): string {
+	getReadEncoding(resource: URI, options: IReadTextFileOptions | undefined, detectedEncoding: string | null): string {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option
 		if (options && options.encoding) {
-			if (detected.encoding === UTF8 && options.encoding === UTF8) {
+			if (detectedEncoding === UTF8 && options.encoding === UTF8) {
 				preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
 			} else {
 				preferredEncoding = options.encoding; // give passed in encoding highest priority
@@ -451,11 +451,11 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		}
 
 		// Encoding detected
-		else if (detected.encoding) {
-			if (detected.encoding === UTF8) {
+		else if (detectedEncoding) {
+			if (detectedEncoding === UTF8) {
 				preferredEncoding = UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
 			} else {
-				preferredEncoding = detected.encoding;
+				preferredEncoding = detectedEncoding;
 			}
 		}
 

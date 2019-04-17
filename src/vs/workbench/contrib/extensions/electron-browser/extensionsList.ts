@@ -19,6 +19,7 @@ import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteB
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;
@@ -89,10 +90,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
 		const systemDisabledWarningAction = this.instantiationService.createInstance(SystemDisabledWarningAction);
+		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const actions = [
 			this.instantiationService.createInstance(StatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction),
-			this.instantiationService.createInstance(ReloadAction),
+			reloadAction,
 			this.instantiationService.createInstance(InstallAction),
 			this.instantiationService.createInstance(RemoteInstallAction),
 			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
@@ -100,7 +102,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(ManageExtensionAction)
 		];
 		const disabledLabelAction = this.instantiationService.createInstance(DisabledLabelAction, systemDisabledWarningAction);
-		const tooltipWidget = this.instantiationService.createInstance(TooltipWidget, root, disabledLabelAction, recommendationWidget);
+		const tooltipWidget = this.instantiationService.createInstance(TooltipWidget, root, disabledLabelAction, recommendationWidget, reloadAction);
 		const widgets = [
 			recommendationWidget,
 			iconRemoteBadgeWidget,
@@ -150,7 +152,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const updateEnablement = async () => {
 			const runningExtensions = await this.extensionService.getExtensions();
-			if (extension.local) {
+			if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
 				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, extension.identifier))[0];
 				const isSameExtensionRunning = runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
 				toggleClass(data.root, 'disabled', !isSameExtensionRunning);
