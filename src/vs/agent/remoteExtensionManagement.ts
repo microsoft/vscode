@@ -99,6 +99,7 @@ export class ManagementConnection {
 		}
 		this._disposed = true;
 		const socket = this._protocol.getSocket();
+		this._protocol.sendDisconnect();
 		this._protocol.dispose();
 		socket.end();
 		this._onClose.fire(undefined);

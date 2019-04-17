@@ -232,8 +232,8 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 			// (graceful termination)
 			const socket = this._protocol.getSocket();
 			this._protocol.send(createMessageOfType(MessageType.Terminate));
+			this._protocol.sendDisconnect();
 			this._protocol.dispose();
-
 			socket.end();
 			this._protocol = null;
 		}
