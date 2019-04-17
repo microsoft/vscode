@@ -246,27 +246,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'array',
 				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
 				default: []
-			},
-			'extensions.extensionKind': {
-				type: 'object',
-				description: localize('extensions.extensionKind', "Configure ui or workspace extensions and allow them to enable locally or remotely in a remote window."),
-				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
-						type: 'string',
-						enum: [
-							'ui',
-							'workspace'
-						],
-						enumDescriptions: [
-							localize('ui', "UI extension kind. Such extensions are enabled only when available locally in a remote window."),
-							localize('workspace', "Workspace extension kind. Such extensions are enabled only when avialable on remote server in a remote window.")
-						],
-						default: 'ui'
-					},
-				},
-				default: {
-					'pub.name': 'ui'
-				}
 			}
 		}
 	});

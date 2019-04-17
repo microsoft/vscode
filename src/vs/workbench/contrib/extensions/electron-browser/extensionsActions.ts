@@ -17,7 +17,7 @@ import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IE
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -172,16 +172,21 @@ export class InstallAction extends ExtensionAction {
 	}
 
 	update(): void {
-		if (!this.extension || this.extension.type === ExtensionType.System) {
-			this.enabled = false;
-			this.class = InstallAction.Class;
-			this.label = InstallAction.INSTALL_LABEL;
+		this.enabled = false;
+		this.class = InstallAction.Class;
+		this.label = InstallAction.INSTALL_LABEL;
+		if (!this.extension || this.extension.type === ExtensionType.System || this.extension.state === ExtensionState.Installed) {
 			return;
 		}
-
-		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && !this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier));
-		this.class = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingClass : InstallAction.Class;
-		this.updateLabel();
+		const local = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
+		if (local && !(local.local && isLanguagePackExtension(local.local.manifest))) {
+			return;
+		}
+		if (this.extensionsWorkbenchService.canInstall(this.extension)) {
+			this.enabled = true;
+			this.class = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingClass : InstallAction.Class;
+			this.updateLabel();
+		}
 	}
 
 	private updateLabel(): void {
@@ -2563,6 +2568,9 @@ export class DisabledLabelAction extends ExtensionAction {
 		this.class = `${DisabledLabelAction.Class} hide`;
 		this.label = '';
 		this.enabled = false;
+		if (this.extension && this.extension.local && isLanguagePackExtension(this.extension.local.manifest)) {
+			return;
+		}
 		if (this.warningAction.enabled) {
 			this.enabled = true;
 			this.class = DisabledLabelAction.Class;
@@ -2622,6 +2630,9 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		this.enabled = false;
 		this.class = `${SystemDisabledWarningAction.Class} hide`;
 		this.tooltip = '';
+		if (this.extension && this.extension.local && isLanguagePackExtension(this.extension.local.manifest)) {
+			return;
+		}
 		if (this.extension && this.extension.local && this.extension.server && this._runningExtensions && this.workbenchEnvironmentService.configuration.remoteAuthority && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
 			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;

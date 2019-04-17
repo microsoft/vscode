@@ -35,7 +35,7 @@ export function isUIExtension(manifest: IExtensionManifest, uiContributions: str
 
 function getExtensionKind(manifest: IExtensionManifest, configurationService: IConfigurationService): string | undefined {
 	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-	const configuredExtensionKinds = configurationService.getValue<{ [key: string]: string }>('extensions.extensionKind') || {};
+	const configuredExtensionKinds = configurationService.getValue<{ [key: string]: string }>('remote.extensionKind') || {};
 	for (const id of Object.keys(configuredExtensionKinds)) {
 		if (areSameExtensions({ id: extensionId }, { id })) {
 			return configuredExtensionKinds[id];

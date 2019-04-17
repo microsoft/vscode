@@ -19,6 +19,7 @@ import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteB
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;
@@ -151,7 +152,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const updateEnablement = async () => {
 			const runningExtensions = await this.extensionService.getExtensions();
-			if (extension.local) {
+			if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
 				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, extension.identifier))[0];
 				const isSameExtensionRunning = runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
 				toggleClass(data.root, 'disabled', !isSameExtensionRunning);
