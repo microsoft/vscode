@@ -306,7 +306,7 @@ export class FileService extends Disposable implements IFileService {
 				await this.doWriteUnbuffered(provider, resource, bufferOrReadable);
 			}
 		} catch (error) {
-			throw new FileOperationError(localize('err.write', "Failed to write file {0} ({1})", this.resourceForError(resource), error.toString()), toFileOperationResult(error), options);
+			throw new FileOperationError(localize('err.write', "Unable to write file ({0})", error.toString()), toFileOperationResult(error), options);
 		}
 
 		return this.resolve(resource, { resolveMetadata: true });
@@ -398,7 +398,7 @@ export class FileService extends Disposable implements IFileService {
 				value: fileStream
 			};
 		} catch (error) {
-			throw new FileOperationError(localize('err.read', "Failed to read file {0} ({1})", this.resourceForError(resource), error.toString()), toFileOperationResult(error), options);
+			throw new FileOperationError(localize('err.read', "Unable to read file ({0})", error.toString()), toFileOperationResult(error), options);
 		}
 	}
 
@@ -733,7 +733,7 @@ export class FileService extends Disposable implements IFileService {
 		if (!recursive && await this.exists(resource)) {
 			const stat = await this.resolve(resource);
 			if (stat.isDirectory && Array.isArray(stat.children) && stat.children.length > 0) {
-				throw new Error(localize('deleteFailed', "Failed to delete non-empty folder '{0}'.", this.resourceForError(resource)));
+				throw new Error(localize('deleteFailed', "Unable to delete non-empty folder '{0}'.", this.resourceForError(resource)));
 			}
 		}
 
