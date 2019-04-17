@@ -1230,12 +1230,12 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const editorDragAndDropBackground = theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
 
 		let adjustedTabBackground: Color | undefined;
-		if (editorGroupHeaderTabsBackground && editorBackgroundColor) {
+		if (editorGroupHeaderTabsBackground && editorBackgroundColor && workbenchBackground) {
 			adjustedTabBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorBackgroundColor, workbenchBackground);
 		}
 
 		let adjustedTabDragBackground: Color | undefined;
-		if (editorGroupHeaderTabsBackground && editorBackgroundColor && editorDragAndDropBackground && editorBackgroundColor) {
+		if (editorGroupHeaderTabsBackground && editorBackgroundColor && editorDragAndDropBackground && editorBackgroundColor && workbenchBackground) {
 			adjustedTabDragBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorDragAndDropBackground, editorBackgroundColor, workbenchBackground);
 		}
 
