@@ -10,7 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Counter } from 'vs/base/common/numbers';
 import { isLinux } from 'vs/base/common/platform';
-import { basenameOrAuthority, dirname, isEqual, relativePath } from 'vs/base/common/resources';
+import { basenameOrAuthority, dirname, isEqual, relativePath, basename } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -204,11 +204,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	get workspaceFile(): vscode.Uri | undefined {
 		if (this._actualWorkspace) {
-			if (this._actualWorkspace.isUntitled) {
-				return URI.from({ scheme: Schemas.untitled, path: this._actualWorkspace.id }); // Untitled Worspace: return untitled URI
-			}
-
 			if (this._actualWorkspace.configuration) {
+				if (this._actualWorkspace.isUntitled) {
+					return URI.from({ scheme: Schemas.untitled, path: basename(dirname(this._actualWorkspace.configuration)) }); // Untitled Worspace: return untitled URI
+				}
+
 				return this._actualWorkspace.configuration; // Workspace: return the configuration location
 			}
 		}
