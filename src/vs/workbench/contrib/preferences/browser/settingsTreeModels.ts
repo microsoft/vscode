@@ -228,6 +228,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return this.setting.scope === ConfigurationScope.WINDOW || this.setting.scope === ConfigurationScope.RESOURCE;
 		}
 
+		if (configTarget === ConfigurationTarget.USER_REMOTE) {
+			return this.setting.scope === ConfigurationScope.MACHINE || this.setting.scope === ConfigurationScope.WINDOW || this.setting.scope === ConfigurationScope.RESOURCE;
+		}
+
 		return true;
 	}
 
