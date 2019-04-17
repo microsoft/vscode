@@ -738,6 +738,7 @@ export class ReviewController implements IEditorContribution {
 
 		this._commentInfos.forEach(info => {
 			let providerCacheStore = this._pendingCommentCache[info.owner];
+			info.threads = info.threads.filter(thread => !thread.isDisposed);
 			info.threads.forEach(thread => {
 				let pendingComment: string | null = null;
 				if (providerCacheStore) {

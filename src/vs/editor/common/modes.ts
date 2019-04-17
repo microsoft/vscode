@@ -1288,6 +1288,7 @@ export interface CommentThread2 {
 	onDidChangeRange: Event<IRange>;
 	onDidChangeLabel: Event<string>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	isDisposed: boolean;
 }
 
 /**
@@ -1312,6 +1313,7 @@ export interface CommentThread {
 	comments: Comment[] | undefined;
 	collapsibleState?: CommentThreadCollapsibleState;
 	reply?: Command;
+	isDisposed?: boolean;
 }
 
 /**
