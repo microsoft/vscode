@@ -1377,8 +1377,17 @@ declare module 'vscode' {
 	export namespace workspace {
 
 		/**
-		 * The location of the workspace file. Depending on the workspace that
-		 * is opened, the value will be:
+		 * The location of the workspace file, for example:
+		 *
+		 * `file:///Users/name/Development/myProject.code-workspace`
+		 *
+		 * or
+		 *
+		 * `untitled:1555503116870`
+		 *
+		 * for a workspace that is untitled and not yet saved.
+		 *
+		 * Depending on the workspace that is opened, the value will be:
 		 *  * `undefined` when no workspace or  a single folder is opened
 		 *  * the path of the workspace file as `Uri` otherwise. if the workspace
 		 * is untitled, the returned URI will use the `untitled:` scheme
