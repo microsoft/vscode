@@ -145,12 +145,13 @@ export class NoTabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	updateEditorLabel(editor?: IEditorInput): void {
-		if (!editor) {
-			editor = withNullAsUndefined(this.group.activeEditor);
-		}
-		if (editor) {
-			this.ifEditorIsActive(editor, () => this.redraw());
+	updateEditorLabel(editor: IEditorInput): void {
+		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
+	updateEditorLabels(): void {
+		if (this.group.activeEditor) {
+			this.updateEditorLabel(this.group.activeEditor); // we only have the active one to update
 		}
 	}
 

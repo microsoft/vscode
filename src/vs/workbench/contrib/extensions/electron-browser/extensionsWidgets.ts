@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, extensionButtonProminentForeground, DisabledLabelAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { extensionButtonProminentBackground, extensionButtonProminentForeground, DisabledLabelAction, ReloadAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -149,11 +149,15 @@ export class TooltipWidget extends ExtensionWidget {
 	constructor(
 		private readonly parent: HTMLElement,
 		private readonly extensionLabelAction: DisabledLabelAction,
-		private readonly recommendationWidget: RecommendationWidget
+		private readonly recommendationWidget: RecommendationWidget,
+		private readonly reloadAction: ReloadAction
 	) {
 		super();
-		this._register(this.extensionLabelAction.onDidChange(() => this.render()));
-		this._register(this.recommendationWidget.onDidChangeTooltip(() => this.render()));
+		this._register(Event.any<any>(
+			this.extensionLabelAction.onDidChange,
+			this.reloadAction.onDidChange,
+			this.recommendationWidget.onDidChangeTooltip
+		)(() => this.render()));
 	}
 
 	render(): void {
@@ -167,6 +171,9 @@ export class TooltipWidget extends ExtensionWidget {
 	}
 
 	private getTitle(): string {
+		if (this.reloadAction.enabled) {
+			return this.reloadAction.tooltip;
+		}
 		if (this.extensionLabelAction.enabled) {
 			return this.extensionLabelAction.label;
 		}
@@ -235,7 +242,6 @@ export class RecommendationWidget extends ExtensionWidget {
 	}
 
 }
-
 
 export class RemoteBadgeWidget extends ExtensionWidget {
 

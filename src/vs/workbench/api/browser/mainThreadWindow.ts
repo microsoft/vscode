@@ -46,23 +46,20 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	}
 
 	async $openUri(uriComponent: UriComponents, options: IOpenUriOptions): Promise<boolean> {
-		const uri = URI.revive(uriComponent);
+		let uri = URI.revive(uriComponent);
 		if (options.allowTunneling && !!this.environmentService.configuration.remoteAuthority) {
 			if (uri.scheme === 'http' || uri.scheme === 'https') {
 				const port = this.getLocalhostPort(uri);
 				if (typeof port === 'number') {
 					const tunnel = await this.getOrCreateTunnel(port);
 					if (tunnel) {
-						const tunneledUrl = uri.toString().replace(
-							new RegExp(`^${uri.scheme}://localhost:${port}/`),
-							`${uri.scheme}://localhost:${tunnel.tunnelLocalPort}/`);
-						return this.windowsService.openExternal(tunneledUrl);
+						uri = uri.with({ authority: `localhost:${tunnel.tunnelLocalPort}` });
 					}
 				}
 			}
 		}
 
-		return this.windowsService.openExternal(uri.toString(true));
+		return this.windowsService.openExternal(encodeURI(uri.toString(true)));
 	}
 
 	private getLocalhostPort(uri: URI): number | undefined {

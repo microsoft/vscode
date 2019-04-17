@@ -436,7 +436,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 	}
 
-	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number): Promise<void> {
+	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
 			executable: shellLaunchConfigDto.executable,
@@ -445,31 +445,31 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			env: shellLaunchConfigDto.env
 		};
 
-		// TODO: This function duplicates a lot of TerminalProcessManager.createProcess, ideally
-		// they would be merged into a single implementation.
-		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
-
+		// Merge in shell and args from settings
+		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		if (!shellLaunchConfig.executable) {
-			// TODO: This duplicates some of TerminalConfigHelper.mergeDefaultShellPathAndArgs and should be merged
-			// this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
-
-			const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
-			const shellConfigValue: string | undefined = terminalConfig.get(`shell.${platformKey}`);
-			const shellArgsConfigValue: string | undefined = terminalConfig.get(`shellArgs.${platformKey}`);
-
-			shellLaunchConfig.executable = shellConfigValue;
-			shellLaunchConfig.args = shellArgsConfigValue;
+			const fetchSetting = (key: string) => {
+				const setting = configProvider
+					.getConfiguration(key.substr(0, key.lastIndexOf('.')))
+					.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
+				return {
+					user: setting ? setting.globalValue : undefined,
+					value: setting ? setting.workspaceValue : undefined,
+					default: setting ? setting.defaultValue : undefined,
+				};
+			};
+			terminalEnvironment.mergeDefaultShellPathAndArgs(shellLaunchConfig, fetchSetting, isWorkspaceShellAllowed || false);
 		}
 
-		// TODO: @daniel
+		// Get the initial cwd
+		const configProvider = await this._extHostConfiguration.getConfigProvider();
+		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
 		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), activeWorkspaceRootUri, terminalConfig.cwd);
 
 		// TODO: Pull in and resolve config settings
 		// // Resolve env vars from config and shell
 		// const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		// const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...terminalConfig.env[platformKey] }, lastActiveWorkspaceRoot);
 		const envFromConfig = { ...terminalConfig.env[platformKey] };
 		// const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
@@ -500,7 +500,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		p.onProcessExit((exitCode) => this._onProcessExit(id, exitCode));
 		this._terminalProcesses[id] = p;
 	}
-
 
 	public $acceptProcessInput(id: number, data: string): void {
 		this._terminalProcesses[id].input(data);

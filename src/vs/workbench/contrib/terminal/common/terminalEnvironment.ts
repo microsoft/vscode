@@ -14,7 +14,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
  * This module contains utility functions related to the environment, cwd and paths.
  */
 
-export function mergeEnvironments(parent: platform.IProcessEnvironment, other?: ITerminalEnvironment): void {
+export function mergeEnvironments(parent: platform.IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {
 		return;
 	}
@@ -49,11 +49,25 @@ function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: s
 	}
 }
 
-export function addTerminalEnvironmentKeys(env: ITerminalEnvironment, version: string | undefined, locale: string | undefined, setLocaleVariables: boolean): void {
+export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, version: string | undefined, locale: string | undefined, setLocaleVariables: boolean): void {
 	env['TERM_PROGRAM'] = 'vscode';
-	env['TERM_PROGRAM_VERSION'] = version ? version : null;
+	if (version) {
+		env['TERM_PROGRAM_VERSION'] = version;
+	}
 	if (setLocaleVariables) {
 		env['LANG'] = _getLangEnvVariable(locale);
+	}
+}
+
+export function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | NodeJS.ProcessEnv | undefined) {
+	if (!other) {
+		return;
+	}
+	for (const key of Object.keys(other)) {
+		const value = other[key];
+		if (value) {
+			env[key] = value;
+		}
 	}
 }
 
@@ -143,4 +157,35 @@ export function escapeNonWindowsPath(path: string): string {
 		newPath = newPath.replace(/ /g, '\\ ');
 	}
 	return newPath;
+}
+
+export function mergeDefaultShellPathAndArgs(
+	shell: IShellLaunchConfig,
+	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
+	isWorkspaceShellAllowed: boolean,
+	platformOverride: platform.Platform = platform.platform
+): void {
+	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
+	const shellConfigValue = fetchSetting(`terminal.integrated.shell.${platformKey}`);
+	// const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
+	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
+	// const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
+
+	shell.executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || <string>shellConfigValue.default;
+	shell.args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
+
+	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
+	// safe to assume that this was used by accident as Sysnative does not
+	// exist and will break the terminal in non-WoW64 environments.
+	if ((platformOverride === platform.Platform.Windows) && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && process.env.windir) {
+		const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
+		if (shell.executable && shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
+			shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
+		}
+	}
+
+	// Convert / to \ on Windows for convenience
+	if (shell.executable && platformOverride === platform.Platform.Windows) {
+		shell.executable = shell.executable.replace(/\//g, '\\');
+	}
 }

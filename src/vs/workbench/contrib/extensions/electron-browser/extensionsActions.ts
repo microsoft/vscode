@@ -1210,12 +1210,19 @@ export class ReloadAction extends ExtensionAction {
 			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
 			if (runningExtension) {
 				// Extension is running
-				const isSameVersionRunning = isSameExtensionRunning && this.extension.version === runningExtension.version;
 				if (isEnabled) {
-					if (!isSameVersionRunning && !this.extensionService.canAddExtension(toExtensionDescription(this.extension.local))) {
-						this.enabled = true;
-						this.label = localize('reloadRequired', "Reload Required");
-						this.tooltip = localize('postUpdateTooltip', "Please reload Visual Studio Code to enable the updated extension.");
+					if (!this.extensionService.canAddExtension(toExtensionDescription(this.extension.local))) {
+						if (isSameExtensionRunning) {
+							if (this.extension.version !== runningExtension.version) {
+								this.enabled = true;
+								this.label = localize('reloadRequired', "Reload Required");
+								this.tooltip = localize('postUpdateTooltip', "Please reload Visual Studio Code to enable the updated extension.");
+							}
+						} else {
+							this.enabled = true;
+							this.label = localize('reloadRequired', "Reload Required");
+							this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+						}
 					}
 				} else {
 					if (isSameExtensionRunning) {
@@ -2535,29 +2542,42 @@ export class DisabledLabelAction extends ExtensionAction {
 
 	updateWhenCounterExtensionChanges: boolean = true;
 	private disposables: IDisposable[] = [];
+	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
 		private readonly warningAction: SystemDisabledWarningAction,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super('extensions.disabledLabel', warningAction.tooltip, `${DisabledLabelAction.Class} hide`, false);
 		warningAction.onDidChange(() => this.update(), this, this.disposables);
+		this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this, this.disposables);
+		this.updateRunningExtensions();
+	}
+
+	private updateRunningExtensions(): void {
+		this.extensionService.getExtensions().then(runningExtensions => { this._runningExtensions = runningExtensions; this.update(); });
 	}
 
 	update(): void {
 		this.class = `${DisabledLabelAction.Class} hide`;
 		this.label = '';
+		this.enabled = false;
 		if (this.warningAction.enabled) {
 			this.enabled = true;
 			this.class = DisabledLabelAction.Class;
 			this.label = this.warningAction.tooltip;
 			return;
 		}
-		if (this.extension && this.extension.local && !this.extensionEnablementService.isEnabled(this.extension.local)) {
-			this.enabled = true;
-			this.class = DisabledLabelAction.Class;
-			this.label = localize('disabled by user', "This extension is disabled by the user.");
-			return;
+		if (this.extension && this.extension.local && this._runningExtensions) {
+			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
+			const isExtensionRunning = this._runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier));
+			if (!isExtensionRunning && !isEnabled) {
+				this.enabled = true;
+				this.class = DisabledLabelAction.Class;
+				this.label = localize('disabled by user', "This extension is disabled by the user.");
+				return;
+			}
 		}
 	}
 
@@ -2603,30 +2623,38 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		this.class = `${SystemDisabledWarningAction.Class} hide`;
 		this.tooltip = '';
 		if (this.extension && this.extension.local && this.extension.server && this._runningExtensions && this.workbenchEnvironmentService.configuration.remoteAuthority && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer) {
-				const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
-				const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;
+			const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;
+			const localExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
+			const localExtensionServer = localExtension ? localExtension.server : null;
+			if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)) {
 				if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
 					this.enabled = true;
 					this.class = `${SystemDisabledWarningAction.Class}`;
 					this.tooltip = localize('disabled locally', "Extension is enabled on '{0}' and disabled locally.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));
 					return;
 				}
-				if (!isUIExtension(this.extension.local.manifest, this.configurationService)) {
+				if (localExtensionServer !== this.extensionManagementServerService.remoteExtensionManagementServer) {
 					this.enabled = true;
 					this.class = `${SystemDisabledWarningAction.Class}`;
-					if (!this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
-						&& this.extensionsWorkbenchService.canInstall(this.extension)
-					) {
-						// Extension does not exist in remote
-						this.tooltip = localize('Install in remote server', "Install the extension on '{0}' to enable it there.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));
-					} else {
-						this.tooltip = localize('disabled workspace Extension', "This extension is disabled because it cannot run in a window connected to the remote server.");
-					}
+					this.tooltip = localize('Install in remote server', "Install the extension on '{0}' to enable.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));
 					return;
 				}
 			}
-
+			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && isUIExtension(this.extension.local.manifest, this.configurationService)) {
+				if (runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
+					this.enabled = true;
+					this.class = `${SystemDisabledWarningAction.Class}`;
+					this.tooltip = localize('disabled remotely', "Extension is enabled locally and disabled on '{0}'.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));
+					return;
+				}
+				if (localExtensionServer !== this.extensionManagementServerService.localExtensionManagementServer) {
+					this.enabled = true;
+					this.class = `${SystemDisabledWarningAction.Class}`;
+					this.tooltip = localize('Install in local server', "Install the extension locally to enable.");
+					return;
+				}
+			}
 		}
 	}
 

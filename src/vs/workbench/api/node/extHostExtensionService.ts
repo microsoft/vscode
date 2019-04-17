@@ -62,6 +62,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _mainThreadExtensionsProxy: MainThreadExtensionServiceShape;
 
 	private readonly _almostReadyToRunExtensions: Barrier;
+	private readonly _readyToStartExtensionHost: Barrier;
 	private readonly _readyToRunExtensions: Barrier;
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _storage: ExtHostStorage;
@@ -98,6 +99,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._mainThreadExtensionsProxy = this._extHostContext.getProxy(MainContext.MainThreadExtensionService);
 
 		this._almostReadyToRunExtensions = new Barrier();
+		this._readyToStartExtensionHost = new Barrier();
 		this._readyToRunExtensions = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
@@ -166,7 +168,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			this._almostReadyToRunExtensions.open();
 
 			await this._extHostWorkspace.waitForInitializeCall();
-			this._readyToRunExtensions.open();
+			this._readyToStartExtensionHost.open();
 		} catch (err) {
 			errors.onUnexpectedError(err);
 		}
@@ -576,7 +578,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		}
 		this._started = true;
 
-		return this._readyToRunExtensions.wait()
+		return this._readyToStartExtensionHost.wait()
+			.then(() => this._readyToRunExtensions.open())
 			.then(() => this._handleEagerExtensions())
 			.then(() => this._handleExtensionTests())
 			.then(() => {
