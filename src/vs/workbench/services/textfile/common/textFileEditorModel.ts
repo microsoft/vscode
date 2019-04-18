@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -203,7 +203,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.versionId;
 	}
 
-	revert(soft?: boolean): Promise<void> {
+	async revert(soft?: boolean): Promise<void> {
 		if (!this.isResolved()) {
 			return Promise.resolve(undefined);
 		}
@@ -221,17 +221,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			loadPromise = this.load({ forceReadFromDisk: true });
 		}
 
-		return loadPromise.then(() => {
+		try {
+			await loadPromise;
 
 			// Emit file change event
 			this._onDidStateChange.fire(StateChange.REVERTED);
-		}, error => {
+		} catch (error) {
 
 			// Set flags back to previous values, we are still dirty if revert failed
 			undo();
 
 			return Promise.reject(error);
-		});
+		}
 	}
 
 	load(options?: ILoadOptions): Promise<ITextFileEditorModel> {
@@ -255,36 +256,35 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.loadFromFile(options);
 	}
 
-	private loadFromBackup(options?: ILoadOptions): Promise<TextFileEditorModel> {
-		return this.backupFileService.loadBackupResource(this.resource).then(backup => {
+	private async loadFromBackup(options?: ILoadOptions): Promise<TextFileEditorModel> {
+		const backup = await this.backupFileService.loadBackupResource(this.resource);
 
-			// Make sure meanwhile someone else did not suceed or start loading
-			if (this.createTextEditorModelPromise || this.textEditorModel) {
-				return this.createTextEditorModelPromise || this;
-			}
+		// Make sure meanwhile someone else did not suceed or start loading
+		if (this.createTextEditorModelPromise || this.textEditorModel) {
+			return this.createTextEditorModelPromise || this;
+		}
 
-			// If we have a backup, continue loading with it
-			if (!!backup) {
-				const content: IRawTextContent = {
-					resource: this.resource,
-					name: basename(this.resource),
-					mtime: Date.now(),
-					size: 0,
-					etag: etag(Date.now(), 0),
-					value: createTextBufferFactory(''), /* will be filled later from backup */
-					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding).encoding,
-					isReadonly: false
-				};
+		// If we have a backup, continue loading with it
+		if (!!backup) {
+			const content: ITextFileStreamContent = {
+				resource: this.resource,
+				name: basename(this.resource),
+				mtime: Date.now(),
+				size: 0,
+				etag: etag(Date.now(), 0),
+				value: createTextBufferFactory(''), /* will be filled later from backup */
+				encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding,
+				isReadonly: false
+			};
 
-				return this.loadWithContent(content, options, backup);
-			}
+			return this.loadWithContent(content, options, backup);
+		}
 
-			// Otherwise load from file
-			return this.loadFromFile(options);
-		});
+		// Otherwise load from file
+		return this.loadFromFile(options);
 	}
 
-	private loadFromFile(options?: ILoadOptions): Promise<TextFileEditorModel> {
+	private async loadFromFile(options?: ILoadOptions): Promise<TextFileEditorModel> {
 		const forceReadFromDisk = options && options.forceReadFromDisk;
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || (options && options.allowBinary);
 
@@ -305,76 +305,74 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const currentVersionId = this.versionId;
 
 		// Resolve Content
-		return this.textFileService
-			.resolveTextContent(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding })
-			.then(content => {
+		try {
+			const content = await this.textFileService.readStream(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding });
 
-				// Clear orphaned state when loading was successful
-				this.setOrphaned(false);
+			// Clear orphaned state when loading was successful
+			this.setOrphaned(false);
+
+			// Guard against the model having changed in the meantime
+			if (currentVersionId === this.versionId) {
+				return this.loadWithContent(content, options);
+			}
+
+			return this;
+		} catch (error) {
+			const result = error.fileOperationResult;
+
+			// Apply orphaned state based on error code
+			this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
+
+			// NotModified status is expected and can be handled gracefully
+			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
 
 				// Guard against the model having changed in the meantime
 				if (currentVersionId === this.versionId) {
-					return this.loadWithContent(content, options);
+					this.setDirty(false); // Ensure we are not tracking a stale state
 				}
 
 				return this;
-			}, error => {
-				const result = error.fileOperationResult;
-
-				// Apply orphaned state based on error code
-				this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
-
-				// NotModified status is expected and can be handled gracefully
-				if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-
-					// Guard against the model having changed in the meantime
-					if (currentVersionId === this.versionId) {
-						this.setDirty(false); // Ensure we are not tracking a stale state
-					}
-
-					return this;
-				}
-
-				// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
-				// we already have the model loaded, we can return to this state and update the orphaned
-				// flag to indicate that this model has no version on disk anymore.
-				if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
-					return this;
-				}
-
-				// Otherwise bubble up the error
-				return Promise.reject<TextFileEditorModel>(error);
-			});
-	}
-
-	private loadWithContent(content: IRawTextContent, options?: ILoadOptions, backup?: URI): Promise<TextFileEditorModel> {
-		return this.doLoadWithContent(content, backup).then(model => {
-
-			// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
-			const settingsType = this.getTypeIfSettings();
-			if (settingsType) {
-				/* __GDPR__
-					"settingsRead" : {
-						"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
-			} else {
-				/* __GDPR__
-					"fileGet" : {
-						"${include}": [
-							"${FileTelemetryData}"
-						]
-					}
-				*/
-				this.telemetryService.publicLog('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
 			}
 
-			return model;
-		});
+			// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
+			// we already have the model loaded, we can return to this state and update the orphaned
+			// flag to indicate that this model has no version on disk anymore.
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
+				return this;
+			}
+
+			// Otherwise bubble up the error
+			throw error;
+		}
 	}
 
-	private doLoadWithContent(content: IRawTextContent, backup?: URI): Promise<TextFileEditorModel> {
+	private async loadWithContent(content: ITextFileStreamContent, options?: ILoadOptions, backup?: URI): Promise<TextFileEditorModel> {
+		const model = await this.doLoadWithContent(content, backup);
+
+		// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
+		const settingsType = this.getTypeIfSettings();
+		if (settingsType) {
+			/* __GDPR__
+				"settingsRead" : {
+					"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
+		} else {
+			/* __GDPR__
+				"fileGet" : {
+					"${include}": [
+						"${FileTelemetryData}"
+					]
+				}
+			*/
+			this.telemetryService.publicLog('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
+		}
+
+		return model;
+	}
+
+	private doLoadWithContent(content: ITextFileStreamContent, backup?: URI): Promise<TextFileEditorModel> {
 		this.logService.trace('load() - resolved content', this.resource);
 
 		// Update our resolved disk stat model
@@ -486,12 +484,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private doLoadBackup(backup: URI | undefined): Promise<ITextBufferFactory | null> {
+	private async doLoadBackup(backup: URI | undefined): Promise<ITextBufferFactory | null> {
 		if (!backup) {
-			return Promise.resolve(null);
+			return null;
 		}
 
-		return this.backupFileService.resolveBackupContent(backup).then(withUndefinedAsNull, error => null /* ignore errors */);
+		try {
+			return withUndefinedAsNull(await this.backupFileService.resolveBackupContent(backup));
+		} catch (error) {
+			return null; // ignore errors
+		}
 	}
 
 	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string | undefined, firstLineText?: string): ILanguageSelection {
@@ -700,12 +702,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Save to Disk
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
-			this.logService.trace(`doSave(${versionId}) - before updateContent()`, this.resource);
+			this.logService.trace(`doSave(${versionId}) - before write()`, this.resource);
 			const snapshot = this.createSnapshot();
 			if (!snapshot) {
 				throw new Error('Invalid snapshot');
 			}
-			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, snapshot, {
+			return this.saveSequentializer.setPending(newVersionId, this.textFileService.write(this.lastResolvedDiskStat.resource, snapshot, {
 				overwriteReadonly: options.overwriteReadonly,
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: this.lastResolvedDiskStat.mtime,
@@ -713,7 +715,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				etag: this.lastResolvedDiskStat.etag,
 				writeElevated: options.writeElevated
 			}).then(stat => {
-				this.logService.trace(`doSave(${versionId}) - after updateContent()`, this.resource);
+				this.logService.trace(`doSave(${versionId}) - after write()`, this.resource);
 
 				// Update dirty state unless model has changed meanwhile
 				if (versionId === this.versionId) {
@@ -845,7 +847,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (!snapshot) {
 			throw new Error('invalid snapshot');
 		}
-		return this.saveSequentializer.setPending(versionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, snapshot, {
+
+		return this.saveSequentializer.setPending(versionId, this.textFileService.write(this.lastResolvedDiskStat.resource, snapshot, {
 			mtime: this.lastResolvedDiskStat.mtime,
 			encoding: this.getEncoding(),
 			etag: this.lastResolvedDiskStat.etag

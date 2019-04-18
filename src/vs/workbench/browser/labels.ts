@@ -16,7 +16,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
-import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
+import { FileKind, FILES_ASSOCIATIONS_CONFIG, IFileService } from 'vs/platform/files/common/files';
 import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -93,7 +93,8 @@ export class ResourceLabels extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModelService private readonly modelService: IModelService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -116,7 +117,7 @@ export class ResourceLabels extends Disposable {
 				return; // we need the resource to compare
 			}
 
-			if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) { // todo@remote does this apply?
+			if (this.fileService.canHandleResource(e.model.uri) && e.oldModeId === PLAINTEXT_MODE_ID) {
 				return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
 			}
 
@@ -202,9 +203,9 @@ export class ResourceLabel extends ResourceLabels {
 		@IModelService modelService: IModelService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService themeService: IThemeService,
-		@ILabelService labelService: ILabelService
+		@IFileService fileService: IFileService
 	) {
-		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService);
+		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService, fileService);
 
 		this._label = this._register(this.create(container, options));
 	}

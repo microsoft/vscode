@@ -13,7 +13,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { Schemas } from 'vs/base/common/network';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 
-const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
+export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
 /**
  * Debug URI format

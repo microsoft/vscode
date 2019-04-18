@@ -68,9 +68,11 @@ interface QuickInputUI {
 	visibleCount: CountBadge;
 	count: CountBadge;
 	message: HTMLElement;
+	customButton: Button;
 	progressBar: ProgressBar;
 	list: QuickInputList;
 	onDidAccept: Event<void>;
+	onDidCustom: Event<void>;
 	onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
 	keyMods: Writeable<IKeyMods>;
@@ -92,6 +94,7 @@ type Visibilities = {
 	message?: boolean;
 	list?: boolean;
 	ok?: boolean;
+	customButton?: boolean;
 };
 
 class QuickInput implements IQuickInput {
@@ -298,6 +301,18 @@ class QuickInput implements IQuickInput {
 		return '';
 	}
 
+	protected showMessageDecoration(severity: Severity) {
+		this.ui.inputBox.showDecoration(severity);
+		if (severity === Severity.Error) {
+			const styles = this.ui.inputBox.stylesForType(severity);
+			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : null;
+			this.ui.message.style.border = styles.border ? `1px solid ${styles.border}` : null;
+		} else {
+			this.ui.message.style.backgroundColor = '';
+			this.ui.message.style.border = '';
+		}
+	}
+
 	public dispose(): void {
 		this.hide();
 		this.disposables = dispose(this.disposables);
@@ -312,6 +327,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _placeholder: string;
 	private onDidChangeValueEmitter = new Emitter<string>();
 	private onDidAcceptEmitter = new Emitter<void>();
+	private onDidCustomEmitter = new Emitter<void>();
 	private _items: Array<T | IQuickPickSeparator> = [];
 	private itemsUpdated = false;
 	private _canSelectMany = false;
@@ -331,6 +347,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _valueSelection: Readonly<[number, number]>;
 	private valueSelectionUpdated = true;
 	private _validationMessage: string;
+	private _ok: boolean;
+	private _customButton: boolean;
+	private _customButtonLabel: string;
+	private _customButtonHover: string;
 
 	quickNavigate: IQuickNavigateConfiguration;
 
@@ -339,6 +359,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.disposables.push(
 			this.onDidChangeValueEmitter,
 			this.onDidAcceptEmitter,
+			this.onDidCustomEmitter,
 			this.onDidChangeActiveEmitter,
 			this.onDidChangeSelectionEmitter,
 			this.onDidTriggerItemButtonEmitter,
@@ -366,6 +387,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	onDidChangeValue = this.onDidChangeValueEmitter.event;
 
 	onDidAccept = this.onDidAcceptEmitter.event;
+
+	onDidCustom = this.onDidCustomEmitter.event;
 
 	get items() {
 		return this._items;
@@ -463,6 +486,42 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
+	get customButton() {
+		return this._customButton;
+	}
+
+	set customButton(showCustomButton: boolean) {
+		this._customButton = showCustomButton;
+		this.update();
+	}
+
+	get customLabel() {
+		return this._customButtonLabel;
+	}
+
+	set customLabel(label: string) {
+		this._customButtonLabel = label;
+		this.update();
+	}
+
+	get customHover() {
+		return this._customButtonHover;
+	}
+
+	set customHover(hover: string) {
+		this._customButtonHover = hover;
+		this.update();
+	}
+
+	get ok() {
+		return this._ok;
+	}
+
+	set ok(showOkButton: boolean) {
+		this._ok = showOkButton;
+		this.update();
+	}
+
 	public inputHasFocus(): boolean {
 		return this.visible ? this.ui.inputBox.hasFocus() : false;
 	}
@@ -546,6 +605,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						this.onDidChangeSelectionEmitter.fire(this.selectedItems);
 					}
 					this.onDidAcceptEmitter.fire(undefined);
+				}),
+				this.ui.onDidCustom(() => {
+					this.onDidCustomEmitter.fire(undefined);
 				}),
 				this.ui.list.onDidChangeFocus(focusedItems => {
 					if (this.activeItemsUpdated) {
@@ -692,17 +754,19 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		if (this.validationMessage) {
 			this.ui.message.textContent = this.validationMessage;
-			this.ui.inputBox.showDecoration(Severity.Error);
+			this.showMessageDecoration(Severity.Error);
 		} else {
 			this.ui.message.textContent = null;
-			this.ui.inputBox.showDecoration(Severity.Ignore);
+			this.showMessageDecoration(Severity.Info);
 		}
+		this.ui.customButton.label = this.customLabel;
+		this.ui.customButton.element.title = this.customHover;
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.list.matchOnLabel = this.matchOnLabel;
 		this.ui.setComboboxAccessibility(true);
 		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage });
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
 	}
 }
 
@@ -824,11 +888,11 @@ class InputBox extends QuickInput implements IInputBox {
 		}
 		if (!this.validationMessage && this.ui.message.textContent !== this.noValidationMessage) {
 			this.ui.message.textContent = this.noValidationMessage;
-			this.ui.inputBox.showDecoration(Severity.Ignore);
+			this.showMessageDecoration(Severity.Info);
 		}
 		if (this.validationMessage && this.ui.message.textContent !== this.validationMessage) {
 			this.ui.message.textContent = this.validationMessage;
-			this.ui.inputBox.showDecoration(Severity.Error);
+			this.showMessageDecoration(Severity.Error);
 		}
 		this.ui.setVisibilities({ title: !!this.title || !!this.step, inputBox: true, message: true });
 	}
@@ -848,6 +912,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private countContainer: HTMLElement;
 	private okContainer: HTMLElement;
 	private ok: Button;
+	private customButtonContainer: HTMLElement;
 	private ui: QuickInputUI;
 	private comboboxAccessibility = false;
 	private enabled = true;
@@ -855,6 +920,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private inQuickOpenContext: IContextKey<boolean>;
 	private contexts: { [id: string]: IContextKey<boolean>; } = Object.create(null);
 	private onDidAcceptEmitter = this._register(new Emitter<void>());
+	private onDidCustomEmitter = this._register(new Emitter<void>());
 	private onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 	private keyMods: Writeable<IKeyMods> = { ctrlCmd: false, alt: false };
 
@@ -990,7 +1056,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}));
 
-		this.filterContainer = dom.append(headerContainer, $('.quick-input-filter'));
+		const extraContainer = dom.append(headerContainer, $('.quick-input-and-message'));
+		this.filterContainer = dom.append(extraContainer, $('.quick-input-filter'));
 
 		const inputBox = this._register(new QuickInputBox(this.filterContainer));
 		inputBox.setAttribute('aria-describedby', `${this.idPrefix}message`);
@@ -1013,7 +1080,15 @@ export class QuickInputService extends Component implements IQuickInputService {
 			this.onDidAcceptEmitter.fire();
 		}));
 
-		const message = dom.append(container, $(`#${this.idPrefix}message.quick-input-message`));
+		this.customButtonContainer = dom.append(headerContainer, $('.quick-input-action'));
+		const customButton = new Button(this.customButtonContainer);
+		attachButtonStyler(customButton, this.themeService);
+		customButton.label = localize('custom', "Custom");
+		this._register(customButton.onDidClick(e => {
+			this.onDidCustomEmitter.fire();
+		}));
+
+		const message = dom.append(extraContainer, $(`#${this.idPrefix}message.quick-input-message`));
 
 		const progressBar = new ProgressBar(container);
 		dom.addClass(progressBar.getContainer(), 'quick-input-progress');
@@ -1098,9 +1173,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 			visibleCount,
 			count,
 			message,
+			customButton,
 			progressBar,
 			list,
 			onDidAccept: this.onDidAcceptEmitter.event,
+			onDidCustom: this.onDidCustomEmitter.event,
 			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
 			keyMods: this.keyMods,
@@ -1330,6 +1407,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';
 		this.countContainer.style.display = visibilities.count ? '' : 'none';
 		this.okContainer.style.display = visibilities.ok ? '' : 'none';
+		this.customButtonContainer.style.display = visibilities.customButton ? '' : 'none';
 		this.ui.message.style.display = visibilities.message ? '' : 'none';
 		this.ui.list.display(!!visibilities.list);
 		this.ui.container.classList[visibilities.checkAll ? 'add' : 'remove']('show-checkboxes');

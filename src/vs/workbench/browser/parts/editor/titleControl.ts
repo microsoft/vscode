@@ -40,6 +40,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -78,6 +79,7 @@ export abstract class TitleControl extends Themable {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(themeService);
 
@@ -90,6 +92,7 @@ export abstract class TitleControl extends Themable {
 
 	private registerListeners(): void {
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.updateEditorActionsToolbar()));
+		this._register(this.labelService.onDidChangeFormatters(() => this.updateEditorLabels()));
 	}
 
 	protected abstract create(parent: HTMLElement): void;
@@ -340,6 +343,8 @@ export abstract class TitleControl extends Themable {
 	abstract setActive(isActive: boolean): void;
 
 	abstract updateEditorLabel(editor: IEditorInput): void;
+
+	abstract updateEditorLabels(): void;
 
 	abstract updateEditorDirty(editor: IEditorInput): void;
 

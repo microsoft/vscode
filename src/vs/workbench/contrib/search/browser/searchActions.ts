@@ -160,19 +160,35 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 		});
 	}
 }
-
-export class FindInFilesAction extends FindOrReplaceInFilesAction {
-
-	static readonly LABEL = nls.localize('findInFiles', "Find in Files");
-
-	constructor(id: string, label: string,
-		@IViewletService viewletService: IViewletService,
-		@IPanelService panelService: IPanelService,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super(id, label, viewletService, panelService, configurationService, /*expandSearchReplaceWidget=*/false);
-	}
+export interface IFindInFilesArgs {
+	query?: string;
+	replace?: string;
+	triggerSearch?: boolean;
+	filesToInclude?: string;
+	filesToExclude?: string;
+	isRegex?: boolean;
+	isCaseSensitive?: boolean;
+	matchWholeWord?: boolean;
 }
+export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
+
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	const configurationService = accessor.get(IConfigurationService);
+	openSearchView(viewletService, panelService, configurationService, false).then(openedView => {
+		if (openedView) {
+			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
+			searchAndReplaceWidget.toggleReplace(typeof args.replace === 'string');
+			let updatedText = false;
+			if (typeof args.query === 'string') {
+				openedView.setSearchParameters(args);
+			} else {
+				updatedText = openedView.updateTextFromSelection((typeof args.replace !== 'string'));
+			}
+			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
+		}
+	});
+};
 
 export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
 

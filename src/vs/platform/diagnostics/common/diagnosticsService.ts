@@ -22,12 +22,17 @@ export interface SystemInfo extends IMachineInfo {
 	processArgs: string;
 	gpuStatus: any;
 	screenReader: string;
-	remoteData: IRemoteDiagnosticInfo[];
+	remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[];
 	load?: string;
 }
 
 export interface IRemoteDiagnosticInfo extends IDiagnosticInfo {
 	hostName: string;
+}
+
+export interface IRemoteDiagnosticError {
+	hostName: string;
+	errorMessage: string;
 }
 
 export interface IDiagnosticInfoOptions {
@@ -46,4 +51,8 @@ export interface WorkspaceStats {
 	configFiles: WorkspaceStatItem[];
 	fileCount: number;
 	maxFilesReached: boolean;
+}
+
+export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {
+	return !!x.hostName && !!x.errorMessage;
 }

@@ -19,6 +19,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { isWindows } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { timeout } from 'vs/base/common/async';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -32,7 +34,7 @@ export abstract class TerminalService implements ITerminalService {
 		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}
 	private _findState: FindReplaceState;
-
+	private _extHostsReady: { [authority: string]: boolean } = {};
 	private _activeTabIndex: number;
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
@@ -65,12 +67,13 @@ export abstract class TerminalService implements ITerminalService {
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IPanelService protected readonly _panelService: IPanelService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleService readonly lifecycleService: ILifecycleService,
 		@IStorageService protected readonly _storageService: IStorageService,
 		@INotificationService protected readonly _notificationService: INotificationService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IFileService protected readonly _fileService: IFileService
+		@IFileService protected readonly _fileService: IFileService,
+		@IRemoteAgentService readonly _remoteAgentService: IRemoteAgentService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
@@ -115,14 +118,21 @@ export abstract class TerminalService implements ITerminalService {
 		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
 	}
 
-	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void {
-		// Ensure extension host is ready before requesting a process
-		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
-			// TODO: MainThreadTerminalService is not ready at this point, fix this
-			setTimeout(() => {
-				this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows });
-			}, 500);
+	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
+		this._extensionService.whenInstalledExtensionsRegistered().then(async () => {
+			// Wait for the remoteAuthority to be ready (and listening for events) before proceeding
+			const conn = this._remoteAgentService.getConnection();
+			const remoteAuthority = conn ? conn.remoteAuthority : 'null';
+			let retries = 0;
+			while (!this._extHostsReady[remoteAuthority] && ++retries < 50) {
+				await timeout(100);
+			}
+			this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, isWorkspaceShellAllowed });
 		});
+	}
+
+	public extHostReady(remoteAuthority: string): void {
+		this._extHostsReady[remoteAuthority] = true;
 	}
 
 	private _onBeforeShutdown(): boolean | Promise<boolean> {

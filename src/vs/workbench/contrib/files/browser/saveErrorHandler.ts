@@ -9,7 +9,7 @@ import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, IResolvedTextFileEditorModel, IWriteTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -32,6 +32,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Event } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isWindows } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -133,16 +134,16 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 		// Any other save error
 		else {
 			const isReadonly = fileOperationError.fileOperationResult === FileOperationResult.FILE_READ_ONLY;
-			const triedToMakeWriteable = isReadonly && fileOperationError.options && fileOperationError.options.overwriteReadonly;
+			const triedToMakeWriteable = isReadonly && fileOperationError.options && (fileOperationError.options as IWriteTextFileOptions).overwriteReadonly;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 
-			// Save Elevated
-			if (isPermissionDenied || triedToMakeWriteable) {
+			// Save Elevated (TODO@remote cannot write elevated https://github.com/Microsoft/vscode/issues/48659)
+			if (resource.scheme === Schemas.file && (isPermissionDenied || triedToMakeWriteable)) {
 				actions.primary!.push(this.instantiationService.createInstance(SaveElevatedAction, model, triedToMakeWriteable));
 			}
 
-			// Overwrite
-			else if (isReadonly) {
+			// Overwrite (TODO@remote cannot overwrite readonly https://github.com/Microsoft/vscode/issues/48659)
+			else if (resource.scheme === Schemas.file && isReadonly) {
 				actions.primary!.push(this.instantiationService.createInstance(OverwriteReadonlyAction, model));
 			}
 
@@ -159,9 +160,9 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			if (isReadonly) {
 				if (triedToMakeWriteable) {
-					message = isWindows ? nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as Admin' to retry as administrator.", basename(resource)) : nls.localize('readonlySaveErrorSudo', "Failed to save '{0}': File is write protected. Select 'Overwrite as Sudo' to retry as superuser.", basename(resource));
+					message = isWindows ? nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is read-only. Select 'Overwrite as Admin' to retry as administrator.", basename(resource)) : nls.localize('readonlySaveErrorSudo', "Failed to save '{0}': File is read-only. Select 'Overwrite as Sudo' to retry as superuser.", basename(resource));
 				} else {
-					message = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", basename(resource));
+					message = nls.localize('readonlySaveError', "Failed to save '{0}': File is read-only. Select 'Overwrite' to attempt to make it writeable.", basename(resource));
 				}
 			} else if (isPermissionDenied) {
 				message = isWindows ? nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", basename(resource)) : nls.localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", basename(resource));

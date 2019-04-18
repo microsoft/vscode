@@ -265,6 +265,7 @@ function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
 						}
 						if (fileMatch[0] === '%') {
 							fileMatch = fileMatch.replace(/%APP_SETTINGS_HOME%/, '/User');
+							fileMatch = fileMatch.replace(/%MACHINE_SETTINGS_HOME%/, '/Machine');
 							fileMatch = fileMatch.replace(/%APP_WORKSPACES_HOME%/, '/Workspaces');
 						} else if (fileMatch.charAt(0) !== '/' && !fileMatch.match(/\w+:\/\//)) {
 							fileMatch = '/' + fileMatch;

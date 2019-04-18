@@ -1,7 +1,7 @@
 @font-face {
     font-family: "octicons";
-    src: url("./octicons.ttf?4cd2299755e93a2430ba5703f4476584") format("truetype"),
-url("./octicons.svg?4cd2299755e93a2430ba5703f4476584#octicons") format("svg");
+    src: url("./octicons.ttf?91284a5a76ea88faeb754359b7f7cd03") format("truetype"),
+url("./octicons.svg?91284a5a76ea88faeb754359b7f7cd03#octicons") format("svg");
 }
 
 .octicon, .mega-octicon {
@@ -240,4 +240,5 @@ url("./octicons.svg?4cd2299755e93a2430ba5703f4476584#octicons") format("svg");
 .octicon-fold-up:before { content: "\f105" }
 .octicon-github-action:before { content: "\f106" }
 .octicon-play:before { content: "\f107" }
-.octicon-request-changes:before { content: "\f108" }
+.octicon-remote:before { content: "\f108" }
+.octicon-request-changes:before { content: "\f109" }

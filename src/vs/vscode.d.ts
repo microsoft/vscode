@@ -5715,6 +5715,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Defines a port mapping used for localhost inside the webview.
+	 */
+	export interface WebviewPortMapping {
+		/**
+		 * Localhost port to remap inside the webview.
+		 */
+		readonly webviewPort: number;
+
+		/**
+		 * Destination port. The `webviewPort` is resolved to this port.
+		 */
+		readonly extensionHostPort: number;
+	}
+
+	/**
 	 * Content settings for a webview.
 	 */
 	export interface WebviewOptions {
@@ -5740,6 +5755,18 @@ declare module 'vscode' {
 		 * Pass in an empty array to disallow access to any local resources.
 		 */
 		readonly localResourceRoots?: ReadonlyArray<Uri>;
+
+		/**
+		 * Mappings of localhost ports used inside the webview.
+		 *
+		 * Port mapping allow webviews to transparently define how localhost ports are resolved. This can be used
+		 * to allow using a static localhost port inside the webview that is resolved to random port that a service is
+		 * running on.
+		 *
+		 * If a webview accesses localhost content, we recomend that you specify port mappings even if
+		 * the `webviewPort` and `extensionHostPort` ports are the same.
+		 */
+		readonly portMapping?: ReadonlyArray<WebviewPortMapping>;
 	}
 
 	/**
@@ -5972,6 +5999,11 @@ declare module 'vscode' {
 		 * The application root folder from which the editor is running.
 		 */
 		export const appRoot: string;
+
+		/**
+		 * The custom uri scheme the editor registers to in the operating system.
+		 */
+		export const uriScheme: string;
 
 		/**
 		 * Represents the preferred user-language, like `de-CH`, `fr`, or `en-US`.

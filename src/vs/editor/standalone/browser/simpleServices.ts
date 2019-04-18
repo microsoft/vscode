@@ -496,6 +496,9 @@ export class StandaloneTelemetryService implements ITelemetryService {
 
 	public isOptedIn = false;
 
+	public setEnabled(value: boolean): void {
+	}
+
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		return Promise.resolve(undefined);
 	}

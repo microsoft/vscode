@@ -1288,6 +1288,7 @@ export interface CommentThread2 {
 	onDidChangeRange: Event<IRange>;
 	onDidChangeLabel: Event<string>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	isDisposed: boolean;
 }
 
 /**
@@ -1312,6 +1313,7 @@ export interface CommentThread {
 	comments: Comment[] | undefined;
 	collapsibleState?: CommentThreadCollapsibleState;
 	reply?: Command;
+	isDisposed?: boolean;
 }
 
 /**
@@ -1411,11 +1413,19 @@ export interface WorkspaceCommentProvider {
 /**
  * @internal
  */
+export interface IWebviewPortMapping {
+	webviewPort: number;
+	extensionHostPort: number;
+}
+
+/**
+ * @internal
+ */
 export interface IWebviewOptions {
 	readonly enableScripts?: boolean;
 	readonly enableCommandUris?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly portMapping?: ReadonlyArray<{ port: number, resolvedPort: number }>;
+	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
 }
 
 /**

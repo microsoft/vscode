@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { ExtHostConfigProvider } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { TestRPCProtocol } from './testRPCProtocol';

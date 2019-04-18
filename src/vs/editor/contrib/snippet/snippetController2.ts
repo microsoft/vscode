@@ -197,7 +197,7 @@ export class SnippetController2 implements IEditorContribution {
 					insertText: option.value,
 					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,
 					// snippetType: 'textmate',
-					sortText: repeat('a', i),
+					sortText: repeat('a', i + 1),
 					range: Range.fromPositions(this._editor.getPosition()!, this._editor.getPosition()!.delta(0, first.value.length))
 				};
 			}));

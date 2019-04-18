@@ -45,6 +45,7 @@ import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/wo
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { extname } from 'vs/base/common/resources';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -108,6 +109,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IExperimentService private readonly experimentService: IExperimentService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super();
 
@@ -325,8 +327,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return Promise.resolve(null);
 		}
 
-		return Promise.resolve(this.fileService.resolveContent(workspace.configuration)
-			.then(content => <IExtensionsConfigContent>(json.parse(content.value)['extensions']), err => null));
+		return Promise.resolve(this.fileService.readFile(workspace.configuration)
+			.then(content => <IExtensionsConfigContent>(json.parse(content.value.toString())['extensions']), err => null));
 	}
 
 	/**
@@ -336,8 +338,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const extensionsJsonUri = workspaceFolder.toResource(EXTENSIONS_CONFIG);
 
 		return Promise.resolve(this.fileService.resolve(extensionsJsonUri)
-			.then(() => this.fileService.resolveContent(extensionsJsonUri))
-			.then(content => <IExtensionsConfigContent>json.parse(content.value), err => null));
+			.then(() => this.fileService.readFile(extensionsJsonUri))
+			.then(content => <IExtensionsConfigContent>json.parse(content.value.toString()), err => null));
 	}
 
 	/**
@@ -956,7 +958,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
 		const workspaceUri = this.contextService.getWorkspace().folders[0].uri;
-		return Promise.all([getHashedRemotesFromUri(workspaceUri, this.fileService, false), getHashedRemotesFromUri(workspaceUri, this.fileService, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
+		return Promise.all([getHashedRemotesFromUri(workspaceUri, this.fileService, this.textFileService, false), getHashedRemotesFromUri(workspaceUri, this.fileService, this.textFileService, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
 			const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
 			if (!hashedRemotes.length) {
 				return undefined;

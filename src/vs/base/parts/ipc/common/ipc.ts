@@ -166,17 +166,17 @@ enum DataType {
 
 function createSizeBuffer(size: number): VSBuffer {
 	const result = VSBuffer.alloc(4);
-	result.writeUint32BE(size, 0);
+	result.writeUInt32BE(size, 0);
 	return result;
 }
 
 function readSizeBuffer(reader: IReader): number {
-	return reader.read(4).readUint32BE(0);
+	return reader.read(4).readUInt32BE(0);
 }
 
 function createOneByteBuffer(value: number): VSBuffer {
 	const result = VSBuffer.alloc(1);
-	result.writeUint8(value, 0);
+	result.writeUInt8(value, 0);
 	return result;
 }
 
@@ -225,7 +225,7 @@ function serialize(writer: IWriter, data: any): void {
 }
 
 function deserialize(reader: IReader): any {
-	const type = reader.read(1).readUint8(0);
+	const type = reader.read(1).readUInt8(0);
 
 	switch (type) {
 		case DataType.Undefined: return undefined;

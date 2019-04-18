@@ -307,7 +307,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(ILogService, logService);
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStateService, new SyncDescriptor(StateService));
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 

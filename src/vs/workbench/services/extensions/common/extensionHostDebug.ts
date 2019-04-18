@@ -4,27 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 
 export const IExtensionHostDebugService = createDecorator<IExtensionHostDebugService>('extensionHostDebugService');
 
+export interface IAttachSessionEvent {
+	sessionId: string;
+	subId?: string;
+	port: number;
+}
+
+export interface ILogToSessionEvent {
+	sessionId: string;
+	log: IRemoteConsoleLog;
+}
+
+export interface ITerminateSessionEvent {
+	sessionId: string;
+	subId?: string;
+}
+
+export interface IReloadSessionEvent {
+	sessionId: string;
+}
+
+export interface ICloseSessionEvent {
+	sessionId: string;
+}
+
 export interface IExtensionHostDebugService {
 	_serviceBrand: any;
 
-	reload(resource: URI): void;
-	onReload: Event<URI>;
+	reload(sessionId: string): void;
+	onReload: Event<IReloadSessionEvent>;
 
-	close(resource: URI): void;
-	onClose: Event<URI>;
+	close(sessionId: string): void;
+	onClose: Event<ICloseSessionEvent>;
 
-	attachSession(id: string, port: number): void;
-	onAttachSession: Event<{ id: string, port: number }>;
+	attachSession(sessionId: string, port: number, subId?: string): void;
+	onAttachSession: Event<IAttachSessionEvent>;
 
-	logToSession(id: string, log: IRemoteConsoleLog): void;
-	onLogToSession: Event<{ id: string, log: IRemoteConsoleLog }>;
+	logToSession(sessionId: string, log: IRemoteConsoleLog): void;
+	onLogToSession: Event<ILogToSessionEvent>;
 
-	terminateSession(id: string): void;
-	onTerminateSession: Event<string>;
+	terminateSession(sessionId: string, subId?: string): void;
+	onTerminateSession: Event<ITerminateSessionEvent>;
 }

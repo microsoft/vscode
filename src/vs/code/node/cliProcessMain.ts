@@ -41,6 +41,7 @@ import { IExtensionManifest, ExtensionType, isLanguagePackExtension } from 'vs/p
 import { isUIExtension } from 'vs/platform/extensions/node/extensionsUtil';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
+import { Schemas } from 'vs/base/common/network';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -92,6 +93,10 @@ export class Main {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
 			await this.uninstallExtension(ids);
+		} else if (argv['locate-extension']) {
+			const arg = argv['locate-extension'];
+			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
+			await this.locateExtension(ids);
 		}
 	}
 
@@ -257,6 +262,20 @@ export class Main {
 		}
 	}
 
+	private async locateExtension(extensions: string[]): Promise<void> {
+		const installed = await this.extensionManagementService.getInstalled();
+		extensions.forEach(e => {
+			installed.forEach(i => {
+				if (i.identifier.id === e) {
+					if (i.location.scheme === Schemas.file) {
+						console.log(i.location.fsPath);
+						return;
+					}
+				}
+			});
+		});
+	}
+
 	private async updateLocalizationsCache(): Promise<void> {
 		const localizationService = this.instantiationService.createInstance(LocalizationsService);
 		await localizationService.update();
@@ -286,10 +305,10 @@ export function main(argv: ParsedArgs): Promise<void> {
 		const stateService = accessor.get(IStateService);
 
 		return Promise.all([envService.appSettingsHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
-			const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = envService;
+			const { appRoot, extensionsPath, extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, isBuilt, installSourcePath } = envService;
 
 			const services = new ServiceCollection();
-			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [false]));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));

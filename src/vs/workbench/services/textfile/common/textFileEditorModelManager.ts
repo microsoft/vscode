@@ -121,7 +121,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.mapResourceToModel.get(resource);
 	}
 
-	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel> {
+	async loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): Promise<ITextFileEditorModel> {
 
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);
@@ -190,21 +190,22 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		// Store pending loads to avoid race conditions
 		this.mapResourceToPendingModelLoaders.set(resource, modelPromise);
 
-		return modelPromise.then(model => {
+		try {
+			const resolvedModel = await modelPromise;
 
 			// Make known to manager (if not already known)
-			this.add(resource, model);
+			this.add(resource, resolvedModel);
 
 			// Model can be dirty if a backup was restored, so we make sure to have this event delivered
-			if (model.isDirty()) {
-				this._onModelDirty.fire(new TextFileModelChangeEvent(model, StateChange.DIRTY));
+			if (resolvedModel.isDirty()) {
+				this._onModelDirty.fire(new TextFileModelChangeEvent(resolvedModel, StateChange.DIRTY));
 			}
 
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders.delete(resource);
 
-			return model;
-		}, error => {
+			return resolvedModel;
+		} catch (error) {
 
 			// Free resources of this invalid model
 			if (model) {
@@ -214,8 +215,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders.delete(resource);
 
-			return Promise.reject<ITextFileEditorModel>(error);
-		});
+			throw error;
+		}
 	}
 
 	getAll(resource?: URI, filter?: (model: ITextFileEditorModel) => boolean): ITextFileEditorModel[] {
@@ -314,5 +315,11 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 
 		model.dispose();
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this.clear();
 	}
 }

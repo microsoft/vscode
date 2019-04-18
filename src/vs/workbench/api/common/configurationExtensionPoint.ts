@@ -35,16 +35,17 @@ const configurationEntrySchema: IJSONSchema = {
 						properties: {
 							isExecutable: {
 								type: 'boolean',
-								deprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `application` value.'
+								deprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `machine` value.'
 							},
 							scope: {
 								type: 'string',
-								enum: ['application', 'window', 'resource'],
+								enum: ['application', 'machine', 'window', 'resource'],
 								default: 'window',
 								enumDescriptions: [
-									nls.localize('scope.application.description', "Application specific configuration, which can be configured only in User settings."),
-									nls.localize('scope.window.description', "Window specific configuration, which can be configured in the User or Workspace settings."),
-									nls.localize('scope.resource.description', "Resource specific configuration, which can be configured in the User, Workspace or Folder settings.")
+									nls.localize('scope.application.description', "Application specific configuration, which can be configured only in local user settings."),
+									nls.localize('scope.machine.description', "Machine specific configuration, which can be configured only in local and remote user settings."),
+									nls.localize('scope.window.description', "Window specific configuration, which can be configured in the user or workspace settings."),
+									nls.localize('scope.resource.description', "Resource specific configuration, which can be configured in the user, workspace or folder settings.")
 								],
 								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `window` and `resource`.")
 							},
@@ -161,7 +162,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		validateProperties(configuration, extension);
 
 		configuration.id = node.id || extension.description.identifier.value;
-		configuration.contributedByExtension = true;
+		configuration.extensionInfo = { id: extension.description.identifier.value };
 		configuration.title = configuration.title || extension.description.displayName || extension.description.identifier.value;
 		configurations.push(configuration);
 		return configurations;
@@ -210,6 +211,8 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 			if (propertyConfiguration.scope) {
 				if (propertyConfiguration.scope.toString() === 'application') {
 					propertyConfiguration.scope = ConfigurationScope.APPLICATION;
+				} else if (propertyConfiguration.scope.toString() === 'machine') {
+					propertyConfiguration.scope = ConfigurationScope.MACHINE;
 				} else if (propertyConfiguration.scope.toString() === 'resource') {
 					propertyConfiguration.scope = ConfigurationScope.RESOURCE;
 				} else {

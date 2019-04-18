@@ -14,8 +14,8 @@ import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorMo
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { snapshotToString } from 'vs/platform/files/common/files';
 import { timeout } from 'vs/base/common/async';
+import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class TestUntitledEditorService extends UntitledEditorService {
 	get(resource: URI) { return super.get(resource); }

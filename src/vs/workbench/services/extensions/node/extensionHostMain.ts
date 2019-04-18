@@ -10,67 +10,65 @@ import { Counter } from 'vs/base/common/numbers';
 import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { IEnvironment, IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
+import { ExtHostExtensionService, IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
+import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
+import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 
 // we don't (yet) throw when extensions parse
 // uris that have no scheme
 setUriThrowOnMissingScheme(false);
 
-const nativeExit = process.exit.bind(process);
-function patchProcess(allowExit: boolean) {
-	process.exit = function (code?: number) {
-		if (allowExit) {
-			exit(code);
-		} else {
-			const err = new Error('An extension called process.exit() and this was prevented.');
-			console.warn(err.stack);
-		}
-	} as (code?: number) => never;
-
-	process.crash = function () {
-		const err = new Error('An extension called process.crash() and this was prevented.');
-		console.warn(err.stack);
-	};
+export interface IExitFn {
+	(code?: number): any;
 }
 
-export function exit(code?: number) {
-	nativeExit(code);
+export interface IConsolePatchFn {
+	(mainThreadConsole: MainThreadConsoleShape): any;
+}
+
+export interface ILogServiceFn {
+	(initData: IInitData): ILogService;
 }
 
 export class ExtensionHostMain {
 
-
 	private _isTerminating: boolean;
-	private readonly _environment: IEnvironment;
+	private readonly _hostUtils: IHostUtils;
 	private readonly _extensionService: ExtHostExtensionService;
 	private readonly _extHostLogService: ExtHostLogService;
 	private disposables: IDisposable[] = [];
 
 	private _searchRequestIdProvider: Counter;
 
-	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
+	constructor(
+		protocol: IMessagePassingProtocol,
+		initData: IInitData,
+		hostUtils: IHostUtils,
+		consolePatchFn: IConsolePatchFn,
+		logServiceFn: ILogServiceFn,
+		uriTransformer: IURITransformer | null,
+		schemeTransformer: ISchemeTransformer | null,
+		outputChannelName: string,
+	) {
 		this._isTerminating = false;
-		const uriTransformer: IURITransformer | null = null;
+		this._hostUtils = hostUtils;
 		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
 		initData = this.transform(initData, rpcProtocol);
-		this._environment = initData.environment;
 
-		const allowExit = !!this._environment.extensionTestsLocationURI; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
-		patchProcess(allowExit);
-
-		this._patchPatchedConsole(rpcProtocol.getProxy(MainContext.MainThreadConsole));
+		// allow to patch console
+		consolePatchFn(rpcProtocol.getProxy(MainContext.MainThreadConsole));
 
 		// services
-		this._extHostLogService = new ExtHostLogService(initData.logLevel, initData.logsLocation.fsPath);
+		this._extHostLogService = new ExtHostLogService(logServiceFn(initData), initData.logsLocation.fsPath);
 		this.disposables.push(this._extHostLogService);
 
 		this._searchRequestIdProvider = new Counter();
@@ -80,7 +78,17 @@ export class ExtensionHostMain {
 		this._extHostLogService.trace('initData', initData);
 
 		const extHostConfiguraiton = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace);
-		this._extensionService = new ExtHostExtensionService(nativeExit, initData, rpcProtocol, extHostWorkspace, extHostConfiguraiton, this._extHostLogService);
+		this._extensionService = new ExtHostExtensionService(
+			hostUtils,
+			initData,
+			rpcProtocol,
+			extHostWorkspace,
+			extHostConfiguraiton,
+			initData.environment,
+			this._extHostLogService,
+			schemeTransformer,
+			outputChannelName
+		);
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
@@ -116,18 +124,6 @@ export class ExtensionHostMain {
 		});
 	}
 
-	private _patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
-		// The console is already patched to use `process.send()`
-		const nativeProcessSend = process.send!;
-		process.send = (...args: any[]) => {
-			if (args.length === 0 || !args[0] || args[0].type !== '__$console') {
-				return nativeProcessSend.apply(process, args);
-			}
-
-			mainThreadConsole.$logExtensionHostMessage(args[0]);
-		};
-	}
-
 	terminate(): void {
 		if (this._isTerminating) {
 			// we are already shutting down...
@@ -145,7 +141,7 @@ export class ExtensionHostMain {
 
 		// Give extensions 1 second to wrap up any async dispose, then exit in at most 4 seconds
 		setTimeout(() => {
-			Promise.race([timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
+			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => this._hostUtils.exit());
 		}, 1000);
 	}
 
@@ -153,7 +149,10 @@ export class ExtensionHostMain {
 		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation)));
 		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
 		initData.environment.appSettingsHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appSettingsHome));
-		initData.environment.extensionDevelopmentLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionDevelopmentLocationURI));
+		const extDevLocs = initData.environment.extensionDevelopmentLocationURI;
+		if (extDevLocs) {
+			initData.environment.extensionDevelopmentLocationURI = extDevLocs.map(url => URI.revive(rpcProtocol.transformIncomingURIs(url)));
+		}
 		initData.environment.extensionTestsLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTestsLocationURI));
 		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
 		initData.environment.userHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.userHome));

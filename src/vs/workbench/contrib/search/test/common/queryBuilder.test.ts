@@ -11,7 +11,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IFolderQuery, IPatternInfo, QueryType, ITextQuery, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService, toWorkspaceFolders, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, toWorkspaceFolder, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 
@@ -24,6 +24,7 @@ suite('QueryBuilder', () => {
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
 	const ROOT_1 = fixPath('/foo/root1');
 	const ROOT_1_URI = getUri(ROOT_1);
+	const WS_CONFIG_PATH = getUri('/bar/test.code-workspace'); // location of the workspace file (not important except that it is a file URI)
 
 	let instantiationService: TestInstantiationService;
 	let queryBuilder: QueryBuilder;
@@ -40,7 +41,7 @@ suite('QueryBuilder', () => {
 		instantiationService.stub(IConfigurationService, mockConfigService);
 
 		mockContextService = new TestContextService();
-		mockWorkspace = new Workspace('workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
+		mockWorkspace = new Workspace('workspace', [toWorkspaceFolder(ROOT_1_URI)]);
 		mockContextService.setWorkspace(mockWorkspace);
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
@@ -277,7 +278,7 @@ suite('QueryBuilder', () => {
 		const ROOT_2_URI = getUri(ROOT_2);
 		const ROOT_3 = fixPath('/project/root3');
 		const ROOT_3_URI = getUri(ROOT_3);
-		mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: ROOT_2_URI.fsPath }, { path: ROOT_3_URI.fsPath }]);
+		mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: ROOT_2_URI.fsPath }, { path: ROOT_3_URI.fsPath }], WS_CONFIG_PATH);
 		mockWorkspace.configuration = uri.file(fixPath('/config'));
 
 		mockConfigService.setUserConfiguration('search', {
@@ -689,7 +690,7 @@ suite('QueryBuilder', () => {
 
 		test('relative includes w/two root folders', () => {
 			const ROOT_2 = '/project/root2';
-			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }]);
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }], WS_CONFIG_PATH);
 			mockWorkspace.configuration = uri.file(fixPath('config'));
 
 			const cases: [string, ISearchPathsInfo][] = [
@@ -730,7 +731,7 @@ suite('QueryBuilder', () => {
 		test('include ./foldername', () => {
 			const ROOT_2 = '/project/root2';
 			const ROOT_1_FOLDERNAME = 'foldername';
-			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: getUri(ROOT_2).fsPath }]);
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: getUri(ROOT_2).fsPath }], WS_CONFIG_PATH);
 			mockWorkspace.configuration = uri.file(fixPath('config'));
 
 			const cases: [string, ISearchPathsInfo][] = [
@@ -758,7 +759,7 @@ suite('QueryBuilder', () => {
 		test('relative includes w/multiple ambiguous root folders', () => {
 			const ROOT_2 = '/project/rootB';
 			const ROOT_3 = '/otherproject/rootB';
-			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }, { path: getUri(ROOT_3).fsPath }]);
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }, { path: getUri(ROOT_3).fsPath }], WS_CONFIG_PATH);
 			mockWorkspace.configuration = uri.file(fixPath('/config'));
 
 			const cases: [string, ISearchPathsInfo][] = [

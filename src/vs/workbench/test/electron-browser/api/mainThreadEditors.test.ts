@@ -54,7 +54,7 @@ suite('MainThreadEditors', () => {
 			isDirty() { return false; }
 			create(uri: URI, contents?: string, options?: any) {
 				createdResources.add(uri);
-				return Promise.resolve(undefined);
+				return Promise.resolve(Object.create(null));
 			}
 			delete(resource: URI) {
 				deletedResources.add(resource);
@@ -113,7 +113,8 @@ suite('MainThreadEditors', () => {
 				getActivePanel() {
 					return null;
 				}
-			}
+			},
+			TestEnvironmentService
 		);
 
 		editors = new MainThreadTextEditors(

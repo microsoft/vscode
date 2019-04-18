@@ -90,6 +90,19 @@ export class MarkdownContentProvider {
 			</html>`;
 	}
 
+	public provideFileNotFoundContent(
+		resource: vscode.Uri,
+	): string {
+		const resourcePath = path.basename(resource.fsPath);
+		const body = localize('preview.notFound', '{0} cannot be found', resourcePath);
+		return `<!DOCTYPE html>
+			<html>
+			<body class="vscode-body">
+				${body}
+			</body>
+			</html>`;
+	}
+
 	private extensionResourcePath(mediaFile: string): string {
 		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile)))
 			.with({ scheme: 'vscode-resource' })

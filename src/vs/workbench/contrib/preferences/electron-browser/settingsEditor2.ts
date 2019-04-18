@@ -11,6 +11,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import * as collections from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Iterator } from 'vs/base/common/iterator';
+import * as strings from 'vs/base/common/strings';
 import { isArray, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
@@ -35,7 +36,7 @@ import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickE
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, EXTENSION_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -69,7 +70,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private static SETTING_UPDATE_SLOW_DEBOUNCE: number = 1000;
 
 	private static readonly SUGGESTIONS: string[] = [
-		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices'
+		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', `@${EXTENSION_SETTING_TAG}`
 	];
 
 	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
@@ -149,7 +150,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(300);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
-		this.viewState = { settingsTarget: ConfigurationTarget.USER };
+		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
 		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
@@ -212,10 +213,10 @@ export class SettingsEditor2 extends BaseEditor {
 				if (!options) {
 					if (!this.viewState.settingsTarget) {
 						// Persist?
-						options = SettingsEditorOptions.create({ target: ConfigurationTarget.USER });
+						options = SettingsEditorOptions.create({ target: ConfigurationTarget.USER_LOCAL });
 					}
 				} else if (!options.target) {
-					options.target = ConfigurationTarget.USER;
+					options.target = ConfigurationTarget.USER_LOCAL;
 				}
 				this._setOptions(options);
 
@@ -371,7 +372,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			provideResults: (query: string) => {
-				return SettingsEditor2.SUGGESTIONS.filter(tag => query.indexOf(tag) === -1).map(tag => tag + ' ');
+				return SettingsEditor2.SUGGESTIONS.filter(tag => query.indexOf(tag) === -1).map(tag => strings.endsWith(tag, ':') ? tag : tag + ' ');
 			}
 		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
 				placeholderText: searchBoxLabel,
@@ -406,8 +407,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
-		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
-		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
+		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
+		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
 	}
 
@@ -458,8 +459,10 @@ export class SettingsEditor2 extends BaseEditor {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
 		const options: ISettingsEditorOptions = { query };
-		if (currentSettingsTarget === ConfigurationTarget.USER) {
+		if (currentSettingsTarget === ConfigurationTarget.USER_LOCAL) {
 			return this.preferencesService.openGlobalSettings(true, options);
+		} else if (currentSettingsTarget === ConfigurationTarget.USER_REMOTE) {
+			return this.preferencesService.openRemoteSettings();
 		} else if (currentSettingsTarget === ConfigurationTarget.WORKSPACE) {
 			return this.preferencesService.openWorkspaceSettings(true, options);
 		} else {
@@ -615,8 +618,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
 			if (ConfigurationTargetToString(ConfigurationTarget.WORKSPACE) === element.scope.toUpperCase()) {
 				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.WORKSPACE);
-			} else if (ConfigurationTargetToString(ConfigurationTarget.USER) === element.scope.toUpperCase()) {
-				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER);
+			} else if (ConfigurationTargetToString(ConfigurationTarget.USER_LOCAL) === element.scope.toUpperCase()) {
+				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER_LOCAL);
+			} else if (ConfigurationTargetToString(ConfigurationTarget.USER_REMOTE) === element.scope.toUpperCase()) {
+				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER_REMOTE);
 			}
 
 			this.searchWidget.setValue(element.targetKey);
@@ -792,9 +797,10 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		const reportedTarget = props.settingsTarget === ConfigurationTarget.USER ? 'user' :
-			props.settingsTarget === ConfigurationTarget.WORKSPACE ? 'workspace' :
-				'folder';
+		const reportedTarget = props.settingsTarget === ConfigurationTarget.USER_LOCAL ? 'user' :
+			props.settingsTarget === ConfigurationTarget.USER_REMOTE ? 'user_remote' :
+				props.settingsTarget === ConfigurationTarget.WORKSPACE ? 'workspace' :
+					'folder';
 
 		const data = {
 			key: props.key,
@@ -1035,17 +1041,19 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private triggerSearch(query: string): Promise<void> {
 		this.viewState.tagFilters = new Set<string>();
+		this.viewState.extensionFilters = new Set<string>();
 		if (query) {
 			const parsedQuery = parseQuery(query);
 			query = parsedQuery.query;
 			parsedQuery.tags.forEach(tag => this.viewState.tagFilters!.add(tag));
+			parsedQuery.extensionFilters.forEach(extensionId => this.viewState.extensionFilters!.add(extensionId));
 		}
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
 			return this.triggerFilterPreferences(query);
 		} else {
-			if (this.viewState.tagFilters && this.viewState.tagFilters.size) {
+			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || (this.viewState.extensionFilters && this.viewState.extensionFilters.size)) {
 				this.searchResultModel = this.createFilterModel();
 			} else {
 				this.searchResultModel = null;
@@ -1211,7 +1219,8 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private renderResultCountMessages() {
-		if (!this.currentSettingsModel) {
+		if (!this.currentSettingsModel || !this.searchResultModel) {
+			this.countElement.style.display = 'none';
 			return;
 		}
 

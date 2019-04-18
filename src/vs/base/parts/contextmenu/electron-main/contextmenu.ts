@@ -16,7 +16,9 @@ export function registerContextMenuListener(): void {
 			y: options ? options.y : undefined,
 			positioningItem: options ? options.positioningItem : undefined,
 			callback: () => {
-				event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
+				if (menu) {
+					event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
+				}
 			}
 		});
 	});

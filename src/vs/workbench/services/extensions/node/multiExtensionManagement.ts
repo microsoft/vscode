@@ -8,7 +8,6 @@ import {
 	IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata,
 	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { flatten } from 'vs/base/common/arrays';
 import { ExtensionType, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -19,7 +18,6 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { localize } from 'vs/nls';
 import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class MultiExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -35,8 +33,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this.servers = this.extensionManagementServerService.remoteExtensionManagementServer ? [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer] : [this.extensionManagementServerService.localExtensionManagementServer];
@@ -48,8 +45,10 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 	}
 
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type)))
-			.then(result => flatten(result));
+		const installedExtensions: ILocalExtension[] = [];
+		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type).then(extensions => installedExtensions.push(...extensions))))
+			.then(_ => installedExtensions)
+			.catch(e => installedExtensions);
 	}
 
 	async uninstall(extension: ILocalExtension, force?: boolean): Promise<void> {
@@ -58,8 +57,7 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 			if (!server) {
 				return Promise.reject(`Invalid location ${extension.location.toString()}`);
 			}
-			const syncExtensions = await this.hasToSyncExtensions();
-			if (syncExtensions || isLanguagePackExtension(extension.manifest)) {
+			if (isLanguagePackExtension(extension.manifest)) {
 				return this.uninstallEverywhere(extension, force);
 			}
 			return this.uninstallInServer(extension, server, force);
@@ -134,9 +132,8 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 
 	async install(vsix: URI): Promise<IExtensionIdentifier> {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const syncExtensions = await this.hasToSyncExtensions();
 			const manifest = await getManifest(vsix.fsPath);
-			if (syncExtensions || isLanguagePackExtension(manifest)) {
+			if (isLanguagePackExtension(manifest)) {
 				// Install on both servers
 				const [extensionIdentifier] = await Promise.all(this.servers.map(server => server.extensionManagementService.install(vsix)));
 				return extensionIdentifier;
@@ -156,9 +153,9 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 
 	async installFromGallery(gallery: IGalleryExtension): Promise<void> {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const [manifest, syncExtensions] = await Promise.all([this.extensionGalleryService.getManifest(gallery, CancellationToken.None), this.hasToSyncExtensions()]);
+			const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
 			if (manifest) {
-				if (syncExtensions || isLanguagePackExtension(manifest)) {
+				if (isLanguagePackExtension(manifest)) {
 					// Install on both servers
 					return Promise.all(this.servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(() => undefined);
 				}
@@ -198,17 +195,6 @@ export class MultiExtensionManagementService extends Disposable implements IExte
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer | null {
 		return this.extensionManagementServerService.getExtensionManagementServer(extension.location);
-	}
-
-	private async hasToSyncExtensions(): Promise<boolean> {
-		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return false;
-		}
-		const remoteEnv = await this.remoteAgentService.getEnvironment();
-		if (!remoteEnv) {
-			return false;
-		}
-		return remoteEnv.syncExtensions;
 	}
 }
 

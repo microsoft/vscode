@@ -14,7 +14,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
 import pkg from 'vs/platform/product/node/package';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
@@ -32,19 +31,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
+import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
-
-export interface IExtensionHostStarter {
-	readonly onCrashed: Event<[number, string | null]>;
-	start(): Promise<IMessagePassingProtocol> | null;
-	getInspectPort(): number | undefined;
-	dispose(): void;
-}
+import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
+import { isEqualOrParent } from 'vs/base/common/resources';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
@@ -102,13 +96,13 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._toDispose.push(this._onCrashed);
 		this._toDispose.push(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
-		this._toDispose.push(this._extensionHostDebugService.onClose(resource => {
-			if (this._isExtensionDevHost && this.matchesExtDevLocations(resource)) {
+		this._toDispose.push(this._extensionHostDebugService.onClose(event => {
+			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._windowService.closeWindow();
 			}
 		}));
-		this._toDispose.push(this._extensionHostDebugService.onReload(resource => {
-			if (this._isExtensionDevHost && this.matchesExtDevLocations(resource)) {
+		this._toDispose.push(this._extensionHostDebugService.onReload(event => {
+			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._windowService.reloadWindow();
 			}
 		}));
@@ -118,18 +112,6 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._toDispose.push(toDisposable(() => {
 			process.removeListener('exit', globalExitListener);
 		}));
-	}
-
-	// returns true if the given resource url matches one of the extension development paths passed to VS Code
-	private matchesExtDevLocations(resource: URI): boolean {
-
-		const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
-		if (Array.isArray(extDevLocs)) {
-			return extDevLocs.some(extDevLoc => isEqual(extDevLoc, resource));
-		} else if (extDevLocs) {
-			return isEqual(extDevLocs, resource);
-		}
-		return false;
 	}
 
 	public dispose(): void {
@@ -243,8 +225,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				if (!this._environmentService.isBuilt && !this._environmentService.configuration.remoteAuthority || this._isExtensionDevHost) {
 					startupTimeoutHandle = setTimeout(() => {
 						const msg = this._isExtensionDevDebugBrk
-							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
-							: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+							? nls.localize('extensionHost.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
+							: nls.localize('extensionHost.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
 						this._notificationService.prompt(Severity.Warning, msg,
 							[{
@@ -419,7 +401,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: withNullAsUndefined(workspace.configuration),
 						id: workspace.id,
-						name: this._labelService.getWorkspaceLabel(workspace)
+						name: this._labelService.getWorkspaceLabel(workspace),
+						isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false
 					},
 					resolvedExtensions: [],
 					hostExtensions: [],
@@ -459,7 +442,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		this._lastExtensionHostError = errorMessage;
 
-		this._notificationService.error(nls.localize('extensionHostProcess.error', "Error from the extension host: {0}", errorMessage));
+		this._notificationService.error(nls.localize('extensionHost.error', "Error from the extension host: {0}", errorMessage));
 	}
 
 	private _onExtHostProcessExit(code: number, signal: string): void {

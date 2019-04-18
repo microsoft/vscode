@@ -24,7 +24,8 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
-		|| !!argv['uninstall-extension'];
+		|| !!argv['uninstall-extension']
+		|| !!argv['locate-extension'];
 }
 
 interface IMainCli {

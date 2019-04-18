@@ -136,10 +136,10 @@ suite('IPC, Socket Protocol', () => {
 		assert.equal(msg1.toString(), 'foobarfarboo');
 
 		const buffer = VSBuffer.alloc(1);
-		buffer.writeUint8(123, 0);
+		buffer.writeUInt8(123, 0);
 		a.send(buffer);
 		const msg2 = await bMessages.waitForOne();
-		assert.equal(msg2.readUint8(0), 123);
+		assert.equal(msg2.readUInt8(0), 123);
 	});
 
 

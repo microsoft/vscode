@@ -74,7 +74,7 @@ function update(options) {
 			let translationPaths = [];
 			i18n.pullI18nPackFiles(server, userName, apiToken, { id: languageId }, translationPaths)
 				.on('error', (error) => {
-					console.log(`Error occured while importing translations:`);
+					console.log(`Error occurred while importing translations:`);
 					translationPaths = undefined;
 					if (Array.isArray(error)) {
 						error.forEach(console.log);
@@ -100,7 +100,7 @@ function update(options) {
 			gulp.src(path.join(location, languageId, '**', '*.xlf'))
 				.pipe(i18n.prepareI18nPackFiles(i18n.externalExtensionsWithTranslations, translationPaths, languageId === 'ps'))
 				.on('error', (error) => {
-					console.log(`Error occured while importing translations:`);
+					console.log(`Error occurred while importing translations:`);
 					translationPaths = undefined;
 					if (Array.isArray(error)) {
 						error.forEach(console.log);
