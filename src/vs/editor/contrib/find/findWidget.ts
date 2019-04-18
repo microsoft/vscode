@@ -616,7 +616,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
 		}
 
-		if (!this._resized) {
+		if (this._resized) {
 			let findInputWidth = dom.getTotalWidth(this._findInput.inputBox.inputElement);
 			if (findInputWidth > 0) {
 				this._replaceInputBox.inputElement.style.width = `${findInputWidth}px`;
