@@ -753,6 +753,11 @@ export enum FileKind {
 export const MIN_MAX_MEMORY_SIZE_MB = 2048;
 export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
 
+/**
+ * A hint to disable etag checking for reading/writing.
+ */
+export const ETAG_DISABLED = '';
+
 export function etag(mtime: number, size: number): string;
 export function etag(mtime: number | undefined, size: number | undefined): string | undefined;
 export function etag(mtime: number | undefined, size: number | undefined): string | undefined {
