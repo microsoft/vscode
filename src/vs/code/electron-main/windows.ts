@@ -91,8 +91,7 @@ interface IPathParseOptions {
 }
 
 interface IFileInputs {
-	filesToOpen: IPath[];
-	filesToCreate: IPath[];
+	filesToOpenOrCreate: IPath[];
 	filesToDiff: IPath[];
 	filesToWait?: IPathsToWaitFor;
 	remoteAuthority?: string;
@@ -111,9 +110,6 @@ interface IPathToOpen extends IPath {
 
 	// the remote authority for the Code instance to open. Undefined if not remote.
 	remoteAuthority?: string;
-
-	// indicator to create the file path in the Code instance
-	createFilePath?: boolean;
 
 	// optional label for the recent history
 	label?: string;
@@ -397,13 +393,9 @@ export class WindowsManager implements IWindowsMainService {
 				workspacesToOpen.push(path);
 			} else if (path.fileUri) {
 				if (!fileInputs) {
-					fileInputs = { filesToCreate: [], filesToOpen: [], filesToDiff: [], remoteAuthority: path.remoteAuthority };
+					fileInputs = { filesToOpenOrCreate: [], filesToDiff: [], remoteAuthority: path.remoteAuthority };
 				}
-				if (!path.createFilePath) {
-					fileInputs.filesToOpen.push(path);
-				} else {
-					fileInputs.filesToCreate.push(path);
-				}
+				fileInputs.filesToOpenOrCreate.push(path);
 			} else if (path.backupPath) {
 				emptyToRestore.push({ backupFolder: basename(path.backupPath), remoteAuthority: path.remoteAuthority });
 			} else {
@@ -413,15 +405,14 @@ export class WindowsManager implements IWindowsMainService {
 
 		// When run with --diff, take the files to open as files to diff
 		// if there are exactly two files provided.
-		if (fileInputs && openConfig.diffMode && fileInputs.filesToOpen.length === 2) {
-			fileInputs.filesToDiff = fileInputs.filesToOpen;
-			fileInputs.filesToOpen = [];
-			fileInputs.filesToCreate = []; // diff ignores other files that do not exist
+		if (fileInputs && openConfig.diffMode && fileInputs.filesToOpenOrCreate.length === 2) {
+			fileInputs.filesToDiff = fileInputs.filesToOpenOrCreate;
+			fileInputs.filesToOpenOrCreate = [];
 		}
 
 		// When run with --wait, make sure we keep the paths to wait for
 		if (fileInputs && openConfig.waitMarkerFileURI) {
-			fileInputs.filesToWait = { paths: [...fileInputs.filesToDiff, ...fileInputs.filesToOpen, ...fileInputs.filesToCreate], waitMarkerFileUri: openConfig.waitMarkerFileURI };
+			fileInputs.filesToWait = { paths: [...fileInputs.filesToDiff, ...fileInputs.filesToOpenOrCreate], waitMarkerFileUri: openConfig.waitMarkerFileURI };
 		}
 
 		//
@@ -551,7 +542,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (potentialWindowsCount === 0 && fileInputs) {
 
 			// Find suitable window or folder path to open files in
-			const fileToCheck = fileInputs.filesToOpen[0] || fileInputs.filesToCreate[0] || fileInputs.filesToDiff[0];
+			const fileToCheck = fileInputs.filesToOpenOrCreate[0] || fileInputs.filesToDiff[0];
 			// only look at the windows with correct authority
 			const windows = WindowsManager.WINDOWS.filter(w => w.remoteAuthority === fileInputs!.remoteAuthority);
 
@@ -746,10 +737,9 @@ export class WindowsManager implements IWindowsMainService {
 	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, fileInputs?: IFileInputs): ICodeWindow {
 		window.focus(); // make sure window has focus
 
-		const params: { filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], filesToWait?: IPathsToWaitFor, termProgram?: string } = {};
+		const params: { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[], filesToWait?: IPathsToWaitFor, termProgram?: string } = {};
 		if (fileInputs) {
-			params.filesToOpen = fileInputs.filesToOpen;
-			params.filesToCreate = fileInputs.filesToCreate;
+			params.filesToOpenOrCreate = fileInputs.filesToOpenOrCreate;
 			params.filesToDiff = fileInputs.filesToDiff;
 			params.filesToWait = fileInputs.filesToWait;
 		}
@@ -1105,7 +1095,7 @@ export class WindowsManager implements IWindowsMainService {
 			const fileUri = URI.file(candidate);
 			this.historyMainService.removeFromRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
 			if (options && options.ignoreFileNotFound) {
-				return { fileUri, createFilePath: true, remoteAuthority }; // assume this is a file that does not yet exist
+				return { fileUri, remoteAuthority }; // assume this is a file that does not yet exist
 			}
 		}
 
@@ -1279,8 +1269,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		const fileInputs = options.fileInputs;
 		if (fileInputs) {
-			configuration.filesToOpen = fileInputs.filesToOpen;
-			configuration.filesToCreate = fileInputs.filesToCreate;
+			configuration.filesToOpenOrCreate = fileInputs.filesToOpenOrCreate;
 			configuration.filesToDiff = fileInputs.filesToDiff;
 			configuration.filesToWait = fileInputs.filesToWait;
 		}

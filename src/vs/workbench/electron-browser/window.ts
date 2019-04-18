@@ -468,20 +468,16 @@ export class ElectronWindow extends Disposable {
 		this.workspaceEditingService.addFolders(foldersToAdd);
 	}
 
-	private onOpenFiles(request: IOpenFileRequest): void {
+	private async onOpenFiles(request: IOpenFileRequest): Promise<void> {
 		const inputs: IResourceEditor[] = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
-		if (!diffMode && request.filesToOpen) {
-			inputs.push(...this.toInputs(request.filesToOpen, false));
-		}
-
-		if (!diffMode && request.filesToCreate) {
-			inputs.push(...this.toInputs(request.filesToCreate, true));
+		if (!diffMode && request.filesToOpenOrCreate) {
+			inputs.push(...(await this.toInputs(request.filesToOpenOrCreate)));
 		}
 
 		if (diffMode && request.filesToDiff) {
-			inputs.push(...this.toInputs(request.filesToDiff, false));
+			inputs.push(...(await this.toInputs(request.filesToDiff)));
 		}
 
 		if (inputs.length) {
@@ -521,17 +517,23 @@ export class ElectronWindow extends Disposable {
 		});
 	}
 
-	private toInputs(paths: IPathData[], isNew: boolean): IResourceEditor[] {
-		return paths.map(p => {
+	private async toInputs(paths: IPathData[]): Promise<IResourceEditor[]> {
+		const editors = await Promise.all(paths.map(async p => {
 			const resource = URI.revive(p.fileUri);
+			if (!resource || !this.fileService.canHandleResource(resource)) {
+				return;
+			}
+
+			const exists = await this.fileService.exists(resource);
+
 			let input: IResourceInput | IUntitledResourceInput;
-			if (isNew) {
+			if (!exists) {
 				input = { filePath: resource!.fsPath, options: { pinned: true } };
 			} else {
 				input = { resource, options: { pinned: true } };
 			}
 
-			if (!isNew && typeof p.lineNumber === 'number' && typeof p.columnNumber === 'number') {
+			if (exists && typeof p.lineNumber === 'number' && typeof p.columnNumber === 'number') {
 				input.options!.selection = {
 					startLineNumber: p.lineNumber,
 					startColumn: p.columnNumber
@@ -539,7 +541,9 @@ export class ElectronWindow extends Disposable {
 			}
 
 			return input;
-		});
+		}));
+
+		return coalesce(editors);
 	}
 
 	dispose(): void {

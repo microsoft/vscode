@@ -382,8 +382,7 @@ export interface IPathData {
 }
 
 export interface IOpenFileRequest {
-	filesToOpen?: IPathData[];
-	filesToCreate?: IPathData[];
+	filesToOpenOrCreate?: IPathData[];
 	filesToDiff?: IPathData[];
 	filesToWait?: IPathsToWaitForData;
 	termProgram?: string;
@@ -427,8 +426,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	perfWindowLoadTime?: number;
 	perfEntries: ExportData;
 
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
+	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
 	termProgram?: string;
