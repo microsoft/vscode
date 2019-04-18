@@ -117,7 +117,24 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		});
 	}
 
-	private _detectWindowsShells(): Promise<IQuickPickItem[]> {
+	private _getAppPathFromRegistry({ Registry, appName }: { Registry: typeof import('vscode-windows-registry'); appName: string; }): string {
+		const appNotFound = 'AppNotFound';
+		let appPath;
+
+		try {
+			appPath = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${appName}.exe`, '');
+		} catch (e) {
+			appPath = appNotFound;
+		}
+
+		if (appPath === undefined) {
+			appPath = appNotFound;
+		}
+
+		return appPath;
+	}
+
+	private async _detectWindowsShells(): Promise<IQuickPickItem[]> {
 		// Determine the correct System32 path. We want to point to Sysnative
 		// when the 32-bit version of VS Code is running on a 64-bit machine.
 		// The reason for this is because PowerShell's important PSReadline
@@ -131,9 +148,15 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			useWSLexe = true;
 		}
 
+		const Registry = await import('vscode-windows-registry');
+		let pwshPath;
+
+		pwshPath = this._getAppPathFromRegistry({ Registry, appName: 'pwsh' });
+
 		const expectedLocations = {
 			'Command Prompt': [`${system32Path}\\cmd.exe`],
 			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
+			'PowerShell Core': [pwshPath],
 			'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 			'Git Bash': [
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
@@ -143,6 +166,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			]
 		};
+
 		const promises: PromiseLike<[string, string]>[] = [];
 		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
 		return Promise.all(promises)
