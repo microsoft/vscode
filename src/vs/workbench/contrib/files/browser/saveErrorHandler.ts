@@ -137,12 +137,12 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 			const triedToMakeWriteable = isReadonly && fileOperationError.options && (fileOperationError.options as IWriteTextFileOptions).overwriteReadonly;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 
-			// Save Elevated (TODO@remote cannot write elevated https://github.com/Microsoft/vscode/issues/48659)
+			// Save Elevated (cannot write elevated https://github.com/Microsoft/vscode/issues/48659)
 			if (resource.scheme === Schemas.file && (isPermissionDenied || triedToMakeWriteable)) {
 				actions.primary!.push(this.instantiationService.createInstance(SaveElevatedAction, model, triedToMakeWriteable));
 			}
 
-			// Overwrite (TODO@remote cannot overwrite readonly https://github.com/Microsoft/vscode/issues/48659)
+			// Overwrite (cannot overwrite readonly https://github.com/Microsoft/vscode/issues/48659)
 			else if (resource.scheme === Schemas.file && isReadonly) {
 				actions.primary!.push(this.instantiationService.createInstance(OverwriteReadonlyAction, model));
 			}
