@@ -763,10 +763,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					this.telemetryService.publicLog('filePUT', this.getTelemetryData(options.reason));
 				}
 			}, error => {
-				if (!error) {
-					error = new Error('Unknown Save Error'); // TODO@remote we should never get null as error (https://github.com/Microsoft/vscode/issues/55051)
-				}
-
 				this.logService.error(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource);
 
 				// Flag as error state in the model
