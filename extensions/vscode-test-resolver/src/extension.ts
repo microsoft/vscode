@@ -89,10 +89,10 @@ export function activate(context: vscode.ExtensionContext) {
 	};
 	vscode.workspace.registerRemoteAuthorityResolver('test', resolver);
 
-	vscode.commands.registerCommand('remoteTest.newWindow', () => {
+	vscode.commands.registerCommand('vscode-testresolver.newWindow', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+test' });
 	});
-	vscode.commands.registerCommand('remoteTest.showLog', () => {
+	vscode.commands.registerCommand('vscode-testresolver.showLog', () => {
 		if (outputChannel) {
 			outputChannel.show();
 		}

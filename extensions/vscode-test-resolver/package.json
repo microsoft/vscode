@@ -15,8 +15,8 @@
 	},
 	"activationEvents": [
 		"onResolveRemoteAuthority:test",
-		"onCommand:remoteTest.newWindow",
-		"onCommand:remoteTest.showLog"
+		"onCommand:vscode-testresolver.newWindow",
+		"onCommand:vscode-testresolver.showLog"
 	],
 	"main": "./out/extension",
 	"devDependencies": {
@@ -32,35 +32,38 @@
 					"label": "${path}",
 					"separator": "/",
 					"tildify": true,
-					"workspaceSuffix": "RemoteTest"
+					"workspaceSuffix": "TestResolver"
 				}
 			}
 		],
 		"commands": [
 			{
 				"title": "New Window",
-				"category": "Remote Test",
-				"command": "remoteTest.newWindow"
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.newWindow"
 			},
 			{
 				"title": "Show Log",
-				"category": "Remote Test",
-				"command": "remoteTest.showLog"
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.showLog"
 			}
 		],
 		"menus": {
 			"statusBar/windowIndicator": [
 				{
-					"command": "remoteTest.showLog",
-					"when": "remoteAuthority =~ /^test\\+.*$/"
+					"command": "vscode-testresolver.newWindow",
+					"when": "!remoteAuthority",
+					"group": "9_local_testresolver@2"
 				},
 				{
-					"command": "remoteTest.newWindow",
-					"when": "!remoteAuthority"
+					"command": "vscode-testresolver.showLog",
+					"when": "remoteAuthority =~ /^test\\+.*$/",
+					"group": "1_remote_testresolver_open@2"
 				},
 				{
-					"command": "remoteTest.newWindow",
-					"when": "remoteAuthority =~ /^test\\+.*$/"
+					"command": "vscode-testresolver.newWindow",
+					"when": "remoteAuthority =~ /^test\\+.*$/",
+					"group": "1_remote_testresolver_open@1"
 				}
 			]
 		}
