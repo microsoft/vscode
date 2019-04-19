@@ -709,12 +709,27 @@
 	],
 	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
 	"uiExtensions": [
-		"robertohuertasm.vscode-icons",
-		"PKief.material-icon-theme",
+		"alefragnani.Bookmarks",
+		"alefragnani.project-manager",
+		"atlassian.atlascode",
+		"CoenraadS.bracket-pair-colorizer",
+		"delphi-keybindings",
+		"dsznajder.es7-react-js-snippets",
+		"eg2.vscode-npm-script",
+		"Equinusocio.vsc-material-theme",
+		"formulahendry.auto-close-tag",
+		"hiro-sun.vscode-emacs",
+		"johnpapa.Angular2",
+		"ms-vscode.atom-keybindings",
+		"ms-vscode.notepadplusplus-keybindings",
 		"ms-vscode.sublime-keybindings",
-		"vscodevim.vim",
 		"msjsdiag.debugger-for-chrome",
-		"techer.open-in-browser",
+		"PKief.material-icon-theme",
+		"robertohuertasm.vscode-icons",
 		"Shan.code-settings-sync"
+		"sudox.vscode-jetbrains-keybindings",
+		"techer.open-in-browser",
+		"vscodevim.vim",
+		"wayou.vscode-todo-highlight"
 	]
 }
