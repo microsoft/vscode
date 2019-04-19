@@ -117,7 +117,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		});
 	}
 
-	private _getAppPathFromRegistry({ Registry, appName }: { Registry: typeof import('vscode-windows-registry'); appName: string; }): string {
+	private _getAppPathFromRegistry(Registry: typeof import('vscode-windows-registry'), appName: string): string {
 		const appNotFound = 'AppNotFound';
 		let appPath;
 
@@ -153,7 +153,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		const expectedLocations = {
 			'Command Prompt': [`${system32Path}\\cmd.exe`],
 			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
-			'PowerShell Core': [this._getAppPathFromRegistry({ Registry, appName: 'pwsh' })],
+			'PowerShell Core': [this._getAppPathFromRegistry(Registry, 'pwsh')],
 			'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 			'Git Bash': [
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
