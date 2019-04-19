@@ -16,7 +16,7 @@ if grep -qi Microsoft /proc/version; then
 		if ! [ -z "$WSL_EXT_WLOC" ]; then
 			# replace \r\n with \n in WSL_EXT_WLOC, get linux path for
 			WSL_CODE=$(wslpath -u "${WSL_EXT_WLOC%%[[:cntrl:]]}")/scripts/wslCode.sh
-			$WSL_CODE $COMMIT $QUALITY "$WIN_CODE_CMD" "$APP_NAME" "$@"
+			"$WSL_CODE" $COMMIT $QUALITY "$WIN_CODE_CMD" "$APP_NAME" "$@"
 			exit $?
 		fi
 	fi
