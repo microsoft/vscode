@@ -2862,7 +2862,7 @@ export class InstallVSIXAction extends Action {
 		return Promise.resolve(this.windowService.showOpenDialog({
 			title: localize('installFromVSIX', "Install from VSIX"),
 			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
-			properties: ['openFile'],
+			properties: ['openFile', 'multiSelections'],
 			buttonLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
 		})).then(result => {
 			if (!result) {
