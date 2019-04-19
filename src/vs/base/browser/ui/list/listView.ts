@@ -383,8 +383,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return;
 		}
 
-		if (this.items.length === 0) {
+		// Input elements fire scroll events to `this.scrollableElement` with scrollLeft
+		// property other than 0 and conflicts with `this.rowsContainer` transformation so
+		// we disable horizontal scrolling when there's an input element.
+		// Fixes https://github.com/Microsoft/vscode/issues/71291
+		const inputContainer = this.rowsContainer.querySelector('.monaco-inputbox');
+		if (inputContainer || this.items.length === 0) {
+			this.scrollWidth = 0;
 			this.scrollableElement.setScrollDimensions({ scrollWidth: 0 });
+			return;
 		}
 
 		let scrollWidth = 0;
