@@ -210,6 +210,9 @@ export class SettingsEditor2 extends BaseEditor {
 		return super.setInput(input, options, token)
 			.then(() => new Promise(process.nextTick)) // Force setInput to be async
 			.then(() => {
+				return this.render(token);
+			})
+			.then(() => {
 				if (!options) {
 					if (!this.viewState.settingsTarget) {
 						// Persist?
@@ -224,9 +227,6 @@ export class SettingsEditor2 extends BaseEditor {
 					this.searchWidget.setValue('');
 				}));
 
-				return this.render(token);
-			})
-			.then(() => {
 				// Init TOC selection
 				this.updateTreeScrollSync();
 
