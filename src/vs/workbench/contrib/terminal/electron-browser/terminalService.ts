@@ -169,7 +169,6 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			]
 		};
-
 		const promises: PromiseLike<[string, string]>[] = [];
 		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
 		return Promise.all(promises)
