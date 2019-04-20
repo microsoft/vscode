@@ -100,6 +100,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.activeEditorListeners = [];
 
 		this.registerListeners();
+		this.hideTitleBar = false;
 	}
 
 	private registerListeners(): void {
@@ -140,6 +141,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			if (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'toggle' && visible) {
 				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
 				hide(this.dragRegion);
+				this.hideTitleBar = true;
 				setTimeout(() => show(this.dragRegion), 50);
 			}
 
