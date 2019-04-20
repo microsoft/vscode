@@ -160,7 +160,6 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			'Command Prompt': [`${system32Path}\\cmd.exe`],
 			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
 			'PowerShell Core': [this._getShellPathFromRegistry(Registry, 'pwsh')],
-			test: ['powershell'],
 			'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 			'Git Bash': [
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
