@@ -245,7 +245,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 
 		let newDecorations: IModelDeltaDecoration[] = [], newDecorationsLen = 0;
 		this._lastBracketsData.map(bracketData => bracketData.brackets).forEach(brackets => {
-			if (brackets){
+			if (brackets) {
 				newDecorations[newDecorationsLen] = {
 					range: brackets[0],
 					options: BracketMatchingController._DECORATION_OPTIONS
