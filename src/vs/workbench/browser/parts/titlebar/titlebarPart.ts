@@ -73,6 +73,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private representedFileName: string;
 
 	private isInactive: boolean;
+	private hideTitleBar: boolean;
 
 	private properties: ITitleProperties;
 	private activeEditorListeners: IDisposable[];
@@ -229,6 +230,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		return title;
+	}
+
+	public showTitleBarToggle(): void{
+		this.hideTitleBar = !this.hideTitleBar;
 	}
 
 	updateProperties(properties: ITitleProperties): void {

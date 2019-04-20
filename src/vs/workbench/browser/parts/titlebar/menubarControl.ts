@@ -77,6 +77,7 @@ export class MenubarControl extends Disposable {
 	private container: HTMLElement;
 	private recentlyOpened: IRecentlyOpened;
 	private alwaysOnMnemonics: boolean;
+	private hideMenubar: boolean;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
@@ -679,6 +680,10 @@ export class MenubarControl extends Disposable {
 		if (this.menubar) {
 			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
 		}
+	}
+
+	public showMenuBarToggle(): void{
+		this.hideMenubar = !this.hideMenubar;
 	}
 
 	public getMenubarItemsDimensions(): DOM.Dimension {
