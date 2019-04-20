@@ -255,6 +255,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 					range: brackets[0],
 					options: BracketMatchingController._DECORATION_OPTIONS
 				}
+				newDecorations += 1;
 			}
 		});
 		this._decorations = this._editor.deltaDecorations(this._decorations, newDecorations);
