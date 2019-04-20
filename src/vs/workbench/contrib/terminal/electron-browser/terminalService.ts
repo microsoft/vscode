@@ -120,24 +120,24 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 	/**
 	 * Get the executable file path from registry.
 	 * @param Registry The data of imported from `vscode-windows-registry`
-	 * @param appName The application name to get the executable file path
-	 * @returns The executable file path or `'AppNotFound'`
+	 * @param shellName The application name to get the executable file path
+	 * @returns The executable file path or `'ShellNotFound'`
 	 */
-	private _getAppPathFromRegistry(Registry: typeof import('vscode-windows-registry'), appName: string): string {
-		const appNotFound = 'AppNotFound';
-		let appPath;
+	private _getShellPathFromRegistry(Registry: typeof import('vscode-windows-registry'), shellName: string): string {
+		const shellNotFound = 'ShellNotFound';
+		let shellPath;
 
 		try {
-			appPath = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${appName}.exe`, '');
+			shellPath = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${shellName}.exe`, '');
 		} catch (e) {
-			appPath = appNotFound;
+			shellPath = shellNotFound;
 		}
 
-		if (appPath === undefined) {
-			appPath = appNotFound;
+		if (shellPath === undefined) {
+			shellPath = shellNotFound;
 		}
 
-		return appPath;
+		return shellPath;
 	}
 
 	private async _detectWindowsShells(): Promise<IQuickPickItem[]> {
@@ -159,7 +159,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		const expectedLocations = {
 			'Command Prompt': [`${system32Path}\\cmd.exe`],
 			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
-			'PowerShell Core': [this._getAppPathFromRegistry(Registry, 'pwsh')],
+			'PowerShell Core': [this._getShellPathFromRegistry(Registry, 'pwsh')],
 			test: ['powershell'],
 			'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 			'Git Bash': [
