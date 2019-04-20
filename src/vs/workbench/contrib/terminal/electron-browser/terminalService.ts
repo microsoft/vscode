@@ -118,10 +118,10 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 	}
 
 	/**
-	 * Get the executable file path from registry.
+	 * Get the executable file path of shell from registry.
 	 * @param Registry The data of imported from `vscode-windows-registry`
-	 * @param shellName The application name to get the executable file path
-	 * @returns The executable file path or `'ShellNotFound'`
+	 * @param shellName The shell name to get the executable file path
+	 * @returns The executable file path of shell or `'ShellNotFound'`
 	 */
 	private _getShellPathFromRegistry(Registry: typeof import('vscode-windows-registry'), shellName: string): string {
 		const shellNotFound = 'ShellNotFound';
