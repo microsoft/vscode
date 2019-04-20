@@ -7,6 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IView } from 'vs/platform/extensions/common/extensions';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -57,9 +58,14 @@ export interface IStatusbarEntry {
 	readonly extensionId?: ExtensionIdentifier;
 
 	/**
-	 * Wether to show a beak above the status bar entry.
+	 * Whether to show a beak above the status bar entry.
 	 */
 	readonly showBeak?: boolean;
+
+	/**
+	* display value to toggle if the statusbar is shown
+	*/
+	readonly displaySetting?: boolean;
 }
 
 export interface IStatusbarService {
@@ -71,6 +77,8 @@ export interface IStatusbarService {
 	 * to update or remove the statusbar entry.
 	 */
 	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
+
+	setToggle(): IView;
 
 	/**
 	 * Prints something to the status bar area with optional auto dispose and delay.

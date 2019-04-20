@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
+import { IView } from 'vs/platform/extensions/common/extensions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
@@ -53,6 +54,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private styleElement: HTMLStyleElement;
 
 	private pendingEntries: PendingEntry[] = [];
+	displaySetting: boolean = false;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -278,6 +280,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 
 		return statusMessageDispose;
+	}
+
+	setToggle(): IView {
+		this.displaySetting = !this.displaySetting;
 	}
 
 	layout(width: number, height: number): void {
