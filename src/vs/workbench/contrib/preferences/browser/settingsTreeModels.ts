@@ -12,8 +12,8 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -142,11 +142,15 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
 		const overriddenScopeList: string[] = [];
-		if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
+		if (targetSelector !== 'workspace' && typeof inspected.workspace !== 'undefined') {
 			overriddenScopeList.push(localize('workspace', "Workspace"));
 		}
 
-		if (targetSelector === 'workspace' && typeof inspected.user !== 'undefined') {
+		if (targetSelector !== 'userRemote' && typeof inspected.userRemote !== 'undefined') {
+			overriddenScopeList.push(localize('remote', "Remote"));
+		}
+
+		if (targetSelector !== 'userLocal' && typeof inspected.userLocal !== 'undefined') {
 			overriddenScopeList.push(localize('user', "User"));
 		}
 
@@ -354,8 +358,17 @@ export class SettingsTreeModel {
 
 interface IInspectResult {
 	isConfigured: boolean;
-	inspected: any;
-	targetSelector: string;
+	inspected: {
+		default: any,
+		user: any,
+		userLocal?: any,
+		userRemote?: any,
+		workspace?: any,
+		workspaceFolder?: any,
+		memory?: any,
+		value: any,
+	};
+	targetSelector: 'userLocal' | 'userRemote' | 'workspace' | 'workspaceFolder';
 }
 
 function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): IInspectResult {
