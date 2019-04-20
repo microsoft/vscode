@@ -6,7 +6,7 @@
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode } from 'vs/base/browser/dom';
+import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode, isAncestor } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -39,6 +39,7 @@ export class Dialog extends Disposable {
 	private toolbarContainer: HTMLElement | undefined;
 	private buttonGroup: ButtonGroup | undefined;
 	private styles: IDialogStyles | undefined;
+	private focusToReturn: HTMLElement | undefined;
 
 	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
 		super();
@@ -72,6 +73,8 @@ export class Dialog extends Disposable {
 	}
 
 	async show(): Promise<number> {
+		this.focusToReturn = document.activeElement as HTMLElement;
+
 		return new Promise<number>((resolve) => {
 			if (!this.element || !this.buttonsContainer || !this.iconElement || !this.toolbarContainer) {
 				resolve(0);
@@ -132,6 +135,19 @@ export class Dialog extends Disposable {
 
 				if (evt.equals(KeyCode.Escape)) {
 					resolve(this.options.cancelId || 0);
+				}
+			}));
+
+			this._register(domEvent(this.element, 'focusout', false)((e: FocusEvent) => {
+				if (!!e.relatedTarget && !!this.element) {
+					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
+						this.focusToReturn = e.relatedTarget as HTMLElement;
+
+						if (e.target) {
+							(e.target as HTMLElement).focus();
+							EventHelper.stop(e, true);
+						}
+					}
 				}
 			}));
 
@@ -205,6 +221,11 @@ export class Dialog extends Disposable {
 		if (this.modal) {
 			removeNode(this.modal);
 			this.modal = undefined;
+		}
+
+		if (this.focusToReturn && isAncestor(this.focusToReturn, document.body)) {
+			this.focusToReturn.focus();
+			this.focusToReturn = undefined;
 		}
 	}
 }
