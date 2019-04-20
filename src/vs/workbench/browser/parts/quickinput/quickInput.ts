@@ -906,6 +906,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget
 
 	private idPrefix = 'quickInput_'; // Constant since there is still only one.
+	private widget: HTMLElement;
 	private titleBar: HTMLElement;
 	private filterContainer: HTMLElement;
 	private visibleCountContainer: HTMLElement;
@@ -1031,6 +1032,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const container = dom.append(workbench, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';
+
+		this.widget = container;
 
 		this.titleBar = dom.append(container, $('.quick-input-titlebar'));
 
@@ -1273,8 +1276,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 			Promise.all<QuickPickInput<T>[], T | undefined>([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
 					activeItem = _activeItem;
-					input.busy = false;
 					input.items = items;
+					this.setInputHeight();
+					input.busy = false;  // The final assignment is to prevent the "user snippets" function from don't updating the scrollbar.
 					if (input.canSelectMany) {
 						input.selectedItems = items.filter(item => item.type !== 'separator' && item.picked) as T[];
 					}
@@ -1288,6 +1292,30 @@ export class QuickInputService extends Component implements IQuickInputService {
 				input.hide();
 			});
 		});
+	}
+
+	setInputHeight(): void {
+		const workbench = this.layoutService.getWorkbenchElement();
+		this.setInputHeightDFS(workbench, this.ui.list.container.firstChild, 0);
+	}
+
+	setInputHeightDFS(workbench: HTMLElement, rowsNode: ChildNode | null, mark: number): void {
+		if (rowsNode !== null) {
+			if (mark === 3) {
+				const rowsElement = rowsNode.parentElement;  // monaco-list-rows
+				const distanceFromBelow = 200;  // The distance from the bottom of the window.
+				if (rowsElement !== null && workbench.style.height !== null && rowsElement.style.height !== null) {
+					const workbenchHeight = parseInt(workbench.style.height);
+					const mlRowsHeight = parseInt(rowsElement.style.height);
+					let widgetHeight = workbenchHeight - distanceFromBelow > mlRowsHeight + 40 ? mlRowsHeight + 40 : workbenchHeight - distanceFromBelow;
+					widgetHeight = widgetHeight - 40 < 22 ? 62 : widgetHeight;
+					this.widget.style.height = `${widgetHeight}px`;
+					this.ui.list.container.style.height = `${widgetHeight - 40}px`;
+				}
+				return;
+			}
+			this.setInputHeightDFS(workbench, rowsNode.firstChild, mark + 1);
+		}
 	}
 
 	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string> {

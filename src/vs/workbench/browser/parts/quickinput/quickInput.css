@@ -122,7 +122,6 @@
 
 .quick-input-list .monaco-list {
 	overflow: hidden;
-	max-height: calc(20 * 22px);
 }
 
 .quick-input-list .quick-input-list-entry {

@@ -214,7 +214,7 @@ class ListElementDelegate implements IListVirtualDelegate<ListElement> {
 export class QuickInputList {
 
 	readonly id: string;
-	private container: HTMLElement;
+	public container: HTMLElement;
 	private list: WorkbenchList<ListElement>;
 	private inputElements: Array<IQuickPickItem | IQuickPickSeparator>;
 	private elements: ListElement[] = [];
