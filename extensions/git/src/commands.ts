@@ -689,18 +689,22 @@ export class CommandCenter {
 				viewColumn: ViewColumn.Active
 			};
 
-			const document = await workspace.openTextDocument(uri);
+			try {
+				const document = await workspace.openTextDocument(uri);
 
-			// Check if active text editor has same path as other editor. we cannot compare via
-			// URI.toString() here because the schemas can be different. Instead we just go by path.
-			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path) {
-				// preserve not only selection but also visible range
-				opts.selection = activeTextEditor.selection;
-				const previousVisibleRanges = activeTextEditor.visibleRanges;
-				const editor = await window.showTextDocument(document, opts);
-				editor.revealRange(previousVisibleRanges[0]);
-			} else {
-				await window.showTextDocument(document, opts);
+				// Check if active text editor has same path as other editor. we cannot compare via
+				// URI.toString() here because the schemas can be different. Instead we just go by path.
+				if (activeTextEditor && activeTextEditor.document.uri.path === uri.path) {
+					// preserve not only selection but also visible range
+					opts.selection = activeTextEditor.selection;
+					const previousVisibleRanges = activeTextEditor.visibleRanges;
+					const editor = await window.showTextDocument(document, opts);
+					editor.revealRange(previousVisibleRanges[0]);
+				} else {
+					await window.showTextDocument(document, opts);
+				}
+			} catch {
+				await commands.executeCommand<void>('vscode.open', uri, opts);
 			}
 		}
 	}
