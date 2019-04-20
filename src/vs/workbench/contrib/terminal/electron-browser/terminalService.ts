@@ -117,6 +117,12 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		});
 	}
 
+	/**
+	 * Get the executable file path from registry.
+	 * @param Registry The data of imported from `vscode-windows-registry`
+	 * @param appName The application name to get the executable file path
+	 * @returns The executable file path or `'AppNotFound'`
+	 */
 	private _getAppPathFromRegistry(Registry: typeof import('vscode-windows-registry'), appName: string): string {
 		const appNotFound = 'AppNotFound';
 		let appPath;
@@ -154,6 +160,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			'Command Prompt': [`${system32Path}\\cmd.exe`],
 			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
 			'PowerShell Core': [this._getAppPathFromRegistry(Registry, 'pwsh')],
+			test: ['powershell'],
 			'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 			'Git Bash': [
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
