@@ -1219,9 +1219,12 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private renderResultCountMessages() {
-		if (!this.currentSettingsModel || !this.searchResultModel) {
-			this.countElement.style.display = 'none';
+		if (!this.currentSettingsModel) {
 			return;
+		}
+
+		if (!this.searchResultModel) {
+			this.countElement.style.display = 'none';
 		}
 
 		if (this.tocTreeModel && this.tocTreeModel.settingsTreeRoot) {
