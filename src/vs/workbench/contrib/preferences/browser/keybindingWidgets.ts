@@ -23,6 +23,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
 	recordEnter?: boolean;
@@ -257,7 +258,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._chordPart = chordPart;
 		dom.clearNode(this._outputNode);
 		dom.clearNode(this._showExistingKeybindingsNode);
-		new KeybindingLabel(this._outputNode, OS).set(this._firstPart);
+		new KeybindingLabel(this._outputNode, OS).set(withNullAsUndefined(this._firstPart));
 		if (this._chordPart) {
 			this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
 			new KeybindingLabel(this._outputNode, OS).set(this._chordPart);

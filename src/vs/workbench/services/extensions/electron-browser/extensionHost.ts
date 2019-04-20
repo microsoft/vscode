@@ -13,16 +13,15 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
-import { isWindows } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
+import * as platform from 'vs/base/common/platform';
+import pkg from 'vs/platform/product/node/package';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { PersistentProtocol, generateRandomPipeName, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { IBroadcast, IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
+import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { generateRandomPipeName, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -32,18 +31,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/node/extensionHostProtocol';
+import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
-
-export interface IExtensionHostStarter {
-	readonly onCrashed: Event<[number, string | null]>;
-	start(): Promise<IMessagePassingProtocol> | null;
-	getInspectPort(): number | undefined;
-	dispose(): void;
-}
+import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
+import { isEqualOrParent } from 'vs/base/common/resources';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
@@ -76,12 +71,12 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWindowsService private readonly _windowsService: IWindowsService,
 		@IWindowService private readonly _windowService: IWindowService,
-		@IBroadcastService private readonly _broadcastService: IBroadcastService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
-		@ILabelService private readonly _labelService: ILabelService
+		@ILabelService private readonly _labelService: ILabelService,
+		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -101,7 +96,16 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._toDispose.push(this._onCrashed);
 		this._toDispose.push(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
-		this._toDispose.push(this._broadcastService.onBroadcast(b => this._onBroadcast(b)));
+		this._toDispose.push(this._extensionHostDebugService.onClose(event => {
+			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
+				this._windowService.closeWindow();
+			}
+		}));
+		this._toDispose.push(this._extensionHostDebugService.onReload(event => {
+			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
+				this._windowService.reloadWindow();
+			}
+		}));
 
 		const globalExitListener = () => this.terminate();
 		process.once('exit', globalExitListener);
@@ -112,24 +116,6 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	public dispose(): void {
 		this.terminate();
-	}
-
-	private _onBroadcast(broadcast: IBroadcast): void {
-
-		// Close Ext Host Window Request
-		if (broadcast.channel === EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL && this._isExtensionDevHost) {
-			const extensionLocations = broadcast.payload as string[];
-			if (Array.isArray(extensionLocations) && extensionLocations.some(uriString => isEqual(this._environmentService.extensionDevelopmentLocationURI, URI.parse(uriString)))) {
-				this._windowService.closeWindow();
-			}
-		}
-
-		if (broadcast.channel === EXTENSION_RELOAD_BROADCAST_CHANNEL && this._isExtensionDevHost) {
-			const extensionPaths = broadcast.payload as string[];
-			if (Array.isArray(extensionPaths) && extensionPaths.some(uriString => isEqual(this._environmentService.extensionDevelopmentLocationURI, URI.parse(uriString)))) {
-				this._windowService.reloadWindow();
-			}
-		}
 	}
 
 	public start(): Promise<IMessagePassingProtocol> | null {
@@ -157,7 +143,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					// and detach under Linux and Mac create another process group.
 					// We detach because we have noticed that when the renderer exits, its child processes
 					// (i.e. extension host) are taken down in a brutal fashion by the OS
-					detached: !!isWindows,
+					detached: !!platform.isWindows,
 					execArgv: undefined as string[] | undefined,
 					silent: true
 				};
@@ -229,24 +215,18 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				this._extensionHostProcess.on('exit', (code: number, signal: string) => this._onExtHostProcessExit(code, signal));
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
-				if (this._isExtensionDevHost && portData.actual && this._isExtensionDevDebug) {
-					this._broadcastService.broadcast({
-						channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
-						payload: {
-							debugId: this._environmentService.debugExtensionHost.debugId,
-							port: portData.actual
-						}
-					});
+				if (this._isExtensionDevHost && portData.actual && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
+					this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portData.actual);
 				}
 				this._inspectPort = portData.actual;
 
 				// Help in case we fail to start it
 				let startupTimeoutHandle: any;
-				if (!this._environmentService.isBuilt && !this._windowService.getConfiguration().remoteAuthority || this._isExtensionDevHost) {
+				if (!this._environmentService.isBuilt && !this._environmentService.configuration.remoteAuthority || this._isExtensionDevHost) {
 					startupTimeoutHandle = setTimeout(() => {
 						const msg = this._isExtensionDevDebugBrk
-							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
-							: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+							? nls.localize('extensionHost.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
+							: nls.localize('extensionHost.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
 						this._notificationService.prompt(Severity.Warning, msg,
 							[{
@@ -404,11 +384,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				const workspace = this._contextService.getWorkspace();
 				const r: IInitData = {
 					commit: product.commit,
+					version: pkg.version,
 					parentPid: process.pid,
 					environment: {
 						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : undefined,
+						appName: product.nameLong,
+						appUriScheme: product.urlProtocol,
+						appLanguage: platform.language,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
@@ -417,7 +401,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: withNullAsUndefined(workspace.configuration),
 						id: workspace.id,
-						name: this._labelService.getWorkspaceLabel(workspace)
+						name: this._labelService.getWorkspaceLabel(workspace),
+						isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false
 					},
 					resolvedExtensions: [],
 					hostExtensions: [],
@@ -444,14 +429,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 
 		// Broadcast to other windows if we are in development mode
-		else if (!this._environmentService.isBuilt || this._isExtensionDevHost) {
-			this._broadcastService.broadcast({
-				channel: EXTENSION_LOG_BROADCAST_CHANNEL,
-				payload: {
-					logEntry: entry,
-					debugId: this._environmentService.debugExtensionHost.debugId
-				}
-			});
+		else if (this._environmentService.debugExtensionHost.debugId && (!this._environmentService.isBuilt || this._isExtensionDevHost)) {
+			this._extensionHostDebugService.logToSession(this._environmentService.debugExtensionHost.debugId, entry);
 		}
 	}
 
@@ -463,7 +442,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		this._lastExtensionHostError = errorMessage;
 
-		this._notificationService.error(nls.localize('extensionHostProcess.error', "Error from the extension host: {0}", errorMessage));
+		this._notificationService.error(nls.localize('extensionHost.error', "Error from the extension host: {0}", errorMessage));
 	}
 
 	private _onExtHostProcessExit(code: number, signal: string): void {
@@ -556,14 +535,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
-		if (this._isExtensionDevHost && !this._isExtensionDevTestFromCli && !this._isExtensionDevDebug) {
-			this._broadcastService.broadcast({
-				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
-				payload: {
-					debugId: this._environmentService.debugExtensionHost.debugId
-				}
-			});
-
+		if (this._isExtensionDevHost && !this._isExtensionDevTestFromCli && !this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
+			this._extensionHostDebugService.terminateSession(this._environmentService.debugExtensionHost.debugId);
 			event.join(timeout(100 /* wait a bit for IPC to get delivered */));
 		}
 	}

@@ -11,21 +11,22 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import * as modes from 'vs/editor/common/modes';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
+import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
-import { areWebviewInputOptionsEqual } from './webviewEditorService';
-import { WebviewFindWidget } from './webviewFindWidget';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-
-export interface WebviewPortMapping {
-	readonly port: number;
-	readonly resolvedPort: number;
-}
+import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
+import { WebviewFindWidget } from '../browser/webviewFindWidget';
 
 export interface WebviewPortMapping {
 	readonly port: number;
@@ -117,7 +118,7 @@ class WebviewProtocolProvider extends Disposable {
 		private readonly _extensionLocation: URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
 		private readonly _environmentService: IEnvironmentService,
-		private readonly _fileService: IFileService,
+		private readonly _textFileService: ITextFileService,
 	) {
 		super();
 
@@ -136,11 +137,11 @@ class WebviewProtocolProvider extends Disposable {
 
 		const appRootUri = URI.file(this._environmentService.appRoot);
 
-		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, undefined, () => [
+		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._textFileService, undefined, () => [
 			appRootUri
 		]);
 
-		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._extensionLocation, () =>
+		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._textFileService, this._extensionLocation, () =>
 			this._getLocalResourceRoots()
 		);
 	}
@@ -148,11 +149,15 @@ class WebviewProtocolProvider extends Disposable {
 
 class WebviewPortMappingProvider extends Disposable {
 
+	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
+
 	constructor(
 		session: WebviewSession,
-		mappings: () => ReadonlyArray<WebviewPortMapping>,
+		extensionLocation: URI | undefined,
+		mappings: () => ReadonlyArray<modes.IWebviewPortMapping>,
+		private readonly tunnelService: ITunnelService,
 		extensionId: ExtensionIdentifier | undefined,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -170,7 +175,7 @@ class WebviewPortMappingProvider extends Disposable {
 					hasLogged = true;
 
 					/* __GDPR__
-					"webview.accessLocalhost" : {
+						"webview.accessLocalhost" : {
 							"extension" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					*/
@@ -179,18 +184,52 @@ class WebviewPortMappingProvider extends Disposable {
 
 				const port = +localhostMatch[1];
 				for (const mapping of mappings()) {
-					if (mapping.port === port && mapping.port !== mapping.resolvedPort) {
-						return {
-							redirectURL: details.url.replace(
-								new RegExp(`^${uri.scheme}://localhost:${mapping.port}/`),
-								`${uri.scheme}://localhost:${mapping.resolvedPort}/`)
-						};
+					if (mapping.webviewPort === port) {
+						if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
+							const tunnel = await this.getOrCreateTunnel(mapping.extensionHostPort);
+							if (tunnel) {
+								return {
+									redirectURL: details.url.replace(
+										new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}/`),
+										`${uri.scheme}://localhost:${tunnel.tunnelLocalPort}/`)
+								};
+							}
+						}
+
+						if (mapping.webviewPort !== mapping.extensionHostPort) {
+							return {
+								redirectURL: details.url.replace(
+									new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}/`),
+									`${uri.scheme}://localhost:${mapping.extensionHostPort}/`)
+							};
+						}
 					}
 				}
 			}
 
 			return undefined;
 		});
+	}
+
+	dispose() {
+		super.dispose();
+
+		for (const tunnel of this._tunnels.values()) {
+			tunnel.then(tunnel => tunnel.dispose());
+		}
+		this._tunnels.clear();
+	}
+
+	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
+		const existing = this._tunnels.get(remotePort);
+		if (existing) {
+			return existing;
+		}
+		const tunnel = this.tunnelService.openTunnel(remotePort);
+		if (tunnel) {
+			this._tunnels.set(remotePort, tunnel);
+		}
+		return tunnel;
 	}
 }
 
@@ -316,7 +355,7 @@ class WebviewKeyboardHandler extends Disposable {
 }
 
 
-export class WebviewElement extends Disposable {
+export class WebviewElement extends Disposable implements Webview {
 	private _webview: Electron.WebviewTag;
 	private _ready: Promise<void>;
 
@@ -330,14 +369,15 @@ export class WebviewElement extends Disposable {
 	public get onDidFocus(): Event<void> { return this._onDidFocus.event; }
 
 	constructor(
-		private readonly _styleElement: Element,
 		private readonly _options: WebviewOptions,
 		private _contentOptions: WebviewContentOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService,
+		@ITunnelService tunnelService: ITunnelService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._webview = document.createElement('webview');
@@ -350,7 +390,7 @@ export class WebviewElement extends Disposable {
 		this._webview.style.height = '0';
 		this._webview.style.outline = '0';
 
-		this._webview.preload = require.toUrl('./webview-pre.js');
+		this._webview.preload = require.toUrl('./pre/electron-index.js');
 		this._webview.src = 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
 
 		this._ready = new Promise(resolve => {
@@ -372,14 +412,16 @@ export class WebviewElement extends Disposable {
 			this._options.extension ? this._options.extension.location : undefined,
 			() => (this._contentOptions.localResourceRoots || []),
 			environmentService,
-			fileService));
+			textFileService));
 
 		this._register(new WebviewPortMappingProvider(
 			session,
+			_options.extension ? _options.extension.location : undefined,
 			() => (this._contentOptions.portMappings || []),
+			tunnelService,
 			_options.extension ? _options.extension.id : undefined,
-			telemetryService));
-
+			telemetryService
+		));
 
 		if (!this._options.allowSvgs) {
 			const svgBlocker = this._register(new SvgBlocker(session, this._contentOptions));
@@ -539,10 +581,6 @@ export class WebviewElement extends Disposable {
 		});
 	}
 
-	public set baseUrl(value: string) {
-		this._send('baseUrl', value);
-	}
-
 	public focus(): void {
 		this._webview.focus();
 		this._send('focus');
@@ -569,7 +607,10 @@ export class WebviewElement extends Disposable {
 	}
 
 	private style(theme: ITheme): void {
-		const { fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement); // TODO@theme avoid styleElement
+		const configuration = this._configurationService.getValue<IEditorOptions>('editor');
+		const editorFontFamily = configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+		const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
+		const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
 
 		const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
 			const color = theme.getColor(entry.id);
@@ -581,9 +622,12 @@ export class WebviewElement extends Disposable {
 
 
 		const styles = {
-			'vscode-editor-font-family': fontFamily,
-			'vscode-editor-font-weight': fontWeight,
-			'vscode-editor-font-size': fontSize,
+			'vscode-font-family': '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+			'vscode-font-weight': 'normal',
+			'vscode-font-size': '13px',
+			'vscode-editor-font-family': editorFontFamily,
+			'vscode-editor-font-weight': editorFontWeight,
+			'vscode-editor-font-size': editorFontSize,
 			...exportedColors
 		};
 
@@ -640,12 +684,13 @@ export class WebviewElement extends Disposable {
 	 *
 	 * @param value The string to search for. Empty strings are ignored.
 	 */
-	public find(value: string, options?: Electron.FindInPageOptions): void {
+	public find(value: string, previous: boolean): void {
 		// Searching with an empty value will throw an exception
 		if (!value) {
 			return;
 		}
 
+		const options = { findNext: true, forward: !previous };
 		if (!this._findStarted) {
 			this.startFind(value, options);
 			return;

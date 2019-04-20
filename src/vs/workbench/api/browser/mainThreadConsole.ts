@@ -9,8 +9,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
-import { EXTENSION_LOG_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
+import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 
 @extHostNamedCustomer(MainContext.MainThreadConsole)
 export class MainThreadConsole implements MainThreadConsoleShape {
@@ -22,7 +21,7 @@ export class MainThreadConsole implements MainThreadConsoleShape {
 		extHostContext: IExtHostContext,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWindowsService private readonly _windowsService: IWindowsService,
-		@IBroadcastService private readonly _broadcastService: IBroadcastService,
+		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -45,14 +44,8 @@ export class MainThreadConsole implements MainThreadConsoleShape {
 		}
 
 		// Broadcast to other windows if we are in development mode
-		else if (!this._environmentService.isBuilt || this._isExtensionDevHost) {
-			this._broadcastService.broadcast({
-				channel: EXTENSION_LOG_BROADCAST_CHANNEL,
-				payload: {
-					logEntry: entry,
-					debugId: this._environmentService.debugExtensionHost.debugId
-				}
-			});
+		else if (this._environmentService.debugExtensionHost.debugId && (!this._environmentService.isBuilt || this._isExtensionDevHost)) {
+			this._extensionHostDebugService.logToSession(this._environmentService.debugExtensionHost.debugId, entry);
 		}
 	}
 }

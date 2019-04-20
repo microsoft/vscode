@@ -8,7 +8,7 @@ import * as path from 'vs/base/common/path';
 import * as cp from 'child_process';
 import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
-import { nfcall } from 'vs/base/common/async';
+import { promisify } from 'util';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -105,7 +105,7 @@ class InstallAction extends Action {
 					case 0 /* OK */:
 						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'' + getSource() + '\' \'' + this.target + '\'\\" with administrator privileges"';
 
-						nfcall(cp.exec, command, {})
+						promisify(cp.exec)(command, {})
 							.then(undefined, _ => Promise.reject(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
 							.then(resolve, reject);
 						break;
@@ -172,7 +172,7 @@ class UninstallAction extends Action {
 					case 0 /* OK */:
 						const command = 'osascript -e "do shell script \\"rm \'' + this.target + '\'\\" with administrator privileges"';
 
-						nfcall(cp.exec, command, {})
+						promisify(cp.exec)(command, {})
 							.then(undefined, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
 							.then(resolve, reject);
 						break;

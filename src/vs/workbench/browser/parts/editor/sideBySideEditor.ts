@@ -21,6 +21,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 export class SideBySideEditor extends BaseEditor {
 
 	static readonly ID: string = 'workbench.editor.sidebysideEditor';
+	static MASTER: SideBySideEditor | undefined;
 
 	get minimumMasterWidth() { return this.masterEditor ? this.masterEditor.minimumWidth : 0; }
 	get maximumMasterWidth() { return this.masterEditor ? this.masterEditor.maximumWidth : Number.POSITIVE_INFINITY; }
@@ -141,12 +142,12 @@ export class SideBySideEditor extends BaseEditor {
 		this.splitview.layout(dimension.width);
 	}
 
-	getControl(): IEditorControl | null {
+	getControl(): IEditorControl | undefined {
 		if (this.masterEditor) {
 			return this.masterEditor.getControl();
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getMasterEditor(): IEditor | undefined {

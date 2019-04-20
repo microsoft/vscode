@@ -19,8 +19,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import * as extfs from 'vs/base/node/extfs';
-import * as flow from 'vs/base/node/flow';
+import { readdir } from 'vs/base/node/pfs';
 import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/common/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 
@@ -128,7 +127,7 @@ export class FileWalker {
 		this.cmdSW = StopWatch.create(false);
 
 		// For each root folder
-		flow.parallel<IFolderQuery, void>(folderQueries, (folderQuery: IFolderQuery, rootFolderDone: (err: Error | null, result: void) => void) => {
+		this.parallel<IFolderQuery, void>(folderQueries, (folderQuery: IFolderQuery, rootFolderDone: (err: Error | null, result: void) => void) => {
 			this.call(this.cmdTraversal, this, folderQuery, onResult, onMessage, (err?: Error) => {
 				if (err) {
 					const errorMessage = toErrorMessage(err);
@@ -143,6 +142,34 @@ export class FileWalker {
 			this.fileWalkSW.stop();
 			const err = errors ? arrays.coalesce(errors)[0] : null;
 			done(err, this.isLimitHit);
+		});
+	}
+
+	private parallel<T, E>(list: T[], fn: (item: T, callback: (err: Error | null, result: E | null) => void) => void, callback: (err: Array<Error | null> | null, result: E[]) => void): void {
+		const results = new Array(list.length);
+		const errors = new Array<Error | null>(list.length);
+		let didErrorOccur = false;
+		let doneCount = 0;
+
+		if (list.length === 0) {
+			return callback(null, []);
+		}
+
+		list.forEach((item, index) => {
+			fn(item, (error, result) => {
+				if (error) {
+					didErrorOccur = true;
+					results[index] = null;
+					errors[index] = error;
+				} else {
+					results[index] = result;
+					errors[index] = null;
+				}
+
+				if (++doneCount === list.length) {
+					return callback(didErrorOccur ? errors : null, results);
+				}
+			});
 		});
 	}
 
@@ -440,7 +467,7 @@ export class FileWalker {
 
 		// Execute tasks on each file in parallel to optimize throughput
 		const hasSibling = glob.hasSiblingFn(() => files);
-		flow.parallel(files, (file: string, clb: (error: Error | null, _?: any) => void): void => {
+		this.parallel(files, (file: string, clb: (error: Error | null, _?: any) => void): void => {
 
 			// Check canceled
 			if (this.isCanceled || this.isLimitHit) {
@@ -489,12 +516,14 @@ export class FileWalker {
 							this.walkedPaths[realpath] = true; // remember as walked
 
 							// Continue walking
-							return extfs.readdir(currentAbsolutePath, (error: Error, children: string[]): void => {
-								if (error || this.isCanceled || this.isLimitHit) {
+							return readdir(currentAbsolutePath).then(children => {
+								if (this.isCanceled || this.isLimitHit) {
 									return clb(null);
 								}
 
 								this.doWalk(folderQuery, currentRelativePath, children, onResult, err => clb(err || null));
+							}, error => {
+								clb(null);
 							});
 						});
 					}

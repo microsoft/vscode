@@ -8,7 +8,7 @@ import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { Action, IAction, IRunEvent } from 'vs/base/common/actions';
+import { IAction, IRunEvent } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -33,13 +33,14 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { EDITOR_TITLE_HEIGHT, IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { Themable } from 'vs/workbench/common/theme';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -78,6 +79,7 @@ export abstract class TitleControl extends Themable {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(themeService);
 
@@ -90,6 +92,7 @@ export abstract class TitleControl extends Themable {
 
 	private registerListeners(): void {
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.updateEditorActionsToolbar()));
+		this._register(this.labelService.onDidChangeFormatters(() => this.updateEditorLabels()));
 	}
 
 	protected abstract create(parent: HTMLElement): void;
@@ -122,10 +125,10 @@ export abstract class TitleControl extends Themable {
 	protected abstract handleBreadcrumbsEnablementChange(): void;
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
-		const context = { groupId: this.group.id } as IEditorCommandsContext;
+		const context: IEditorCommandsContext = { groupId: this.group.id };
 
 		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
-			actionItemProvider: action => this.actionItemProvider(action as Action),
+			actionItemProvider: action => this.actionItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
@@ -155,7 +158,7 @@ export abstract class TitleControl extends Themable {
 		}));
 	}
 
-	private actionItemProvider(action: Action): IActionItem | undefined {
+	private actionItemProvider(action: IAction): IActionItem | undefined {
 		const activeControl = this.group.activeControl;
 
 		// Check Active Editor
@@ -218,7 +221,7 @@ export abstract class TitleControl extends Themable {
 		this.editorToolBarMenuDisposables = dispose(this.editorToolBarMenuDisposables);
 
 		// Update the resource context
-		this.resourceContext.set(this.group.activeEditor ? toResource(this.group.activeEditor, { supportSideBySide: true }) : null);
+		this.resourceContext.set(this.group.activeEditor ? toResource(this.group.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null);
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeControl = this.group.activeControl;
@@ -258,7 +261,7 @@ export abstract class TitleControl extends Themable {
 
 			// If tabs are disabled, treat dragging as if an editor tab was dragged
 			if (!this.accessor.partOptions.showTabs) {
-				const resource = this.group.activeEditor ? toResource(this.group.activeEditor, { supportSideBySide: true }) : null;
+				const resource = this.group.activeEditor ? toResource(this.group.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 				if (resource) {
 					this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], e);
 				}
@@ -285,7 +288,7 @@ export abstract class TitleControl extends Themable {
 
 		// Update the resource context
 		const currentContext = this.resourceContext.get();
-		this.resourceContext.set(toResource(editor, { supportSideBySide: true }));
+		this.resourceContext.set(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }));
 
 		// Find target anchor
 		let anchor: HTMLElement | { x: number, y: number } = node;
@@ -302,7 +305,7 @@ export abstract class TitleControl extends Themable {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions,
-			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) } as IEditorCommandsContext),
+			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) }),
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: () => {
 
@@ -340,6 +343,8 @@ export abstract class TitleControl extends Themable {
 	abstract setActive(isActive: boolean): void;
 
 	abstract updateEditorLabel(editor: IEditorInput): void;
+
+	abstract updateEditorLabels(): void;
 
 	abstract updateEditorDirty(editor: IEditorInput): void;
 

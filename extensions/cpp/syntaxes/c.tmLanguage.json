@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/9de911d74546b9ae74c57e404515935a0405e696",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/4adcc1a8832391412fc7f55d08c79c52e83c9a3e",
 	"name": "C",
 	"scopeName": "source.c",
 	"patterns": [
@@ -28,6 +28,10 @@
 			"include": "#storage_types"
 		},
 		{
+			"match": "typedef",
+			"name": "keyword.other.typedef.c"
+		},
+		{
 			"match": "\\b(const|extern|register|restrict|static|volatile|inline)\\b",
 			"name": "storage.modifier.c"
 		},
@@ -49,9 +53,6 @@
 		},
 		{
 			"include": "#operators"
-		},
-		{
-			"include": "#operator_overload"
 		},
 		{
 			"include": "#numbers"
@@ -316,9 +317,9 @@
 			"include": "#parens"
 		},
 		{
-			"begin": "(?!(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|auto|void|char|short|int|signed|unsigned|long|float|double|bool|wchar_t|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t|const|static|volatile|register|restrict|constexpr|extern|inline|mutable|friend|NULL|true|false|TRUE|FALSE|nullptr|class|struct|union|enum|explicit|virtual|mutable|constexpr|consteval|private|protected|public|if|elif|else|endif|ifdef|ifndef|define|undef|include|line|error|warning|pragma|_Pragma|defined|__has_include|__has_cpp_attribute|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|atomic_cancel|atomic_commit|atomic_noexcept|concept|co_await|co_return|co_yield|export|import|module|reflexpr|requires|synchronized|thread_local|audit|axiom|transaction_safe|transaction_safe_dynamic)\\s*\\()(?=[a-zA-Z_][a-zA-Z0-9_]*\\s*\\()",
-			"end": "(?<=\\))",
 			"name": "meta.function.c",
+			"begin": "(?<!\\w)(?!\\s*(?:not|compl|sizeof|not_eq|bitand|xor|bitor|and|or|and_eq|xor_eq|or_eq|alignof|alignas|_Alignof|_Alignas|while|for|do|if|else|goto|switch|return|break|case|continue|default|void|char|short|int|signed|unsigned|long|float|double|bool|_Bool|_Complex|_Imaginary|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t|NULL|true|false|memory_order|atomic_bool|atomic_char|atomic_schar|atomic_uchar|atomic_short|atomic_ushort|atomic_int|atomic_uint|atomic_long|atomic_ulong|atomic_llong|atomic_ullong|atomic_char16_t|atomic_char32_t|atomic_wchar_t|atomic_int_least8_t|atomic_uint_least8_t|atomic_int_least16_t|atomic_uint_least16_t|atomic_int_least32_t|atomic_uint_least32_t|atomic_int_least64_t|atomic_uint_least64_t|atomic_int_fast8_t|atomic_uint_fast8_t|atomic_int_fast16_t|atomic_uint_fast16_t|atomic_int_fast32_t|atomic_uint_fast32_t|atomic_int_fast64_t|atomic_uint_fast64_t|atomic_intptr_t|atomic_uintptr_t|atomic_size_t|atomic_ptrdiff_t|atomic_intmax_t|atomic_uintmax_t|struct|union|enum|typedef|auto|register|static|extern|thread_local|inline|_Noreturn|const|volatile|restrict|_Atomic)\\s*\\()(?=[a-zA-Z_]\\w*\\s*\\()",
+			"end": "(?<=\\))",
 			"patterns": [
 				{
 					"include": "#function-innards"
@@ -366,45 +367,102 @@
 	],
 	"repository": {
 		"probably_a_parameter": {
-			"match": "(?:([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?==)|(?<=(?:[a-zA-Z0-9_]\\s|[&*>\\]\\)]))\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=(?:\\[\\]\\s*)?(?:,|\\))))",
+			"include": "#probably_a_parameter"
+		},
+		"member_access": {
+			"match": "((?:[a-zA-Z_]\\w*|(?<=\\]|\\)))\\s*)(?:((?:\\.\\*|\\.))|((?:->\\*|->)))((?:[a-zA-Z_]\\w*\\s*(?-mix:(?:(?:\\.\\*|\\.))|(?:(?:->\\*|->)))\\s*)*)\\s*(\\b(?!(?:void|char|short|int|signed|unsigned|long|float|double|bool|_Bool|_Complex|_Imaginary|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t|memory_order|atomic_bool|atomic_char|atomic_schar|atomic_uchar|atomic_short|atomic_ushort|atomic_int|atomic_uint|atomic_long|atomic_ulong|atomic_llong|atomic_ullong|atomic_char16_t|atomic_char32_t|atomic_wchar_t|atomic_int_least8_t|atomic_uint_least8_t|atomic_int_least16_t|atomic_uint_least16_t|atomic_int_least32_t|atomic_uint_least32_t|atomic_int_least64_t|atomic_uint_least64_t|atomic_int_fast8_t|atomic_uint_fast8_t|atomic_int_fast16_t|atomic_uint_fast16_t|atomic_int_fast32_t|atomic_uint_fast32_t|atomic_int_fast64_t|atomic_uint_fast64_t|atomic_intptr_t|atomic_uintptr_t|atomic_size_t|atomic_ptrdiff_t|atomic_intmax_t|atomic_uintmax_t))[a-zA-Z_]\\w*\\b(?!\\())",
 			"captures": {
 				"1": {
-					"name": "variable.parameter.probably.defaulted.c"
+					"name": "variable.other.object.access.c"
 				},
 				"2": {
-					"name": "variable.parameter.probably.c"
+					"name": "punctuation.separator.dot-access.c"
+				},
+				"3": {
+					"name": "punctuation.separator.pointer-access.c"
+				},
+				"4": {
+					"patterns": [
+						{
+							"include": "#member_access"
+						},
+						{
+							"include": "#method_access"
+						},
+						{
+							"match": "((?:[a-zA-Z_]\\w*|(?<=\\]|\\)))\\s*)(?:((?:\\.\\*|\\.))|((?:->\\*|->)))",
+							"captures": {
+								"1": {
+									"name": "variable.other.object.access.c"
+								},
+								"2": {
+									"name": "punctuation.separator.dot-access.c"
+								},
+								"3": {
+									"name": "punctuation.separator.pointer-access.c"
+								}
+							}
+						}
+					]
+				},
+				"5": {
+					"name": "variable.other.member.c"
 				}
 			}
 		},
-		"operator_overload": {
-			"begin": "((?:[a-zA-Z_][a-zA-Z0-9_]*\\s*(?:<(?:[\\s<>,\\w])*>\\s*)?::)*)(operator)((?:\\s*(?:\\+\\+|\\-\\-|\\(\\)|\\[\\]|\\->|\\+\\+|\\-\\-|\\+|\\-|!|~|\\*|&|\\->\\*|\\*|\\/|%|\\+|\\-|<<|>>|<=>|<|<=|>|>=|==|!=|&|\\^|\\||&&|\\|\\||=|\\+=|\\-=|\\*=|\\/=|%=|<<=|>>=|&=|\\^=|\\|=|,)|\\s+(?:(?:new|new\\[\\]|delete|delete\\[\\])|[a-zA-Z_][a-zA-Z0-9_]*)))\\s*(\\()",
+		"method_access": {
+			"contentName": "meta.function-call.member",
+			"begin": "((?:[a-zA-Z_]\\w*|(?<=\\]|\\)))\\s*)(?:((?:\\.\\*|\\.))|((?:->\\*|->)))((?:[a-zA-Z_]\\w*\\s*(?-mix:(?:(?:\\.\\*|\\.))|(?:(?:->\\*|->)))\\s*)*)\\s*([a-zA-Z_]\\w*)(\\()",
 			"beginCaptures": {
 				"1": {
-					"name": "entity.scope.c"
+					"name": "variable.other.object.access.c"
 				},
 				"2": {
-					"name": "entity.name.operator.overload.c"
+					"name": "punctuation.separator.dot-access.c"
 				},
 				"3": {
-					"name": "entity.name.operator.overloadee.c"
+					"name": "punctuation.separator.pointer-access.c"
 				},
 				"4": {
-					"name": "punctuation.section.parameters.begin.bracket.round.c"
+					"patterns": [
+						{
+							"include": "#member_access"
+						},
+						{
+							"include": "#method_access"
+						},
+						{
+							"match": "((?:[a-zA-Z_]\\w*|(?<=\\]|\\)))\\s*)(?:((?:\\.\\*|\\.))|((?:->\\*|->)))",
+							"captures": {
+								"1": {
+									"name": "variable.other.object.access.c"
+								},
+								"2": {
+									"name": "punctuation.separator.dot-access.c"
+								},
+								"3": {
+									"name": "punctuation.separator.pointer-access.c"
+								}
+							}
+						}
+					]
+				},
+				"5": {
+					"name": "entity.name.function.member.c"
+				},
+				"6": {
+					"name": "punctuation.section.arguments.begin.bracket.round.function.member.c"
 				}
 			},
-			"end": "\\)",
+			"end": "(\\))",
 			"endCaptures": {
-				"0": {
-					"name": "punctuation.section.parameters.end.bracket.round.c"
+				"1": {
+					"name": "punctuation.section.arguments.end.bracket.round.function.member.c"
 				}
 			},
-			"name": "meta.function.definition.parameters.operator-overload.c",
 			"patterns": [
 				{
-					"include": "#probably_a_parameter"
-				},
-				{
-					"include": "#function-innards"
+					"include": "#function-call-innards"
 				}
 			]
 		},
@@ -436,7 +494,7 @@
 							"name": "variable.object.c"
 						},
 						{
-							"name": "everything.else",
+							"name": "everything.else.c",
 							"match": ".+"
 						}
 					]
@@ -459,44 +517,6 @@
 					"include": "#function-call-innards"
 				}
 			]
-		},
-		"access-member": {
-			"name": "variable.object.access.c",
-			"match": "(?:([a-zA-Z_][a-zA-Z0-9_]*)|(?<=\\]|\\)))\\s*(?:((?:\\.|\\.\\*))|((?:->|->\\*)))\\s*((?:[a-zA-Z_][a-zA-Z0-9_]*\\s*(?:\\.|->)\\s*)*)\\b(?!(?:auto|void|char|short|int|signed|unsigned|long|float|double|bool|wchar_t|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t))([a-zA-Z_][a-zA-Z0-9_]*)\\b(?!\\()",
-			"captures": {
-				"1": {
-					"name": "variable.object.c"
-				},
-				"2": {
-					"name": "punctuation.separator.dot-access.c"
-				},
-				"3": {
-					"name": "punctuation.separator.pointer-access.c"
-				},
-				"4": {
-					"patterns": [
-						{
-							"match": "\\.",
-							"name": "punctuation.separator.dot-access.c"
-						},
-						{
-							"match": "->",
-							"name": "punctuation.separator.pointer-access.c"
-						},
-						{
-							"match": "[a-zA-Z_][a-zA-Z0-9_]*",
-							"name": "variable.object.c"
-						},
-						{
-							"match": ".+",
-							"name": "everything.else"
-						}
-					]
-				},
-				"5": {
-					"name": "variable.other.member.c"
-				}
-			}
 		},
 		"block": {
 			"patterns": [
@@ -534,10 +554,10 @@
 					"include": "#preprocessor-rule-conditional-block"
 				},
 				{
-					"include": "#access-method"
+					"include": "#method_access"
 				},
 				{
-					"include": "#access-member"
+					"include": "#member_access"
 				},
 				{
 					"include": "#c_function_call"
@@ -639,13 +659,13 @@
 						}
 					},
 					"match": "^// =(\\s*.*?)\\s*=\\s*$\\n?",
-					"name": "comment.line.banner.cpp"
+					"name": "comment.line.banner.cpp.c"
 				},
 				{
 					"begin": "(^[ \\t]+)?(?=//)",
 					"beginCaptures": {
 						"1": {
-							"name": "punctuation.whitespace.comment.leading.cpp"
+							"name": "punctuation.whitespace.comment.leading.cpp.c"
 						}
 					},
 					"end": "(?!\\G)",
@@ -654,11 +674,11 @@
 							"begin": "//",
 							"beginCaptures": {
 								"0": {
-									"name": "punctuation.definition.comment.cpp"
+									"name": "punctuation.definition.comment.cpp.c"
 								}
 							},
 							"end": "(?=\\n)",
-							"name": "comment.line.double-slash.cpp",
+							"name": "comment.line.double-slash.cpp.c",
 							"patterns": [
 								{
 									"include": "#line_continuation_character"
@@ -702,7 +722,7 @@
 			]
 		},
 		"parens": {
-			"name": "punctuation.section.parens",
+			"name": "punctuation.section.parens.c",
 			"begin": "\\(",
 			"beginCaptures": {
 				"0": {
@@ -722,7 +742,7 @@
 			]
 		},
 		"parens-block": {
-			"name": "punctuation.section.parens.block",
+			"name": "punctuation.section.parens.block.c",
 			"begin": "\\(",
 			"beginCaptures": {
 				"0": {
@@ -740,8 +760,8 @@
 					"include": "#block_innards"
 				},
 				{
-					"match": "(?<!:):(?!:)",
-					"name": "punctuation.range-based.cpp"
+					"match": "(?-mix:(?<!:):(?!:))",
+					"name": "punctuation.range-based.cpp.c"
 				}
 			]
 		},
@@ -761,7 +781,7 @@
 				}
 			},
 			"match": "^\\s*(((#)\\s*pragma\\s+mark)\\s+(.*))",
-			"name": "meta.section"
+			"name": "meta.section.c"
 		},
 		"operators": {
 			"patterns": [
@@ -825,10 +845,10 @@
 					},
 					"patterns": [
 						{
-							"include": "#access-method"
+							"include": "#method_access"
 						},
 						{
-							"include": "#access-member"
+							"include": "#member_access"
 						},
 						{
 							"include": "#c_function_call"
@@ -924,15 +944,15 @@
 		"storage_types": {
 			"patterns": [
 				{
-					"match": "(?:(?<![a-zA-Z0-9_])(?:u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t)(?![a-zA-Z0-9_])|_Bool|_Complex|_Imaginary)",
-					"name": "storage.type.built-in.c"
-				},
-				{
-					"match": "(?<![a-zA-Z0-9_])(?:auto|void|char|short|int|signed|unsigned|long|float|double|bool|wchar_t)(?![a-zA-Z0-9_])",
+					"match": "(?-mix:(?<!\\w)(?:void|char|short|int|signed|unsigned|long|float|double|bool|_Bool)(?!\\w))",
 					"name": "storage.type.built-in.primitive.c"
 				},
 				{
-					"match": "\\b(asm|__asm__|enum|struct|union)\\b",
+					"match": "(?-mix:(?<!\\w)(?:_Complex|_Imaginary|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t|memory_order|atomic_bool|atomic_char|atomic_schar|atomic_uchar|atomic_short|atomic_ushort|atomic_int|atomic_uint|atomic_long|atomic_ulong|atomic_llong|atomic_ullong|atomic_char16_t|atomic_char32_t|atomic_wchar_t|atomic_int_least8_t|atomic_uint_least8_t|atomic_int_least16_t|atomic_uint_least16_t|atomic_int_least32_t|atomic_uint_least32_t|atomic_int_least64_t|atomic_uint_least64_t|atomic_int_fast8_t|atomic_uint_fast8_t|atomic_int_fast16_t|atomic_uint_fast16_t|atomic_int_fast32_t|atomic_uint_fast32_t|atomic_int_fast64_t|atomic_uint_fast64_t|atomic_intptr_t|atomic_uintptr_t|atomic_size_t|atomic_ptrdiff_t|atomic_intmax_t|atomic_uintmax_t)(?!\\w))",
+					"name": "storage.type.built-in.c"
+				},
+				{
+					"match": "(?-mix:\\b(asm|__asm__|enum|struct|union)\\b)",
 					"name": "storage.type.$1.c"
 				}
 			]
@@ -1925,10 +1945,10 @@
 					]
 				},
 				{
-					"include": "#access-method"
+					"include": "#method_access"
 				},
 				{
-					"include": "#access-member"
+					"include": "#member_access"
 				},
 				{
 					"include": "$base"
@@ -1976,10 +1996,10 @@
 					"include": "#vararg_ellipses"
 				},
 				{
-					"include": "#access-method"
+					"include": "#method_access"
 				},
 				{
-					"include": "#access-member"
+					"include": "#member_access"
 				},
 				{
 					"include": "#operators"
@@ -2045,7 +2065,7 @@
 					"include": "#vararg_ellipses"
 				},
 				{
-					"name": "meta.function.definition.parameters",
+					"name": "meta.function.definition.parameters.c",
 					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|typeid|alignof|alignas|sizeof|[cr]?iterate|and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq|alignof|alignas)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
 					"beginCaptures": {
 						"1": {
@@ -2103,10 +2123,10 @@
 					"include": "#storage_types"
 				},
 				{
-					"include": "#access-method"
+					"include": "#method_access"
 				},
 				{
-					"include": "#access-member"
+					"include": "#member_access"
 				},
 				{
 					"include": "#operators"

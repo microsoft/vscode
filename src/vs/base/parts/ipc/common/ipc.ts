@@ -166,17 +166,17 @@ enum DataType {
 
 function createSizeBuffer(size: number): VSBuffer {
 	const result = VSBuffer.alloc(4);
-	result.writeUint32BE(size, 0);
+	result.writeUInt32BE(size, 0);
 	return result;
 }
 
 function readSizeBuffer(reader: IReader): number {
-	return reader.read(4).readUint32BE(0);
+	return reader.read(4).readUInt32BE(0);
 }
 
 function createOneByteBuffer(value: number): VSBuffer {
 	const result = VSBuffer.alloc(1);
-	result.writeUint8(value, 0);
+	result.writeUInt8(value, 0);
 	return result;
 }
 
@@ -189,6 +189,9 @@ const BufferPresets = {
 	Object: createOneByteBuffer(DataType.Object),
 };
 
+declare var Buffer: any;
+const hasBuffer = (typeof Buffer !== 'undefined');
+
 function serialize(writer: IWriter, data: any): void {
 	if (typeof data === 'undefined') {
 		writer.write(BufferPresets.Undefined);
@@ -197,7 +200,7 @@ function serialize(writer: IWriter, data: any): void {
 		writer.write(BufferPresets.String);
 		writer.write(createSizeBuffer(buffer.byteLength));
 		writer.write(buffer);
-	} else if (Buffer.isBuffer(data)) {
+	} else if (hasBuffer && Buffer.isBuffer(data)) {
 		const buffer = VSBuffer.wrap(data);
 		writer.write(BufferPresets.Buffer);
 		writer.write(createSizeBuffer(buffer.byteLength));
@@ -222,12 +225,12 @@ function serialize(writer: IWriter, data: any): void {
 }
 
 function deserialize(reader: IReader): any {
-	const type = reader.read(1).readUint8(0);
+	const type = reader.read(1).readUInt8(0);
 
 	switch (type) {
 		case DataType.Undefined: return undefined;
 		case DataType.String: return reader.read(readSizeBuffer(reader)).toString();
-		case DataType.Buffer: return reader.read(readSizeBuffer(reader)).toBuffer();
+		case DataType.Buffer: return reader.read(readSizeBuffer(reader)).buffer;
 		case DataType.VSBuffer: return reader.read(readSizeBuffer(reader));
 		case DataType.Array: {
 			const length = readSizeBuffer(reader);

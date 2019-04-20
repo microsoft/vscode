@@ -11,7 +11,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
+import { toResource, IUntitledResourceInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IPathData, IRunKeybindingInWindowRequest } from 'vs/platform/windows/common/windows';
@@ -38,7 +38,7 @@ import pkg from 'vs/platform/product/node/package';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce } from 'vs/base/common/arrays';
@@ -86,7 +86,7 @@ export class ElectronWindow extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
@@ -115,14 +115,14 @@ export class ElectronWindow extends Disposable {
 
 		// Support runAction event
 		ipc.on('vscode:runAction', (event: Event, request: IRunActionInWindowRequest) => {
-			const args: any[] = request.args || [];
+			const args: unknown[] = request.args || [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
 			// as payload because the touch bar items are context aware depending on the editor
 			if (request.from === 'touchbar') {
 				const activeEditor = this.editorService.activeEditor;
 				if (activeEditor) {
-					const resource = toResource(activeEditor, { supportSideBySide: true });
+					const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 					if (resource) {
 						args.push(resource);
 					}
@@ -226,7 +226,7 @@ export class ElectronWindow extends Disposable {
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
 
 		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.windowService.getConfiguration().filesToWait;
+		const filesToWait = this.environmentService.configuration.filesToWait;
 		if (filesToWait) {
 			const resourcesToWaitFor = coalesce(filesToWait.paths.map(p => p.fileUri));
 			const waitMarkerFile = filesToWait.waitMarkerFileUri;
@@ -320,7 +320,7 @@ export class ElectronWindow extends Disposable {
 
 		// Emit event when vscode is ready
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-			ipc.send('vscode:workbenchReady', this.windowService.getCurrentWindowId());
+			ipc.send('vscode:workbenchReady', this.windowService.windowId);
 		});
 
 		// Integrity warning
@@ -504,7 +504,7 @@ export class ElectronWindow extends Disposable {
 	}
 
 	private openResources(resources: Array<IResourceInput | IUntitledResourceInput>, diffMode: boolean): void {
-		this.lifecycleService.when(LifecyclePhase.Ready).then((): Promise<any> => {
+		this.lifecycleService.when(LifecyclePhase.Ready).then((): Promise<unknown> => {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {
@@ -526,9 +526,9 @@ export class ElectronWindow extends Disposable {
 			const resource = URI.revive(p.fileUri);
 			let input: IResourceInput | IUntitledResourceInput;
 			if (isNew) {
-				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
+				input = { filePath: resource!.fsPath, options: { pinned: true } };
 			} else {
-				input = { resource, options: { pinned: true } } as IResourceInput;
+				input = { resource, options: { pinned: true } };
 			}
 
 			if (!isNew && typeof p.lineNumber === 'number' && typeof p.columnNumber === 'number') {

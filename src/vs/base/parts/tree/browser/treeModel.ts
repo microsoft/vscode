@@ -557,19 +557,6 @@ export class Item {
 		return this.isAncestorOf(other) || other.isAncestorOf(this);
 	}
 
-	public getHierarchy(): Item[] {
-		let result: Item[] = [];
-		let node: Item | null = this;
-
-		do {
-			result.push(node);
-			node = node.parent;
-		} while (node);
-
-		result.reverse();
-		return result;
-	}
-
 	private isAncestorOf(startItem: Item): boolean {
 		let item: Item | null = startItem;
 		while (item) {

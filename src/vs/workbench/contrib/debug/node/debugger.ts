@@ -187,12 +187,6 @@ export class Debugger implements IDebugger {
 	}
 
 	private inExtHost(): boolean {
-		/*
-		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-		return !!debugConfigs.extensionHostDebugAdapter
-			|| this.configurationManager.needsToRunInExtHost(this.type)
-			|| (!!this.mainExtensionDescription && this.mainExtensionDescription.extensionLocation.scheme !== 'file');
-		*/
 		return true;
 	}
 

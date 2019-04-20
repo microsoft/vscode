@@ -21,7 +21,7 @@ import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
-import { getRealAndSyntheticDocumentFormattersOrdered, formatDocumentWithProvider } from 'vs/editor/contrib/format/format';
+import { formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -211,6 +211,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		// Nothing
@@ -227,24 +228,16 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 
 		return new Promise<any>((resolve, reject) => {
 			const source = new CancellationTokenSource();
+			const editorOrModel = findEditor(model, this._codeEditorService) || model;
+			const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', overrides);
+			const request = this._instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, source.token);
 
-			const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
-			if (provider.length !== 1) {
-				// print message for >1 case?
-				resolve();
+			setTimeout(() => {
+				reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));
+				source.cancel();
+			}, timeout);
 
-			} else {
-				// having 1 formatter -> go for it
-				const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', overrides);
-				const request = this._instantiationService.invokeFunction(formatDocumentWithProvider, provider[0], model, source.token);
-
-				setTimeout(() => {
-					reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout));
-					source.cancel();
-				}, timeout);
-
-				request.then(resolve, reject);
-			}
+			request.then(resolve, reject);
 		});
 	}
 }
@@ -315,7 +308,7 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 		}
 	}
 
-	private async applyCodeActions(actionsToRun: ReadonlyArray<CodeAction>) {
+	private async applyCodeActions(actionsToRun: readonly CodeAction[]) {
 		for (const action of actionsToRun) {
 			await applyCodeAction(action, this._bulkEditService, this._commandService);
 		}

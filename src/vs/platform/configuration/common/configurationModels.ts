@@ -9,9 +9,10 @@ import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { OVERRIDE_PROPERTY_PATTERN, ConfigurationScope, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree, toOverrides } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class ConfigurationModel implements IConfigurationModel {
 
@@ -194,10 +195,11 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 
 export class ConfigurationModelParser {
 
+	private _raw: any = null;
 	private _configurationModel: ConfigurationModel | null = null;
 	private _parseErrors: any[] = [];
 
-	constructor(protected readonly _name: string) { }
+	constructor(protected readonly _name: string, private _scopes?: ConfigurationScope[]) { }
 
 	get configurationModel(): ConfigurationModel {
 		return this._configurationModel || new ConfigurationModel();
@@ -207,15 +209,26 @@ export class ConfigurationModelParser {
 		return this._parseErrors;
 	}
 
-	public parse(content: string | null | undefined): void {
+	public parseContent(content: string | null | undefined): void {
 		if (content) {
-			const raw = this.parseContent(content);
-			const configurationModel = this.parseRaw(raw);
-			this._configurationModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
+			const raw = this.doParseContent(content);
+			this.parseRaw(raw);
 		}
 	}
 
-	protected parseContent(content: string): any {
+	public parseRaw(raw: any): void {
+		this._raw = raw;
+		const configurationModel = this.doParseRaw(raw);
+		this._configurationModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
+	}
+
+	public parse(): void {
+		if (this._raw) {
+			this.parseRaw(this._raw);
+		}
+	}
+
+	protected doParseContent(content: string): any {
 		let raw: any = {};
 		let currentProperty: string | null = null;
 		let currentParent: any = [];
@@ -272,11 +285,35 @@ export class ConfigurationModelParser {
 		return raw;
 	}
 
-	protected parseRaw(raw: any): IConfigurationModel {
+	protected doParseRaw(raw: any): IConfigurationModel {
+		if (this._scopes) {
+			const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+			raw = this.filterByScope(raw, configurationProperties, true, this._scopes);
+		}
 		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		const keys = Object.keys(raw);
 		const overrides: IOverrides[] = toOverrides(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		return { contents, keys, overrides };
+	}
+
+	private filterByScope(properties: {}, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }, filterOverriddenProperties: boolean, scopes: ConfigurationScope[]): {} {
+		const result = {};
+		for (let key in properties) {
+			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
+				result[key] = this.filterByScope(properties[key], configurationProperties, false, scopes);
+			} else {
+				const scope = this.getScope(key, configurationProperties);
+				if (scopes.indexOf(scope) !== -1) {
+					result[key] = properties[key];
+				}
+			}
+		}
+		return result;
+	}
+
+	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
+		const propertySchema = configurationProperties[key];
+		return propertySchema && typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW;
 	}
 }
 
@@ -512,8 +549,7 @@ export class Configuration {
 				const { contents, overrides, keys } = this._folderConfigurations.get(folder)!;
 				result[folder.toString()] = { contents, overrides, keys };
 				return result;
-			}, Object.create({})),
-			isComplete: true
+			}, Object.create({}))
 		};
 	}
 

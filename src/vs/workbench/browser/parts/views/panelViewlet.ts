@@ -66,6 +66,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar;
 	private headerContainer: HTMLElement;
+	private titleContainer: HTMLElement;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -141,7 +142,12 @@ export abstract class ViewletPanel extends Panel implements IView {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		append(container, $('h3.title', undefined, title));
+		this.titleContainer = append(container, $('h3.title', undefined, title));
+	}
+
+	protected updateTitle(title: string): void {
+		this.titleContainer.textContent = title;
+		this._onDidChangeTitleArea.fire();
 	}
 
 	focus(): void {
@@ -178,7 +184,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return undefined;
 	}
 
-	getActionsContext(): any {
+	getActionsContext(): unknown {
 		return undefined;
 	}
 
@@ -260,7 +266,8 @@ export class PanelViewlet extends Viewlet {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 
 		if (this.isSingleView()) {
-			title = `${title}: ${this.panelItems[0].panel.title}`;
+			const panelItemTitle = this.panelItems[0].panel.title;
+			title = panelItemTitle ? `${title}: ${panelItemTitle}` : title;
 		}
 
 		return title;

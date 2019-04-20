@@ -40,6 +40,7 @@ import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
@@ -59,6 +60,7 @@ export function startup(configuration: IssueReporterConfiguration) {
 	const issueReporter = new IssueReporter(configuration);
 	issueReporter.render();
 	document.body.style.display = 'block';
+	issueReporter.setInitialFocus();
 }
 
 export class IssueReporter extends Disposable {
@@ -79,13 +81,16 @@ export class IssueReporter extends Disposable {
 
 		this.initServices(configuration);
 
+		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
-				os: `${os.type()} ${os.arch()} ${os.release()}`
+				os: `${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
 			},
 			extensionsDisabled: !!this.environmentService.disableExtensions,
+			fileOnExtension: configuration.data.extensionId ? true : undefined,
+			selectedExtension: configuration.data.extensionId ? configuration.data.enabledExtensions.filter(extension => extension.id === configuration.data.extensionId)[0] : undefined
 		});
 
 		const issueReporterElement = this.getElementById('issue-reporter');
@@ -104,7 +109,7 @@ export class IssueReporter extends Disposable {
 			this.updatePreviewButtonState();
 		});
 
-		ipcRenderer.on('vscode:issueSystemInfoResponse', (_: unknown, info: any) => {
+		ipcRenderer.on('vscode:issueSystemInfoResponse', (_: unknown, info: SystemInfo) => {
 			this.logService.trace('issueReporter: Received system data');
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
@@ -136,6 +141,21 @@ export class IssueReporter extends Disposable {
 
 	render(): void {
 		this.renderBlocks();
+	}
+
+	setInitialFocus() {
+		const { fileOnExtension } = this.issueReporterModel.getData();
+		if (fileOnExtension) {
+			const issueTitle = document.getElementById('issue-title');
+			if (issueTitle) {
+				issueTitle.focus();
+			}
+		} else {
+			const issueType = document.getElementById('issue-type');
+			if (issueType) {
+				issueType.focus();
+			}
+		}
 	}
 
 	private applyZoom(zoomLevel: number) {
@@ -696,9 +716,13 @@ export class IssueReporter extends Disposable {
 
 	private setSourceOptions(): void {
 		const sourceSelect = this.getElementById('issue-source')! as HTMLSelectElement;
-		const selected = sourceSelect.selectedIndex;
+		const { issueType, fileOnExtension } = this.issueReporterModel.getData();
+		let selected = sourceSelect.selectedIndex;
+		if (selected === -1 && fileOnExtension !== undefined) {
+			selected = fileOnExtension ? 2 : 1;
+		}
+
 		sourceSelect.innerHTML = '';
-		const { issueType } = this.issueReporterModel.getData();
 		if (issueType === IssueType.FeatureRequest) {
 			sourceSelect.append(...[
 				this.makeOption('', localize('selectSource', "Select source"), true),
@@ -901,19 +925,40 @@ export class IssueReporter extends Disposable {
 	private updateSystemInfo(state: IssueReporterModelData) {
 		const target = document.querySelector('.block-system .block-info');
 		if (target) {
-			let tableHtml = '';
-			Object.keys(state.systemInfo).forEach(k => {
-				const data = typeof state.systemInfo[k] === 'object'
-					? Object.keys(state.systemInfo[k]).map(key => `${key}: ${state.systemInfo[k][key]}`).join('<br>')
-					: state.systemInfo[k];
+			const systemInfo = state.systemInfo!;
+			let renderedData = `
+			<table>
+				<tr><td>CPUs</td><td>${systemInfo.cpus}</td></tr>
+				<tr><td>GPU Status</td><td>${Object.keys(systemInfo.gpuStatus).map(key => `${key}: ${systemInfo.gpuStatus[key]}`).join('<br>')}</td></tr>
+				<tr><td>Load (avg)</td><td>${systemInfo.load}</td></tr>
+				<tr><td>Memory (System)</td><td>${systemInfo.memory}</td></tr>
+				<tr><td>Process Argv</td><td>${systemInfo.processArgs}</td></tr>
+				<tr><td>Screen Reader</td><td>${systemInfo.screenReader}</td></tr>
+				<tr><td>VM</td><td>${systemInfo.vmHint}</td></tr>
+			</table>`;
 
-				tableHtml += `
-					<tr>
-						<td>${k}</td>
-						<td>${data}</td>
-					</tr>`;
+			systemInfo.remoteData.forEach(remote => {
+				if (isRemoteDiagnosticError(remote)) {
+					renderedData += `
+					<hr>
+					<table>
+						<tr><td>Remote</td><td>${remote.hostName}</td></tr>
+						<tr><td></td><td>${remote.errorMessage}</td></tr>
+					</table>`;
+				} else {
+					renderedData += `
+					<hr>
+					<table>
+						<tr><td>Remote</td><td>${remote.hostName}</td></tr>
+						<tr><td>OS</td><td>${remote.machineInfo.os}</td></tr>
+						<tr><td>CPUs</td><td>${remote.machineInfo.cpus}</td></tr>
+						<tr><td>Memory (System)</td><td>${remote.machineInfo.memory}</td></tr>
+						<tr><td>VM</td><td>${remote.machineInfo.vmHint}</td></tr>
+					</table>`;
+				}
 			});
-			target.innerHTML = `<table>${tableHtml}</table>`;
+
+			target.innerHTML = renderedData;
 		}
 	}
 
@@ -945,10 +990,15 @@ export class IssueReporter extends Disposable {
 			return 0;
 		});
 
-		const makeOption = (extension: IOption) => `<option value="${extension.id}">${escape(extension.name)}</option>`;
+		const makeOption = (extension: IOption, selectedExtension?: IssueReporterExtensionData) => {
+			const selected = selectedExtension && extension.id === selectedExtension.id;
+			return `<option value="${extension.id}" ${selected ? 'selected' : ''}>${escape(extension.name)}</option>`;
+		};
+
 		const extensionsSelector = this.getElementById('extension-selector');
 		if (extensionsSelector) {
-			extensionsSelector.innerHTML = '<option></option>' + extensionOptions.map(makeOption).join('\n');
+			const { selectedExtension } = this.issueReporterModel.getData();
+			extensionsSelector.innerHTML = '<option></option>' + extensionOptions.map(extension => makeOption(extension, selectedExtension)).join('\n');
 
 			this.addEventListener('extension-selector', 'change', (e: Event) => {
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;

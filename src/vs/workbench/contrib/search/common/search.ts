@@ -9,7 +9,7 @@ import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workben
 import { SymbolKind, Location, ProviderResult } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
-import { toResource } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -85,7 +85,7 @@ export function getOutOfWorkspaceEditorResources(editorService: IEditorService, 
 	const resources: URI[] = [];
 
 	editorService.editors.forEach(editor => {
-		const resource = toResource(editor, { supportSideBySide: true });
+		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource && !contextService.isInsideWorkspace(resource)) {
 			resources.push(resource);
 		}

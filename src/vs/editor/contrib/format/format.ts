@@ -5,10 +5,10 @@
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
+import { CodeEditorStateFlag, EditorState, EditorStateCancellationTokenSource, TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
 import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerLanguageCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
@@ -22,6 +22,9 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -81,6 +84,53 @@ export function getRealAndSyntheticDocumentFormattersOrdered(model: ITextModel):
 		});
 	}
 	return result;
+}
+
+export const enum FormattingMode {
+	Explicit = 1,
+	Silent = 2
+}
+
+export interface IFormattingEditProviderSelector {
+	<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined>;
+}
+
+export abstract class FormattingConflicts {
+
+	private static readonly _selectors = new LinkedList<IFormattingEditProviderSelector>();
+
+	static setFormatterSelector(selector: IFormattingEditProviderSelector): IDisposable {
+		const remove = FormattingConflicts._selectors.unshift(selector);
+		return { dispose: remove };
+	}
+
+	static async select<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined> {
+		if (formatter.length === 0) {
+			return undefined;
+		}
+		const { value: selector } = FormattingConflicts._selectors.iterator().next();
+		if (selector) {
+			return await selector(formatter, document, mode);
+		}
+		return formatter[0];
+	}
+}
+
+export async function formatDocumentRangeWithSelectedProvider(
+	accessor: ServicesAccessor,
+	editorOrModel: ITextModel | IActiveCodeEditor,
+	range: Range,
+	mode: FormattingMode,
+	token: CancellationToken
+): Promise<void> {
+
+	const instaService = accessor.get(IInstantiationService);
+	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
+	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+	const selected = await FormattingConflicts.select(provider, model, mode);
+	if (selected) {
+		await instaService.invokeFunction(formatDocumentRangeWithProvider, selected, editorOrModel, range, token);
+	}
 }
 
 export async function formatDocumentRangeWithProvider(
@@ -152,35 +202,50 @@ export async function formatDocumentRangeWithProvider(
 	return true;
 }
 
+export async function formatDocumentWithSelectedProvider(
+	accessor: ServicesAccessor,
+	editorOrModel: ITextModel | IActiveCodeEditor,
+	mode: FormattingMode,
+	token: CancellationToken
+): Promise<void> {
+
+	const instaService = accessor.get(IInstantiationService);
+	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
+	const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
+	const selected = await FormattingConflicts.select(provider, model, mode);
+	if (selected) {
+		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token);
+	}
+}
+
 export async function formatDocumentWithProvider(
 	accessor: ServicesAccessor,
 	provider: DocumentFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
+	mode: FormattingMode,
 	token: CancellationToken
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
 
 	let model: ITextModel;
-	let validate: () => boolean;
+	let cts: CancellationTokenSource;
 	if (isCodeEditor(editorOrModel)) {
 		model = editorOrModel.getModel();
-		const state = new EditorState(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-		validate = () => state.validate(editorOrModel);
+		cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, token);
 	} else {
 		model = editorOrModel;
-		const versionNow = editorOrModel.getVersionId();
-		validate = () => versionNow === editorOrModel.getVersionId();
+		cts = new TextModelCancellationTokenSource(editorOrModel, token);
 	}
 
 	const rawEdits = await provider.provideDocumentFormattingEdits(
 		model,
 		model.getFormattingOptions(),
-		token
+		cts.token
 	);
 
 	const edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 
-	if (!validate()) {
+	if (cts.token.isCancellationRequested) {
 		return true;
 	}
 
@@ -191,10 +256,13 @@ export async function formatDocumentWithProvider(
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
 		FormattingEdit.execute(editorOrModel, edits);
-		alertFormattingEdits(edits);
-		editorOrModel.pushUndoStop();
-		editorOrModel.focus();
-		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
+
+		if (mode !== FormattingMode.Silent) {
+			alertFormattingEdits(edits);
+			editorOrModel.pushUndoStop();
+			editorOrModel.focus();
+			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
+		}
 
 	} else {
 		// use model to apply edits

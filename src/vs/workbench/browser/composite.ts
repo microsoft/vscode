@@ -44,6 +44,12 @@ export abstract class Composite extends Component implements IComposite {
 		return this._onDidFocus.event;
 	}
 
+	protected fireOnDidFocus(): void {
+		if (this._onDidFocus) {
+			this._onDidFocus.fire();
+		}
+	}
+
 	private _onDidBlur: Emitter<void>;
 	get onDidBlur(): Event<void> {
 		if (!this._onDidBlur) {
@@ -176,7 +182,7 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Provide a context to be passed to the toolbar.
 	 */
-	getActionsContext(): any {
+	getActionsContext(): unknown {
 		return null;
 	}
 
@@ -210,10 +216,10 @@ export abstract class Composite extends Component implements IComposite {
 	}
 
 	/**
-	 * Returns the underlying composite control or null if it is not accessible.
+	 * Returns the underlying composite control or `undefined` if it is not accessible.
 	 */
-	getControl(): ICompositeControl | null {
-		return null;
+	getControl(): ICompositeControl | undefined {
+		return undefined;
 	}
 }
 
@@ -257,7 +263,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 
 	protected deregisterComposite(id: string): void {
 		const descriptor = this.compositeById(id);
-		if (descriptor === null) {
+		if (!descriptor) {
 			return;
 		}
 

@@ -41,6 +41,7 @@ import { IExtensionManifest, ExtensionType, isLanguagePackExtension } from 'vs/p
 import { isUIExtension } from 'vs/platform/extensions/node/extensionsUtil';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
+import { Schemas } from 'vs/base/common/network';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -76,7 +77,7 @@ export class Main {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) { }
 
-	async run(argv: ParsedArgs): Promise<any> {
+	async run(argv: ParsedArgs): Promise<void> {
 		if (argv['install-source']) {
 			await this.setInstallSource(argv['install-source']);
 
@@ -92,14 +93,18 @@ export class Main {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
 			await this.uninstallExtension(ids);
+		} else if (argv['locate-extension']) {
+			const arg = argv['locate-extension'];
+			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
+			await this.locateExtension(ids);
 		}
 	}
 
-	private setInstallSource(installSource: string): Promise<any> {
+	private setInstallSource(installSource: string): Promise<void> {
 		return writeFile(this.environmentService.installSourcePath, installSource.slice(0, 30));
 	}
 
-	private async listExtensions(showVersions: boolean): Promise<any> {
+	private async listExtensions(showVersions: boolean): Promise<void> {
 		const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
@@ -227,7 +232,7 @@ export class Main {
 		}
 	}
 
-	private async uninstallExtension(extensions: string[]): Promise<any> {
+	private async uninstallExtension(extensions: string[]): Promise<void> {
 		async function getExtensionId(extensionDescription: string): Promise<string> {
 			if (!/\.vsix$/i.test(extensionDescription)) {
 				return extensionDescription;
@@ -255,6 +260,20 @@ export class Main {
 		if (uninstalledExtensions.some(e => isLanguagePackExtension(e.manifest))) {
 			await this.updateLocalizationsCache();
 		}
+	}
+
+	private async locateExtension(extensions: string[]): Promise<void> {
+		const installed = await this.extensionManagementService.getInstalled();
+		extensions.forEach(e => {
+			installed.forEach(i => {
+				if (i.identifier.id === e) {
+					if (i.location.scheme === Schemas.file) {
+						console.log(i.location.fsPath);
+						return;
+					}
+				}
+			});
+		});
 	}
 
 	private async updateLocalizationsCache(): Promise<void> {
@@ -286,10 +305,10 @@ export function main(argv: ParsedArgs): Promise<void> {
 		const stateService = accessor.get(IStateService);
 
 		return Promise.all([envService.appSettingsHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
-			const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = envService;
+			const { appRoot, extensionsPath, extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, isBuilt, installSourcePath } = envService;
 
 			const services = new ServiceCollection();
-			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [false]));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));

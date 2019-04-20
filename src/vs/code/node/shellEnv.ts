@@ -29,9 +29,9 @@ function getUnixShellEnvironment(): Promise<typeof process.env> {
 
 		const buffers: Buffer[] = [];
 		child.on('error', () => resolve({}));
-		child.stdout.on('data', b => buffers.push(b as Buffer));
+		child.stdout.on('data', b => buffers.push(b));
 
-		child.on('close', (code: number, signal: any) => {
+		child.on('close', code => {
 			if (code !== 0) {
 				return reject(new Error('Failed to get environment'));
 			}

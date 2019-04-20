@@ -160,7 +160,7 @@ export class LabelService implements ILabelService {
 	}
 
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
-		if (!isWorkspaceIdentifier(workspace) && !isSingleFolderWorkspaceIdentifier(workspace)) {
+		if (IWorkspace.isIWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (!identifier) {
 				return '';
@@ -176,21 +176,27 @@ export class LabelService implements ILabelService {
 			return this.appendWorkspaceSuffix(label, workspace);
 		}
 
-		// Workspace: Untitled
-		if (isEqualOrParent(workspace.configPath, this.environmentService.untitledWorkspacesHome)) {
-			return localize('untitledWorkspace', "Untitled (Workspace)");
-		}
+		if (isWorkspaceIdentifier(workspace)) {
+			// Workspace: Untitled
+			if (isEqualOrParent(workspace.configPath, this.environmentService.untitledWorkspacesHome)) {
+				return localize('untitledWorkspace', "Untitled (Workspace)");
+			}
 
-		// Workspace: Saved
-		const filename = basename(workspace.configPath);
-		const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
-		let label;
-		if (options && options.verbose) {
-			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), workspaceName)));
-		} else {
-			label = localize('workspaceName', "{0} (Workspace)", workspaceName);
+			// Workspace: Saved
+			let filename = basename(workspace.configPath);
+			if (endsWith(filename, WORKSPACE_EXTENSION)) {
+				filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+			}
+			let label;
+			if (options && options.verbose) {
+				label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), filename)));
+			} else {
+				label = localize('workspaceName', "{0} (Workspace)", filename);
+			}
+			return this.appendWorkspaceSuffix(label, workspace.configPath);
 		}
-		return this.appendWorkspaceSuffix(label, workspace.configPath);
+		return '';
+
 	}
 
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {

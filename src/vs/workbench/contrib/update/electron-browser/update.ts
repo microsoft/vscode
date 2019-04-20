@@ -23,7 +23,7 @@ import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService, INotificationHandle, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -296,7 +296,7 @@ export class UpdateContribution implements IGlobalActivity {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IWindowService private readonly windowService: IWindowService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		this.state = updateService.state;
 
@@ -326,7 +326,7 @@ export class UpdateContribution implements IGlobalActivity {
 			case StateType.Idle:
 				if (state.error) {
 					this.onError(state.error);
-				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.windowService.getCurrentWindowId()) {
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.environmentService.configuration.windowId) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -549,7 +549,7 @@ export class UpdateContribution implements IGlobalActivity {
 				return null;
 
 			case StateType.Idle:
-				const windowId = this.windowService.getCurrentWindowId();
+				const windowId = this.environmentService.configuration.windowId;
 				return new Action('update.check', nls.localize('checkForUpdates', "Check for Updates..."), undefined, true, () =>
 					this.updateService.checkForUpdates({ windowId }));
 

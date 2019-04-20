@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory, IEditorIdentifier } from 'vs/workbench/common/editor';
@@ -24,7 +24,7 @@ import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -98,7 +98,7 @@ interface IRecentlyClosedFile {
 
 export class HistoryService extends Disposable implements IHistoryService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private static readonly STORAGE_KEY = 'history.entries';
 	private static readonly MAX_HISTORY_ITEMS = 200;
@@ -838,7 +838,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
-		const entries: ISerializedEditorHistoryEntry[] = coalesce(this.history.map(input => {
+		const entries: ISerializedEditorHistoryEntry[] = coalesce(this.history.map((input): ISerializedEditorHistoryEntry | undefined => {
 
 			// Editor input: try via factory
 			if (input instanceof EditorInput) {
@@ -846,14 +846,14 @@ export class HistoryService extends Disposable implements IHistoryService {
 				if (factory) {
 					const deserialized = factory.serialize(input);
 					if (deserialized) {
-						return { editorInputJSON: { typeId: input.getTypeId(), deserialized } } as ISerializedEditorHistoryEntry;
+						return { editorInputJSON: { typeId: input.getTypeId(), deserialized } };
 					}
 				}
 			}
 
 			// File resource: via URI.toJSON()
 			else {
-				return { resourceJSON: (input as IResourceInput).resource.toJSON() } as ISerializedEditorHistoryEntry;
+				return { resourceJSON: (input as IResourceInput).resource.toJSON() };
 			}
 
 			return undefined;
@@ -884,11 +884,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private safeLoadHistoryEntry(registry: IEditorInputFactoryRegistry, entry: ISerializedEditorHistoryEntry): IEditorInput | IResourceInput | undefined {
-		const serializedEditorHistoryEntry = entry as ISerializedEditorHistoryEntry;
+		const serializedEditorHistoryEntry = entry;
 
 		// File resource: via URI.revive()
 		if (serializedEditorHistoryEntry.resourceJSON) {
-			return { resource: URI.revive(serializedEditorHistoryEntry.resourceJSON) } as IResourceInput;
+			return { resource: URI.revive(<UriComponents>serializedEditorHistoryEntry.resourceJSON) };
 		}
 
 		// Editor input: via factory
@@ -955,17 +955,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return undefined;
 	}
 
-	getLastActiveFile(schemeFilter: string): URI | undefined {
+	getLastActiveFile(filterByScheme: string): URI | undefined {
 		const history = this.getHistory();
 		for (const input of history) {
 			let resource: URI | null;
 			if (input instanceof EditorInput) {
-				resource = toResource(input, { filter: schemeFilter });
+				resource = toResource(input, { filterByScheme });
 			} else {
 				resource = (input as IResourceInput).resource;
 			}
 
-			if (resource && resource.scheme === schemeFilter) {
+			if (resource && resource.scheme === filterByScheme) {
 				return resource;
 			}
 		}

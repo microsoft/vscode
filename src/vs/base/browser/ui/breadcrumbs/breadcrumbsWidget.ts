@@ -126,7 +126,7 @@ export class BreadcrumbsWidget {
 			this._pendingLayout.dispose();
 		}
 		if (dim) {
-			// only meaure
+			// only measure
 			this._pendingLayout = this._updateDimensions(dim);
 		} else {
 			this._pendingLayout = this._updateScrollbar();
@@ -274,7 +274,7 @@ export class BreadcrumbsWidget {
 		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
 	}
 
-	getItems(): ReadonlyArray<BreadcrumbsItem> {
+	getItems(): readonly BreadcrumbsItem[] {
 		return this._items;
 	}
 
@@ -334,7 +334,7 @@ export class BreadcrumbsWidget {
 
 	private _onClick(event: IMouseEvent): void {
 		for (let el: HTMLElement | null = event.target; el; el = el.parentElement) {
-			let idx = this._nodes.indexOf(el as any);
+			let idx = this._nodes.indexOf(el as HTMLDivElement);
 			if (idx >= 0) {
 				this._focus(idx, event);
 				this._select(idx, event);

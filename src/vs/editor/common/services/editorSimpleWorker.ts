@@ -399,7 +399,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN minimal edits ---------------------------------------------------------------
 
-	private static readonly _diffLimit = 10000;
+	private static readonly _diffLimit = 100000;
 
 	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): Promise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
@@ -432,7 +432,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 
 			const original = model.getValueInRange(range);
-			text = text!.replace(/\r\n|\n|\r/g, model.eol);
+			text = text.replace(/\r\n|\n|\r/g, model.eol);
 
 			if (original === text) {
 				// noop

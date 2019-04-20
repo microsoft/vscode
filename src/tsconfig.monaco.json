@@ -1,18 +1,16 @@
 {
+	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
 		"noEmit": true,
+		"types": [],
+		"paths": {},
 		"module": "amd",
 		"moduleResolution": "classic",
-		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "es5",
 		"sourceMap": false,
-		"experimentalDecorators": true,
 		"declaration": true,
-		"noImplicitReturns": true,
-		"baseUrl": ".",
-		"types": []
 	},
 	"include": [
 		"typings/require.d.ts",
@@ -34,7 +32,6 @@
 		"vs/platform/*/browser/*"
 	],
 	"exclude": [
-		"node_modules/*",
-		"vs/base/common/buffer.ts"
+		"node_modules/*"
 	]
 }

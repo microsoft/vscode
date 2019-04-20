@@ -12,7 +12,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { isThenable } from 'vs/base/common/async';
 
 export interface IExpression {
-	[pattern: string]: boolean | SiblingClause | any;
+	[pattern: string]: boolean | SiblingClause;
 }
 
 export interface IRelativePattern {
@@ -429,7 +429,7 @@ function toRegExp(pattern: string): ParsedStringPattern {
  */
 export function match(pattern: string | IRelativePattern, path: string): boolean;
 export function match(expression: IExpression, path: string, hasSibling?: (name: string) => boolean): string /* the matching pattern */;
-export function match(arg1: string | IExpression | IRelativePattern, path: string, hasSibling?: (name: string) => boolean): any {
+export function match(arg1: string | IExpression | IRelativePattern, path: string, hasSibling?: (name: string) => boolean): boolean | string | null | Promise<string | null> {
 	if (!arg1 || typeof path !== 'string') {
 		return false;
 	}
@@ -447,14 +447,14 @@ export function match(arg1: string | IExpression | IRelativePattern, path: strin
  */
 export function parse(pattern: string | IRelativePattern, options?: IGlobOptions): ParsedPattern;
 export function parse(expression: IExpression, options?: IGlobOptions): ParsedExpression;
-export function parse(arg1: string | IExpression | IRelativePattern, options: IGlobOptions = {}): any {
+export function parse(arg1: string | IExpression | IRelativePattern, options: IGlobOptions = {}): ParsedPattern | ParsedExpression {
 	if (!arg1) {
 		return FALSE;
 	}
 
 	// Glob with String
 	if (typeof arg1 === 'string' || isRelativePattern(arg1)) {
-		const parsedPattern = parsePattern(arg1 as string | IRelativePattern, options);
+		const parsedPattern = parsePattern(arg1, options);
 		if (parsedPattern === NULL) {
 			return FALSE;
 		}
@@ -512,21 +512,10 @@ function listToMap(list: string[]) {
 	return map;
 }
 
-export function isRelativePattern(obj: any): obj is IRelativePattern {
+export function isRelativePattern(obj: unknown): obj is IRelativePattern {
 	const rp = obj as IRelativePattern;
 
 	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
-}
-
-/**
- * Same as `parse`, but the ParsedExpression is guaranteed to return a Promise
- */
-export function parseToAsync(expression: IExpression, options?: IGlobOptions): ParsedExpression {
-	const parsedExpression = parse(expression, options);
-	return (path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | null | Promise<string | null> => {
-		const result = parsedExpression(path, basename, hasSibling);
-		return isThenable(result) ? result : Promise.resolve(result);
-	};
 }
 
 export function getBasenameTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {
@@ -613,7 +602,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 	return resultExpression;
 }
 
-function parseExpressionPattern(pattern: string, value: any, options: IGlobOptions): (ParsedStringPattern | ParsedExpressionPattern) {
+function parseExpressionPattern(pattern: string, value: boolean | SiblingClause, options: IGlobOptions): (ParsedStringPattern | ParsedExpressionPattern) {
 	if (value === false) {
 		return NULL; // pattern is disabled
 	}

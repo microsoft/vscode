@@ -381,7 +381,14 @@ export class MarkdownPreview extends Disposable {
 		clearTimeout(this.throttleTimer);
 		this.throttleTimer = undefined;
 
-		const document = await vscode.workspace.openTextDocument(resource);
+		let document: vscode.TextDocument;
+		try {
+			document = await vscode.workspace.openTextDocument(resource);
+		} catch {
+			await this.showFileNotFoundError();
+			return;
+		}
+
 		if (!this.forceUpdate && this.currentVersion && this.currentVersion.resource.fsPath === resource.fsPath && this.currentVersion.version === document.version) {
 			if (this.line) {
 				this.updateForView(resource, this.line);
@@ -391,12 +398,9 @@ export class MarkdownPreview extends Disposable {
 		this.forceUpdate = false;
 
 		this.currentVersion = { resource, version: document.version };
-		const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
 		if (this._resource === resource) {
-			this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
-			this.editor.iconPath = this.iconPath;
-			this.editor.webview.options = MarkdownPreview.getWebviewOptions(resource, this._contributionProvider.contributions);
-			this.editor.webview.html = content;
+			const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
+			this.setContent(content);
 		}
 	}
 
@@ -456,7 +460,22 @@ export class MarkdownPreview extends Disposable {
 			}
 		}
 
-		vscode.workspace.openTextDocument(this._resource).then(vscode.window.showTextDocument);
+		vscode.workspace.openTextDocument(this._resource)
+			.then(vscode.window.showTextDocument)
+			.then(undefined, () => {
+				vscode.window.showErrorMessage(localize('preview.clickOpenFailed', 'Could not open {0}', this._resource.toString()));
+			});
+	}
+
+	private async showFileNotFoundError() {
+		this.setContent(this._contentProvider.provideFileNotFoundContent(this._resource));
+	}
+
+	private setContent(html: string): void {
+		this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+		this.editor.iconPath = this.iconPath;
+		this.editor.webview.options = MarkdownPreview.getWebviewOptions(this._resource, this._contributionProvider.contributions);
+		this.editor.webview.html = html;
 	}
 
 	private async onDidClickPreviewLink(path: string, fragment: string | undefined) {

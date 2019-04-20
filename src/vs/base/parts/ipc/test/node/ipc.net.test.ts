@@ -6,7 +6,8 @@
 import * as assert from 'assert';
 import { Socket } from 'net';
 import { EventEmitter } from 'events';
-import { Protocol, PersistentProtocol, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { Protocol, PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 class MessageStream {
@@ -135,10 +136,10 @@ suite('IPC, Socket Protocol', () => {
 		assert.equal(msg1.toString(), 'foobarfarboo');
 
 		const buffer = VSBuffer.alloc(1);
-		buffer.writeUint8(123, 0);
+		buffer.writeUInt8(123, 0);
 		a.send(buffer);
 		const msg2 = await bMessages.waitForOne();
-		assert.equal(msg2.readUint8(0), 123);
+		assert.equal(msg2.readUInt8(0), 123);
 	});
 
 

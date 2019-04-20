@@ -10,6 +10,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import { isErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { startsWith } from 'vs/base/common/strings';
+import { localize } from 'vs/nls';
 
 export interface INotificationsModel {
 
@@ -206,7 +208,7 @@ export interface INotificationViewItem {
 	equals(item: INotificationViewItem): boolean;
 }
 
-export function isNotificationViewItem(obj: any): obj is INotificationViewItem {
+export function isNotificationViewItem(obj: unknown): obj is INotificationViewItem {
 	return obj instanceof NotificationViewItem;
 }
 
@@ -306,8 +308,9 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 }
 
 export interface IMessageLink {
-	name: string;
 	href: string;
+	name: string;
+	title: string;
 	offset: number;
 	length: number;
 }
@@ -324,8 +327,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	private static MAX_MESSAGE_LENGTH = 1000;
 
 	// Example link: "Some message with [link text](http://link.href)."
-	// RegEx: [, anything not ], ], (, http:|https:, //, no whitespace)
-	private static LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^\)\s]+)\)/gi;
+	// RegEx: [, anything not ], ], (, http://|https://|command:, no whitespace)
+	private static LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: "([^"]+)")?\)/gi;
 
 	private _expanded: boolean;
 
@@ -392,8 +395,17 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 		// Parse Links
 		const links: IMessageLink[] = [];
-		message.replace(NotificationViewItem.LINK_REGEX, (matchString: string, name: string, href: string, offset: number) => {
-			links.push({ name, href, offset, length: matchString.length });
+		message.replace(NotificationViewItem.LINK_REGEX, (matchString: string, name: string, href: string, title: string, offset: number) => {
+			let massagedTitle: string;
+			if (title && title.length > 0) {
+				massagedTitle = title;
+			} else if (startsWith(href, 'command:')) {
+				massagedTitle = localize('executeCommand', "Click to execute command '{0}'", href.substr('command:'.length));
+			} else {
+				massagedTitle = href;
+			}
+
+			links.push({ name, href, title: massagedTitle, offset, length: matchString.length });
 
 			return matchString;
 		});

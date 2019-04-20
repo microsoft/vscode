@@ -93,7 +93,7 @@ class CreateBranchItem implements QuickPickItem {
 
 	constructor(private cc: CommandCenter) { }
 
-	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
+	get label(): string { return localize('create branch', '$(plus) Create new branch...'); }
 	get description(): string { return ''; }
 
 	get alwaysShow(): boolean { return true; }
@@ -1445,6 +1445,7 @@ export class CommandCenter {
 		const quickpick = window.createQuickPick();
 		quickpick.items = picks;
 		quickpick.placeholder = placeHolder;
+		quickpick.ignoreFocusOut = true;
 		quickpick.show();
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => quickpick.onDidAccept(() => c(quickpick.activeItems[0])));

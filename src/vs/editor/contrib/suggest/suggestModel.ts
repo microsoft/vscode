@@ -343,7 +343,7 @@ export class SuggestModel implements IDisposable {
 			const position = this._editor.getPosition();
 			const ctx = new LineContext(model, position, this._state === State.Auto, false);
 			this._onNewContext(ctx);
-		}, 25);
+		}, 0);
 	}
 
 	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existingItems?: CompletionItem[]): void {

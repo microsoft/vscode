@@ -3,62 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRawFileChange, toFileChangesEvent } from 'vs/workbench/services/files/node/watcher/common';
+import { IDiskFileChange } from 'vs/workbench/services/files/node/watcher/watcher';
 import { OutOfProcessWin32FolderWatcher } from 'vs/workbench/services/files/node/watcher/win32/csharpWatcherService';
-import { FileChangesEvent } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { normalize, posix } from 'vs/base/common/path';
+import { posix } from 'vs/base/common/path';
 import { rtrim, endsWith } from 'vs/base/common/strings';
-import { Schemas } from 'vs/base/common/network';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class FileWatcher {
+export class FileWatcher extends Disposable {
 	private isDisposed: boolean;
+	private folder: { path: string, excludes: string[] };
 
 	constructor(
-		private contextService: IWorkspaceContextService,
-		private ignored: string[],
-		private onFileChanges: (changes: FileChangesEvent) => void,
+		folders: { path: string, excludes: string[] }[],
+		private onFileChanges: (changes: IDiskFileChange[]) => void,
 		private errorLogger: (msg: string) => void,
 		private verboseLogging: boolean
 	) {
-	}
+		super();
 
-	public startWatching(): () => void {
-		if (this.contextService.getWorkspace().folders[0].uri.scheme !== Schemas.file) {
-			return () => { };
-		}
-		let basePath: string = normalize(this.contextService.getWorkspace().folders[0].uri.fsPath);
+		this.folder = folders[0];
 
-		if (basePath && basePath.indexOf('\\\\') === 0 && endsWith(basePath, posix.sep)) {
+		if (this.folder.path.indexOf('\\\\') === 0 && endsWith(this.folder.path, posix.sep)) {
 			// for some weird reason, node adds a trailing slash to UNC paths
 			// we never ever want trailing slashes as our base path unless
 			// someone opens root ("/").
 			// See also https://github.com/nodejs/io.js/issues/1765
-			basePath = rtrim(basePath, posix.sep);
+			this.folder.path = rtrim(this.folder.path, posix.sep);
 		}
 
-		const watcher = new OutOfProcessWin32FolderWatcher(
-			basePath,
-			this.ignored,
-			events => this.onRawFileEvents(events),
-			error => this.onError(error),
-			this.verboseLogging
-		);
-
-		return () => {
-			this.isDisposed = true;
-			watcher.dispose();
-		};
+		this.startWatching();
 	}
 
-	private onRawFileEvents(events: IRawFileChange[]): void {
+	private startWatching(): void {
+		this._register(new OutOfProcessWin32FolderWatcher(
+			this.folder.path,
+			this.folder.excludes,
+			events => this.onFileEvents(events),
+			error => this.onError(error),
+			this.verboseLogging
+		));
+	}
+
+	private onFileEvents(events: IDiskFileChange[]): void {
 		if (this.isDisposed) {
 			return;
 		}
 
 		// Emit through event emitter
 		if (events.length > 0) {
-			this.onFileChanges(toFileChangesEvent(events));
+			this.onFileChanges(events);
 		}
 	}
 
@@ -66,5 +59,11 @@ export class FileWatcher {
 		if (!this.isDisposed) {
 			this.errorLogger(error);
 		}
+	}
+
+	dispose(): void {
+		this.isDisposed = true;
+
+		super.dispose();
 	}
 }

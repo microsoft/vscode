@@ -45,18 +45,31 @@
 }
 
 /* adding padding to the most left status bar item */
-.monaco-workbench .part.statusbar > .statusbar-item.left:first-child, .monaco-workbench .part.statusbar > .statusbar-item.right + .statusbar-item.left {
+.monaco-workbench .part.statusbar > .statusbar-item.left:first-child,
+.monaco-workbench .part.statusbar > .statusbar-item.right + .statusbar-item.left {
 	padding-left: 7px;
 }
-.monaco-workbench .part.statusbar > .statusbar-item.has-background-color.left:first-child, .monaco-workbench .part.statusbar > .statusbar-item.right + .statusbar-item.has-background-color.left {
-	padding-right: 7px; /* expand padding if background color is configured for the status bar entry to make it look centered properly */
-}
+
 /* adding padding to the most right status bar item */
 .monaco-workbench .part.statusbar > .statusbar-item.right:first-child {
 	padding-right: 7px;
 }
+
+/* tweak appearance for items with background to improve hover feedback */
+.monaco-workbench .part.statusbar > .statusbar-item.has-background-color.left:first-child,
+.monaco-workbench .part.statusbar > .statusbar-item.right + .statusbar-item.has-background-color.left,
 .monaco-workbench .part.statusbar > .statusbar-item.has-background-color.right:first-child {
-	padding-left: 7px; /* expand padding if background color is configured for the status bar entry to make it look centered properly */
+	padding-right: 0;
+	padding-left: 0;
+}
+
+.monaco-workbench .part.statusbar > .statusbar-item.has-background-color.left > :first-child,
+.monaco-workbench .part.statusbar > .statusbar-item.has-background-color.right > :first-child
+{
+	margin-right: 0;
+	margin-left: 0;
+	padding-left: 10px;
+	padding-right: 10px;
 }
 
 .monaco-workbench .part.statusbar > .statusbar-item a {

@@ -19,7 +19,8 @@ import { getDefaultShell, linuxDistro, getWindowsBuildNumber } from 'vs/workbenc
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ipcRenderer as ipc } from 'electron';
-import { IOpenFileRequest, IWindowService } from 'vs/platform/windows/common/windows';
+import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { coalesce } from 'vs/base/common/arrays';
@@ -27,6 +28,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { execFile } from 'child_process';
 import { URI } from 'vs/base/common/uri';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class TerminalService extends BrowserTerminalService implements ITerminalService {
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
@@ -43,10 +45,11 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		@INotificationService notificationService: INotificationService,
 		@IDialogService dialogService: IDialogService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWindowService windowService: IWindowService,
-		@IFileService fileService: IFileService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IFileService fileService: IFileService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
-		super(contextKeyService, panelService, layoutService, lifecycleService, storageService, notificationService, dialogService, instantiationService, windowService, extensionService, fileService);
+		super(contextKeyService, panelService, layoutService, lifecycleService, storageService, notificationService, dialogService, instantiationService, environmentService, extensionService, fileService, remoteAgentService);
 
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, linuxDistro);
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
@@ -82,7 +85,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			const interval = setInterval(() => {
 				if (!running) {
 					running = true;
-					this._fileService.existsFile(path).then(exists => {
+					this._fileService.exists(path).then(exists => {
 						running = false;
 
 						if (!exists) {

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { TextEditorLineNumbersStyle, Range } from 'vs/workbench/api/node/extHostTypes';
+import { TextEditorLineNumbersStyle, Range } from 'vs/workbench/api/common/extHostTypes';
 import { TextEditorCursorStyle, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/node/extHostTextEditor';
-import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
+import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
+import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 

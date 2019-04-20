@@ -112,7 +112,7 @@ export class InspectContextKeysAction extends Action {
 export class ToggleScreencastModeAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleScreencastMode';
-	static LABEL = nls.localize('toggle mouse clicks', "Toggle Screencast Mode");
+	static LABEL = nls.localize('toggle screencast mode', "Toggle Screencast Mode");
 
 	static disposable: IDisposable | undefined;
 

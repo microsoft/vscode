@@ -16,7 +16,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DropdownMenuActionItem, IContextMenuProvider } from 'vs/base/browser/ui/dropdown/dropdown';
+import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind, INotificationMessage, ChoiceAction } from 'vs/workbench/common/notifications';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -153,7 +153,7 @@ class NotificationMessageRenderer {
 
 				const anchor = document.createElement('a');
 				anchor.textContent = link.name;
-				anchor.title = link.href;
+				anchor.title = link.title;
 				anchor.href = link.href;
 
 				if (actionHandler) {
@@ -221,7 +221,7 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 				ariaLabel: localize('notificationActions', "Notification Actions"),
 				actionItemProvider: action => {
 					if (action && action instanceof ConfigureNotificationAction) {
-						const item = new DropdownMenuActionItem(action, action.configurationActions, this.contextMenuService as IContextMenuProvider, undefined, this.actionRunner, undefined, action.class as string);
+						const item = new DropdownMenuActionItem(action, action.configurationActions, this.contextMenuService, undefined, this.actionRunner, undefined, action.class);
 						data.toDispose.push(item);
 
 						return item;
@@ -349,6 +349,9 @@ export class NotificationTemplateRenderer {
 					break;
 				case NotificationViewItemLabelKind.PROGRESS:
 					this.renderProgress(notification);
+					break;
+				case NotificationViewItemLabelKind.MESSAGE:
+					this.renderMessage(notification);
 					break;
 			}
 		}));

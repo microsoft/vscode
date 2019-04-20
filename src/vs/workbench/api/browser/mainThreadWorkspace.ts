@@ -22,6 +22,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData, ITextSearchComplete } from '../common/extHost.protocol';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isEqualOrParent } from 'vs/base/common/resources';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -40,7 +42,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILabelService private readonly _labelService: ILabelService
+		@ILabelService private readonly _labelService: ILabelService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace)));
@@ -110,6 +113,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		}
 		return {
 			configuration: workspace.configuration || undefined,
+			isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false,
 			folders: workspace.folders,
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace)
@@ -220,7 +224,7 @@ CommandsRegistry.registerCommand('_workbench.enterWorkspace', async function (ac
 		const runningExtensions = await extensionService.getExtensions();
 		// If requested extension to disable is running, then reload window with given workspace
 		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => ExtensionIdentifier.equals(runningExtension.identifier, id)))) {
-			return windowService.openWindow([{ uri: workspace, typeHint: 'file' }], { args: { _: [], 'disable-extension': disableExtensions } });
+			return windowService.openWindow([{ workspaceUri: workspace }], { args: { _: [], 'disable-extension': disableExtensions } });
 		}
 	}
 

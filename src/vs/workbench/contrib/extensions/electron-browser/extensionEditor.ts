@@ -28,13 +28,11 @@ import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/electron-browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, DisabledLabelAction, SystemDisabledWarningAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -132,7 +130,7 @@ class NavBar {
 	}
 
 	dispose(): void {
-		this.actionbar = dispose(this.actionbar);
+		dispose(this.actionbar);
 	}
 }
 
@@ -197,7 +195,6 @@ export class ExtensionEditor extends BaseEditor {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -214,6 +211,8 @@ export class ExtensionEditor extends BaseEditor {
 
 	createEditor(parent: HTMLElement): void {
 		const root = append(parent, $('.extension-editor'));
+		root.tabIndex = 0; // this is required for the focus tracker on the editor
+		root.style.outline = 'none';
 		this.header = append(root, $('.header'));
 
 		this.iconContainer = append(this.header, $('.icon-container'));
@@ -368,6 +367,8 @@ export class ExtensionEditor extends BaseEditor {
 			this.instantiationService.createInstance(RatingsWidget, this.rating, false)
 		];
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
+		const combinedInstallAction = this.instantiationService.createInstance(CombinedInstallAction);
+		const systemDisabledWarningAction = this.instantiationService.createInstance(SystemDisabledWarningAction);
 		const actions = [
 			reloadAction,
 			this.instantiationService.createInstance(StatusLabelAction),
@@ -376,7 +377,10 @@ export class ExtensionEditor extends BaseEditor {
 			this.instantiationService.createInstance(SetFileIconThemeAction, fileIconThemes),
 			this.instantiationService.createInstance(EnableDropDownAction),
 			this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
-			this.instantiationService.createInstance(CombinedInstallAction),
+			this.instantiationService.createInstance(RemoteInstallAction),
+			combinedInstallAction,
+			systemDisabledWarningAction,
+			this.instantiationService.createInstance(DisabledLabelAction, systemDisabledWarningAction),
 			this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
 		];
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
@@ -398,6 +402,9 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionManifest.get()
 			.promise
 			.then(manifest => {
+				if (manifest) {
+					combinedInstallAction.manifest = manifest;
+				}
 				if (extension.extensionPack.length) {
 					this.navbar.push(NavbarSection.ExtensionPack, localize('extensionPack', "Extension Pack"), localize('extensionsPack', "Set of extensions that can be installed together"));
 				}
@@ -531,20 +538,20 @@ export class ExtensionEditor extends BaseEditor {
 			.then(renderBody)
 			.then(removeEmbeddedSVGs)
 			.then(body => {
-				const wbeviewElement = this.instantiationService.createInstance(WebviewElement,
-					this.layoutService.getContainer(Parts.EDITOR_PART),
+				const webviewElement = this.instantiationService.createInstance(WebviewElement,
 					{
 						enableFindWidget: true,
 					},
 					{
 						svgWhiteList: this.extensionsWorkbenchService.allowedBadgeProviders
 					});
-				wbeviewElement.mountTo(this.content);
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, wbeviewElement);
+				webviewElement.mountTo(this.content);
+				this.contentDisposables.push(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webviewElement);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
-				wbeviewElement.contents = body;
+				webviewElement.contents = body;
 
-				wbeviewElement.onDidClickLink(link => {
+				this.contentDisposables.push(webviewElement.onDidClickLink(link => {
 					if (!link) {
 						return;
 					}
@@ -552,9 +559,9 @@ export class ExtensionEditor extends BaseEditor {
 					if (['http', 'https', 'mailto'].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesAction.ID)) {
 						this.openerService.open(link);
 					}
-				}, null, this.contentDisposables);
-				this.contentDisposables.push(wbeviewElement);
-				return wbeviewElement;
+				}, null, this.contentDisposables));
+				this.contentDisposables.push(webviewElement);
+				return webviewElement;
 			})
 			.then(undefined, () => {
 				const p = append(this.content, $('p.nocontent'));
@@ -599,9 +606,9 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderLocalizations(content, manifest, layout)
 				];
 
-				const isEmpty = !renders.reduce((v, r) => r || v, false);
 				scrollableContent.scanDomNode();
 
+				const isEmpty = !renders.some(x => x);
 				if (isEmpty) {
 					append(content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
 					append(this.content, content);
@@ -654,7 +661,7 @@ export class ExtensionEditor extends BaseEditor {
 			});
 	}
 
-	private renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
+	private renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): ExtensionsTree {
 		class ExtensionData implements IExtensionData {
 
 			private readonly extensionDependencies: IExtensionDependencies;
@@ -703,7 +710,7 @@ export class ExtensionEditor extends BaseEditor {
 		return Promise.resolve({ focus() { extensionsPackTree.domFocus(); } });
 	}
 
-	private renderExtensionPack(container: HTMLElement, extension: IExtension): Tree {
+	private renderExtensionPack(container: HTMLElement, extension: IExtension): ExtensionsTree {
 		const extensionsWorkbenchService = this.extensionsWorkbenchService;
 		class ExtensionData implements IExtensionData {
 

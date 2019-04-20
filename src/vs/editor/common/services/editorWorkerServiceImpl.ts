@@ -21,6 +21,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { regExpFlags } from 'vs/base/common/strings';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { ILogService } from 'vs/platform/log/common/log';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -48,22 +50,26 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 
 	private readonly _modelService: IModelService;
 	private readonly _workerManager: WorkerManager;
-
+	private readonly _logService: ILogService;
 	constructor(
 		@IModelService modelService: IModelService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ILogService logService: ILogService
 	) {
 		super();
 		this._modelService = modelService;
 		this._workerManager = this._register(new WorkerManager(this._modelService));
+		this._logService = logService;
 
 		// todo@joh make sure this happens only once
-		this._register(modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
+		this._register(modes.LinkProviderRegistry.register('*', {
 			provideLinks: (model, token) => {
 				if (!canSyncModel(this._modelService, model.uri)) {
-					return Promise.resolve([]); // File too large
+					return Promise.resolve({ links: [] }); // File too large
 				}
-				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri));
+				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri)).then(links => {
+					return links && { links };
+				});
 			}
 		}));
 		this._register(modes.CompletionProviderRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
@@ -94,7 +100,10 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 			if (!canSyncModel(this._modelService, resource)) {
 				return Promise.resolve(edits); // File too large
 			}
-			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
+			const sw = StopWatch.create(true);
+			const result = this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
+			result.finally(() => this._logService.trace('FORMAT#computeMoreMinimalEdits', resource.toString(true), sw.elapsed()));
+			return result;
 
 		} else {
 			return Promise.resolve(undefined);

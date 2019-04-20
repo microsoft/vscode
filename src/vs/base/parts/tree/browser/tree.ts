@@ -109,60 +109,15 @@ export interface ITree {
 	toggleExpansion(element: any, recursive?: boolean): Promise<any>;
 
 	/**
-	 * Toggles several element's expansion state.
-	 */
-	toggleExpansionAll(elements: any[]): Promise<any>;
-
-	/**
 	 * Returns whether an element is expanded or not.
 	 */
 	isExpanded(element: any): boolean;
-
-	/**
-	 * Returns a list of the currently expanded elements.
-	 */
-	getExpandedElements(): any[];
 
 	/**
 	 * Reveals an element in the tree. The relativeTop is a value between 0 and 1. The closer to 0 the more the
 	 * element will scroll up to the top.
 	 */
 	reveal(element: any, relativeTop?: number): Promise<any>;
-
-	/**
-	 * Returns the relative top position of any given element, if visible.
-	 * If not visible, returns a negative number or a number > 1.
-	 * Useful when calling `reveal(element, relativeTop)`.
-	 */
-	getRelativeTop(element: any): number;
-
-	/**
-	 * Returns the top-most visible element.
-	 */
-	getFirstVisibleElement(): any;
-
-	/**
-	 * Returns a number between 0 and 1 representing how much the tree is scroll down. 0 means all the way
-	 * to the top; 1 means all the way down.
-	 */
-	getScrollPosition(): number;
-
-	/**
-	 * Sets the scroll position with a number between 0 and 1 representing how much the tree is scroll down. 0 means all the way
-	 * to the top; 1 means all the way down.
-	 */
-	setScrollPosition(pos: number): void;
-
-	/**
-	 * Returns the total height of the tree's content.
-	 */
-	getContentHeight(): number;
-
-	/**
-	 * Sets the tree's highlight to be the given element.
-	 * Provide no arguments and it clears the tree's highlight.
-	 */
-	setHighlight(element?: any, eventPayload?: any): void;
 
 	/**
 	 * Returns the currently highlighted element.

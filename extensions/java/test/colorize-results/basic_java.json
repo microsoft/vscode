@@ -1068,13 +1068,13 @@
 	},
 	{
 		"c": "@",
-		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java storage.type.annotation.java punctuation.definition.annotation.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java punctuation.definition.annotation.java",
 		"r": {
-			"dark_plus": "storage.type.annotation.java: #4EC9B0",
-			"light_plus": "storage.type.annotation.java: #267F99",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type.annotation.java: #4EC9B0"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -1871,13 +1871,13 @@
 	},
 	{
 		"c": "@",
-		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java storage.type.annotation.java punctuation.definition.annotation.java",
+		"t": "source.java meta.class.java meta.class.body.java meta.declaration.annotation.java punctuation.definition.annotation.java",
 		"r": {
-			"dark_plus": "storage.type.annotation.java: #4EC9B0",
-			"light_plus": "storage.type.annotation.java: #267F99",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type.annotation.java: #4EC9B0"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{

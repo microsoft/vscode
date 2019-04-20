@@ -86,7 +86,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this.channel.listen('onDidUninstallExtension'); }
 
 	zip(extension: ILocalExtension): Promise<URI> {
-		return Promise.resolve(this.channel.call('zip', [extension]).then(result => URI.revive(result)));
+		return Promise.resolve(this.channel.call('zip', [extension]).then(result => URI.revive(<UriComponents>result)));
 	}
 
 	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {

@@ -8,7 +8,7 @@ import * as os from 'os';
 import * as uuid from 'vs/base/common/uuid';
 import { readFile } from 'vs/base/node/pfs';
 
-export function resolveCommonProperties(commit: string | undefined, version: string | undefined, machineId: string | undefined, installSourcePath: string): Promise<{ [name: string]: string | undefined; }> {
+export function resolveCommonProperties(commit: string | undefined, version: string | undefined, machineId: string | undefined, installSourcePath: string, product?: string): Promise<{ [name: string]: string | undefined; }> {
 	const result: { [name: string]: string | undefined; } = Object.create(null);
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 	result['common.machineId'] = machineId;
@@ -26,6 +26,8 @@ export function resolveCommonProperties(commit: string | undefined, version: str
 	result['common.nodePlatform'] = process.platform;
 	// __GDPR__COMMON__ "common.nodeArch" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.nodeArch'] = process.arch;
+	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+	result['common.product'] = product || 'desktop';
 
 	// dynamic properties which value differs on each call
 	let seq = 0;
@@ -47,6 +49,11 @@ export function resolveCommonProperties(commit: string | undefined, version: str
 			enumerable: true
 		}
 	});
+
+	if (process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION) {
+		// __GDPR__COMMON__ "common.snap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		result['common.snap'] = 'true';
+	}
 
 	return readFile(installSourcePath, 'utf8').then(contents => {
 

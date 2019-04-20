@@ -7,7 +7,7 @@ import * as minimist from 'minimist';
 import * as os from 'os';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { writeFileSync } from 'fs';
 
 /**
@@ -66,6 +66,7 @@ export const options: Option[] = [
 	{ id: 'max-memory', type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
 
 	{ id: 'remote', type: 'string' },
+	{ id: 'locate-extension', type: 'string' },
 	{ id: 'extensionDevelopmentPath', type: 'string' },
 	{ id: 'extensionTestsPath', type: 'string' },
 	{ id: 'debugId', type: 'string' },
@@ -94,7 +95,8 @@ export const options: Option[] = [
 	{ id: 'trace-category-filter', type: 'string' },
 	{ id: 'trace-options', type: 'string' },
 	{ id: 'prof-code-loading', type: 'boolean' },
-	{ id: 'nodeless', type: 'boolean' } // TODO@ben revisit electron5 nodeless support
+	{ id: 'nodeless', type: 'boolean' }, // TODO@ben revisit electron5 nodeless support
+	{ id: '_', type: 'string' }
 ];
 
 export function parseArgs(args: string[], isOptionSupported = (_: Option) => true): ParsedArgs {
@@ -186,7 +188,7 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, isOptionSupported = (_: Option) => true): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, isOptionSupported = (_: Option) => true, isPipeSupported = true): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
 
 	let categories = new HelpCategories();
@@ -195,12 +197,14 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 	help.push('');
 	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}][${localize('paths', 'paths')}...]`);
 	help.push('');
-	if (os.platform() === 'win32') {
-		help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
-	} else {
-		help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
+	if (isPipeSupported) {
+		if (os.platform() === 'win32') {
+			help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
+		} else {
+			help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
+		}
+		help.push('');
 	}
-	help.push('');
 	for (let key in categories) {
 		let categoryOptions = options.filter(o => !!o.description && o.cat === key && isOptionSupported(o));
 		if (categoryOptions.length) {

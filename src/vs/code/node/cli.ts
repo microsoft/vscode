@@ -13,11 +13,10 @@ import pkg from 'vs/platform/product/node/package';
 import * as paths from 'vs/base/common/path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { whenDeleted } from 'vs/base/node/pfs';
+import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
-import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
 import { ProfilingSession, Target } from 'v8-inspect-profiler';
 
@@ -25,7 +24,8 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
-		|| !!argv['uninstall-extension'];
+		|| !!argv['uninstall-extension']
+		|| !!argv['locate-extension'];
 }
 
 interface IMainCli {
@@ -98,9 +98,9 @@ export async function main(argv: string[]): Promise<any> {
 				// prevent removing alternate data streams
 				// (see https://github.com/Microsoft/vscode/issues/6363)
 				fs.truncateSync(target, 0);
-				writeFileAndFlushSync(target, data, { flag: 'r+' });
+				writeFileSync(target, data, { flag: 'r+' });
 			} else {
-				writeFileAndFlushSync(target, data);
+				writeFileSync(target, data);
 			}
 
 			// Restore previous mode as needed

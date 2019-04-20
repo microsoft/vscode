@@ -58,7 +58,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 		}
 	}
 
-	when(phase: LifecyclePhase): Promise<any> {
+	when(phase: LifecyclePhase): Promise<void> {
 		if (phase <= this._phase) {
 			return Promise.resolve();
 		}
@@ -69,6 +69,6 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 			this.phaseWhen.set(phase, barrier);
 		}
 
-		return barrier.wait();
+		return barrier.wait().then(undefined);
 	}
 }

@@ -6,13 +6,13 @@
 import { localize } from 'vs/nls';
 import { memoize } from 'vs/base/common/decorators';
 import { basename } from 'vs/base/common/path';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent, LoadReason, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -118,7 +118,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	getName(): string {
 		if (!this.name) {
-			this.name = basenameOrAuthority(this.resource);
+			this.name = basename(this.labelService.getUriLabel(this.resource));
 		}
 
 		return this.decorateLabel(this.name);
@@ -195,6 +195,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		if (model && model.hasState(ModelState.ORPHAN)) {
 			return localize('orphanedFile', "{0} (deleted from disk)", label);
 		}
+
 		if (model && model.isReadonly()) {
 			return localize('readonlyFile', "{0} (read-only)", label);
 		}
@@ -268,7 +269,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
-			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+			if (
+				(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
+				(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
+			) {
 				return this.doResolveAsBinary();
 			}
 
@@ -296,7 +300,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		super.dispose();
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}

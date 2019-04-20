@@ -394,6 +394,22 @@ suite('Debug - Model', () => {
 		assert.equal(secondStackFrame.getSpecificSourceName(), '.../x/c/d/internalModule.js');
 	});
 
+	test('stack frame toString()', () => {
+		const session = createMockSession(model);
+		const thread = new Thread(session, 'mockthread', 1);
+		const firstSource = new Source({
+			name: 'internalModule.js',
+			path: 'a/b/c/d/internalModule.js',
+			sourceReference: 10,
+		}, 'aDebugSessionId');
+		const stackFrame = new StackFrame(thread, 1, firstSource, 'app', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+		assert.equal(stackFrame.toString(), 'app (internalModule.js:1)');
+
+		const secondSource = new Source(undefined, 'aDebugSessionId');
+		const stackFrame2 = new StackFrame(thread, 2, secondSource, 'module', 'normal', { startLineNumber: undefined!, startColumn: undefined!, endLineNumber: undefined!, endColumn: undefined! }, 2);
+		assert.equal(stackFrame2.toString(), 'module');
+	});
+
 	test('debug child sessions are added in correct order', () => {
 		const session = createMockSession(model);
 		model.addSession(session);
@@ -423,34 +439,41 @@ suite('Debug - Model', () => {
 		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
 		const repl = new ReplModel(session);
 		repl.appendToRepl('first line\n', severity.Error);
-		repl.appendToRepl('second line', severity.Error);
-		repl.appendToRepl('third line', severity.Warning);
+		repl.appendToRepl('second line ', severity.Error);
+		repl.appendToRepl('third line ', severity.Error);
 		repl.appendToRepl('fourth line', severity.Error);
 
 		let elements = <SimpleReplElement[]>repl.getReplElements();
-		assert.equal(elements.length, 4);
-		assert.equal(elements[0].value, 'first line');
+		assert.equal(elements.length, 2);
+		assert.equal(elements[0].value, 'first line\n');
 		assert.equal(elements[0].severity, severity.Error);
-		assert.equal(elements[1].value, 'second line');
+		assert.equal(elements[1].value, 'second line third line fourth line');
 		assert.equal(elements[1].severity, severity.Error);
-		assert.equal(elements[2].value, 'third line');
-		assert.equal(elements[2].severity, severity.Warning);
-		assert.equal(elements[3].value, 'fourth line');
-		assert.equal(elements[3].severity, severity.Error);
 
 		repl.appendToRepl('1', severity.Warning);
 		elements = <SimpleReplElement[]>repl.getReplElements();
-		assert.equal(elements.length, 5);
-		assert.equal(elements[4].value, '1');
-		assert.equal(elements[4].severity, severity.Warning);
+		assert.equal(elements.length, 3);
+		assert.equal(elements[2].value, '1');
+		assert.equal(elements[2].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
 		repl.appendToRepl(new RawObjectReplElement('fakeid', 'fake', keyValueObject), severity.Info);
-		const element = <RawObjectReplElement>repl.getReplElements()[5];
+		const element = <RawObjectReplElement>repl.getReplElements()[3];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
 
 		repl.removeReplExpressions();
 		assert.equal(repl.getReplElements().length, 0);
+
+		repl.appendToRepl('1\n', severity.Info);
+		repl.appendToRepl('2', severity.Info);
+		repl.appendToRepl('3\n4', severity.Info);
+		repl.appendToRepl('5\n', severity.Info);
+		repl.appendToRepl('6', severity.Info);
+		elements = <SimpleReplElement[]>repl.getReplElements();
+		assert.equal(elements.length, 3);
+		assert.equal(elements[0], '1\n');
+		assert.equal(elements[1], '23\n45\n');
+		assert.equal(elements[2], '6');
 	});
 });

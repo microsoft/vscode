@@ -35,7 +35,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class DebugSession implements IDebugSession {
+
 	private id: string;
+	private _subId: string | undefined;
 	private raw: RawDebugSession | undefined;
 	private initialized = false;
 
@@ -74,6 +76,14 @@ export class DebugSession implements IDebugSession {
 
 	getId(): string {
 		return this.id;
+	}
+
+	setSubId(subId: string | undefined) {
+		this._subId = subId;
+	}
+
+	get subId(): string | undefined {
+		return this._subId;
 	}
 
 	get configuration(): IConfig {
@@ -783,6 +793,7 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => {
+			this.initialized = true;
 			this._onDidEndAdapter.fire(event);
 		}));
 	}

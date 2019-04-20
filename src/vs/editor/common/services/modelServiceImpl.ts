@@ -190,7 +190,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		};
 	}
 
-	public getCreationOptions(language: string, resource: URI | null | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
+	public getCreationOptions(language: string, resource: URI | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
 			const editor = this._configurationService.getValue<IRawEditorConfig>('editor', { overrideIdentifier: language, resource });
@@ -252,7 +252,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | null | undefined, isForSimpleWidget: boolean): ModelData {
+	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
 		const model: TextModel = new TextModel(value, options, languageIdentifier, resource);
@@ -343,7 +343,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		return [EditOperation.replaceMove(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
 	}
 
-	public createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource: URI | null | undefined, isForSimpleWidget: boolean = false): ITextModel {
+	public createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource?: URI, isForSimpleWidget: boolean = false): ITextModel {
 		let modelData: ModelData;
 
 		if (languageSelection) {
