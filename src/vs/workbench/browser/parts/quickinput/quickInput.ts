@@ -1306,9 +1306,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 				const distanceFromBelow = 200;  // The distance from the bottom of the window.
 				if (rowsElement !== null && workbench.style.height !== null && rowsElement.style.height !== null) {
 					const workbenchHeight = parseInt(workbench.style.height);
-					const mlRowsHeight = parseInt(rowsElement.style.height);
-					let widgetHeight = workbenchHeight - distanceFromBelow > mlRowsHeight + 40 ? mlRowsHeight + 40 : workbenchHeight - distanceFromBelow;
-					widgetHeight = widgetHeight - 40 < 22 ? 62 : widgetHeight;
+					const rowsHeight = parseInt(rowsElement.style.height);
+					let widgetHeight = workbenchHeight - distanceFromBelow > rowsHeight + 40 ? rowsHeight + 40 : workbenchHeight - distanceFromBelow;
+					if (widgetHeight < 62) {
+						widgetHeight = 62;
+					}
 					this.widget.style.height = `${widgetHeight}px`;
 					this.ui.list.container.style.height = `${widgetHeight - 40}px`;
 				}
