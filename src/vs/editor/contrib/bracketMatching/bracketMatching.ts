@@ -252,7 +252,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 				};
 				newDecorationsLen += 1;
 				newDecorations[newDecorationsLen] = {
-					range: brackets[0],
+					range: brackets[1],
 					options: BracketMatchingController._DECORATION_OPTIONS
 				};
 				newDecorationsLen += 1;
