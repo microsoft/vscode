@@ -193,8 +193,6 @@ export class ToggleScreencastModeAction extends Action {
 			const event = new StandardKeyboardEvent(e);
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
-			const oldtext = keyboardMarker.textContent;
-			const specialkeys = new Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80);
 
 			if (event.ctrlKey || event.altKey || event.metaKey) {
 				if (isChord) {
