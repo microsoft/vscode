@@ -64,6 +64,10 @@ export interface IWorkbenchThemeService extends IThemeService {
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 
+export interface IColorCustomizations {
+	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
+}
+
 export interface ITokenColorCustomizations {
 	comments?: string | ITokenColorizationSetting;
 	strings?: string | ITokenColorizationSetting;

@@ -126,7 +126,8 @@ const enum ProtocolMessageType {
 	Regular = 1,
 	Control = 2,
 	Ack = 3,
-	KeepAlive = 4
+	KeepAlive = 4,
+	Disconnect = 5
 }
 
 export const enum ProtocolConstants {
@@ -216,10 +217,10 @@ class ProtocolReader extends Disposable {
 
 				// save new state => next time will read the body
 				this._state.readHead = false;
-				this._state.readLen = buff.readUint32BE(9);
-				this._state.messageType = <ProtocolMessageType>buff.readUint8(0);
-				this._state.id = buff.readUint32BE(1);
-				this._state.ack = buff.readUint32BE(5);
+				this._state.readLen = buff.readUInt32BE(9);
+				this._state.messageType = <ProtocolMessageType>buff.readUInt8(0);
+				this._state.id = buff.readUInt32BE(1);
+				this._state.ack = buff.readUInt32BE(5);
 			} else {
 				// buff is the body
 				const messageType = this._state.messageType;
@@ -288,10 +289,10 @@ class ProtocolWriter {
 		msg.writtenTime = Date.now();
 		this.lastWriteTime = Date.now();
 		const header = VSBuffer.alloc(ProtocolConstants.HeaderLength);
-		header.writeUint8(msg.type, 0);
-		header.writeUint32BE(msg.id, 1);
-		header.writeUint32BE(msg.ack, 5);
-		header.writeUint32BE(msg.data.byteLength, 9);
+		header.writeUInt8(msg.type, 0);
+		header.writeUInt32BE(msg.id, 1);
+		header.writeUInt32BE(msg.ack, 5);
+		header.writeUInt32BE(msg.data.byteLength, 9);
 		this._writeSoon(header, msg.data);
 	}
 
@@ -373,6 +374,10 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 		return this._socket;
 	}
 
+	sendDisconnect(): void {
+		// Nothing to do...
+	}
+
 	send(buffer: VSBuffer): void {
 		this._socketWriter.write(new ProtocolMessage(ProtocolMessageType.Regular, 0, 0, buffer));
 	}
@@ -393,6 +398,7 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 	dispose(): void {
 		super.dispose();
 		const socket = this.protocol.getSocket();
+		this.protocol.sendDisconnect();
 		this.protocol.dispose();
 		socket.end();
 	}
@@ -572,7 +578,6 @@ export class PersistentProtocol {
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
 		this._socketDisposables.push(this._socket.onClose(() => this._onSocketClose.fire()));
-		this._socketDisposables.push(this._socket.onEnd(() => this._onClose.fire()));
 		if (initialChunk) {
 			this._socketReader.acceptChunk(initialChunk);
 		}
@@ -599,6 +604,12 @@ export class PersistentProtocol {
 			this._incomingKeepAliveTimeout = null;
 		}
 		this._socketDisposables = dispose(this._socketDisposables);
+	}
+
+	sendDisconnect(): void {
+		const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
+		this._socketWriter.write(msg);
+		this._socketWriter.flush();
 	}
 
 	private _sendKeepAliveCheck(): void {
@@ -659,7 +670,6 @@ export class PersistentProtocol {
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
 		this._socketDisposables.push(this._socket.onClose(() => this._onSocketClose.fire()));
-		this._socketDisposables.push(this._socket.onEnd(() => this._onClose.fire()));
 		this._socketReader.acceptChunk(initialDataChunk);
 	}
 
@@ -703,6 +713,8 @@ export class PersistentProtocol {
 			}
 		} else if (msg.type === ProtocolMessageType.Control) {
 			this._onControlMessage.fire(msg.data);
+		} else if (msg.type === ProtocolMessageType.Disconnect) {
+			this._onClose.fire();
 		}
 	}
 

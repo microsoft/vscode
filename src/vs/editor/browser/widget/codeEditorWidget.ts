@@ -8,7 +8,7 @@ import 'vs/css!./media/tokens';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -185,6 +185,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onMouseLeave: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>());
 	public readonly onMouseLeave: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseLeave.event;
+
+	private readonly _onMouseWheel: Emitter<IMouseWheelEvent> = this._register(new Emitter<IMouseWheelEvent>());
+	public readonly onMouseWheel: Event<IMouseWheelEvent> = this._onMouseWheel.event;
 
 	private readonly _onKeyUp: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
@@ -1442,6 +1445,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			// In IE, the focus is not synchronous, so we give it a little help
 			this._editorWidgetFocus.setValue(true);
 		};
+
 		viewOutgoingEvents.onDidScroll = (e) => this._onDidScrollChange.fire(e);
 		viewOutgoingEvents.onDidLoseFocus = () => this._editorTextFocus.setValue(false);
 		viewOutgoingEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
@@ -1452,6 +1456,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewOutgoingEvents.onKeyUp = (e) => this._onKeyUp.fire(e);
 		viewOutgoingEvents.onMouseMove = (e) => this._onMouseMove.fire(e);
 		viewOutgoingEvents.onMouseLeave = (e) => this._onMouseLeave.fire(e);
+		viewOutgoingEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
 		viewOutgoingEvents.onKeyDown = (e) => this._onKeyDown.fire(e);
 
 		const view = new View(
@@ -1749,7 +1754,7 @@ export class EditorModeContext extends Disposable {
 			this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
 			this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 			this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
-			this._hasMultipleDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.all(model).length > 1 || modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
+			this._hasMultipleDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.all(model).length + modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
 			this._hasMultipleDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
 			this._isInWalkThrough.set(model.uri.scheme === Schemas.walkThroughSnippet);
 		});

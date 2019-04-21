@@ -97,7 +97,7 @@ export class LanguageConfigurationFileHandler {
 	}
 
 	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFileLocation: URI): void {
-		this._fileService.resolveContent(configFileLocation, { encoding: 'utf8' }).then((contents) => {
+		this._fileService.readFile(configFileLocation).then((contents) => {
 			const errors: ParseError[] = [];
 			const configuration = <ILanguageConfiguration>parse(contents.value.toString(), errors);
 			if (errors.length) {

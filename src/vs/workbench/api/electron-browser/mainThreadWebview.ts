@@ -7,7 +7,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IWebviewOptions } from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -122,7 +122,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	$createWebviewCodeInset(
 		handle: WebviewInsetHandle,
 		symbolId: string,
-		options: IWebviewOptions,
+		options: modes.IWebviewOptions,
 		extensionId: ExtensionIdentifier,
 		extensionLocation: UriComponents
 	): void {
@@ -189,7 +189,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}
 	}
 
-	public $setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: IWebviewOptions): void {
+	public $setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: modes.IWebviewOptions): void {
 		if (typeof handle === 'number') {
 			this.getWebviewElement(handle).options = reviveWebviewOptions(options as any /*todo@mat */);
 		} else {
@@ -414,7 +414,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 function reviveWebviewOptions(options: WebviewInputOptions): WebviewInputOptions {
 	return {
 		...options,
-		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined,
+		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(r => URI.revive(r)) : undefined,
 	};
 }
 

@@ -135,27 +135,28 @@ export class DebugService implements IDebugService {
 		this.toDispose.push(this.storageService.onWillSaveState(this.saveState, this));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
-		this.toDispose.push(this.extensionHostDebugService.onAttachSession(data => {
-			const session = this.model.getSession(data.id, true);
+		this.toDispose.push(this.extensionHostDebugService.onAttachSession(event => {
+			const session = this.model.getSession(event.sessionId, true);
 			if (session) {
 				// EH was started in debug mode -> attach to it
 				session.configuration.request = 'attach';
-				session.configuration.port = data.port;
+				session.configuration.port = event.port;
+				session.setSubId(event.subId);
 				this.launchOrAttachToSession(session).then(undefined, errors.onUnexpectedError);
 			}
 		}));
-		this.toDispose.push(this.extensionHostDebugService.onTerminateSession(sessionId => {
-			const session = this.model.getSession(sessionId);
-			if (session) {
+		this.toDispose.push(this.extensionHostDebugService.onTerminateSession(event => {
+			const session = this.model.getSession(event.sessionId);
+			if (session && session.subId === event.subId) {
 				session.disconnect().then(undefined, errors.onUnexpectedError);
 			}
 		}));
-		this.toDispose.push(this.extensionHostDebugService.onLogToSession(data => {
-			const session = this.model.getSession(data.id, true);
+		this.toDispose.push(this.extensionHostDebugService.onLogToSession(event => {
+			const session = this.model.getSession(event.sessionId, true);
 			if (session) {
 				// extension logged output -> show it in REPL
-				const sev = data.log.severity === 'warn' ? severity.Warning : data.log.severity === 'error' ? severity.Error : severity.Info;
-				const { args, stack } = parse(data.log);
+				const sev = event.log.severity === 'warn' ? severity.Warning : event.log.severity === 'error' ? severity.Error : severity.Info;
+				const { args, stack } = parse(event.log);
 				const frame = !!stack ? getFirstFrame(stack) : undefined;
 				session.logToRepl(sev, args, frame);
 			}
@@ -439,9 +440,9 @@ export class DebugService implements IDebugService {
 			}
 
 			this.viewModel.firstSessionStart = false;
-			const hideSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').hideSubSessions;
+			const showSubSessions = this.configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 			const sessions = this.model.getSessions();
-			const shownSessions = hideSubSessions ? sessions.filter(s => !s.parentSession) : sessions;
+			const shownSessions = showSubSessions ? sessions : sessions.filter(s => !s.parentSession);
 			if (shownSessions.length > 1) {
 				this.viewModel.setMultiSessionView(true);
 			}
@@ -508,7 +509,7 @@ export class DebugService implements IDebugService {
 
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
 			if (isExtensionHostDebugging(session.configuration) && session.state === State.Running && session.configuration.noDebug) {
-				this.extensionHostDebugService.close(session.root.uri);
+				this.extensionHostDebugService.close(session.getId());
 			}
 
 			this.telemetryDebugSessionStop(session, adapterExitEvent);
@@ -555,8 +556,8 @@ export class DebugService implements IDebugService {
 				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? session.restart() : undefined);
 			}
 
-			if (isExtensionHostDebugging(session.configuration) && session.root) {
-				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? this.extensionHostDebugService.reload(session.root.uri) : undefined);
+			if (isExtensionHostDebugging(session.configuration)) {
+				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? this.extensionHostDebugService.reload(session.getId()) : undefined);
 			}
 
 			const shouldFocus = this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();

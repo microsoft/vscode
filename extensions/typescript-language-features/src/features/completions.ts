@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeAction } from '../utils/codeAction';
@@ -15,10 +15,11 @@ import { Command, CommandManager } from '../utils/commandManager';
 import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
 import { memoize } from '../utils/memoize';
 import * as Previewer from '../utils/previewer';
+import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
+import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
-import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
 
 const localize = nls.loadMessageBundle();
 
@@ -333,6 +334,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		private readonly typingsStatus: TypingsStatus,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 		commandManager: CommandManager,
+		private readonly telemetryReporter: TelemetryReporter,
 		onCompletionAccepted: (item: vscode.CompletionItem) => void
 	) {
 		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
@@ -385,7 +387,30 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		let entries: ReadonlyArray<Proto.CompletionEntry>;
 		let metadata: any | undefined;
 		if (this.client.apiVersion.gte(API.v300)) {
-			const response = await this.client.interruptGetErr(() => this.client.execute('completionInfo', args, token));
+			const startTime = Date.now();
+			let response: ServerResponse.Response<Proto.CompletionInfoResponse> | undefined;
+			try {
+				response = await this.client.interruptGetErr(() => this.client.execute('completionInfo', args, token));
+			} finally {
+				const duration: number = Date.now() - startTime;
+
+				/* __GDPR__
+					"completions.execute" : {
+						"duration" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"type" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"count" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"${include}": [
+							"${TypeScriptCommonProperties}",
+						]
+					}
+				*/
+				this.telemetryReporter.logTelemetry('completions.execute', {
+					duration: duration + '',
+					type: response ? response.type : 'unknown',
+					count: (response && response.type === 'response' && response.body ? response.body.entries.length : 0) + ''
+				});
+			}
+
 			if (response.type !== 'response' || !response.body) {
 				return null;
 			}
@@ -677,10 +702,11 @@ export function register(
 	typingsStatus: TypingsStatus,
 	fileConfigurationManager: FileConfigurationManager,
 	commandManager: CommandManager,
+	telemetryReporter: TelemetryReporter,
 	onCompletionAccepted: (item: vscode.CompletionItem) => void
 ) {
 	return new ConfigurationDependentRegistration(modeId, 'suggest.enabled', () =>
 		vscode.languages.registerCompletionItemProvider(selector,
-			new TypeScriptCompletionItemProvider(client, modeId, typingsStatus, fileConfigurationManager, commandManager, onCompletionAccepted),
+			new TypeScriptCompletionItemProvider(client, modeId, typingsStatus, fileConfigurationManager, commandManager, telemetryReporter, onCompletionAccepted),
 			...TypeScriptCompletionItemProvider.triggerCharacters));
 }

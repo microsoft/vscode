@@ -1190,46 +1190,62 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		// Make sure we are not asked to open a workspace or folder that is already opened
-		if (cliArgs.length && cliArgs.some(path => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, URI.file(path)))) {
-			cliArgs = [];
+		if (!Array.isArray(extensionDevelopmentPath)) {
+			extensionDevelopmentPath = [extensionDevelopmentPath];
 		}
 
-		if (folderUris.length && folderUris.some(uri => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, this.argToUri(uri)))) {
-			folderUris = [];
+		let authority = '';
+		for (let p of extensionDevelopmentPath) {
+			if (p.match(/^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/)) {
+				const url = URI.parse(p);
+				if (url.scheme === Schemas.vscodeRemote) {
+					if (authority) {
+						if (url.authority !== authority) {
+							this.logService.error('more than one extension development path authority');
+						}
+					} else {
+						authority = url.authority;
+					}
+				}
+			}
 		}
 
-		if (fileUris.length && fileUris.some(uri => !!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, this.argToUri(uri)))) {
-			fileUris = [];
-		}
+		// Make sure that we do not try to open:
+		// - a workspace or folder that is already opened
+		// - a workspace or file that has a different authority as the extension development.
+
+		cliArgs = cliArgs.filter(path => {
+			const uri = URI.file(path);
+			if (!!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, uri)) {
+				return false;
+			}
+			return uri.authority === authority;
+		});
+
+		folderUris = folderUris.filter(uri => {
+			const u = this.argToUri(uri);
+			if (!!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, u)) {
+				return false;
+			}
+			return u ? u.authority === authority : false;
+		});
+
+		fileUris = fileUris.filter(uri => {
+			const u = this.argToUri(uri);
+			if (!!findWindowOnWorkspaceOrFolderUri(WindowsManager.WINDOWS, u)) {
+				return false;
+			}
+			return u ? u.authority === authority : false;
+		});
 
 		openConfig.cli._ = cliArgs;
 		openConfig.cli['folder-uri'] = folderUris;
 		openConfig.cli['file-uri'] = fileUris;
 
-		if (Array.isArray(extensionDevelopmentPath)) {
-			let authority: string | undefined = undefined;
-			for (let p of extensionDevelopmentPath) {
-				const match = p.match(/^vscode-remote:\/\/([^\/]+)/);
-				if (match) {
-					const auth = URI.parse(p).authority;
-					if (authority) {
-						if (auth !== authority) {
-							console.log('more than one authority');
-						}
-					} else {
-						authority = auth;
-					}
-				}
-			}
+		// if there are no files or folders cli args left, use the "remote" cli argument
+		if (!cliArgs.length && !folderUris.length && !fileUris.length) {
 			if (authority) {
-				openConfig.cli['remote'] = authority;
-			}
-
-		} else {
-			const match = extensionDevelopmentPath.match(/^vscode-remote:\/\/([^\/]+)/);
-			if (match) {
-				openConfig.cli['remote'] = URI.parse(extensionDevelopmentPath).authority;
+				openConfig.cli.remote = authority;
 			}
 		}
 
@@ -1580,8 +1596,9 @@ export class WindowsManager implements IWindowsMainService {
 		if (cli && (cli.remote !== remote)) {
 			cli = { ...cli, remote };
 		}
-		const forceNewWindow = !(options && options.reuseWindow);
-		return this.open({ context, cli, forceNewWindow, forceEmpty: true });
+		const forceReuseWindow = options && options.reuseWindow;
+		const forceNewWindow = !forceReuseWindow;
+		return this.open({ context, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
 	}
 
 	openNewTabbedWindow(context: OpenContext): ICodeWindow[] {

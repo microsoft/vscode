@@ -29,8 +29,8 @@ const collapsedStateCache: Map<string, boolean> = new Map<string, boolean>();
 let lastRequestTime: number;
 
 interface FormattedProcessItem {
-	cpu: string;
-	memory: string;
+	cpu: number;
+	memory: number;
 	pid: string;
 	name: string;
 	formattedName: string;
@@ -66,8 +66,8 @@ function getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, in
 	const formattedName = isRoot ? name : `${repeat('    ', indent)} ${name}`;
 	const memory = process.platform === 'win32' ? item.mem : (totalmem() * (item.mem / 100));
 	processes.push({
-		cpu: item.load.toFixed(0),
-		memory: (memory / MB).toFixed(0),
+		cpu: item.load,
+		memory: (memory / MB),
 		pid: item.pid.toFixed(0),
 		name,
 		formattedName,
@@ -202,13 +202,13 @@ function renderTableSection(sectionName: string, processList: FormattedProcessIt
 		p.pid === highestCPUProcess
 			? cpu.classList.add('centered', 'highest')
 			: cpu.classList.add('centered');
-		cpu.textContent = p.cpu.toString();
+		cpu.textContent = p.cpu.toFixed(0);
 
 		const memory = document.createElement('td');
 		p.pid === highestMemoryProcess
 			? memory.classList.add('centered', 'highest')
 			: memory.classList.add('centered');
-		memory.textContent = p.memory;
+		memory.textContent = p.memory.toFixed(0);
 
 		const pid = document.createElement('td');
 		pid.classList.add('centered');

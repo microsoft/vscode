@@ -5,7 +5,7 @@
 
 .monaco-sash {
 	position: absolute;
-	z-index: 90;
+	z-index: 35;
 	touch-action: none;
 }
 

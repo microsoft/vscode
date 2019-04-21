@@ -57,14 +57,26 @@ const jsxTagsLanguageConfiguration: vscode.LanguageConfiguration = {
 	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
 	onEnterRules: [
 		{
-			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 			afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
 			action: { indentAction: vscode.IndentAction.IndentOutdent }
 		},
 		{
-			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 			action: { indentAction: vscode.IndentAction.Indent }
-		}
+		},
+		{
+			// `beforeText` only applies to tokens of a given language. Since we are dealing with jsx-tags,
+			// make sure we apply to the closing `>` of a tag so that mixed language spans
+			// such as `<div onclick={1}>` are handled properly.
+			beforeText: /^>$/,
+			afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+			action: { indentAction: vscode.IndentAction.IndentOutdent }
+		},
+		{
+			beforeText: /^>$/,
+			action: { indentAction: vscode.IndentAction.Indent }
+		},
 	],
 };
 

@@ -443,6 +443,8 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 				this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager);
 			});
+		} else if (this.shellLaunchConfig.isRendererOnly) {
+			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, undefined, undefined);
 		}
 		this._xterm.on('focus', () => this._onFocus.fire(this));
 
@@ -587,6 +589,22 @@ export class TerminalInstance implements ITerminalInstance {
 			if (this._processManager) {
 				this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
 				this._processManager.onProcessReady(() => this._linkHandler.setWidgetManager(this._widgetManager));
+
+				this._processManager.onProcessReady(() => {
+					if (this._configHelper.config.enableLatencyMitigation) {
+						if (!this._processManager) {
+							return;
+						}
+						this._processManager.getLatency().then(latency => {
+							if (latency > 20 && (this._xterm as any).typeAheadInit) {
+								(this._xterm as any).typeAheadInit(this._processManager, this._themeService);
+							}
+						});
+					}
+				});
+			} else if (this._shellLaunchConfig.isRendererOnly) {
+				this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
+				this._linkHandler.setWidgetManager(this._widgetManager);
 			}
 
 			const computedStyle = window.getComputedStyle(this._container);

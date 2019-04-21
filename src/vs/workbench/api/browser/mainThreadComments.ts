@@ -184,6 +184,12 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	private _onDidChangeCollasibleState = new Emitter<modes.CommentThreadCollapsibleState | undefined>();
 	public onDidChangeCollasibleState = this._onDidChangeCollasibleState.event;
 
+	private _isDisposed: boolean;
+
+	get isDisposed(): boolean {
+		return this._isDisposed;
+	}
+
 	constructor(
 		public commentThreadHandle: number,
 		public controller: MainThreadCommentController,
@@ -191,7 +197,9 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		public threadId: string,
 		public resource: string,
 		private _range: IRange
-	) { }
+	) {
+		this._isDisposed = false;
+	}
 
 	batchUpdate(
 		range: IRange,
@@ -210,7 +218,16 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		this._collapsibleState = collapsibleState;
 	}
 
-	dispose() { }
+	dispose() {
+		this._isDisposed = true;
+		this._onDidChangeAcceptInputCommand.dispose();
+		this._onDidChangeAdditionalCommands.dispose();
+		this._onDidChangeCollasibleState.dispose();
+		this._onDidChangeComments.dispose();
+		this._onDidChangeInput.dispose();
+		this._onDidChangeLabel.dispose();
+		this._onDidChangeRange.dispose();
+	}
 
 	toJSON(): any {
 		return {
@@ -492,6 +509,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		if (!provider) {
 			return undefined;
 		}
+
+		console.log('createCommentThread', commentThreadHandle);
 
 		return provider.createCommentThread(commentThreadHandle, threadId, resource, range);
 	}

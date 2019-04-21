@@ -11,20 +11,43 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import * as modes from 'vs/editor/common/modes';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
+import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
 import { WebviewFindWidget } from '../browser/webviewFindWidget';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { WebviewContentOptions, WebviewPortMapping, WebviewOptions, Webview } from 'vs/workbench/contrib/webview/common/webview';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
+export interface WebviewPortMapping {
+	readonly port: number;
+	readonly resolvedPort: number;
+}
+
+export interface WebviewOptions {
+	readonly allowSvgs?: boolean;
+	readonly extension?: {
+		readonly location: URI;
+		readonly id?: ExtensionIdentifier;
+	};
+	readonly enableFindWidget?: boolean;
+}
+
+export interface WebviewContentOptions {
+	readonly allowScripts?: boolean;
+	readonly svgWhiteList?: string[];
+	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly portMappings?: ReadonlyArray<WebviewPortMapping>;
+}
 
 interface IKeydownEvent {
 	key: string;
@@ -95,7 +118,7 @@ class WebviewProtocolProvider extends Disposable {
 		private readonly _extensionLocation: URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
 		private readonly _environmentService: IEnvironmentService,
-		private readonly _fileService: IFileService,
+		private readonly _textFileService: ITextFileService,
 	) {
 		super();
 
@@ -114,11 +137,11 @@ class WebviewProtocolProvider extends Disposable {
 
 		const appRootUri = URI.file(this._environmentService.appRoot);
 
-		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, undefined, () => [
+		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._textFileService, undefined, () => [
 			appRootUri
 		]);
 
-		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._extensionLocation, () =>
+		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._textFileService, this._extensionLocation, () =>
 			this._getLocalResourceRoots()
 		);
 	}
@@ -126,11 +149,15 @@ class WebviewProtocolProvider extends Disposable {
 
 class WebviewPortMappingProvider extends Disposable {
 
+	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
+
 	constructor(
 		session: WebviewSession,
-		mappings: () => ReadonlyArray<WebviewPortMapping>,
+		extensionLocation: URI | undefined,
+		mappings: () => ReadonlyArray<modes.IWebviewPortMapping>,
+		private readonly tunnelService: ITunnelService,
 		extensionId: ExtensionIdentifier | undefined,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -148,7 +175,7 @@ class WebviewPortMappingProvider extends Disposable {
 					hasLogged = true;
 
 					/* __GDPR__
-					"webview.accessLocalhost" : {
+						"webview.accessLocalhost" : {
 							"extension" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					*/
@@ -157,18 +184,52 @@ class WebviewPortMappingProvider extends Disposable {
 
 				const port = +localhostMatch[1];
 				for (const mapping of mappings()) {
-					if (mapping.port === port && mapping.port !== mapping.resolvedPort) {
-						return {
-							redirectURL: details.url.replace(
-								new RegExp(`^${uri.scheme}://localhost:${mapping.port}/`),
-								`${uri.scheme}://localhost:${mapping.resolvedPort}/`)
-						};
+					if (mapping.webviewPort === port) {
+						if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
+							const tunnel = await this.getOrCreateTunnel(mapping.extensionHostPort);
+							if (tunnel) {
+								return {
+									redirectURL: details.url.replace(
+										new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}/`),
+										`${uri.scheme}://localhost:${tunnel.tunnelLocalPort}/`)
+								};
+							}
+						}
+
+						if (mapping.webviewPort !== mapping.extensionHostPort) {
+							return {
+								redirectURL: details.url.replace(
+									new RegExp(`^${uri.scheme}://localhost:${mapping.webviewPort}/`),
+									`${uri.scheme}://localhost:${mapping.extensionHostPort}/`)
+							};
+						}
 					}
 				}
 			}
 
 			return undefined;
 		});
+	}
+
+	dispose() {
+		super.dispose();
+
+		for (const tunnel of this._tunnels.values()) {
+			tunnel.then(tunnel => tunnel.dispose());
+		}
+		this._tunnels.clear();
+	}
+
+	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
+		const existing = this._tunnels.get(remotePort);
+		if (existing) {
+			return existing;
+		}
+		const tunnel = this.tunnelService.openTunnel(remotePort);
+		if (tunnel) {
+			this._tunnels.set(remotePort, tunnel);
+		}
+		return tunnel;
 	}
 }
 
@@ -313,7 +374,8 @@ export class WebviewElement extends Disposable implements Webview {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService,
+		@ITunnelService tunnelService: ITunnelService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
@@ -350,14 +412,16 @@ export class WebviewElement extends Disposable implements Webview {
 			this._options.extension ? this._options.extension.location : undefined,
 			() => (this._contentOptions.localResourceRoots || []),
 			environmentService,
-			fileService));
+			textFileService));
 
 		this._register(new WebviewPortMappingProvider(
 			session,
+			_options.extension ? _options.extension.location : undefined,
 			() => (this._contentOptions.portMappings || []),
+			tunnelService,
 			_options.extension ? _options.extension.id : undefined,
-			telemetryService));
-
+			telemetryService
+		));
 
 		if (!this._options.allowSvgs) {
 			const svgBlocker = this._register(new SvgBlocker(session, this._contentOptions));

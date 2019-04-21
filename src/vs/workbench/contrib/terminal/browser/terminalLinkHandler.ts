@@ -74,8 +74,8 @@ export class TerminalLinkHandler {
 
 	constructor(
 		private _xterm: any,
-		private _platform: platform.Platform,
-		private readonly _processManager: ITerminalProcessManager,
+		private _platform: platform.Platform | undefined,
+		private readonly _processManager: ITerminalProcessManager | undefined,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -97,8 +97,10 @@ export class TerminalLinkHandler {
 		};
 
 		this.registerWebLinkHandler();
-		this.registerLocalLinkHandler();
-		this.registerGitDiffLinkHandlers();
+		if (this._platform) {
+			this.registerLocalLinkHandler();
+			this.registerGitDiffLinkHandlers();
+		}
 	}
 
 	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
@@ -186,6 +188,9 @@ export class TerminalLinkHandler {
 	}
 
 	protected get _localLinkRegex(): RegExp {
+		if (!this._processManager) {
+			throw new Error('Process manager is required');
+		}
 		const baseLocalLinkClause = this._processManager.os === platform.OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
@@ -246,6 +251,9 @@ export class TerminalLinkHandler {
 	}
 
 	private get osPath(): IPath {
+		if (!this._processManager) {
+			throw new Error('Process manager is required');
+		}
 		if (this._processManager.os === platform.OperatingSystem.Windows) {
 			return win32;
 		}
@@ -253,6 +261,9 @@ export class TerminalLinkHandler {
 	}
 
 	protected _preprocessPath(link: string): string | null {
+		if (!this._processManager) {
+			throw new Error('Process manager is required');
+		}
 		if (link.charAt(0) === '~') {
 			// Resolve ~ -> userHome
 			if (!this._processManager.userHome) {
@@ -283,6 +294,10 @@ export class TerminalLinkHandler {
 	}
 
 	private _resolvePath(link: string): PromiseLike<URI | null> {
+		if (!this._processManager) {
+			throw new Error('Process manager is required');
+		}
+
 		const preprocessedLink = this._preprocessPath(link);
 		if (!preprocessedLink) {
 			return Promise.resolve(null);

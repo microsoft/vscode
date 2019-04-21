@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IAction } from 'vs/base/common/actions';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -30,7 +31,8 @@ export const enum ProgressLocation {
 	Scm = 3,
 	Extensions = 5,
 	Window = 10,
-	Notification = 15
+	Notification = 15,
+	Dialog = 20
 }
 
 export interface IProgressOptions {
@@ -39,6 +41,12 @@ export interface IProgressOptions {
 	source?: string;
 	total?: number;
 	cancellable?: boolean;
+}
+
+export interface IProgressNotificationOptions extends IProgressOptions {
+	location: ProgressLocation.Notification;
+	primaryActions?: IAction[];
+	secondaryActions?: IAction[];
 }
 
 export interface IProgressStep {

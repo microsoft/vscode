@@ -265,33 +265,6 @@ export namespace Event {
 		return emitter.event;
 	}
 
-	/**
-	 * Similar to `buffer` but it buffers indefinitely and repeats
-	 * the buffered events to every new listener.
-	 */
-	export function echo<T>(event: Event<T>, nextTick = false, buffer: T[] = []): Event<T> {
-		buffer = buffer.slice();
-
-		event(e => {
-			buffer.push(e);
-			emitter.fire(e);
-		});
-
-		const flush = (listener: (e: T) => any, thisArgs?: any) => buffer.forEach(e => listener.call(thisArgs, e));
-
-		const emitter = new Emitter<T>({
-			onListenerDidAdd(emitter: Emitter<T>, listener: (e: T) => any, thisArgs?: any) {
-				if (nextTick) {
-					setTimeout(() => flush(listener, thisArgs));
-				} else {
-					flush(listener, thisArgs);
-				}
-			}
-		});
-
-		return emitter.event;
-	}
-
 	export interface IChainableEvent<T> {
 		event: Event<T>;
 		map<O>(fn: (i: T) => O): IChainableEvent<O>;

@@ -10,7 +10,7 @@ import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -170,7 +170,7 @@ export class TextFileEditor extends BaseTextEditor {
 				// In case we tried to open a file inside the text editor and the response
 				// indicates that this is not a text file, reopen the file through the binary
 				// editor.
-				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY) {
+				if ((<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY) {
 					return this.openAsBinary(input, options);
 				}
 
@@ -186,7 +186,7 @@ export class TextFileEditor extends BaseTextEditor {
 					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
 						actions: [
 							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, () => {
-								return this.fileService.updateContent(input.getResource(), '').then(() => this.editorService.openEditor({
+								return this.textFileService.create(input.getResource()).then(() => this.editorService.openEditor({
 									resource: input.getResource(),
 									options: {
 										pinned: true // new file gets pinned by default

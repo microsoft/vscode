@@ -11,12 +11,15 @@ import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
+import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { timeout } from 'vs/base/common/async';
-import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
+import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -288,6 +291,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	constructor(
 		mainContext: IMainContext,
 		private _extHostConfiguration: ExtHostConfiguration,
+		private _extHostWorkspace: ExtHostWorkspace,
+		private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
@@ -436,7 +441,17 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 	}
 
-	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number): Promise<void> {
+	private _apiInspectConfigToPlain<T>(
+		config: { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, workspaceFolderValue?: T } | undefined
+	): { user: T | undefined, value: T | undefined, default: T | undefined } {
+		return {
+			user: config ? config.globalValue : undefined,
+			value: config ? config.workspaceValue : undefined,
+			default: config ? config.defaultValue : undefined,
+		};
+	}
+
+	public async $createProcess(id: number, shellLaunchConfigDto: ShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
 			executable: shellLaunchConfigDto.executable,
@@ -445,62 +460,56 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			env: shellLaunchConfigDto.env
 		};
 
-		// TODO: This function duplicates a lot of TerminalProcessManager.createProcess, ideally
-		// they would be merged into a single implementation.
+		// Merge in shell and args from settings
+		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
-
 		if (!shellLaunchConfig.executable) {
-			// TODO: This duplicates some of TerminalConfigHelper.mergeDefaultShellPathAndArgs and should be merged
-			// this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
-
-			const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
-			const shellConfigValue: string | undefined = terminalConfig.get(`shell.${platformKey}`);
-			const shellArgsConfigValue: string | undefined = terminalConfig.get(`shellArgs.${platformKey}`);
-
-			shellLaunchConfig.executable = shellConfigValue;
-			shellLaunchConfig.args = shellArgsConfigValue;
+			const fetchSetting = (key: string) => {
+				const setting = configProvider
+					.getConfiguration(key.substr(0, key.lastIndexOf('.')))
+					.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
+				return this._apiInspectConfigToPlain<string | string[]>(setting);
+			};
+			terminalEnvironment.mergeDefaultShellPathAndArgs(shellLaunchConfig, fetchSetting, isWorkspaceShellAllowed || false);
 		}
 
-		// TODO: @daniel
+		// Get the initial cwd
+		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
 		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), activeWorkspaceRootUri, terminalConfig.cwd);
 
-		// TODO: Pull in and resolve config settings
-		// // Resolve env vars from config and shell
-		// const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		// const envFromConfig = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...terminalConfig.env[platformKey] }, lastActiveWorkspaceRoot);
-		const envFromConfig = { ...terminalConfig.env[platformKey] };
-		// const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
-
-		// Merge process env with the env from config
-		const env = { ...process.env };
-		Object.keys(env).filter(k => env[k] === undefined).forEach(k => {
-			delete env[k];
-		});
-		const castedEnv = env as platform.IProcessEnvironment;
-		terminalEnvironment.mergeEnvironments(castedEnv, envFromConfig);
-		terminalEnvironment.mergeEnvironments(castedEnv, shellLaunchConfig.env);
-
-		// Sanitize the environment, removing any undesirable VS Code and Electron environment
-		// variables
-		sanitizeProcessEnvironment(castedEnv, 'VSCODE_IPC_HOOK_CLI');
-
-		// Continue env initialization, merging in the env from the launch
-		// config and adding keys that are needed to create the process
-		terminalEnvironment.addTerminalEnvironmentKeys(castedEnv, pkg.version, platform.locale, terminalConfig.get('setLocaleVariables') as boolean);
+		// Get the environment
+		const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
+		const lastActiveWorkspace = apiLastActiveWorkspace ? {
+			uri: apiLastActiveWorkspace.uri,
+			name: apiLastActiveWorkspace.name,
+			index: apiLastActiveWorkspace.index,
+			toResource: () => {
+				throw new Error('Not implemented');
+			}
+		} as IWorkspaceFolder : null;
+		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
+		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
+		const variableResolver = workspaceFolders ? new ExtHostVariableResolverService(workspaceFolders, this._extHostDocumentsAndEditors, configProvider) : undefined;
+		const env = terminalEnvironment.createTerminalEnvironment(
+			shellLaunchConfig,
+			lastActiveWorkspace,
+			envFromConfig,
+			variableResolver,
+			isWorkspaceShellAllowed,
+			pkg.version,
+			terminalConfig.get<boolean>('setLocaleVariables', false)
+		);
 
 		// Fork the process and listen for messages
-		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, castedEnv);
-		const p = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, castedEnv, terminalConfig.get('windowsEnableConpty') as boolean);
+		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
+		const p = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, terminalConfig.get('windowsEnableConpty') as boolean);
 		p.onProcessIdReady(pid => this._proxy.$sendProcessPid(id, pid));
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 		p.onProcessData(data => this._proxy.$sendProcessData(id, data));
-		p.onProcessExit((exitCode) => this._onProcessExit(id, exitCode));
+		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
 		this._terminalProcesses[id] = p;
 	}
-
 
 	public $acceptProcessInput(id: number, data: string): void {
 		this._terminalProcesses[id].input(data);
@@ -542,7 +551,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Send exit event to main side
 		this._proxy.$sendProcessExit(id, exitCode);
-
 	}
 
 	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal> {
