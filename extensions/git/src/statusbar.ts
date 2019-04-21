@@ -27,7 +27,7 @@ class CheckoutStatusBar {
 
 		return {
 			command: 'git.checkout',
-			tooltip: this.repository.headLabel,
+			tooltip: localize('checkout', 'Checkout...'),
 			title,
 			arguments: [this.repository.sourceControl]
 		};
