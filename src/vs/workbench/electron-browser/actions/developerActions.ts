@@ -226,6 +226,7 @@ export class ToggleScreencastModeAction extends Action {
 				keyboardMarker.textContent += ' ' + label;
 			}
 
+<<<<<<< HEAD
 			if (keyboardMarker.textContent !== null && label !== null && keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
 				keyboardMarker.textContent = keyboardMarker.textContent.substring(label.length + 3);
 =======
@@ -239,6 +240,10 @@ export class ToggleScreencastModeAction extends Action {
 			if (keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
 				keyboardMarker.textContent = keyboardMarker.textContent.substring(label.length + 4);
 >>>>>>> Added fixes for 68849, 66675, and 67965
+=======
+			while (keyboardMarker.textContent !== null && label !== null && keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
+				keyboardMarker.textContent = keyboardMarker.textContent.substring(1);
+>>>>>>> corrected the variable full length bug
 			}
 
 			keyboardMarker.style.display = 'block';
