@@ -16,6 +16,7 @@ import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class ToggleDevToolsAction extends Action {
 
@@ -200,8 +201,8 @@ export class ToggleScreencastModeAction extends Action {
 				} else {
 					keyboardMarker.textContent = label;
 				}
-				isChord = event.keyCode === 41;
-			} else if ((keyboardMarker.textContent !== null && label !== null) && (event.keyCode < 21 || (event.keyCode > 56 && event.keyCode < 80) || event.shiftKey)) {
+				isChord = event.keyCode === KeyCode.KEY_K;
+			} else if ((keyboardMarker.textContent !== null && label !== null) && (event.keyCode < KeyCode.KEY_0 || (event.keyCode > KeyCode.KEY_Z && event.keyCode < KeyCode.US_SEMICOLON) || event.shiftKey)) {
 				const lastToken = keyboardMarker.textContent.substr(keyboardMarker.textContent.lastIndexOf(' ') + 1);
 				if (label.substring(0, lastToken.length) === lastToken) {
 					if (lastToken.lastIndexOf('+') !== -1 && lastToken.lastIndexOf('+') !== lastToken.length - 1) {
