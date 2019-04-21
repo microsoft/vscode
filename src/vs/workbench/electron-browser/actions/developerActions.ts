@@ -216,8 +216,8 @@ export class ToggleScreencastModeAction extends Action {
 				keyboardMarker.textContent += ' ' + label;
 			}
 
-			if (keyboardMarker.textContent !== null && label !== null && keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
-				keyboardMarker.textContent = keyboardMarker.textContent.substring(label.length + 3);
+			while (keyboardMarker.textContent !== null && label !== null && keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
+				keyboardMarker.textContent = keyboardMarker.textContent.substring(1);
 			}
 
 			keyboardMarker.style.display = 'block';
