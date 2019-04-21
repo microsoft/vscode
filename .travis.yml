@@ -1,0 +1,41 @@
+sudo: false
+language: cpp
+
+os:
+  - linux
+  - osx
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-4.9
+      - g++-4.9
+      - gcc-4.9-multilib
+      - g++-4.9-multilib
+      - zip
+      - libgtk2.0-0
+
+before_install:
+  - git submodule update --init --recursive
+  - git clone https://github.com/creationix/nvm.git ./.nvm
+  - source ./.nvm/nvm.sh
+  - nvm install 0.12
+  - nvm use 0.12
+  - npm config set python `which python`
+  - npm install -g gulp
+  - if [ $TRAVIS_OS_NAME == "linux" ]; then
+      export CXX="g++-4.9" CC="gcc-4.9" DISPLAY=:99.0;
+      sh -e /etc/init.d/xvfb start;
+      sleep 3;
+    fi
+
+install:
+  - ./scripts/npm.sh install
+
+script:
+  - gulp hygiene
+  - gulp electron
+  - gulp compile
+  - ./test/run.sh
