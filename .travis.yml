@@ -23,10 +23,6 @@ before_install:
   - source ./.nvm/nvm.sh
   - nvm install 0.12
   - nvm use 0.12
-  - npm config set python `which python`
-
-install:
-  - ./scripts/npm.sh install
 
 script:
   - gulp hygiene
