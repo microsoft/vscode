@@ -81,7 +81,7 @@ export class MenuBar extends Disposable {
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
 
-	private hideMenuBar: boolean;
+	private displayMenuBar: boolean;
 
 	private numMenusShown: number;
 	private menuStyle: IMenuStyles;
@@ -521,7 +521,7 @@ export class MenuBar extends Disposable {
 		if (this.container.style.display !== 'none') {
 			this.container.style.display = 'none';
 			this._onVisibilityChange.fire(false);
-			this.hideMenubar = true;
+			this.displayMenuBar = false;
 		}
 	}
 
@@ -529,7 +529,7 @@ export class MenuBar extends Disposable {
 		if (this.container.style.display !== 'flex') {
 			this.container.style.display = 'flex';
 			this._onVisibilityChange.fire(true);
-			this.hideMenubar = false;
+			this.displayMenuBar = true;
 
 			this.updateOverflowAction();
 		}
