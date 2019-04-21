@@ -185,6 +185,7 @@ export class ToggleScreencastModeAction extends Action {
 		keyboardMarker.style.paddingRight = '10%';
 		const onKeyDown = domEvent(document.body, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
+		let isChord: boolean = false;
 
 		const keyboardListener = onKeyDown(e => {
 			keyboardTimeout.dispose();
@@ -193,23 +194,29 @@ export class ToggleScreencastModeAction extends Action {
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 
-			if (!this.keybindingService.mightProducePrintableCharacter(event)) {
-				keyboardMarker.textContent = label;
-
-			}
-			else if (event.keyCode < 21) {
+			if (event.ctrlKey || event.altKey || event.metaKey) {
+				if (isChord) {
+					keyboardMarker.textContent += ' ' + label;
+				} else {
+					keyboardMarker.textContent = label;
+				}
+				isChord = event.keyCode === 41;
+			} else if ((keyboardMarker.textContent !== null && label !== null) && (event.keyCode < 21 || (event.keyCode > 56 && event.keyCode < 80) || event.shiftKey)) {
 				const lastToken = keyboardMarker.textContent.substr(keyboardMarker.textContent.lastIndexOf(' ') + 1);
-				keyboardMarker.textContent = (label.substring(0, lastToken.length) === lastToken) ? keyboardMarker.textContent.substring(0, keyboardMarker.textContent.lastIndexOf(' ')) + ' ' + label : keyboardMarker.textContent += ' ' + label;
-			}
-			else {
+				if (label.substring(0, lastToken.length) === lastToken) {
+					if (lastToken.lastIndexOf('+') !== -1 && lastToken.lastIndexOf('+') !== lastToken.length - 1) {
+						keyboardMarker.textContent += ' ' + label;
+					} else {
+						keyboardMarker.textContent = keyboardMarker.textContent.substring(0, keyboardMarker.textContent.lastIndexOf(' ')) + ' ' + label;
+					}
+				} else {
+					keyboardMarker.textContent += ' ' + label;
+				}
+			} else {
 				keyboardMarker.textContent += ' ' + label;
 			}
 
-			// TODO
-			//	chords
-			//	correct how it looks
-
-			if (keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
+			if (keyboardMarker.textContent !== null && label !== null && keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
 				keyboardMarker.textContent = keyboardMarker.textContent.substring(label.length + 3);
 			}
 
