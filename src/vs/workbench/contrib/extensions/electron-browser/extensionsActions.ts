@@ -260,12 +260,14 @@ export class UninstallAction extends ExtensionAction {
 		if (state === ExtensionState.Uninstalling) {
 			this.label = UninstallAction.UninstallingLabel;
 			this.class = UninstallAction.UnInstallingClass;
+			this.tooltip = UninstallAction.UninstallLabel;
 			this.enabled = false;
 			return;
 		}
 
 		this.label = UninstallAction.UninstallLabel;
 		this.class = UninstallAction.UninstallClass;
+		this.tooltip = UninstallAction.UninstallLabel;
 
 		const installedExtensions = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier));
 
