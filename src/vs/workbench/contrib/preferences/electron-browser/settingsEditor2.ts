@@ -213,14 +213,14 @@ export class SettingsEditor2 extends BaseEditor {
 				return this.render(token);
 			})
 			.then(() => {
-				if (!options) {
-					if (!this.viewState.settingsTarget) {
-						// Persist?
+				if (!this.viewState.settingsTarget) {
+					if (!options) {
 						options = SettingsEditorOptions.create({ target: ConfigurationTarget.USER_LOCAL });
+					} else if (!options.target) {
+						options.target = ConfigurationTarget.USER_LOCAL;
 					}
-				} else if (!options.target) {
-					options.target = ConfigurationTarget.USER_LOCAL;
 				}
+
 				this._setOptions(options);
 
 				this._register(input.onDispose(() => {
@@ -255,17 +255,15 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private _setOptions(options: SettingsEditorOptions): void {
-		if (!options) {
-			return;
-		}
-
 		if (options.query) {
 			this.searchWidget.setValue(options.query);
 		}
 
 		const target: SettingsTarget = options.folderUri || <SettingsTarget>options.target;
-		this.settingsTargetsWidget.settingsTarget = target;
-		this.viewState.settingsTarget = target;
+		if (target) {
+			this.settingsTargetsWidget.settingsTarget = target;
+			this.viewState.settingsTarget = target;
+		}
 	}
 
 	clearInput(): void {
