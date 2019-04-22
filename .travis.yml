@@ -18,6 +18,14 @@ addons:
       - libgtk2.0-0
       - yarn
 
+deploy:
+  provider: pages
+  skip_cleanup: true
+  github_token: ffa4559dd8fe80b3f0d2c63a0e5383a069d00e65  # Set in the settings page of your repository, as a secure variable
+  keep_history: true
+  on:
+    branch: master
+
 before_install:
   - git submodule update --init --recursive
   - git clone https://github.com/creationix/nvm.git ./.nvm
@@ -28,7 +36,7 @@ before_install:
   - echo 'export LDFLAGS="-L/usr/local/opt/node@10/lib"' >> ~/.bash_profile
   - echo 'export CPPFLAGS="-I/usr/local/opt/node@10/include"' >> ~/.bash_profile
   - echo 'alias node='node@10'' >> ~/.bash_profile
-  - echo 'export HOMEBREW_GITHUB_API_TOKEN=ffa4559dd8fe80b3f0d2c63a0e5383a069d00e65' >> ~/.bash_profile
+  - echo 'export GITHUB_TOKEN='ffa4559dd8fe80b3f0d2c63a0e5383a069d00e65'' >> ~/.bash_profile
   - source ~/.bash_profile
   - node -v
   - npm config set python `which python`
