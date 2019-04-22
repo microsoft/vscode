@@ -229,7 +229,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride: platform.Platform = platform.platform): void {
 		const isWorkspaceShellAllowed = this.checkWorkspaceShellPermissions(platformOverride === platform.Platform.Windows ? platform.OperatingSystem.Windows : (platformOverride === platform.Platform.Mac ? platform.OperatingSystem.Macintosh : platform.OperatingSystem.Linux));
-		mergeDefaultShellPathAndArgs(shell, (key) => this._workspaceConfigurationService.inspect(key), isWorkspaceShellAllowed);
+		mergeDefaultShellPathAndArgs(shell, (key) => this._workspaceConfigurationService.inspect(key), isWorkspaceShellAllowed, platformOverride);
 	}
 
 	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {

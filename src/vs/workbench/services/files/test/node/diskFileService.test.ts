@@ -1491,7 +1491,11 @@ suite('Disk File Service', () => {
 		setTimeout(() => mkdirSync(folder.fsPath), 50);
 	});
 
-	test.skip('watch - folder (non recursive) - delete folder', done => {
+	test('watch - folder (non recursive) - delete folder', done => {
+		if (isWindows) {
+			return done(); // not happy
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch7'));
 		mkdirSync(watchDir.fsPath);
 

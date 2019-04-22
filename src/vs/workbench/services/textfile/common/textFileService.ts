@@ -510,7 +510,6 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			}));
 		}
 
-
 		// Soft revert the dirty source files if any
 		await this.revertAll(dirtySourceModels.map(dirtySourceModel => dirtySourceModel.getResource()), { soft: true });
 
