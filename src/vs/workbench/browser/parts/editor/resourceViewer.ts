@@ -164,7 +164,7 @@ class LargeImageView {
 		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", size);
 		container.appendChild(label);
 
-		if (descriptor.resource.scheme !== Schemas.data) {
+		if (descriptor.resource.scheme === Schemas.file) {
 			const link = DOM.append(label, DOM.$('a.embedded-link'));
 			link.setAttribute('role', 'button');
 			link.textContent = nls.localize('resourceOpenExternalButton', "Open image using external program?");
