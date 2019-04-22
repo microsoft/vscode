@@ -1286,7 +1286,7 @@ export class CommandCenter {
 
 		const message = await getCommitMessage();
 
-		if (!message || /^\s+$/.test(message)) {
+		if (!message) {
 			return false;
 		}
 
