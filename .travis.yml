@@ -14,7 +14,6 @@ addons:
     - g++-4.9-multilib
     - zip
     - libgtk2.0-0
-    - yarn
 
 env:
   global:
