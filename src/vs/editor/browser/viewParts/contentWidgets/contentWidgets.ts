@@ -511,6 +511,7 @@ class Widget {
 			if (this._isVisible) {
 				this.domNode.removeAttribute('monaco-visible-content-widget');
 				this._isVisible = false;
+				this.domNode.setTop(5000000);
 				this.domNode.setVisibility('hidden');
 			}
 			return;
