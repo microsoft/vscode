@@ -329,60 +329,60 @@ suite('Debug - ANSI Handling', () => {
 
 		// Multiple codes affect the same text
 		assertSingleSequenceElement('\x1b[1m\x1b[3m\x1b[4m\x1b[32m', (child) => {
-			assert(dom.hasClass(child, 'code-bold'));
-			assert(dom.hasClass(child, 'code-italic'));
-			assert(dom.hasClass(child, 'code-underline'));
-			assert(dom.hasClass(child, 'code-foreground-colored'));
+			assert(dom.hasClass(child, 'code-bold'), 'Bold class not found after multiple different ANSI codes.');
+			assert(dom.hasClass(child, 'code-italic'), 'Italic class not found after multiple different ANSI codes.');
+			assert(dom.hasClass(child, 'code-underline'), 'Underline class not found after multiple different ANSI codes.');
+			assert(dom.hasClass(child, 'code-foreground-colored'), 'Foreground color class not found after multiple different ANSI codes.');
 		});
 
 		// Consecutive codes do not affect previous ones
 		assertMultipleSequenceElements('\x1b[1mbold\x1b[32mgreen\x1b[4munderline\x1b[3mitalic\x1b[0mnothing', [
 			(bold) => {
 				assert.equal(1, bold.classList.length);
-				assert(dom.hasClass(bold, 'code-bold'));
+				assert(dom.hasClass(bold, 'code-bold'), 'Bold class not found after bold ANSI code.');
 			},
 			(green) => {
 				assert.equal(2, green.classList.length);
-				assert(dom.hasClass(green, 'code-bold'));
-				assert(dom.hasClass(green, 'code-foreground-colored'));
+				assert(dom.hasClass(green, 'code-bold'), 'Bold class not found after both bold and color ANSI codes.');
+				assert(dom.hasClass(green, 'code-foreground-colored'), 'Color class not found after color ANSI code.');
 			},
 			(underline) => {
 				assert.equal(3, underline.classList.length);
-				assert(dom.hasClass(underline, 'code-bold'));
-				assert(dom.hasClass(underline, 'code-foreground-colored'));
-				assert(dom.hasClass(underline, 'code-underline'));
+				assert(dom.hasClass(underline, 'code-bold'), 'Bold class not found after bold, color, and underline ANSI codes.');
+				assert(dom.hasClass(underline, 'code-foreground-colored'), 'Color class not found after color and underline ANSI codes.');
+				assert(dom.hasClass(underline, 'code-underline'), 'Underline class not found after underline ANSI code.');
 			},
 			(italic) => {
 				assert.equal(4, italic.classList.length);
-				assert(dom.hasClass(italic, 'code-bold'));
-				assert(dom.hasClass(italic, 'code-foreground-colored'));
-				assert(dom.hasClass(italic, 'code-underline'));
-				assert(dom.hasClass(italic, 'code-italic'));
+				assert(dom.hasClass(italic, 'code-bold'), 'Bold class not found after bold, color, underline, and italic ANSI codes.');
+				assert(dom.hasClass(italic, 'code-foreground-colored'), 'Color class not found after color, underline, and italic ANSI codes.');
+				assert(dom.hasClass(italic, 'code-underline'), 'Underline class not found after underline and italic ANSI codes.');
+				assert(dom.hasClass(italic, 'code-italic'), 'Italic class not found after italic ANSI code.');
 			},
 			(nothing) => {
-				assert.equal(0, nothing.classList.length);
+				assert.equal(0, nothing.classList.length, 'One or more style classes still found after reset ANSI code.');
 			},
 		], 5);
 
 		// Different types of color codes still cancel each other
 		assertMultipleSequenceElements('\x1b[34msimple\x1b[38;2;100;100;100m24bit\x1b[38;5;3m8bitsimple\x1b[38;5;101m8bitadvanced', [
 			(simple) => {
-				assert.equal(1, simple.classList.length);
-				assert(dom.hasClass(simple, 'code-foreground-colored'));
+				assert.equal(1, simple.classList.length, 'Foreground ANSI color code should add one class.');
+				assert(dom.hasClass(simple, 'code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
 			},
 			(adv24Bit) => {
-				assert.equal(1, adv24Bit.classList.length);
-				assert(dom.hasClass(adv24Bit, 'code-foreground-colored'));
-				assertInlineColor(adv24Bit, 'foreground', new RGBA(100, 100, 100));
+				assert.equal(1, adv24Bit.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
+				assert(dom.hasClass(adv24Bit, 'code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
+				assertInlineColor(adv24Bit, 'foreground', new RGBA(100, 100, 100), '24-bit RGBA ANSI color code (100,100,100) should add matching color inline style.');
 			},
 			(adv8BitSimple) => {
-				assert.equal(1, adv8BitSimple.classList.length);
-				assert(dom.hasClass(adv8BitSimple, 'code-foreground-colored'));
-				// Can't assert color because it's theme based
+				assert.equal(1, adv8BitSimple.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
+				assert(dom.hasClass(adv8BitSimple, 'code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
+				// Won't assert color because it's theme based
 			},
 			(adv8BitAdvanced) => {
-				assert.equal(1, adv8BitAdvanced.classList.length);
-				assert(dom.hasClass(adv8BitAdvanced, 'code-foreground-colored'));
+				assert.equal(1, adv8BitAdvanced.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
+				assert(dom.hasClass(adv8BitAdvanced, 'code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
 			}
 		], 4);
 
