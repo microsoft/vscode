@@ -50,7 +50,7 @@ before_install:
     fi
 
 install:
-  - ./scripts/npm.sh install
+  - ./scripts/npm.sh install --ignore-optional
 
 script:
   - gulp hygiene
