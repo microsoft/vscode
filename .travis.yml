@@ -19,6 +19,8 @@ addons:
       - yarn
 
 deploy:
+  edge:
+    branch: v1.8.47
   provider: pages
   skip_cleanup: true
   github_token: ffa4559dd8fe80b3f0d2c63a0e5383a069d00e65  # Set in the settings page of your repository, as a secure variable
@@ -38,7 +40,7 @@ before_install:
   - echo 'alias node='node@10'' >> ~/.bash_profile
   - echo 'export GITHUB_TOKEN='ffa4559dd8fe80b3f0d2c63a0e5383a069d00e65'' >> ~/.bash_profile
   - source ~/.bash_profile
-  - node -v
+  - npm update -g npm
   - npm config set python `which python`
   - npm install -g gulp
   - if [ $TRAVIS_OS_NAME == "linux" ]; then
