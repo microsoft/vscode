@@ -154,7 +154,6 @@ const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsR
 	jsonSchema: viewsContribution
 });
 
-const TEST_VIEW_CONTAINER_ORDER = 6;
 class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private viewContainersRegistry: IViewContainersRegistry;
@@ -182,8 +181,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	}
 
 	private addCustomViewContainers(extensionPoints: IExtensionPointUser<ViewContainerExtensionPointType>[], existingViewContainers: ViewContainer[]): void {
-		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		let order = TEST_VIEW_CONTAINER_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId).length + 1;
 		for (let { value, collector, description } of extensionPoints) {
 			forEach(value, entry => {
 				if (!this.isValidViewsContainer(entry.value, collector)) {
@@ -191,7 +188,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				}
 				switch (entry.key) {
 					case 'activitybar':
-						order = this.registerCustomViewContainers(entry.value, description, order, existingViewContainers);
+						this.registerCustomViewContainers(entry.value, description, existingViewContainers);
 						break;
 				}
 			});
@@ -218,7 +215,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		const cssClass = `extensionViewlet-test`;
 		const icon = URI.parse(require.toUrl('./media/test.svg'));
 
-		this.registerCustomViewContainer(TEST_VIEW_CONTAINER_ID, title, icon, TEST_VIEW_CONTAINER_ORDER, cssClass, undefined);
+		this.registerCustomViewContainer(TEST_VIEW_CONTAINER_ID, title, icon, cssClass, undefined);
 	}
 
 	private isValidViewsContainer(viewsContainersDescriptors: IUserFriendlyViewsContainerDescriptor[], collector: ExtensionMessageCollector): boolean {
@@ -249,12 +246,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return true;
 	}
 
-	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription, order: number, existingViewContainers: ViewContainer[]): number {
+	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription, existingViewContainers: ViewContainer[]): void {
 		containers.forEach(descriptor => {
 			const cssClass = `extensionViewlet-${descriptor.id}`;
 			const icon = resources.joinPath(extension.extensionLocation, descriptor.icon);
 			const id = `workbench.view.extension.${descriptor.id}`;
-			const viewContainer = this.registerCustomViewContainer(id, descriptor.title, icon, order++, cssClass, extension.identifier);
+			const viewContainer = this.registerCustomViewContainer(id, descriptor.title, icon, cssClass, extension.identifier);
 
 			// Move those views that belongs to this container
 			if (existingViewContainers.length) {
@@ -269,10 +266,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				}
 			}
 		});
-		return order;
 	}
 
-	private registerCustomViewContainer(id: string, title: string, icon: URI, order: number, cssClass: string, extensionId: ExtensionIdentifier | undefined): ViewContainer {
+	private registerCustomViewContainer(id: string, title: string, icon: URI, cssClass: string, extensionId: ExtensionIdentifier | undefined): ViewContainer {
 		let viewContainer = this.viewContainersRegistry.get(id);
 
 		if (!viewContainer) {
@@ -301,7 +297,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				id,
 				title,
 				cssClass,
-				order,
+				undefined,
 				icon
 			);
 
