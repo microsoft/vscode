@@ -22,7 +22,6 @@ before_install:
   - git submodule update --init --recursive
   - git clone https://github.com/creationix/nvm.git ./.nvm
   - source ./.nvm/nvm.sh
-  - brew install node
   - brew install yarn
   - nvm install 0.12
   - nvm use 0.12
