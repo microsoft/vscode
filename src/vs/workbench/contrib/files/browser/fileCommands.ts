@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import { getResourceName, toggleExcludeResourceHandler } from 'vs/workbench/contrib/files/browser/settingsEditor
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { toResource, IEditorCommandsContext, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -422,21 +421,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, notificationService: INotificationService, labelService: ILabelService): void {
 	if (resources.length) {
-		clipboardService.writeText(getResourceName(resources, relative, labelService));
+		let resourceName = getResourceName(resources, relative, labelService);
+		if (resourceName) {
+			clipboardService.writeText(resourceName);
+		}
 	} else {
 		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));
 	}
-}
-
-function getResourceName(resources: URI[], relative: boolean, labelService: ILabelService)
-{
-	let resourceName = "";
-	if (resources.length) {
-		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		resourceName = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true }))
-		.join(lineDelimiter);
-	}
-	return resourceName;
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -472,33 +463,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	primary: undefined,
 	id: TOGGLE_EXCLUDE_RESOURCE_COMMAND_ID,
-	handler: (accessor, resource: URI) => {
-
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService));
-		const contextService = accessor.get(IWorkspaceContextService);
-		const resourceName = getResourceName(resources, true, accessor.get(ILabelService));
-		let workspace = contextService.getWorkspace();
-		let resourceFolderPath = resource.path.substring(0, resource.path.length - resourceName.length - 1);
-		for(let folder of workspace.folders)
-		{
-			if (folder.uri.fsPath === resourceFolderPath)
-			{
-				let settingsFile = path.join(resourceFolderPath, '/.vscode/settings.json');
-				const data = fs.readFileSync(settingsFile).toString();
-				const settings = JSON.parse(data);
-
-				if (settings['files.exclude']) {
-					if (settings['files.exclude'].hasOwnProperty(resourceName) && typeof settings['files.exclude'][resourceName] === 'boolean') {
-						settings['files.exclude'][resourceName] = !settings['files.exclude'][resourceName];
-					}
-					else {
-						settings['files.exclude'][resourceName] = true;
-					}
-					fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
-				}
-			}
-		}
-	}
+	handler: toggleExcludeResourceHandler
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
