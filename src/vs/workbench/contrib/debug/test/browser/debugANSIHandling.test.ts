@@ -12,7 +12,8 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { TestThemeService, TestTheme } from 'vs/platform/theme/test/common/testThemeService';
+import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
 suite('Debug - ANSI Handling', () => {
 
@@ -25,7 +26,13 @@ suite('Debug - ANSI Handling', () => {
 	setup(() => {
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
 		linkDetector = instantiationService.createInstance(LinkDetector);
-		themeService = new TestThemeService();
+
+		const colors: { [id: string]: string; } = {};
+		for (let color in ansiColorMap) {
+			colors[color] = ansiColorMap[color].defaults.dark;
+		}
+		const testTheme = new TestTheme(colors);
+		themeService = new TestThemeService(testTheme);
 	});
 
 	test('appendStylizedStringToContainer', () => {
@@ -142,31 +149,31 @@ suite('Debug - ANSI Handling', () => {
 		});
 
 		for (let i = 30; i <= 37; i++) {
-			const style: string = 'code-foreground-colored';
+			const customClassName: string = 'code-foreground-colored';
 
 			// Foreground colour class
 			assertSingleSequenceElement('\x1b[' + i + 'm', (child) => {
-				assert(dom.hasClass(child, style), `Custom foreground class not found on element after foreground ANSI code #${i}.`);
+				assert(dom.hasClass(child, customClassName), `Custom foreground class not found on element after foreground ANSI code #${i}.`);
 			});
 
 			// Cancellation code removes colour class
 			assertSingleSequenceElement('\x1b[' + i + ';39m', (child) => {
-				assert(dom.hasClass(child, style) === false, 'Custom foreground class still found after foreground cancellation code.');
+				assert(dom.hasClass(child, customClassName) === false, 'Custom foreground class still found after foreground cancellation code.');
 				assertInlineColor(child, 'foreground', undefined, 'Custom color style still found after foreground cancellation code.');
 			});
 		}
 
 		for (let i = 40; i <= 47; i++) {
-			const style: string = 'code-background-colored';
+			const customClassName: string = 'code-background-colored';
 
 			// Foreground colour class
 			assertSingleSequenceElement('\x1b[' + i + 'm', (child) => {
-				assert(dom.hasClass(child, style), `Custom background class not found on element after background ANSI code #${i}.`);
+				assert(dom.hasClass(child, customClassName), `Custom background class not found on element after background ANSI code #${i}.`);
 			});
 
 			// Cancellation code removes colour class
 			assertSingleSequenceElement('\x1b[' + i + ';49m', (child) => {
-				assert(dom.hasClass(child, style) === false, 'Custom background class still found after background cancellation code.');
+				assert(dom.hasClass(child, customClassName) === false, 'Custom background class still found after background cancellation code.');
 				assertInlineColor(child, 'foreground', undefined, 'Custom color style still found after background cancellation code.');
 			});
 		}
