@@ -3,7 +3,7 @@
 	"compilerOptions": {
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"sourceMap": true,
+		"sourceMap": false,
 		"outDir": "../out",
 		"target": "es6",
 		"lib": [
