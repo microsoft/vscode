@@ -23,8 +23,6 @@ before_install:
   - git clone https://github.com/creationix/nvm.git ./.nvm
   - source ./.nvm/nvm.sh
   - brew install yarn
-  - nvm install 0.12
-  - nvm use 0.12
   - npm config set python `which python`
   - npm install -g gulp
   - if [ $TRAVIS_OS_NAME == "linux" ]; then
