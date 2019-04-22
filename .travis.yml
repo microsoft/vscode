@@ -1,60 +1,59 @@
 sudo: false
 language: cpp
-
 os:
-  - linux
-  - osx
-
+- linux
+- osx
 addons:
   apt:
     sources:
-      - ubuntu-toolchain-r-test
+    - ubuntu-toolchain-r-test
     packages:
-      - gcc-4.9
-      - g++-4.9
-      - gcc-4.9-multilib
-      - g++-4.9-multilib
-      - zip
-      - libgtk2.0-0
-      - yarn
+    - gcc-4.9
+    - g++-4.9
+    - gcc-4.9-multilib
+    - g++-4.9-multilib
+    - zip
+    - libgtk2.0-0
+    - yarn
+
+env:
+  global:
+  - secure: Cz8tw1D5Ge8O29uflKBHcMkUrkebhdWDAbUxaPkGAyvtEUBMJXlc+rZu0dXht1CG6XULXSqeEGLjgNY/4EIiNg4yegIliOdR+60YY79g7EBdOyBpCE2oiy071rJzbM8jl11kjK3Wn6kf0B3nR19526bvlD2cO+zH7obQP+548sRnYzaJDDKOBTRmAf2NZ2drIVFy7chUufwBweflJsD7hW5okZ+vMnwcX75KMw4ZYOghxDfN9kwf2ePRapz3SyKB4b8sSGekcJ6pMdwBMqFKMyvAGc3J4EL3BNR5T7kp3TFDhR31WHlXEmufeyMrZ72qzig1UfmUgN5Jahpu62Ue53BA0Iiq/giY6As8cWmI3qT856moM8cUHhV9Ro1OjfysTBJUvD0AJfpkjdBEjUILcC+VIsH9Da0a/QMQTRZr7X+06OF561eTWuImRPjjj5Qo9w4sY7YAXvVGk0bYS7b7XWivrW/497jxX1mKB85cESaZ/HlgCjmPbQUO1BqhREF5zjsVbBrtKDDfKpW2IKIoaRydzpoIghrl8HHbzBIVNSQh49jE9g1uNTgyZm5Kh2zq2UAqKkLiaZKFxcytuBoQwV7lOQB+1YRSIOAJ/YaErf3B/9ybqiucKfTlAAWcWMOBXVt0I5zLywJLKkd6NsK/Z8jQdv3fhIH6h08KT5JFIzk=
+  matrix:
+  - USE_NETWORK=true
+  - USE_NETWORK=false
 
 deploy:
   edge:
     branch: v1.8.47
   provider: pages
   skip_cleanup: true
-  github_token: d92bba44198832c75cf36652149f44eeae2d95fc  # Set in the settings page of your repository, as a secure variable
+  github_token: d92bba44198832c75cf36652149f44eeae2d95fc
   keep_history: true
   on:
     branch: master
-
 before_install:
-  - git submodule update --init --recursive
-  - git clone https://github.com/creationix/nvm.git ./.nvm
-  - source ./.nvm/nvm.sh
-  - brew install yarn
-  - brew install node@10
-  - echo 'export PATH="/usr/local/opt/node@10/bin:$PATH"' >> ~/.bash_profile
-  - echo 'export LDFLAGS="-L/usr/local/opt/node@10/lib"' >> ~/.bash_profile
-  - echo 'export CPPFLAGS="-I/usr/local/opt/node@10/include"' >> ~/.bash_profile
-  - echo 'alias node='node@10'' >> ~/.bash_profile
-  - echo 'export GITHUB_TOKEN='d92bba44198832c75cf36652149f44eeae2d95fc'' >> ~/.bash_profile
-  - source ~/.bash_profile
-  - npm update -g npm
-  - npm config set python `which python`
-  - npm install -g gulp
-  - if [ $TRAVIS_OS_NAME == "linux" ]; then
-      export CXX="g++-4.9" CC="gcc-4.9" DISPLAY=:99.0;
-      sh -e /etc/init.d/xvfb start;
-      sleep 3;
-    fi
-
+- git submodule update --init --recursive
+- git clone https://github.com/creationix/nvm.git ./.nvm
+- source ./.nvm/nvm.sh
+- brew install yarn
+- brew install node@10
+- echo 'export PATH="/usr/local/opt/node@10/bin:$PATH"' >> ~/.bash_profile
+- echo 'export LDFLAGS="-L/usr/local/opt/node@10/lib"' >> ~/.bash_profile
+- echo 'export CPPFLAGS="-I/usr/local/opt/node@10/include"' >> ~/.bash_profile
+- echo 'alias node='node@10'' >> ~/.bash_profile
+- echo 'export GITHUB_TOKEN='d92bba44198832c75cf36652149f44eeae2d95fc'' >> ~/.bash_profile
+- source ~/.bash_profile
+- npm update -g npm
+- npm config set python `which python`
+- npm install -g gulp
+- if [ $TRAVIS_OS_NAME == "linux" ]; then export CXX="g++-4.9" CC="gcc-4.9" DISPLAY=:99.0;
+  sh -e /etc/init.d/xvfb start; sleep 3; fi
 install:
-  - ./scripts/npm.sh install --ignore-optional
-
+- "./scripts/npm.sh install --ignore-optional"
 script:
-  - gulp hygiene
-  - gulp electron
-  - gulp compile
-  - chmod +x scripts/test.sh
-  - ./scripts/test.sh
+- gulp hygiene
+- gulp electron
+- gulp compile
+- chmod +x scripts/test.sh
+- "./scripts/test.sh"
