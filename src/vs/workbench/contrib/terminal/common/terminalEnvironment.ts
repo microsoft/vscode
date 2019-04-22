@@ -88,7 +88,8 @@ function _getLangEnvVariable(locale?: string) {
 			ko: 'KR',
 			pl: 'PL',
 			ru: 'RU',
-			zh: 'CN'
+			zh: 'CN',
+			gb: 'GB'
 		};
 		if (parts[0] in languageVariants) {
 			parts.push(languageVariants[parts[0]]);

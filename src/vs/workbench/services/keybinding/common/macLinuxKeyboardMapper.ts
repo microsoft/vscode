@@ -949,6 +949,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				|| constantKeyCode === KeyCode.US_OPEN_SQUARE_BRACKET
 				|| constantKeyCode === KeyCode.US_BACKSLASH
 				|| constantKeyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
+				|| constantKeyCode === KeyCode.US_QUOTE
 			);
 
 			if (isOEMKey) {

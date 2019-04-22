@@ -1251,6 +1251,40 @@ suite('keyboardMapper', () => {
 		);
 	});
 
+	test('issue #71798: Terminal jumps using US International Keyboard and custom lineHeight', () => {
+		let mapper = new MacLinuxKeyboardMapper(false, {
+			'Singlequote': {
+				'value': '\'',
+				'withShift': '"',
+				'withAltGr': '',
+				'withShiftAltGr': '|'
+			}
+		}, OperatingSystem.Macintosh);
+
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'Singlequote'.
+			},
+			{
+				label: 'Ctrl+\'',
+				ariaLabel: 'Control+\'',
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+\'',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['ctrl+[Singlequote]'],
+			}
+		);
+
+	});
+
 	test('issue #24064: NumLock/NumPad keys stopped working in 1.11 on Linux', () => {
 		let mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
 
