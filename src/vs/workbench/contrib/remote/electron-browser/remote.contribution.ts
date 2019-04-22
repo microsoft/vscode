@@ -292,7 +292,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			'remote.extensionKind': {
 				type: 'object',
-				description: nls.localize('remote.extensionKind', "Configure ui or workspace extensions and allow them to enable locally or remotely in a remote window."),
+				markdownDescription: nls.localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
 						type: 'string',
@@ -302,7 +302,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						],
 						enumDescriptions: [
 							nls.localize('ui', "UI extension kind. Such extensions are enabled only when available locally in a remote window."),
-							nls.localize('workspace', "Workspace extension kind. Such extensions are enabled only when avialable on remote server in a remote window.")
+							nls.localize('workspace', "Workspace extension kind. Such extensions are enabled only when available on remote server in a remote window.")
 						],
 						default: 'ui'
 					},
