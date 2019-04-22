@@ -27,7 +27,7 @@ before_install:
   - echo 'export PATH="/usr/local/opt/node@10/bin:$PATH"' >> ~/.bash_profile
   - echo 'export LDFLAGS="-L/usr/local/opt/node@10/lib"' >> ~/.bash_profile
   - echo 'export CPPFLAGS="-I/usr/local/opt/node@10/include"' >> ~/.bash_profile
-  - echo 'alias node='node@10' >> ~/.bash_profile
+  - echo 'alias node='node@10'' >> ~/.bash_profile
   - node -v
   - npm config set python `which python`
   - npm install -g gulp
