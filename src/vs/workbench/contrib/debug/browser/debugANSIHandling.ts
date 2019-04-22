@@ -118,7 +118,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 		} else if (colorType === 'background') {
 			customBgColor = color;
 		}
-		styleNames = styleNames.filter(style => style === `code-${colorType}-colored`);
+		styleNames = styleNames.filter(style => style !== `code-${colorType}-colored`);
 		if (color !== undefined) {
 			styleNames.push(`code-${colorType}-colored`);
 		}
