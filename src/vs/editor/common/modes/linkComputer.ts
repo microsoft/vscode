@@ -157,6 +157,7 @@ export class LinkComputer {
 		} while (lastIncludedCharIndex > linkBeginIndex);
 
 		// Handle links enclosed in parens, square brackets and curlys.
+		// Handle links enclosed in asterisks (bold and italicized links)
 		if (linkBeginIndex > 0) {
 			const charCodeBeforeLink = line.charCodeAt(linkBeginIndex - 1);
 			const lastCharCodeInLink = line.charCodeAt(lastIncludedCharIndex);
@@ -169,6 +170,14 @@ export class LinkComputer {
 				// Do not end in ) if ( is before the link start
 				// Do not end in ] if [ is before the link start
 				// Do not end in } if { is before the link start
+				lastIncludedCharIndex--;
+			}
+
+			let i = 1;
+			while (line.charCodeAt(linkBeginIndex - i) === CharCode.Asterisk
+				&& line.charCodeAt(lastIncludedCharIndex - (i - 1)) === CharCode.Asterisk) {
+				// Do not end in * while there is a matching * before the link start
+				// Handles *italic*, **bold**, and ***bold and italic*** links
 				lastIncludedCharIndex--;
 			}
 		}

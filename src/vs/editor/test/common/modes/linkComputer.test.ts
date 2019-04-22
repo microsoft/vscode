@@ -187,6 +187,22 @@ suite('Editor Modes - Link Computer', () => {
 			'let url = `http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items`;',
 			'           http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items  '
 		);
+
+		// Issue #70254: Fix bold/italicized links
+		assertLink(
+			'*http://foo.bar*',
+			' http://foo.bar '
+		);
+
+		assertLink(
+			'**http://foo.bar**',
+			'  http://foo.bar  '
+		);
+
+		assertLink(
+			'***http://foo.bar***',
+			'   http://foo.bar   '
+		);
 	});
 
 	test('issue #7855', () => {
