@@ -26,6 +26,7 @@ before_install:
   - brew install node@10
   - brew link node@10
   - brew install yarn
+  - node -v
   - npm config set python `which python`
   - npm install -g gulp
   - if [ $TRAVIS_OS_NAME == "linux" ]; then
