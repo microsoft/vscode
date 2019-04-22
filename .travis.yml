@@ -22,6 +22,9 @@ before_install:
   - git submodule update --init --recursive
   - git clone https://github.com/creationix/nvm.git ./.nvm
   - source ./.nvm/nvm.sh
+  - brew unlink node
+  - brew install node@10
+  - brew link node@10
   - brew install yarn
   - npm config set python `which python`
   - npm install -g gulp
