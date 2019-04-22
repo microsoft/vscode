@@ -24,7 +24,7 @@ before_install:
   - source ./.nvm/nvm.sh
   - brew unlink node
   - brew install node@10
-  - brew link node@10 --force
+  - brew link --overwrite node@10 -- force
   - brew install yarn
   - node -v
   - npm config set python `which python`
