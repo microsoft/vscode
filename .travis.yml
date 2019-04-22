@@ -23,12 +23,12 @@ before_install:
   - git clone https://github.com/creationix/nvm.git ./.nvm
   - source ./.nvm/nvm.sh
   - brew install yarn
-  - brew unlink node
   - brew install node@10
   - echo 'export PATH="/usr/local/opt/node@10/bin:$PATH"' >> ~/.bash_profile
   - echo 'export LDFLAGS="-L/usr/local/opt/node@10/lib"' >> ~/.bash_profile
   - echo 'export CPPFLAGS="-I/usr/local/opt/node@10/include"' >> ~/.bash_profile
-  - brew link --overwrite node@10 --force
+  - brew unlink node
+  - brew link node@10 --force --overwrite
   - node -v
   - npm config set python `which python`
   - npm install -g gulp
