@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import product from 'vs/platform/product/node/product';
+import pkg from 'vs/platform/product/node/package';
+import * as os from 'os';
+import { clipboard } from 'electron';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -23,6 +27,9 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
+
+
+
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
 export const CLOSE_EDITORS_AND_GROUP_COMMAND_ID = 'workbench.action.closeEditorsAndGroup';
@@ -30,6 +37,8 @@ export const CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID = 'workbench.action.closeEdit
 export const CLOSE_EDITOR_COMMAND_ID = 'workbench.action.closeActiveEditor';
 export const CLOSE_EDITOR_GROUP_COMMAND_ID = 'workbench.action.closeGroup';
 export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOtherEditors';
+
+export const COPY_VSCODE_AND_OS_INFO_COMMAND_ID = 'copyVSCodeAndOSInfo';
 
 export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
@@ -520,6 +529,17 @@ function registerCloseEditorCommands() {
 
 				return Promise.resolve();
 			}));
+		}
+	});
+
+	//Command serves to make easier the process of issue reporting by easily copying VSCode and OS information with Alt+Shift+I
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: COPY_VSCODE_AND_OS_INFO_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I,
+		handler: () => {
+			clipboard.writeText(`- VSCode Version: ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})\n- OS Version: ${os.type()} ${os.arch()} ${os.release()}`);
 		}
 	});
 
