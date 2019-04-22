@@ -195,16 +195,6 @@ export class ToggleScreencastModeAction extends Action {
 			const keybinding = this.keybindingService.resolveKeyboardEvent(event);
 			const label = keybinding.getLabel();
 
-			if ((event.ctrlKey || event.shiftKey || event.altKey || event.metaKey || specialkeys.indexOf(event.keyCode) !== -1)) {
-				const lastToken = oldtext.substr(oldtext.lastIndexOf(' ') + 1);
-				keyboardMarker.textContent = (label.substring(0, lastToken.length) === lastToken) ? oldtext.substring(0, oldtext.lastIndexOf(' ')) + ' ' + label : keyboardMarker.textContent += ' ' + label;
-			}
-			else {
-				keyboardMarker.textContent += ' ' + label;
-			}
-
-<<<<<<< HEAD
-<<<<<<< HEAD
 			if (event.ctrlKey || event.altKey || event.metaKey) {
 				if (isChord) {
 					keyboardMarker.textContent += ' ' + label;
@@ -227,24 +217,8 @@ export class ToggleScreencastModeAction extends Action {
 				keyboardMarker.textContent += ' ' + label;
 			}
 
-<<<<<<< HEAD
-			if (keyboardMarker.textContent !== null && label !== null && keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
-				keyboardMarker.textContent = keyboardMarker.textContent.substring(label.length + 3);
-=======
-			keyboardMarker.textContent += ' ' + label;
-
-			if (keyboardMarker.scrollHeight > keyboardMarker.clientHeight || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || !this.keybindingService.mightProducePrintableCharacter(event) || !label) {
-				keyboardMarker.textContent = label;
->>>>>>> fixes overflow in screencast mode
-=======
-
-			if (keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
-				keyboardMarker.textContent = keyboardMarker.textContent.substring(label.length + 4);
->>>>>>> Added fixes for 68849, 66675, and 67965
-=======
 			while (keyboardMarker.textContent !== null && label !== null && keyboardMarker.scrollHeight > keyboardMarker.clientHeight) {
 				keyboardMarker.textContent = keyboardMarker.textContent.substring(1);
->>>>>>> corrected the variable full length bug
 			}
 
 			keyboardMarker.style.display = 'block';
