@@ -92,9 +92,11 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 					this.textFileService,
 					this.binaryContainer,
 					this.scrollbar,
-					resource => this.handleOpenInternalCallback(input, options),
-					resource => this.callbacks.openExternal(resource),
-					meta => this.handleMetadataChanged(meta)
+					{
+						openInternalClb: resource => this.handleOpenInternalCallback(input, options),
+						openExternalClb: resource => this.callbacks.openExternal(resource),
+						metadataClb: meta => this.handleMetadataChanged(meta)
+					}
 				);
 
 				return undefined;
