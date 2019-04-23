@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionsWidgets';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from '../common/extensions';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState } from '../common/extensions';
 import { append, $, addClass } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
@@ -183,7 +183,7 @@ export class TooltipWidget extends ExtensionWidget {
 		if (this.disabledLabelAction.label) {
 			return this.disabledLabelAction.label;
 		}
-		if (this.extension.local) {
+		if (this.extension.local && this.extension.state === ExtensionState.Installed) {
 			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
 				return localize('extension enabled on remote', "Extension is enabled on '{0}'", this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.workbenchEnvironmentService.configuration.remoteAuthority));
 			}
