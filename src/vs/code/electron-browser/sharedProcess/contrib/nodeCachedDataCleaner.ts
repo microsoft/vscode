@@ -2,15 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { basename, dirname, join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { join, basename, dirname } from 'path';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 
 export class NodeCachedDataCleaner {
 
@@ -43,13 +41,13 @@ export class NodeCachedDataCleaner {
 		const nodeCachedDataRootDir = dirname(this._environmentService.nodeCachedDataDir);
 		const nodeCachedDataCurrent = basename(this._environmentService.nodeCachedDataDir);
 
-		let handle = setTimeout(() => {
+		let handle: NodeJS.Timeout | undefined = setTimeout(() => {
 			handle = undefined;
 
 			readdir(nodeCachedDataRootDir).then(entries => {
 
 				const now = Date.now();
-				const deletes: TPromise<any>[] = [];
+				const deletes: Promise<unknown>[] = [];
 
 				entries.forEach(entry => {
 					// name check
@@ -72,14 +70,17 @@ export class NodeCachedDataCleaner {
 					}
 				});
 
-				return TPromise.join(deletes);
+				return Promise.all(deletes);
 
-			}).done(undefined, onUnexpectedError);
+			}).then(undefined, onUnexpectedError);
 
 		}, 30 * 1000);
 
-		this._disposables.push({
-			dispose() { clearTimeout(handle); }
-		});
+		this._disposables.push(toDisposable(() => {
+			if (handle) {
+				clearTimeout(handle);
+				handle = undefined;
+			}
+		}));
 	}
 }

@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as platform from 'vs/base/common/platform';
 import * as touch from 'vs/base/browser/touch';
@@ -14,7 +12,8 @@ import * as dom from 'vs/base/browser/dom';
 import * as mouse from 'vs/base/browser/mouseEvent';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as _ from 'vs/base/parts/tree/browser/tree';
-import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { KeyCode, KeyMod, Keybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IKeyBindingCallback {
 	(tree: _.ITree, event: IKeyboardEvent): void;
@@ -25,7 +24,7 @@ export interface ICancelableEvent {
 	stopPropagation(): void;
 }
 
-export enum ClickBehavior {
+export const enum ClickBehavior {
 
 	/**
 	 * Handle the click when the mouse button is pressed but not released yet.
@@ -38,7 +37,7 @@ export enum ClickBehavior {
 	ON_MOUSE_UP
 }
 
-export enum OpenMode {
+export const enum OpenMode {
 	SINGLE_CLICK,
 	DOUBLE_CLICK
 }
@@ -50,7 +49,7 @@ export interface IControllerOptions {
 }
 
 interface IKeybindingDispatcherItem {
-	keybinding: Keybinding;
+	keybinding: Keybinding | null;
 	callback: IKeyBindingCallback;
 }
 
@@ -63,27 +62,29 @@ export class KeybindingDispatcher {
 	}
 
 	public has(keybinding: KeyCode): boolean {
-		let target = createSimpleKeybinding(keybinding, platform.OS);
-		for (const a of this._arr) {
-			if (target.equals(a.keybinding)) {
-				return true;
+		let target = createKeybinding(keybinding, platform.OS);
+		if (target !== null) {
+			for (const a of this._arr) {
+				if (target.equals(a.keybinding)) {
+					return true;
+				}
 			}
 		}
 		return false;
 	}
 
-	public set(keybinding: KeyCode, callback: IKeyBindingCallback) {
+	public set(keybinding: number, callback: IKeyBindingCallback) {
 		this._arr.push({
 			keybinding: createKeybinding(keybinding, platform.OS),
 			callback: callback
 		});
 	}
 
-	public dispatch(keybinding: SimpleKeybinding): IKeyBindingCallback {
+	public dispatch(keybinding: SimpleKeybinding): IKeyBindingCallback | null {
 		// Loop from the last to the first to handle overwrites
 		for (let i = this._arr.length - 1; i >= 0; i--) {
 			let item = this._arr[i];
-			if (keybinding.equals(item.keybinding)) {
+			if (keybinding.toChord().equals(item.keybinding)) {
 				return item.callback;
 			}
 		}
@@ -134,6 +135,10 @@ export class DefaultController implements _.IController {
 					return false; // Ignore event if target is a form input field (avoids browser specific issues)
 				}
 
+				if (dom.findParentWithClass(event.target, 'scrollbar', 'monaco-tree')) {
+					return false;
+				}
+
 				if (dom.findParentWithClass(event.target, 'monaco-action-bar', 'row')) { // TODO@Joao not very nice way of checking for the action bar (implicit knowledge)
 					return false; // Ignore event if target is over an action bar of the row
 				}
@@ -168,17 +173,16 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onLeftClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
-		const payload = { origin: origin, originalEvent: eventish };
 		const event = <mouse.IMouseEvent>eventish;
-		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
+		const payload = { origin: origin, originalEvent: eventish, didClickOnTwistie: this.isClickOnTwistie(event) };
 
 		if (tree.getInput() === element) {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 		} else {
-			const isMouseDown = eventish && event.browserEvent && event.browserEvent.type === 'mousedown';
-			if (!isMouseDown) {
-				eventish.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
+			const isSingleMouseDown = eventish && event.browserEvent && event.browserEvent.type === 'mousedown' && event.browserEvent.detail === 1;
+			if (!isSingleMouseDown) {
+				eventish.preventDefault(); // we cannot preventDefault onMouseDown with single click because this would break DND otherwise
 			}
 			eventish.stopPropagation();
 
@@ -186,16 +190,21 @@ export class DefaultController implements _.IController {
 			tree.setSelection([element], payload);
 			tree.setFocus(element, payload);
 
-			if (this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event)) {
+			if (this.shouldToggleExpansion(element, event, origin)) {
 				if (tree.isExpanded(element)) {
-					tree.collapse(element).done(null, errors.onUnexpectedError);
+					tree.collapse(element).then(undefined, errors.onUnexpectedError);
 				} else {
-					tree.expand(element).done(null, errors.onUnexpectedError);
+					tree.expand(element).then(undefined, errors.onUnexpectedError);
 				}
 			}
 		}
 
 		return true;
+	}
+
+	protected shouldToggleExpansion(element: any, event: mouse.IMouseEvent, origin: string): boolean {
+		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
+		return this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event);
 	}
 
 	protected setOpenMode(openMode: OpenMode) {
@@ -207,13 +216,20 @@ export class DefaultController implements _.IController {
 	}
 
 	protected isClickOnTwistie(event: mouse.IMouseEvent): boolean {
-		const target = event.target as HTMLElement;
+		let element = event.target as HTMLElement;
 
-		// There is no way to find out if the ::before element is clicked where
-		// the twistie is drawn, but the <div class="content"> element in the
-		// tree item is the only thing we get back as target when the user clicks
-		// on the twistie.
-		return target && dom.hasClass(target, 'content') && dom.hasClass(target.parentElement, 'monaco-tree-row');
+		if (!dom.hasClass(element, 'content')) {
+			return false;
+		}
+
+		const twistieStyle = window.getComputedStyle(element, ':before');
+
+		if (twistieStyle.backgroundImage === 'none' || twistieStyle.display === 'none') {
+			return false;
+		}
+
+		const twistieWidth = parseInt(twistieStyle.width!) + parseInt(twistieStyle.paddingRight!);
+		return event.browserEvent.offsetX <= twistieWidth;
 	}
 
 	public onContextMenu(tree: _.ITree, element: any, event: _.ContextMenuEvent): boolean {
@@ -249,8 +265,9 @@ export class DefaultController implements _.IController {
 	}
 
 	private onKey(bindings: KeybindingDispatcher, tree: _.ITree, event: IKeyboardEvent): boolean {
-		const handler = bindings.dispatch(event.toKeybinding());
+		const handler: any = bindings.dispatch(event.toKeybinding());
 		if (handler) {
+			// TODO: TS 3.1 upgrade. Why are we checking against void?
 			if (handler(tree, event)) {
 				event.preventDefault();
 				event.stopPropagation();
@@ -267,7 +284,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPrevious(1, payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -279,7 +296,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPreviousPage(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -291,7 +308,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNext(1, payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -303,7 +320,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNextPage(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -315,7 +332,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusFirst(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -327,7 +344,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusLast(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -345,7 +362,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).done(null, errors.onUnexpectedError);
+			}).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -363,7 +380,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).done(null, errors.onUnexpectedError);
+			}).then(undefined, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -416,19 +433,19 @@ export class DefaultController implements _.IController {
 
 export class DefaultDragAndDrop implements _.IDragAndDrop {
 
-	public getDragURI(tree: _.ITree, element: any): string {
+	public getDragURI(tree: _.ITree, element: any): string | null {
 		return null;
 	}
 
-	public onDragStart(tree: _.ITree, data: _.IDragAndDropData, originalEvent: mouse.DragMouseEvent): void {
+	public onDragStart(tree: _.ITree, data: IDragAndDropData, originalEvent: mouse.DragMouseEvent): void {
 		return;
 	}
 
-	public onDragOver(tree: _.ITree, data: _.IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): _.IDragOverReaction {
+	public onDragOver(tree: _.ITree, data: IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): _.IDragOverReaction | null {
 		return null;
 	}
 
-	public drop(tree: _.ITree, data: _.IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): void {
+	public drop(tree: _.ITree, data: IDragAndDropData, targetElement: any, originalEvent: mouse.DragMouseEvent): void {
 		return;
 	}
 }
@@ -449,7 +466,7 @@ export class DefaultSorter implements _.ISorter {
 
 export class DefaultAccessibilityProvider implements _.IAccessibilityProvider {
 
-	getAriaLabel(tree: _.ITree, element: any): string {
+	getAriaLabel(tree: _.ITree, element: any): string | null {
 		return null;
 	}
 }
@@ -538,12 +555,12 @@ export class DefaultTreestyler implements _.ITreeStyler {
 export class CollapseAllAction extends Action {
 
 	constructor(private viewer: _.ITree, enabled: boolean) {
-		super('vs.tree.collapse', nls.localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', enabled);
+		super('vs.tree.collapse', nls.localize('collapse all', "Collapse All"), 'monaco-tree-action collapse-all', enabled);
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): Promise<any> {
 		if (this.viewer.getHighlight()) {
-			return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+			return Promise.resolve(); // Global action disabled if user is in edit mode from another action
 		}
 
 		this.viewer.collapseAll();
@@ -552,6 +569,6 @@ export class CollapseAllAction extends Action {
 		this.viewer.domFocus();
 		this.viewer.focusFirst();
 
-		return TPromise.as(null);
+		return Promise.resolve();
 	}
 }

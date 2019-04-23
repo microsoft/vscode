@@ -2,19 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import * as modes from 'vs/editor/common/modes';
+import { CommentRule } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { CommentMode } from 'vs/editor/test/common/commentMode';
-import * as modes from 'vs/editor/common/modes';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { CommentRule } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 suite('Editor Contrib - Line Comment Command', () => {
 
@@ -84,7 +82,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 		});
 	}
 
-	test('_analyzeLines', function () {
+	test('_analyzeLines', () => {
 		let r: IPreflightData;
 
 		r = LineCommentCommand._analyzeLines(Type.Toggle, createSimpleModel([
@@ -93,6 +91,9 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    c',
 			'\t\td'
 		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1);
+		if (!r.supported) {
+			throw new Error(`unexpected`);
+		}
 
 		assert.equal(r.shouldRemoveComments, false);
 
@@ -121,6 +122,9 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    !@# c',
 			'\t\t!@#d'
 		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1);
+		if (!r.supported) {
+			throw new Error(`unexpected`);
+		}
 
 		assert.equal(r.shouldRemoveComments, true);
 
@@ -149,7 +153,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 		assert.equal(r.lines[3].commentStrLength, 3);
 	});
 
-	test('_normalizeInsertionPoint', function () {
+	test('_normalizeInsertionPoint', () => {
 
 		const runTest = (mixedArr: any[], tabSize: number, expected: number[], testName: string) => {
 			const model = createSimpleModel(mixedArr.filter((item, idx) => idx % 2 === 0));
@@ -946,7 +950,9 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 
 			this._register(modes.TokenizationRegistry.register(this.getLanguageIdentifier().language, {
 				getInitialState: (): modes.IState => NULL_STATE,
-				tokenize: undefined,
+				tokenize: () => {
+					throw new Error('not implemented');
+				},
 				tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
 					let languageId = (/^  /.test(line) ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
 

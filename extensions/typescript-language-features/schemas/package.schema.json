@@ -16,6 +16,11 @@
 							"name": {
 								"type": "string",
 								"description": "Name of the plugin as listed in the package.json."
+							},
+							"enableForWorkspaceTypeScriptVersions": {
+								"type": "boolean",
+								"default": false,
+								"description": "Should the plugin be loaded when using workspace versions of TypeScript?"
 							}
 						}
 					}

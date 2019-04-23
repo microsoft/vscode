@@ -10,7 +10,7 @@ export class References {
 	private static readonly REFERENCES_WIDGET = '.monaco-editor .zone-widget .zone-widget-container.peekview-widget.reference-zone-widget.results-loaded';
 	private static readonly REFERENCES_TITLE_FILE_NAME = `${References.REFERENCES_WIDGET} .head .peekview-title .filename`;
 	private static readonly REFERENCES_TITLE_COUNT = `${References.REFERENCES_WIDGET} .head .peekview-title .meta`;
-	private static readonly REFERENCES = `${References.REFERENCES_WIDGET} .body .ref-tree.inline .monaco-tree-row .reference`;
+	private static readonly REFERENCES = `${References.REFERENCES_WIDGET} .body .ref-tree.inline .monaco-list-row .reference`;
 
 	constructor(private code: Code) { }
 
@@ -19,7 +19,7 @@ export class References {
 	}
 
 	async waitForReferencesCountInTitle(count: number): Promise<void> {
-		await this.code.waitForTextContent(References.REFERENCES_TITLE_COUNT, void 0, titleCount => {
+		await this.code.waitForTextContent(References.REFERENCES_TITLE_COUNT, undefined, titleCount => {
 			const matches = titleCount.match(/\d+/);
 			return matches ? parseInt(matches[0]) === count : false;
 		});

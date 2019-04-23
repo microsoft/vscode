@@ -27,6 +27,8 @@
 				"storage.type.boolean.go",
 				"storage.type.string.go",
 				"storage.type.uintptr.go",
+				"storage.type.error.go",
+				"storage.type.rune.go",
 				"storage.type.cs",
 				"storage.type.generic.cs",
 				"storage.type.modifier.cs",
@@ -66,7 +68,13 @@
 		},
 		{
 			"name": "Control flow keywords",
-			"scope": "keyword.control",
+			"scope": [
+				"keyword.control",
+				"keyword.operator.new.cpp",
+				"keyword.operator.delete.cpp",
+				"keyword.other.using",
+				"keyword.other.operator"
+			],
 			"settings": {
 				"foreground": "#AF00DB"
 			}

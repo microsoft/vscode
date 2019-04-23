@@ -57,7 +57,7 @@ export class CspAlerter {
 		notification.setAttribute('role', 'button');
 		notification.setAttribute('aria-label', strings.cspAlertMessageLabel);
 		notification.onclick = () => {
-			this.messaging!.postCommand('markdown.showPreviewSecuritySelector', [settings.source]);
+			this.messaging!.postMessage('showPreviewSecuritySelector', { source: settings.source });
 		};
 		document.body.appendChild(notification);
 	}

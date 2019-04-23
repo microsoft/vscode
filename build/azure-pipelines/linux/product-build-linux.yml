@@ -1,0 +1,73 @@
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+
+- script: |
+    set -e
+    export npm_config_arch="$(VSCODE_ARCH)"
+    if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
+      export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
+    fi
+
+    cat << EOF > ~/.netrc
+    machine monacotools.visualstudio.com
+    password $(VSO_PAT)
+    machine github.com
+    login vscode
+    password $(VSCODE_MIXIN_PASSWORD)
+    EOF
+
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+    git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+    git fetch distro
+    git merge $(node -p "require('./package.json').distro")
+
+    CHILD_CONCURRENCY=1 yarn
+    yarn gulp mixin
+    yarn gulp hygiene
+    yarn monaco-compile-check
+    node build/azure-pipelines/common/installDistro.js
+    node build/lib/builtInExtensions.js
+  displayName: Prepare build
+
+- script: |
+    set -e
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
+    ./build/azure-pipelines/linux/build.sh
+  displayName: Build
+
+- script: |
+    set -e
+    yarn gulp "electron-$(VSCODE_ARCH)"
+
+    # xvfb seems to be crashing often, let's make sure it's always up
+    service xvfb start
+
+    DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
+    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
+  displayName: Run unit tests
+
+- script: |
+    set -e
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
+    VSCODE_HOCKEYAPP_TOKEN="$(VSCODE_HOCKEYAPP_TOKEN)" \
+    ./build/azure-pipelines/linux/publish.sh
+  displayName: Publish
+
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'
+  continueOnError: true
+
+- task: PublishPipelineArtifact@0
+  displayName: 'Publish Pipeline Artifact'
+  inputs:
+    artifactName: snap-$(VSCODE_ARCH)
+    targetPath: .build/linux/snap-tarball

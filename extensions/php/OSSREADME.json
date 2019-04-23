@@ -1,8 +1,0 @@
-// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
-[{
-	"name": "language-php",
-	"version": "0.0.0",
-	"license": "MIT",
-	"repositoryURL": "https://github.com/atom/language-php",
-	"description": "The files snippets/php.json & syntaxes/php.tmLanguage.json were derived from the Atom package https://atom.io/packages/language-php which was originally converted from the PHP TextMate bundle https://github.com/textmate/php.tmbundle."
-}]

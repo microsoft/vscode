@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { MainThreadCommandsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { MainThreadCommandsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
@@ -28,9 +26,9 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), undefined, new NullLogService());
+		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), undefined!, new NullLogService());
 		commands.registerCommand(true, 'foo', (): any => { }).dispose();
-		assert.equal(lastUnregister, 'foo');
+		assert.equal(lastUnregister!, 'foo');
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
 
 	});
@@ -48,7 +46,7 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), undefined, new NullLogService());
+		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), undefined!, new NullLogService());
 		const reg = commands.registerCommand(true, 'foo', (): any => { });
 		reg.dispose();
 		reg.dispose();

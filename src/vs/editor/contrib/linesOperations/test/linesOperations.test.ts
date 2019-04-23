@@ -2,17 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { Selection } from 'vs/editor/common/core/selection';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
+import { TitleCaseAction, DeleteAllLeftAction, DeleteAllRightAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TransposeAction, UpperCaseAction, DeleteLinesAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction, SortLinesAscendingAction, SortLinesDescendingAction } from 'vs/editor/contrib/linesOperations/linesOperations';
-import { Cursor } from 'vs/editor/common/controller/cursor';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Editor Contrib - Line Operations', () => {
@@ -23,18 +21,18 @@ suite('Editor Contrib - Line Operations', () => {
 					'omicron',
 					'beta',
 					'alpha'
-				], {}, (editor, cursor) => {
-					let model = editor.getModel();
+				], {}, (editor) => {
+					let model = editor.getModel()!;
 					let sortLinesAscendingAction = new SortLinesAscendingAction();
 
 					editor.setSelection(new Selection(1, 1, 3, 5));
-					sortLinesAscendingAction.run(null, editor);
+					sortLinesAscendingAction.run(null!, editor);
 					assert.deepEqual(model.getLinesContent(), [
 						'alpha',
 						'beta',
 						'omicron'
 					]);
-					assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 3, 7).toString());
+					assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 1, 3, 7).toString());
 				});
 		});
 
@@ -48,12 +46,12 @@ suite('Editor Contrib - Line Operations', () => {
 					'omicron',
 					'beta',
 					'alpha'
-				], {}, (editor, cursor) => {
-					let model = editor.getModel();
+				], {}, (editor) => {
+					let model = editor.getModel()!;
 					let sortLinesAscendingAction = new SortLinesAscendingAction();
 
 					editor.setSelections([new Selection(1, 1, 3, 5), new Selection(5, 1, 7, 5)]);
-					sortLinesAscendingAction.run(null, editor);
+					sortLinesAscendingAction.run(null!, editor);
 					assert.deepEqual(model.getLinesContent(), [
 						'alpha',
 						'beta',
@@ -67,7 +65,7 @@ suite('Editor Contrib - Line Operations', () => {
 						new Selection(1, 1, 3, 7),
 						new Selection(5, 1, 7, 7)
 					];
-					editor.getSelections().forEach((actualSelection, index) => {
+					editor.getSelections()!.forEach((actualSelection, index) => {
 						assert.deepEqual(actualSelection.toString(), expectedSelections[index].toString());
 					});
 				});
@@ -81,18 +79,18 @@ suite('Editor Contrib - Line Operations', () => {
 					'alpha',
 					'beta',
 					'omicron'
-				], {}, (editor, cursor) => {
-					let model = editor.getModel();
+				], {}, (editor) => {
+					let model = editor.getModel()!;
 					let sortLinesDescendingAction = new SortLinesDescendingAction();
 
 					editor.setSelection(new Selection(1, 1, 3, 7));
-					sortLinesDescendingAction.run(null, editor);
+					sortLinesDescendingAction.run(null!, editor);
 					assert.deepEqual(model.getLinesContent(), [
 						'omicron',
 						'beta',
 						'alpha'
 					]);
-					assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 3, 5).toString());
+					assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 1, 3, 5).toString());
 				});
 		});
 
@@ -106,12 +104,12 @@ suite('Editor Contrib - Line Operations', () => {
 					'alpha',
 					'beta',
 					'omicron'
-				], {}, (editor, cursor) => {
-					let model = editor.getModel();
+				], {}, (editor) => {
+					let model = editor.getModel()!;
 					let sortLinesDescendingAction = new SortLinesDescendingAction();
 
 					editor.setSelections([new Selection(1, 1, 3, 7), new Selection(5, 1, 7, 7)]);
-					sortLinesDescendingAction.run(null, editor);
+					sortLinesDescendingAction.run(null!, editor);
 					assert.deepEqual(model.getLinesContent(), [
 						'omicron',
 						'beta',
@@ -125,7 +123,7 @@ suite('Editor Contrib - Line Operations', () => {
 						new Selection(1, 1, 3, 5),
 						new Selection(5, 1, 7, 5)
 					];
-					editor.getSelections().forEach((actualSelection, index) => {
+					editor.getSelections()!.forEach((actualSelection, index) => {
 						assert.deepEqual(actualSelection.toString(), expectedSelections[index].toString());
 					});
 				});
@@ -140,18 +138,112 @@ suite('Editor Contrib - Line Operations', () => {
 					'one',
 					'two',
 					'three'
-				], {}, (editor, cursor) => {
-					let model = editor.getModel();
+				], {}, (editor) => {
+					let model = editor.getModel()!;
 					let deleteAllLeftAction = new DeleteAllLeftAction();
 
 					editor.setSelection(new Selection(1, 2, 1, 2));
-					deleteAllLeftAction.run(null, editor);
+					deleteAllLeftAction.run(null!, editor);
 					assert.equal(model.getLineContent(1), 'ne', '001');
 
 					editor.setSelections([new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)]);
-					deleteAllLeftAction.run(null, editor);
+					deleteAllLeftAction.run(null!, editor);
 					assert.equal(model.getLineContent(2), 'wo', '002');
 					assert.equal(model.getLineContent(3), 'hree', '003');
+				});
+		});
+
+		test('should jump to the previous line when on first column', function () {
+			withTestCodeEditor(
+				[
+					'one',
+					'two',
+					'three'
+				], {}, (editor) => {
+					let model = editor.getModel()!;
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 1));
+					deleteAllLeftAction.run(null!, editor);
+					assert.equal(model.getLineContent(1), 'onetwo', '001');
+
+					editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+					deleteAllLeftAction.run(null!, editor);
+					assert.equal(model.getLinesContent()[0], 'onetwothree');
+					assert.equal(model.getLinesContent().length, 1);
+
+					editor.setSelection(new Selection(1, 1, 1, 1));
+					deleteAllLeftAction.run(null!, editor);
+					assert.equal(model.getLinesContent()[0], 'onetwothree');
+				});
+		});
+
+		test('should keep deleting lines in multi cursor mode', function () {
+			withTestCodeEditor(
+				[
+					'hi my name is Carlos Matos',
+					'BCC',
+					'waso waso waso',
+					'my wife doesnt believe in me',
+					'nonononono',
+					'bitconneeeect'
+				], {}, (editor) => {
+					let model = editor.getModel()!;
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					const beforeSecondWasoSelection = new Selection(3, 5, 3, 5);
+					const endOfBCCSelection = new Selection(2, 4, 2, 4);
+					const endOfNonono = new Selection(5, 11, 5, 11);
+
+					editor.setSelections([beforeSecondWasoSelection, endOfBCCSelection, endOfNonono]);
+
+					deleteAllLeftAction.run(null!, editor);
+					let selections = editor.getSelections()!;
+
+					assert.equal(model.getLineContent(2), '');
+					assert.equal(model.getLineContent(3), ' waso waso');
+					assert.equal(model.getLineContent(5), '');
+
+					assert.deepEqual([
+						selections[0].startLineNumber,
+						selections[0].startColumn,
+						selections[0].endLineNumber,
+						selections[0].endColumn
+					], [3, 1, 3, 1]);
+
+					assert.deepEqual([
+						selections[1].startLineNumber,
+						selections[1].startColumn,
+						selections[1].endLineNumber,
+						selections[1].endColumn
+					], [2, 1, 2, 1]);
+
+					assert.deepEqual([
+						selections[2].startLineNumber,
+						selections[2].startColumn,
+						selections[2].endLineNumber,
+						selections[2].endColumn
+					], [5, 1, 5, 1]);
+
+					deleteAllLeftAction.run(null!, editor);
+					selections = editor.getSelections()!;
+
+					assert.equal(model.getLineContent(1), 'hi my name is Carlos Matos waso waso');
+					assert.equal(selections.length, 2);
+
+					assert.deepEqual([
+						selections[0].startLineNumber,
+						selections[0].startColumn,
+						selections[0].endLineNumber,
+						selections[0].endColumn
+					], [1, 27, 1, 27]);
+
+					assert.deepEqual([
+						selections[1].startLineNumber,
+						selections[1].startColumn,
+						selections[1].endLineNumber,
+						selections[1].endColumn
+					], [2, 29, 2, 29]);
 				});
 		});
 
@@ -166,28 +258,28 @@ suite('Editor Contrib - Line Operations', () => {
 					'hola',
 					'world',
 					'hello world',
-				], {}, (editor, cursor) => {
-					let model = editor.getModel();
+				], {}, (editor) => {
+					let model = editor.getModel()!;
 					let deleteAllLeftAction = new DeleteAllLeftAction();
 
 					editor.setSelections([new Selection(1, 2, 1, 2), new Selection(1, 4, 1, 4)]);
-					deleteAllLeftAction.run(null, editor);
+					deleteAllLeftAction.run(null!, editor);
 					assert.equal(model.getLineContent(1), 'lo', '001');
 
 					editor.setSelections([new Selection(2, 2, 2, 2), new Selection(2, 4, 2, 5)]);
-					deleteAllLeftAction.run(null, editor);
+					deleteAllLeftAction.run(null!, editor);
 					assert.equal(model.getLineContent(2), 'ord', '002');
 
 					editor.setSelections([new Selection(3, 2, 3, 5), new Selection(3, 7, 3, 7)]);
-					deleteAllLeftAction.run(null, editor);
+					deleteAllLeftAction.run(null!, editor);
 					assert.equal(model.getLineContent(3), 'world', '003');
 
 					editor.setSelections([new Selection(4, 3, 4, 3), new Selection(4, 5, 5, 4)]);
-					deleteAllLeftAction.run(null, editor);
+					deleteAllLeftAction.run(null!, editor);
 					assert.equal(model.getLineContent(4), 'lljour', '004');
 
 					editor.setSelections([new Selection(5, 3, 6, 3), new Selection(6, 5, 7, 5), new Selection(7, 7, 7, 7)]);
-					deleteAllLeftAction.run(null, editor);
+					deleteAllLeftAction.run(null!, editor);
 					assert.equal(model.getLineContent(5), 'horlworld', '005');
 				});
 		});
@@ -198,8 +290,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'one',
 					'two',
 					'three'
-				], {}, (editor, cursor) => {
-					let model = editor.getModel();
+				], {}, (editor) => {
+					let model = editor.getModel()!;
 					let deleteAllLeftAction = new DeleteAllLeftAction();
 
 					editor.setSelection(new Selection(1, 1, 1, 1));
@@ -208,7 +300,7 @@ suite('Editor Contrib - Line Operations', () => {
 					assert.equal(model.getLineContent(1), 'Typing some text here on line one');
 					assert.deepEqual(editor.getSelection(), new Selection(1, 31, 1, 31));
 
-					deleteAllLeftAction.run(null, editor);
+					deleteAllLeftAction.run(null!, editor);
 					assert.equal(model.getLineContent(1), 'one');
 					assert.deepEqual(editor.getSelection(), new Selection(1, 1, 1, 1));
 
@@ -234,34 +326,34 @@ suite('Editor Contrib - Line Operations', () => {
 					'',
 					'',
 					'hello world'
-				], {}, (editor, cursor) => {
-					let model = editor.getModel();
+				], {}, (editor) => {
+					let model = editor.getModel()!;
 					let joinLinesAction = new JoinLinesAction();
 
 					editor.setSelection(new Selection(1, 2, 1, 2));
-					joinLinesAction.run(null, editor);
+					joinLinesAction.run(null!, editor);
 					assert.equal(model.getLineContent(1), 'hello world', '001');
-					assert.deepEqual(editor.getSelection().toString(), new Selection(1, 6, 1, 6).toString(), '002');
+					assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 6, 1, 6).toString(), '002');
 
 					editor.setSelection(new Selection(2, 2, 2, 2));
-					joinLinesAction.run(null, editor);
+					joinLinesAction.run(null!, editor);
 					assert.equal(model.getLineContent(2), 'hello world', '003');
-					assert.deepEqual(editor.getSelection().toString(), new Selection(2, 7, 2, 7).toString(), '004');
+					assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 7, 2, 7).toString(), '004');
 
 					editor.setSelection(new Selection(3, 2, 3, 2));
-					joinLinesAction.run(null, editor);
+					joinLinesAction.run(null!, editor);
 					assert.equal(model.getLineContent(3), 'hello world', '005');
-					assert.deepEqual(editor.getSelection().toString(), new Selection(3, 7, 3, 7).toString(), '006');
+					assert.deepEqual(editor.getSelection()!.toString(), new Selection(3, 7, 3, 7).toString(), '006');
 
 					editor.setSelection(new Selection(4, 2, 5, 3));
-					joinLinesAction.run(null, editor);
+					joinLinesAction.run(null!, editor);
 					assert.equal(model.getLineContent(4), 'hello world', '007');
-					assert.deepEqual(editor.getSelection().toString(), new Selection(4, 2, 4, 8).toString(), '008');
+					assert.deepEqual(editor.getSelection()!.toString(), new Selection(4, 2, 4, 8).toString(), '008');
 
 					editor.setSelection(new Selection(5, 1, 7, 3));
-					joinLinesAction.run(null, editor);
+					joinLinesAction.run(null!, editor);
 					assert.equal(model.getLineContent(5), 'hello world', '009');
-					assert.deepEqual(editor.getSelection().toString(), new Selection(5, 1, 5, 3).toString(), '010');
+					assert.deepEqual(editor.getSelection()!.toString(), new Selection(5, 1, 5, 3).toString(), '010');
 				});
 		});
 
@@ -270,15 +362,15 @@ suite('Editor Contrib - Line Operations', () => {
 				[
 					'hello',
 					'world'
-				], {}, (editor, cursor) => {
-					let model = editor.getModel();
+				], {}, (editor) => {
+					let model = editor.getModel()!;
 					let joinLinesAction = new JoinLinesAction();
 
 					editor.setSelection(new Selection(2, 1, 2, 1));
-					joinLinesAction.run(null, editor);
+					joinLinesAction.run(null!, editor);
 					assert.equal(model.getLineContent(1), 'hello', '001');
 					assert.equal(model.getLineContent(2), 'world', '002');
-					assert.deepEqual(editor.getSelection().toString(), new Selection(2, 6, 2, 6).toString(), '003');
+					assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 6, 2, 6).toString(), '003');
 				});
 		});
 
@@ -296,8 +388,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'',
 					'',
 					'hello world'
-				], {}, (editor, cursor) => {
-					let model = editor.getModel();
+				], {}, (editor) => {
+					let model = editor.getModel()!;
 					let joinLinesAction = new JoinLinesAction();
 
 					editor.setSelections([
@@ -310,9 +402,9 @@ suite('Editor Contrib - Line Operations', () => {
 						new Selection(10, 1, 10, 1)
 					]);
 
-					joinLinesAction.run(null, editor);
+					joinLinesAction.run(null!, editor);
 					assert.equal(model.getLinesContent().join('\n'), 'hello world\nhello world\nhello world\nhello world\n\nhello world', '001');
-					assert.deepEqual(editor.getSelections().toString(), [
+					assert.deepEqual(editor.getSelections()!.toString(), [
 						/** primary cursor */
 						new Selection(3, 4, 3, 8),
 						new Selection(1, 6, 1, 6),
@@ -322,7 +414,7 @@ suite('Editor Contrib - Line Operations', () => {
 					].toString(), '002');
 
 					/** primary cursor */
-					assert.deepEqual(editor.getSelection().toString(), new Selection(3, 4, 3, 8).toString(), '003');
+					assert.deepEqual(editor.getSelection()!.toString(), new Selection(3, 4, 3, 8).toString(), '003');
 				});
 		});
 
@@ -331,8 +423,8 @@ suite('Editor Contrib - Line Operations', () => {
 				[
 					'hello',
 					'world'
-				], {}, (editor, cursor) => {
-					let model = editor.getModel();
+				], {}, (editor) => {
+					let model = editor.getModel()!;
 					let joinLinesAction = new JoinLinesAction();
 
 					editor.setSelection(new Selection(1, 6, 1, 6));
@@ -341,7 +433,7 @@ suite('Editor Contrib - Line Operations', () => {
 					assert.equal(model.getLineContent(1), 'hello my dear');
 					assert.deepEqual(editor.getSelection(), new Selection(1, 14, 1, 14));
 
-					joinLinesAction.run(null, editor);
+					joinLinesAction.run(null!, editor);
 					assert.equal(model.getLineContent(1), 'hello my dear world');
 					assert.deepEqual(editor.getSelection(), new Selection(1, 14, 1, 14));
 
@@ -352,41 +444,41 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 	});
 
-	test('transpose', function () {
+	test('transpose', () => {
 		withTestCodeEditor(
 			[
 				'hello world',
 				'',
 				'',
 				'   ',
-			], {}, (editor, cursor) => {
-				let model = editor.getModel();
+			], {}, (editor) => {
+				let model = editor.getModel()!;
 				let transposeAction = new TransposeAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 1));
-				transposeAction.run(null, editor);
+				transposeAction.run(null!, editor);
 				assert.equal(model.getLineContent(1), 'hello world', '001');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 2, 1, 2).toString(), '002');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 2, 1, 2).toString(), '002');
 
 				editor.setSelection(new Selection(1, 6, 1, 6));
-				transposeAction.run(null, editor);
+				transposeAction.run(null!, editor);
 				assert.equal(model.getLineContent(1), 'hell oworld', '003');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 7, 1, 7).toString(), '004');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 7, 1, 7).toString(), '004');
 
 				editor.setSelection(new Selection(1, 12, 1, 12));
-				transposeAction.run(null, editor);
+				transposeAction.run(null!, editor);
 				assert.equal(model.getLineContent(1), 'hell oworl', '005');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 2, 2, 2).toString(), '006');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 2, 2, 2).toString(), '006');
 
 				editor.setSelection(new Selection(3, 1, 3, 1));
-				transposeAction.run(null, editor);
+				transposeAction.run(null!, editor);
 				assert.equal(model.getLineContent(3), '', '007');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(4, 1, 4, 1).toString(), '008');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(4, 1, 4, 1).toString(), '008');
 
 				editor.setSelection(new Selection(4, 2, 4, 2));
-				transposeAction.run(null, editor);
+				transposeAction.run(null!, editor);
 				assert.equal(model.getLineContent(4), '   ', '009');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(4, 3, 4, 3).toString(), '010');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(4, 3, 4, 3).toString(), '010');
 			}
 		);
 
@@ -401,29 +493,29 @@ suite('Editor Contrib - Line Operations', () => {
 				'hello world',
 				'',
 				'hello world'
-			], {}, (editor, cursor) => {
-				let model = editor.getModel();
+			], {}, (editor) => {
+				let model = editor.getModel()!;
 				let transposeAction = new TransposeAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 1));
-				transposeAction.run(null, editor);
+				transposeAction.run(null!, editor);
 				assert.equal(model.getLineContent(2), '', '011');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 1, 2, 1).toString(), '012');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 1, 2, 1).toString(), '012');
 
 				editor.setSelection(new Selection(3, 6, 3, 6));
-				transposeAction.run(null, editor);
+				transposeAction.run(null!, editor);
 				assert.equal(model.getLineContent(4), 'oworld', '013');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(4, 2, 4, 2).toString(), '014');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(4, 2, 4, 2).toString(), '014');
 
 				editor.setSelection(new Selection(6, 12, 6, 12));
-				transposeAction.run(null, editor);
+				transposeAction.run(null!, editor);
 				assert.equal(model.getLineContent(7), 'd', '015');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(7, 2, 7, 2).toString(), '016');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(7, 2, 7, 2).toString(), '016');
 
 				editor.setSelection(new Selection(8, 12, 8, 12));
-				transposeAction.run(null, editor);
+				transposeAction.run(null!, editor);
 				assert.equal(model.getLineContent(8), 'hello world', '019');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(8, 12, 8, 12).toString(), '020');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(8, 12, 8, 12).toString(), '020');
 			}
 		);
 	});
@@ -433,40 +525,89 @@ suite('Editor Contrib - Line Operations', () => {
 			[
 				'hello world',
 				'öçşğü'
-			], {}, (editor, cursor) => {
-				let model = editor.getModel();
+			], {}, (editor) => {
+				let model = editor.getModel()!;
 				let uppercaseAction = new UpperCaseAction();
 				let lowercaseAction = new LowerCaseAction();
+				let titlecaseAction = new TitleCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
-				uppercaseAction.run(null, editor);
+				uppercaseAction.run(null!, editor);
 				assert.equal(model.getLineContent(1), 'HELLO WORLD', '001');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 1, 12).toString(), '002');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 1, 1, 12).toString(), '002');
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
-				lowercaseAction.run(null, editor);
+				lowercaseAction.run(null!, editor);
 				assert.equal(model.getLineContent(1), 'hello world', '003');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 1, 12).toString(), '004');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 1, 1, 12).toString(), '004');
 
 				editor.setSelection(new Selection(1, 3, 1, 3));
-				uppercaseAction.run(null, editor);
+				uppercaseAction.run(null!, editor);
 				assert.equal(model.getLineContent(1), 'HELLO world', '005');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 3, 1, 3).toString(), '006');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 3, 1, 3).toString(), '006');
 
 				editor.setSelection(new Selection(1, 4, 1, 4));
-				lowercaseAction.run(null, editor);
+				lowercaseAction.run(null!, editor);
 				assert.equal(model.getLineContent(1), 'hello world', '007');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 4, 1, 4).toString(), '008');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 4, 1, 4).toString(), '008');
+
+				editor.setSelection(new Selection(1, 1, 1, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(1), 'Hello World', '009');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 1, 1, 12).toString(), '010');
 
 				editor.setSelection(new Selection(2, 1, 2, 6));
-				uppercaseAction.run(null, editor);
-				assert.equal(model.getLineContent(2), 'ÖÇŞĞÜ', '009');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 1, 2, 6).toString(), '010');
+				uppercaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(2), 'ÖÇŞĞÜ', '011');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 1, 2, 6).toString(), '012');
 
 				editor.setSelection(new Selection(2, 1, 2, 6));
-				lowercaseAction.run(null, editor);
-				assert.equal(model.getLineContent(2), 'öçşğü', '011');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 1, 2, 6).toString(), '012');
+				lowercaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(2), 'öçşğü', '013');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 1, 2, 6).toString(), '014');
+
+				editor.setSelection(new Selection(2, 1, 2, 6));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(2), 'Öçşğü', '015');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 1, 2, 6).toString(), '016');
+			}
+		);
+
+		withTestCodeEditor(
+			[
+				'foO baR BaZ',
+				'foO\'baR\'BaZ',
+				'foO[baR]BaZ',
+				'foO`baR~BaZ',
+				'foO^baR%BaZ',
+				'foO$baR!BaZ'
+			], {}, (editor) => {
+				let model = editor.getModel()!;
+				let titlecaseAction = new TitleCaseAction();
+
+				editor.setSelection(new Selection(1, 1, 1, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(1), 'Foo Bar Baz');
+
+				editor.setSelection(new Selection(2, 1, 2, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(2), 'Foo\'Bar\'Baz');
+
+				editor.setSelection(new Selection(3, 1, 3, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(3), 'Foo[Bar]Baz');
+
+				editor.setSelection(new Selection(4, 1, 4, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(4), 'Foo`Bar~Baz');
+
+				editor.setSelection(new Selection(5, 1, 5, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(5), 'Foo^Bar%Baz');
+
+				editor.setSelection(new Selection(6, 1, 6, 12));
+				titlecaseAction.run(null!, editor);
+				assert.equal(model.getLineContent(6), 'Foo$Bar!Baz');
 			}
 		);
 
@@ -474,51 +615,51 @@ suite('Editor Contrib - Line Operations', () => {
 			[
 				'',
 				'   '
-			], {}, (editor, cursor) => {
-				let model = editor.getModel();
+			], {}, (editor) => {
+				let model = editor.getModel()!;
 				let uppercaseAction = new UpperCaseAction();
 				let lowercaseAction = new LowerCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 1));
-				uppercaseAction.run(null, editor);
+				uppercaseAction.run(null!, editor);
 				assert.equal(model.getLineContent(1), '', '013');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 1, 1).toString(), '014');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 1, 1, 1).toString(), '014');
 
 				editor.setSelection(new Selection(1, 1, 1, 1));
-				lowercaseAction.run(null, editor);
+				lowercaseAction.run(null!, editor);
 				assert.equal(model.getLineContent(1), '', '015');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 1, 1).toString(), '016');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(1, 1, 1, 1).toString(), '016');
 
 				editor.setSelection(new Selection(2, 2, 2, 2));
-				uppercaseAction.run(null, editor);
+				uppercaseAction.run(null!, editor);
 				assert.equal(model.getLineContent(2), '   ', '017');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 2, 2, 2).toString(), '018');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 2, 2, 2).toString(), '018');
 
 				editor.setSelection(new Selection(2, 2, 2, 2));
-				lowercaseAction.run(null, editor);
+				lowercaseAction.run(null!, editor);
 				assert.equal(model.getLineContent(2), '   ', '019');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 2, 2, 2).toString(), '020');
+				assert.deepEqual(editor.getSelection()!.toString(), new Selection(2, 2, 2, 2).toString(), '020');
 			}
 		);
 	});
 
 	suite('DeleteAllRightAction', () => {
 		test('should be noop on empty', () => {
-			withTestCodeEditor([''], {}, (editor, cursor) => {
-				const model = editor.getModel();
+			withTestCodeEditor([''], {}, (editor) => {
+				const model = editor.getModel()!;
 				const action = new DeleteAllRightAction();
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['']);
 				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
 
 				editor.setSelection(new Selection(1, 1, 1, 1));
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['']);
 				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
 
 				editor.setSelections([new Selection(1, 1, 1, 1), new Selection(1, 1, 1, 1), new Selection(1, 1, 1, 1)]);
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['']);
 				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
 			});
@@ -528,22 +669,22 @@ suite('Editor Contrib - Line Operations', () => {
 			withTestCodeEditor([
 				'hello',
 				'world'
-			], {}, (editor, cursor) => {
-				const model = editor.getModel();
+			], {}, (editor) => {
+				const model = editor.getModel()!;
 				const action = new DeleteAllRightAction();
 
 				editor.setSelection(new Selection(1, 2, 1, 5));
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['ho', 'world']);
 				assert.deepEqual(editor.getSelections(), [new Selection(1, 2, 1, 2)]);
 
 				editor.setSelection(new Selection(1, 1, 2, 4));
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['ld']);
 				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
 
 				editor.setSelection(new Selection(1, 1, 1, 3));
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['']);
 				assert.deepEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
 			});
@@ -553,17 +694,17 @@ suite('Editor Contrib - Line Operations', () => {
 			withTestCodeEditor([
 				'hello',
 				'world'
-			], {}, (editor, cursor) => {
-				const model = editor.getModel();
+			], {}, (editor) => {
+				const model = editor.getModel()!;
 				const action = new DeleteAllRightAction();
 
 				editor.setSelection(new Selection(1, 3, 1, 3));
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['he', 'world']);
 				assert.deepEqual(editor.getSelections(), [new Selection(1, 3, 1, 3)]);
 
 				editor.setSelection(new Selection(2, 1, 2, 1));
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['he', '']);
 				assert.deepEqual(editor.getSelections(), [new Selection(2, 1, 2, 1)]);
 			});
@@ -573,22 +714,22 @@ suite('Editor Contrib - Line Operations', () => {
 			withTestCodeEditor([
 				'hello',
 				'world'
-			], {}, (editor, cursor) => {
-				const model = editor.getModel();
+			], {}, (editor) => {
+				const model = editor.getModel()!;
 				const action = new DeleteAllRightAction();
 
 				editor.setSelection(new Selection(1, 6, 1, 6));
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['helloworld']);
 				assert.deepEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
 
 				editor.setSelection(new Selection(1, 6, 1, 6));
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['hello']);
 				assert.deepEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
 
 				editor.setSelection(new Selection(1, 6, 1, 6));
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['hello']);
 				assert.deepEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
 			});
@@ -599,8 +740,8 @@ suite('Editor Contrib - Line Operations', () => {
 				'hello',
 				'there',
 				'world'
-			], {}, (editor, cursor) => {
-				const model = editor.getModel();
+			], {}, (editor) => {
+				const model = editor.getModel()!;
 				const action = new DeleteAllRightAction();
 
 				editor.setSelections([
@@ -608,34 +749,34 @@ suite('Editor Contrib - Line Operations', () => {
 					new Selection(1, 6, 1, 6),
 					new Selection(3, 4, 3, 4),
 				]);
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['hethere', 'wor']);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
 					new Selection(2, 4, 2, 4)
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['he', 'wor']);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
 					new Selection(2, 4, 2, 4)
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['hewor']);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
 					new Selection(1, 6, 1, 6)
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['he']);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3)
 				]);
 
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['he']);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3)
@@ -648,8 +789,8 @@ suite('Editor Contrib - Line Operations', () => {
 				'hello',
 				'there',
 				'world'
-			], {}, (editor, cursor) => {
-				const model = editor.getModel();
+			], {}, (editor) => {
+				const model = editor.getModel()!;
 				const action = new DeleteAllRightAction();
 
 				editor.setSelections([
@@ -657,7 +798,7 @@ suite('Editor Contrib - Line Operations', () => {
 					new Selection(1, 6, 1, 6),
 					new Selection(3, 4, 3, 4),
 				]);
-				action.run(null, editor);
+				action.run(null!, editor);
 				assert.deepEqual(model.getLinesContent(), ['hethere', 'wor']);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
@@ -679,7 +820,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 	});
 
-	test('InsertLineBeforeAction', function () {
+	test('InsertLineBeforeAction', () => {
 		function testInsertLineBefore(lineNumber: number, column: number, callback: (model: ITextModel, cursor: Cursor) => void): void {
 			const TEXT = [
 				'First line',
@@ -690,8 +831,8 @@ suite('Editor Contrib - Line Operations', () => {
 				editor.setPosition(new Position(lineNumber, column));
 				let insertLineBeforeAction = new InsertLineBeforeAction();
 
-				insertLineBeforeAction.run(null, editor);
-				callback(editor.getModel(), cursor);
+				insertLineBeforeAction.run(null!, editor);
+				callback(editor.getModel()!, cursor);
 			});
 		}
 
@@ -731,8 +872,8 @@ suite('Editor Contrib - Line Operations', () => {
 				editor.setPosition(new Position(lineNumber, column));
 				let insertLineAfterAction = new InsertLineAfterAction();
 
-				insertLineAfterAction.run(null, editor);
-				callback(editor.getModel(), cursor);
+				insertLineAfterAction.run(null!, editor);
+				callback(editor.getModel()!, cursor);
 			});
 		}
 
@@ -772,11 +913,11 @@ suite('Editor Contrib - Line Operations', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor) => {
 			let indentLinesAction = new IndentLinesAction();
 			editor.setPosition(new Position(1, 2));
 
-			indentLinesAction.run(null, editor);
+			indentLinesAction.run(null!, editor);
 			assert.equal(model.getLineContent(1), '\tfunction baz() {');
 			assert.deepEqual(editor.getSelection(), new Selection(1, 3, 1, 3));
 
@@ -785,5 +926,271 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 
 		model.dispose();
+	});
+
+	test('issue #62112: Delete line does not work properly when multiple cursors are on line', () => {
+		const TEXT = [
+			'a',
+			'foo boo',
+			'too',
+			'c',
+		];
+		withTestCodeEditor(TEXT, {}, (editor) => {
+			editor.setSelections([
+				new Selection(2, 4, 2, 4),
+				new Selection(2, 8, 2, 8),
+				new Selection(3, 4, 3, 4),
+			]);
+			const deleteLinesAction = new DeleteLinesAction();
+			deleteLinesAction.run(null!, editor);
+
+			assert.equal(editor.getValue(), 'a\nc');
+		});
+	});
+
+	function testDeleteLinesCommand(initialText: string[], _initialSelections: Selection | Selection[], resultingText: string[], _resultingSelections: Selection | Selection[]): void {
+		const initialSelections = Array.isArray(_initialSelections) ? _initialSelections : [_initialSelections];
+		const resultingSelections = Array.isArray(_resultingSelections) ? _resultingSelections : [_resultingSelections];
+		withTestCodeEditor(initialText, {}, (editor) => {
+			editor.setSelections(initialSelections);
+			const deleteLinesAction = new DeleteLinesAction();
+			deleteLinesAction.run(null!, editor);
+
+			assert.equal(editor.getValue(), resultingText.join('\n'));
+			assert.deepEqual(editor.getSelections(), resultingSelections);
+		});
+	}
+
+	test('empty selection in middle of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 3, 2, 3),
+			[
+				'first',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 3, 2, 3)
+		);
+	});
+
+	test('empty selection at top of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 5, 1, 5),
+			[
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 5, 1, 5)
+		);
+	});
+
+	test('empty selection at end of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(5, 2, 5, 2),
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line'
+			],
+			new Selection(4, 2, 4, 2)
+		);
+	});
+
+	test('with selection in middle of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(3, 3, 2, 2),
+			[
+				'first',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 2, 2, 2)
+		);
+	});
+
+	test('with selection at top of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 4, 1, 5),
+			[
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 5, 1, 5)
+		);
+	});
+
+	test('with selection at end of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(5, 1, 5, 2),
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line'
+			],
+			new Selection(4, 2, 4, 2)
+		);
+	});
+
+	test('with full line selection in middle of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(4, 1, 2, 1),
+			[
+				'first',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 1, 2, 1)
+		);
+	});
+
+	test('with full line selection at top of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 1, 1, 5),
+			[
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 5, 1, 5)
+		);
+	});
+
+	test('with full line selection at end of lines', function () {
+		testDeleteLinesCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(4, 1, 5, 2),
+			[
+				'first',
+				'second line',
+				'third line'
+			],
+			new Selection(3, 2, 3, 2)
+		);
+	});
+
+	test('multicursor 1', function () {
+		testDeleteLinesCommand(
+			[
+				'class P {',
+				'',
+				'    getA() {',
+				'        if (true) {',
+				'            return "a";',
+				'        }',
+				'    }',
+				'',
+				'    getB() {',
+				'        if (true) {',
+				'            return "b";',
+				'        }',
+				'    }',
+				'',
+				'    getC() {',
+				'        if (true) {',
+				'            return "c";',
+				'        }',
+				'    }',
+				'}',
+			],
+			[
+				new Selection(4, 1, 5, 1),
+				new Selection(10, 1, 11, 1),
+				new Selection(16, 1, 17, 1),
+			],
+			[
+				'class P {',
+				'',
+				'    getA() {',
+				'            return "a";',
+				'        }',
+				'    }',
+				'',
+				'    getB() {',
+				'            return "b";',
+				'        }',
+				'    }',
+				'',
+				'    getC() {',
+				'            return "c";',
+				'        }',
+				'    }',
+				'}',
+			],
+			[
+				new Selection(4, 1, 4, 1),
+				new Selection(9, 1, 9, 1),
+				new Selection(14, 1, 14, 1),
+			]
+		);
 	});
 });

@@ -4,19 +4,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-var fs = require("fs");
-var path = require("path");
-var vm = require("vm");
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
 /**
  * Bundle `entryPoints` given config `config`.
  */
 function bundle(entryPoints, config, callback) {
-    var entryPointsMap = {};
-    entryPoints.forEach(function (module) {
+    const entryPointsMap = {};
+    entryPoints.forEach((module) => {
         entryPointsMap[module.name] = module;
     });
-    var allMentionedModulesMap = {};
-    entryPoints.forEach(function (module) {
+    const allMentionedModulesMap = {};
+    entryPoints.forEach((module) => {
         allMentionedModulesMap[module.name] = true;
         (module.include || []).forEach(function (includedModule) {
             allMentionedModulesMap[includedModule] = true;
@@ -25,26 +25,30 @@ function bundle(entryPoints, config, callback) {
             allMentionedModulesMap[excludedModule] = true;
         });
     });
-    var code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
-    var r = vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
-    var loaderModule = { exports: {} };
+    const code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
+    const r = vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
+    const loaderModule = { exports: {} };
     r.call({}, require, loaderModule, loaderModule.exports);
-    var loader = loaderModule.exports;
+    const loader = loaderModule.exports;
     config.isBuild = true;
     config.paths = config.paths || {};
-    config.paths['vs/nls'] = 'out-build/vs/nls.build';
-    config.paths['vs/css'] = 'out-build/vs/css.build';
+    if (!config.paths['vs/nls']) {
+        config.paths['vs/nls'] = 'out-build/vs/nls.build';
+    }
+    if (!config.paths['vs/css']) {
+        config.paths['vs/css'] = 'out-build/vs/css.build';
+    }
     loader.config(config);
-    loader(['require'], function (localRequire) {
-        var resolvePath = function (path) {
-            var r = localRequire.toUrl(path);
+    loader(['require'], (localRequire) => {
+        const resolvePath = (path) => {
+            const r = localRequire.toUrl(path);
             if (!/\.js/.test(r)) {
                 return r + '.js';
             }
             return r;
         };
-        for (var moduleId in entryPointsMap) {
-            var entryPoint = entryPointsMap[moduleId];
+        for (const moduleId in entryPointsMap) {
+            const entryPoint = entryPointsMap[moduleId];
             if (entryPoint.append) {
                 entryPoint.append = entryPoint.append.map(resolvePath);
             }
@@ -53,59 +57,59 @@ function bundle(entryPoints, config, callback) {
             }
         }
     });
-    loader(Object.keys(allMentionedModulesMap), function () {
-        var modules = loader.getBuildInfo();
-        var partialResult = emitEntryPoints(modules, entryPointsMap);
-        var cssInlinedResources = loader('vs/css').getInlinedResources();
+    loader(Object.keys(allMentionedModulesMap), () => {
+        const modules = loader.getBuildInfo();
+        const partialResult = emitEntryPoints(modules, entryPointsMap);
+        const cssInlinedResources = loader('vs/css').getInlinedResources();
         callback(null, {
             files: partialResult.files,
             cssInlinedResources: cssInlinedResources,
             bundleData: partialResult.bundleData
         });
-    }, function (err) { return callback(err, null); });
+    }, (err) => callback(err, null));
 }
 exports.bundle = bundle;
 function emitEntryPoints(modules, entryPoints) {
-    var modulesMap = {};
-    modules.forEach(function (m) {
+    const modulesMap = {};
+    modules.forEach((m) => {
         modulesMap[m.id] = m;
     });
-    var modulesGraph = {};
-    modules.forEach(function (m) {
+    const modulesGraph = {};
+    modules.forEach((m) => {
         modulesGraph[m.id] = m.dependencies;
     });
-    var sortedModules = topologicalSort(modulesGraph);
-    var result = [];
-    var usedPlugins = {};
-    var bundleData = {
+    const sortedModules = topologicalSort(modulesGraph);
+    let result = [];
+    const usedPlugins = {};
+    const bundleData = {
         graph: modulesGraph,
         bundles: {}
     };
-    Object.keys(entryPoints).forEach(function (moduleToBundle) {
-        var info = entryPoints[moduleToBundle];
-        var rootNodes = [moduleToBundle].concat(info.include || []);
-        var allDependencies = visit(rootNodes, modulesGraph);
-        var excludes = ['require', 'exports', 'module'].concat(info.exclude || []);
-        excludes.forEach(function (excludeRoot) {
-            var allExcludes = visit([excludeRoot], modulesGraph);
-            Object.keys(allExcludes).forEach(function (exclude) {
+    Object.keys(entryPoints).forEach((moduleToBundle) => {
+        const info = entryPoints[moduleToBundle];
+        const rootNodes = [moduleToBundle].concat(info.include || []);
+        const allDependencies = visit(rootNodes, modulesGraph);
+        const excludes = ['require', 'exports', 'module'].concat(info.exclude || []);
+        excludes.forEach((excludeRoot) => {
+            const allExcludes = visit([excludeRoot], modulesGraph);
+            Object.keys(allExcludes).forEach((exclude) => {
                 delete allDependencies[exclude];
             });
         });
-        var includedModules = sortedModules.filter(function (module) {
+        const includedModules = sortedModules.filter((module) => {
             return allDependencies[module];
         });
         bundleData.bundles[moduleToBundle] = includedModules;
-        var res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend, info.append, info.dest);
+        const res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend || [], info.append || [], info.dest);
         result = result.concat(res.files);
-        for (var pluginName in res.usedPlugins) {
+        for (const pluginName in res.usedPlugins) {
             usedPlugins[pluginName] = usedPlugins[pluginName] || res.usedPlugins[pluginName];
         }
     });
-    Object.keys(usedPlugins).forEach(function (pluginName) {
-        var plugin = usedPlugins[pluginName];
+    Object.keys(usedPlugins).forEach((pluginName) => {
+        const plugin = usedPlugins[pluginName];
         if (typeof plugin.finishBuild === 'function') {
-            var write = function (filename, contents) {
+            const write = (filename, contents) => {
                 result.push({
                     dest: filename,
                     sources: [{
@@ -124,16 +128,16 @@ function emitEntryPoints(modules, entryPoints) {
     };
 }
 function extractStrings(destFiles) {
-    var parseDefineCall = function (moduleMatch, depsMatch) {
-        var module = moduleMatch.replace(/^"|"$/g, '');
-        var deps = depsMatch.split(',');
-        deps = deps.map(function (dep) {
+    const parseDefineCall = (moduleMatch, depsMatch) => {
+        const module = moduleMatch.replace(/^"|"$/g, '');
+        let deps = depsMatch.split(',');
+        deps = deps.map((dep) => {
             dep = dep.trim();
             dep = dep.replace(/^"|"$/g, '');
             dep = dep.replace(/^'|'$/g, '');
-            var prefix = null;
-            var _path = null;
-            var pieces = dep.split('!');
+            let prefix = null;
+            let _path = null;
+            const pieces = dep.split('!');
             if (pieces.length > 1) {
                 prefix = pieces[0] + '!';
                 _path = pieces[1];
@@ -143,7 +147,7 @@ function extractStrings(destFiles) {
                 _path = pieces[0];
             }
             if (/^\.\//.test(_path) || /^\.\.\//.test(_path)) {
-                var res = path.join(path.dirname(module), _path).replace(/\\/g, '/');
+                const res = path.join(path.dirname(module), _path).replace(/\\/g, '/');
                 return prefix + res;
             }
             return prefix + _path;
@@ -153,7 +157,7 @@ function extractStrings(destFiles) {
             deps: deps
         };
     };
-    destFiles.forEach(function (destFile, index) {
+    destFiles.forEach((destFile) => {
         if (!/\.js$/.test(destFile.dest)) {
             return;
         }
@@ -161,44 +165,44 @@ function extractStrings(destFiles) {
             return;
         }
         // Do one pass to record the usage counts for each module id
-        var useCounts = {};
-        destFile.sources.forEach(function (source) {
-            var matches = source.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
+        const useCounts = {};
+        destFile.sources.forEach((source) => {
+            const matches = source.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
             if (!matches) {
                 return;
             }
-            var defineCall = parseDefineCall(matches[1], matches[2]);
+            const defineCall = parseDefineCall(matches[1], matches[2]);
             useCounts[defineCall.module] = (useCounts[defineCall.module] || 0) + 1;
-            defineCall.deps.forEach(function (dep) {
+            defineCall.deps.forEach((dep) => {
                 useCounts[dep] = (useCounts[dep] || 0) + 1;
             });
         });
-        var sortedByUseModules = Object.keys(useCounts);
-        sortedByUseModules.sort(function (a, b) {
+        const sortedByUseModules = Object.keys(useCounts);
+        sortedByUseModules.sort((a, b) => {
             return useCounts[b] - useCounts[a];
         });
-        var replacementMap = {};
-        sortedByUseModules.forEach(function (module, index) {
+        const replacementMap = {};
+        sortedByUseModules.forEach((module, index) => {
             replacementMap[module] = index;
         });
-        destFile.sources.forEach(function (source) {
-            source.contents = source.contents.replace(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/, function (_, moduleMatch, depsMatch) {
-                var defineCall = parseDefineCall(moduleMatch, depsMatch);
-                return "define(__m[" + replacementMap[defineCall.module] + "/*" + defineCall.module + "*/], __M([" + defineCall.deps.map(function (dep) { return replacementMap[dep] + '/*' + dep + '*/'; }).join(',') + "])";
+        destFile.sources.forEach((source) => {
+            source.contents = source.contents.replace(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/, (_, moduleMatch, depsMatch) => {
+                const defineCall = parseDefineCall(moduleMatch, depsMatch);
+                return `define(__m[${replacementMap[defineCall.module]}/*${defineCall.module}*/], __M([${defineCall.deps.map(dep => replacementMap[dep] + '/*' + dep + '*/').join(',')}])`;
             });
         });
         destFile.sources.unshift({
             path: null,
             contents: [
                 '(function() {',
-                "var __m = " + JSON.stringify(sortedByUseModules) + ";",
-                "var __M = function(deps) {",
-                "  var result = [];",
-                "  for (var i = 0, len = deps.length; i < len; i++) {",
-                "    result[i] = __m[deps[i]];",
-                "  }",
-                "  return result;",
-                "};"
+                `var __m = ${JSON.stringify(sortedByUseModules)};`,
+                `var __M = function(deps) {`,
+                `  var result = [];`,
+                `  for (var i = 0, len = deps.length; i < len; i++) {`,
+                `    result[i] = __m[deps[i]];`,
+                `  }`,
+                `  return result;`,
+                `};`
             ].join('\n')
         });
         destFile.sources.push({
@@ -210,7 +214,7 @@ function extractStrings(destFiles) {
 }
 function removeDuplicateTSBoilerplate(destFiles) {
     // Taken from typescript compiler => emitFiles
-    var BOILERPLATE = [
+    const BOILERPLATE = [
         { start: /^var __extends/, end: /^}\)\(\);$/ },
         { start: /^var __assign/, end: /^};$/ },
         { start: /^var __decorate/, end: /^};$/ },
@@ -219,14 +223,14 @@ function removeDuplicateTSBoilerplate(destFiles) {
         { start: /^var __awaiter/, end: /^};$/ },
         { start: /^var __generator/, end: /^};$/ },
     ];
-    destFiles.forEach(function (destFile) {
-        var SEEN_BOILERPLATE = [];
-        destFile.sources.forEach(function (source) {
-            var lines = source.contents.split(/\r\n|\n|\r/);
-            var newLines = [];
-            var IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE;
-            for (var i = 0; i < lines.length; i++) {
-                var line = lines[i];
+    destFiles.forEach((destFile) => {
+        const SEEN_BOILERPLATE = [];
+        destFile.sources.forEach((source) => {
+            const lines = source.contents.split(/\r\n|\n|\r/);
+            const newLines = [];
+            let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
                 if (IS_REMOVING_BOILERPLATE) {
                     newLines.push('');
                     if (END_BOILERPLATE.test(line)) {
@@ -234,8 +238,8 @@ function removeDuplicateTSBoilerplate(destFiles) {
                     }
                 }
                 else {
-                    for (var j = 0; j < BOILERPLATE.length; j++) {
-                        var boilerplate = BOILERPLATE[j];
+                    for (let j = 0; j < BOILERPLATE.length; j++) {
+                        const boilerplate = BOILERPLATE[j];
                         if (boilerplate.start.test(line)) {
                             if (SEEN_BOILERPLATE[j]) {
                                 IS_REMOVING_BOILERPLATE = true;
@@ -263,45 +267,45 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, 
     if (!dest) {
         dest = entryPoint + '.js';
     }
-    var mainResult = {
+    const mainResult = {
         sources: [],
         dest: dest
     }, results = [mainResult];
-    var usedPlugins = {};
-    var getLoaderPlugin = function (pluginName) {
+    const usedPlugins = {};
+    const getLoaderPlugin = (pluginName) => {
         if (!usedPlugins[pluginName]) {
             usedPlugins[pluginName] = modulesMap[pluginName].exports;
         }
         return usedPlugins[pluginName];
     };
-    includedModules.forEach(function (c) {
-        var bangIndex = c.indexOf('!');
+    includedModules.forEach((c) => {
+        const bangIndex = c.indexOf('!');
         if (bangIndex >= 0) {
-            var pluginName = c.substr(0, bangIndex);
-            var plugin = getLoaderPlugin(pluginName);
+            const pluginName = c.substr(0, bangIndex);
+            const plugin = getLoaderPlugin(pluginName);
             mainResult.sources.push(emitPlugin(entryPoint, plugin, pluginName, c.substr(bangIndex + 1)));
             return;
         }
-        var module = modulesMap[c];
+        const module = modulesMap[c];
         if (module.path === 'empty:') {
             return;
         }
-        var contents = readFileAndRemoveBOM(module.path);
+        const contents = readFileAndRemoveBOM(module.path);
         if (module.shim) {
             mainResult.sources.push(emitShimmedModule(c, deps[c], module.shim, module.path, contents));
         }
         else {
-            mainResult.sources.push(emitNamedModule(c, deps[c], module.defineLocation, module.path, contents));
+            mainResult.sources.push(emitNamedModule(c, module.defineLocation, module.path, contents));
         }
     });
-    Object.keys(usedPlugins).forEach(function (pluginName) {
-        var plugin = usedPlugins[pluginName];
+    Object.keys(usedPlugins).forEach((pluginName) => {
+        const plugin = usedPlugins[pluginName];
         if (typeof plugin.writeFile === 'function') {
-            var req = (function () {
+            const req = (() => {
                 throw new Error('no-no!');
             });
-            req.toUrl = function (something) { return something; };
-            var write = function (filename, contents) {
+            req.toUrl = something => something;
+            const write = (filename, contents) => {
                 results.push({
                     dest: filename,
                     sources: [{
@@ -313,15 +317,15 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, 
             plugin.writeFile(pluginName, entryPoint, req, write, {});
         }
     });
-    var toIFile = function (path) {
-        var contents = readFileAndRemoveBOM(path);
+    const toIFile = (path) => {
+        const contents = readFileAndRemoveBOM(path);
         return {
             path: path,
             contents: contents
         };
     };
-    var toPrepend = (prepend || []).map(toIFile);
-    var toAppend = (append || []).map(toIFile);
+    const toPrepend = (prepend || []).map(toIFile);
+    const toAppend = (append || []).map(toIFile);
     mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
     return {
         files: results,
@@ -329,8 +333,8 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, 
     };
 }
 function readFileAndRemoveBOM(path) {
-    var BOM_CHAR_CODE = 65279;
-    var contents = fs.readFileSync(path, 'utf8');
+    const BOM_CHAR_CODE = 65279;
+    let contents = fs.readFileSync(path, 'utf8');
     // Remove BOM
     if (contents.charCodeAt(0) === BOM_CHAR_CODE) {
         contents = contents.substring(1);
@@ -338,15 +342,15 @@ function readFileAndRemoveBOM(path) {
     return contents;
 }
 function emitPlugin(entryPoint, plugin, pluginName, moduleName) {
-    var result = '';
+    let result = '';
     if (typeof plugin.write === 'function') {
-        var write = (function (what) {
+        const write = ((what) => {
             result += what;
         });
-        write.getEntryPoint = function () {
+        write.getEntryPoint = () => {
             return entryPoint;
         };
-        write.asModule = function (moduleId, code) {
+        write.asModule = (moduleId, code) => {
             code = code.replace(/^define\(/, 'define("' + moduleId + '",');
             result += code;
         };
@@ -357,20 +361,20 @@ function emitPlugin(entryPoint, plugin, pluginName, moduleName) {
         contents: result
     };
 }
-function emitNamedModule(moduleId, myDeps, defineCallPosition, path, contents) {
+function emitNamedModule(moduleId, defineCallPosition, path, contents) {
     // `defineCallPosition` is the position in code: |define()
-    var defineCallOffset = positionToOffset(contents, defineCallPosition.line, defineCallPosition.col);
+    const defineCallOffset = positionToOffset(contents, defineCallPosition.line, defineCallPosition.col);
     // `parensOffset` is the position in code: define|()
-    var parensOffset = contents.indexOf('(', defineCallOffset);
-    var insertStr = '"' + moduleId + '", ';
+    const parensOffset = contents.indexOf('(', defineCallOffset);
+    const insertStr = '"' + moduleId + '", ';
     return {
         path: path,
         contents: contents.substr(0, parensOffset + 1) + insertStr + contents.substr(parensOffset + 1)
     };
 }
 function emitShimmedModule(moduleId, myDeps, factory, path, contents) {
-    var strDeps = (myDeps.length > 0 ? '"' + myDeps.join('", "') + '"' : '');
-    var strDefine = 'define("' + moduleId + '", [' + strDeps + '], ' + factory + ');';
+    const strDeps = (myDeps.length > 0 ? '"' + myDeps.join('", "') + '"' : '');
+    const strDefine = 'define("' + moduleId + '", [' + strDeps + '], ' + factory + ');';
     return {
         path: path,
         contents: contents + '\n;\n' + strDefine
@@ -383,7 +387,8 @@ function positionToOffset(str, desiredLine, desiredCol) {
     if (desiredLine === 1) {
         return desiredCol - 1;
     }
-    var line = 1, lastNewLineOffset = -1;
+    let line = 1;
+    let lastNewLineOffset = -1;
     do {
         if (desiredLine === line) {
             return lastNewLineOffset + 1 + desiredCol - 1;
@@ -397,14 +402,15 @@ function positionToOffset(str, desiredLine, desiredCol) {
  * Return a set of reachable nodes in `graph` starting from `rootNodes`
  */
 function visit(rootNodes, graph) {
-    var result = {}, queue = rootNodes;
-    rootNodes.forEach(function (node) {
+    const result = {};
+    const queue = rootNodes;
+    rootNodes.forEach((node) => {
         result[node] = true;
     });
     while (queue.length > 0) {
-        var el = queue.shift();
-        var myEdges = graph[el] || [];
-        myEdges.forEach(function (toNode) {
+        const el = queue.shift();
+        const myEdges = graph[el] || [];
+        myEdges.forEach((toNode) => {
             if (!result[toNode]) {
                 result[toNode] = true;
                 queue.push(toNode);
@@ -417,11 +423,11 @@ function visit(rootNodes, graph) {
  * Perform a topological sort on `graph`
  */
 function topologicalSort(graph) {
-    var allNodes = {}, outgoingEdgeCount = {}, inverseEdges = {};
-    Object.keys(graph).forEach(function (fromNode) {
+    const allNodes = {}, outgoingEdgeCount = {}, inverseEdges = {};
+    Object.keys(graph).forEach((fromNode) => {
         allNodes[fromNode] = true;
         outgoingEdgeCount[fromNode] = graph[fromNode].length;
-        graph[fromNode].forEach(function (toNode) {
+        graph[fromNode].forEach((toNode) => {
             allNodes[toNode] = true;
             outgoingEdgeCount[toNode] = outgoingEdgeCount[toNode] || 0;
             inverseEdges[toNode] = inverseEdges[toNode] || [];
@@ -429,8 +435,8 @@ function topologicalSort(graph) {
         });
     });
     // https://en.wikipedia.org/wiki/Topological_sorting
-    var S = [], L = [];
-    Object.keys(allNodes).forEach(function (node) {
+    const S = [], L = [];
+    Object.keys(allNodes).forEach((node) => {
         if (outgoingEdgeCount[node] === 0) {
             delete outgoingEdgeCount[node];
             S.push(node);
@@ -439,10 +445,10 @@ function topologicalSort(graph) {
     while (S.length > 0) {
         // Ensure the exact same order all the time with the same inputs
         S.sort();
-        var n = S.shift();
+        const n = S.shift();
         L.push(n);
-        var myInverseEdges = inverseEdges[n] || [];
-        myInverseEdges.forEach(function (m) {
+        const myInverseEdges = inverseEdges[n] || [];
+        myInverseEdges.forEach((m) => {
             outgoingEdgeCount[m]--;
             if (outgoingEdgeCount[m] === 0) {
                 delete outgoingEdgeCount[m];

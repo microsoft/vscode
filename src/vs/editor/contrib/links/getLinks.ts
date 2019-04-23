@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { URI } from 'vs/base/common/uri';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { ILink, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
-import { asWinJsPromise } from 'vs/base/common/async';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ILink, LinkProvider, LinkProviderRegistry, ILinksList } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { isDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class Link implements ILink {
 
 	private _link: ILink;
-	private _provider: LinkProvider;
+	private readonly _provider: LinkProvider;
 
 	constructor(link: ILink, provider: LinkProvider) {
 		this._link = link;
@@ -36,106 +35,132 @@ export class Link implements ILink {
 		return this._link.range;
 	}
 
-	get url(): string {
+	get url(): URI | string | undefined {
 		return this._link.url;
 	}
 
-	resolve(): TPromise<URI> {
+	resolve(token: CancellationToken): Promise<URI> {
 		if (this._link.url) {
 			try {
-				return TPromise.as(URI.parse(this._link.url));
+				if (typeof this._link.url === 'string') {
+					return Promise.resolve(URI.parse(this._link.url));
+				} else {
+					return Promise.resolve(this._link.url);
+				}
 			} catch (e) {
-				return TPromise.wrapError<URI>(new Error('invalid'));
+				return Promise.reject(new Error('invalid'));
 			}
 		}
 
 		if (typeof this._provider.resolveLink === 'function') {
-			return asWinJsPromise(token => this._provider.resolveLink(this._link, token)).then(value => {
+			return Promise.resolve(this._provider.resolveLink(this._link, token)).then(value => {
 				this._link = value || this._link;
 				if (this._link.url) {
 					// recurse
-					return this.resolve();
+					return this.resolve(token);
 				}
 
-				return TPromise.wrapError<URI>(new Error('missing'));
+				return Promise.reject(new Error('missing'));
 			});
 		}
 
-		return TPromise.wrapError<URI>(new Error('missing'));
+		return Promise.reject(new Error('missing'));
 	}
 }
 
-export function getLinks(model: ITextModel): TPromise<Link[]> {
+export class LinksList extends Disposable {
 
-	let links: Link[] = [];
+	readonly links: Link[];
+
+	constructor(tuples: [ILinksList, LinkProvider][]) {
+		super();
+		let links: Link[] = [];
+		for (const [list, provider] of tuples) {
+			// merge all links
+			const newLinks = list.links.map(link => new Link(link, provider));
+			links = LinksList._union(links, newLinks);
+			// register disposables
+			if (isDisposable(provider)) {
+				this._register(provider);
+			}
+		}
+		this.links = links;
+	}
+
+	private static _union(oldLinks: Link[], newLinks: Link[]): Link[] {
+		// reunite oldLinks with newLinks and remove duplicates
+		let result: Link[] = [];
+		let oldIndex: number;
+		let oldLen: number;
+		let newIndex: number;
+		let newLen: number;
+
+		for (oldIndex = 0, newIndex = 0, oldLen = oldLinks.length, newLen = newLinks.length; oldIndex < oldLen && newIndex < newLen;) {
+			const oldLink = oldLinks[oldIndex];
+			const newLink = newLinks[newIndex];
+
+			if (Range.areIntersectingOrTouching(oldLink.range, newLink.range)) {
+				// Remove the oldLink
+				oldIndex++;
+				continue;
+			}
+
+			const comparisonResult = Range.compareRangesUsingStarts(oldLink.range, newLink.range);
+
+			if (comparisonResult < 0) {
+				// oldLink is before
+				result.push(oldLink);
+				oldIndex++;
+			} else {
+				// newLink is before
+				result.push(newLink);
+				newIndex++;
+			}
+		}
+
+		for (; oldIndex < oldLen; oldIndex++) {
+			result.push(oldLinks[oldIndex]);
+		}
+		for (; newIndex < newLen; newIndex++) {
+			result.push(newLinks[newIndex]);
+		}
+
+		return result;
+	}
+
+}
+
+export function getLinks(model: ITextModel, token: CancellationToken): Promise<LinksList> {
+
+	const lists: [ILinksList, LinkProvider][] = [];
 
 	// ask all providers for links in parallel
-	const promises = LinkProviderRegistry.ordered(model).reverse().map(provider => {
-		return asWinJsPromise(token => provider.provideLinks(model, token)).then(result => {
-			if (Array.isArray(result)) {
-				const newLinks = result.map(link => new Link(link, provider));
-				links = union(links, newLinks);
+	const promises = LinkProviderRegistry.ordered(model).reverse().map((provider, i) => {
+		return Promise.resolve(provider.provideLinks(model, token)).then(result => {
+			if (result) {
+				lists[i] = [result, provider];
 			}
 		}, onUnexpectedExternalError);
 	});
 
-	return TPromise.join(promises).then(() => {
-		return links;
-	});
+	return Promise.all(promises).then(() => new LinksList(coalesce(lists)));
 }
 
-function union(oldLinks: Link[], newLinks: Link[]): Link[] {
-	// reunite oldLinks with newLinks and remove duplicates
-	let result: Link[] = [];
-	let oldIndex: number;
-	let oldLen: number;
-	let newIndex: number;
-	let newLen: number;
 
-	for (oldIndex = 0, newIndex = 0, oldLen = oldLinks.length, newLen = newLinks.length; oldIndex < oldLen && newIndex < newLen;) {
-		const oldLink = oldLinks[oldIndex];
-		const newLink = newLinks[newIndex];
-
-		if (Range.areIntersectingOrTouching(oldLink.range, newLink.range)) {
-			// Remove the oldLink
-			oldIndex++;
-			continue;
-		}
-
-		const comparisonResult = Range.compareRangesUsingStarts(oldLink.range, newLink.range);
-
-		if (comparisonResult < 0) {
-			// oldLink is before
-			result.push(oldLink);
-			oldIndex++;
-		} else {
-			// newLink is before
-			result.push(newLink);
-			newIndex++;
-		}
-	}
-
-	for (; oldIndex < oldLen; oldIndex++) {
-		result.push(oldLinks[oldIndex]);
-	}
-	for (; newIndex < newLen; newIndex++) {
-		result.push(newLinks[newIndex]);
-	}
-
-	return result;
-}
-
-CommandsRegistry.registerCommand('_executeLinkProvider', (accessor, ...args) => {
-
+CommandsRegistry.registerCommand('_executeLinkProvider', async (accessor, ...args): Promise<ILink[]> => {
 	const [uri] = args;
 	if (!(uri instanceof URI)) {
-		return undefined;
+		return [];
 	}
-
 	const model = accessor.get(IModelService).getModel(uri);
 	if (!model) {
-		return undefined;
+		return [];
 	}
-
-	return getLinks(model);
+	const list = await getLinks(model, CancellationToken.None);
+	if (!list) {
+		return [];
+	}
+	const result = list.links.slice(0);
+	list.dispose();
+	return result;
 });

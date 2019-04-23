@@ -1,5 +1,7 @@
 # Merge Conflict
 
-See [documentation](https://code.visualstudio.com/docs/editor/versioncontrol#_merge-conflicts).
+**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
 
-**Notice** This is a an extension that is bundled with Visual Studio Code.
+## Features
+
+See [Merge Conflicts in VS Code](https://code.visualstudio.com/docs/editor/versioncontrol#_merge-conflicts) to learn about features of this extension.

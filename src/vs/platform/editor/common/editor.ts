@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 
 export interface IEditorModel {
@@ -13,12 +11,12 @@ export interface IEditorModel {
 	/**
 	 * Emitted when the model is disposed.
 	 */
-	onDispose: Event<void>;
+	readonly onDispose: Event<void>;
 
 	/**
 	 * Loads the model.
 	 */
-	load(): TPromise<IEditorModel>;
+	load(): Promise<IEditorModel>;
 
 	/**
 	 * Dispose associated resources
@@ -36,12 +34,30 @@ export interface IBaseResourceInput {
 	/**
 	 * Label to show for the diff editor
 	 */
-	label?: string;
+	readonly label?: string;
 
 	/**
 	 * Description to show for the diff editor
 	 */
-	description?: string;
+	readonly description?: string;
+
+	/**
+	 * Hint to indicate that this input should be treated as a file
+	 * that opens in an editor capable of showing file content.
+	 *
+	 * Without this hint, the editor service will make a guess by
+	 * looking at the scheme of the resource(s).
+	 */
+	readonly forceFile?: boolean;
+
+	/**
+	 * Hint to indicate that this input should be treated as a
+	 * untitled file.
+	 *
+	 * Without this hint, the editor service will make a guess by
+	 * looking at the scheme of the resource(s).
+	 */
+	readonly forceUntitled?: boolean;
 }
 
 export interface IResourceInput extends IBaseResourceInput {
@@ -54,7 +70,7 @@ export interface IResourceInput extends IBaseResourceInput {
 	/**
 	 * The encoding of the text input if known.
 	 */
-	encoding?: string;
+	readonly encoding?: string;
 }
 
 export interface IEditorOptions {
@@ -66,11 +82,11 @@ export interface IEditorOptions {
 	readonly preserveFocus?: boolean;
 
 	/**
-	 * Tells the editor to replace the editor input in the editor even if it is identical to the one
-	 * already showing. By default, the editor will not replace the input if it is identical to the
+	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
+	 * already showing. By default, the editor will not reload the input if it is identical to the
 	 * one showing.
 	 */
-	readonly forceOpen?: boolean;
+	readonly forceReload?: boolean;
 
 	/**
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups. Note
@@ -102,13 +118,19 @@ export interface IEditorOptions {
 	 * in the background.
 	 */
 	readonly inactive?: boolean;
+
+	/**
+	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
+	 * message as needed. By default, an error will be presented as notification if opening was not possible.
+	 */
+	readonly ignoreError?: boolean;
 }
 
 export interface ITextEditorSelection {
-	startLineNumber: number;
-	startColumn: number;
-	endLineNumber?: number;
-	endColumn?: number;
+	readonly startLineNumber: number;
+	readonly startColumn: number;
+	readonly endLineNumber?: number;
+	readonly endColumn?: number;
 }
 
 export interface ITextEditorOptions extends IEditorOptions {

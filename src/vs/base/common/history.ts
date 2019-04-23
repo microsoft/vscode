@@ -27,34 +27,32 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		this._onChange();
 	}
 
-	public addIfNotPresent(t: T) {
-		if (!this._history.has(t)) {
-			this.add(t);
-		}
-	}
-
-	public next(): T {
+	public next(): T | null {
 		return this._navigator.next();
 	}
 
-	public previous(): T {
+	public previous(): T | null {
 		return this._navigator.previous();
 	}
 
-	public current(): T {
+	public current(): T | null {
 		return this._navigator.current();
 	}
 
-	public parent(): T {
+	public parent(): null {
 		return null;
 	}
 
-	public first(): T {
+	public first(): T | null {
 		return this._navigator.first();
 	}
 
-	public last(): T {
+	public last(): T | null {
 		return this._navigator.last();
+	}
+
+	public has(t: T): boolean {
+		return this._history.has(t);
 	}
 
 	public clear(): void {
@@ -68,7 +66,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	private _reduceToLimit() {
-		let data = this._elements;
+		const data = this._elements;
 		if (data.length > this._limit) {
 			this._initialize(data.slice(data.length - this._limit));
 		}

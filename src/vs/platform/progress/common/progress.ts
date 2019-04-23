@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IAction } from 'vs/base/common/actions';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -17,14 +16,51 @@ export interface IProgressService {
 	/**
 	 * Show progress customized with the provided flags.
 	 */
-	show(infinite: boolean, delay?: number): IProgressRunner;
+	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 
 	/**
 	 * Indicate progress for the duration of the provided promise. Progress will stop in
 	 * any case of promise completion, error or cancellation.
 	 */
-	showWhile(promise: TPromise<any>, delay?: number): TPromise<void>;
+	showWhile(promise: Promise<any>, delay?: number): Promise<void>;
+}
+
+export const enum ProgressLocation {
+	Explorer = 1,
+	Scm = 3,
+	Extensions = 5,
+	Window = 10,
+	Notification = 15,
+	Dialog = 20
+}
+
+export interface IProgressOptions {
+	location: ProgressLocation | string;
+	title?: string;
+	source?: string;
+	total?: number;
+	cancellable?: boolean;
+}
+
+export interface IProgressNotificationOptions extends IProgressOptions {
+	location: ProgressLocation.Notification;
+	primaryActions?: IAction[];
+	secondaryActions?: IAction[];
+}
+
+export interface IProgressStep {
+	message?: string;
+	increment?: number;
+}
+
+export const IProgressService2 = createDecorator<IProgressService2>('progressService2');
+
+export interface IProgressService2 {
+
+	_serviceBrand: any;
+
+	withProgress<R = any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
 }
 
 export interface IProgressRunner {
@@ -79,7 +115,7 @@ export class LongRunningOperation {
 	private currentOperationId = 0;
 	private currentOperationDisposables: IDisposable[] = [];
 	private currentProgressRunner: IProgressRunner;
-	private currentProgressTimeout: number;
+	private currentProgressTimeout: any;
 
 	constructor(
 		private progressService: IProgressService
@@ -102,7 +138,7 @@ export class LongRunningOperation {
 		this.currentOperationDisposables.push(
 			toDisposable(() => clearTimeout(this.currentProgressTimeout)),
 			toDisposable(() => newOperationToken.cancel()),
-			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : void 0)
+			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : undefined)
 		);
 
 		return {

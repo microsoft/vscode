@@ -1,23 +1,37 @@
 # VS Code Smoke Test
 
+Make sure you are on **Node v10.x**.
+
 ### Run
 
-```
+```bash
+# Compile
+cd test/smoke
+yarn compile
+cd ../..
+
 # Dev
 yarn smoketest
 
 # Build
-yarn smoketest --build PATH_TO_BUILD
+yarn smoketest --build PATH_TO_NEW_BUILD_PARENT_FOLDER --stable-build PATH_TO_LAST_STABLE_BUILD_PARENT_FOLDER
 ```
 
 ### Run for a release
 
 You must always run the smoketest version which matches the release you are testing. So, if you want to run the smoketest for a release build (eg `release/1.22`), you need that version of the smoke tests too:
 
-```
+```bash
 git checkout release/1.22
 yarn
-yarn smoketest --build PATH_TO_RELEASE_BUILD
+```
+
+In addition to the new build to be released you will need the previous stable build so that the smoketest can test the data migration. 
+The recommended way to make these builds available for the smoketest is by downloading their archive version (\*.zip) and extracting 
+them into two folders. Pass the folder paths to the smoketest as follows:
+
+```bash
+yarn smoketest --build PATH_TO_NEW_RELEASE_PARENT_FOLDER --stable-build PATH_TO_LAST_STABLE_RELEASE_PARENT_FOLDER
 ```
 
 ### Debug
@@ -30,7 +44,7 @@ yarn smoketest --build PATH_TO_RELEASE_BUILD
 
 Start a watch task in `test/smoke`:
 
-```
+```bash
 cd test/smoke
 yarn watch
 ```

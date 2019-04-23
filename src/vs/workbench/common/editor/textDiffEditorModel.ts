@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -15,7 +13,11 @@ import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
  * and the modified version.
  */
 export class TextDiffEditorModel extends DiffEditorModel {
-	private _textDiffEditorModel: IDiffEditorModel;
+
+	protected readonly _originalModel: BaseTextEditorModel;
+	protected readonly _modifiedModel: BaseTextEditorModel;
+
+	private _textDiffEditorModel: IDiffEditorModel | null;
 
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
 		super(originalModel, modifiedModel);
@@ -24,14 +26,14 @@ export class TextDiffEditorModel extends DiffEditorModel {
 	}
 
 	get originalModel(): BaseTextEditorModel {
-		return this._originalModel as BaseTextEditorModel;
+		return this._originalModel;
 	}
 
 	get modifiedModel(): BaseTextEditorModel {
-		return this._modifiedModel as BaseTextEditorModel;
+		return this._modifiedModel;
 	}
 
-	public load(): TPromise<EditorModel> {
+	load(): Promise<EditorModel> {
 		return super.load().then(() => {
 			this.updateTextDiffEditorModel();
 
@@ -58,15 +60,19 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		}
 	}
 
-	public get textDiffEditorModel(): IDiffEditorModel {
+	get textDiffEditorModel(): IDiffEditorModel | null {
 		return this._textDiffEditorModel;
 	}
 
-	public isResolved(): boolean {
+	isResolved(): boolean {
 		return !!this._textDiffEditorModel;
 	}
 
-	public dispose(): void {
+	isReadonly(): boolean {
+		return this.modifiedModel.isReadonly();
+	}
+
+	dispose(): void {
 
 		// Free the diff editor model but do not propagate the dispose() call to the two models
 		// inside. We never created the two models (original and modified) so we can not dispose

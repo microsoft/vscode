@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ResolvedKeybinding, Keybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
+import { KeyCode, Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { Event } from 'vs/base/common/event';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
@@ -18,7 +17,7 @@ export interface IUserFriendlyKeybinding {
 	when?: string;
 }
 
-export enum KeybindingSource {
+export const enum KeybindingSource {
 	Default = 1,
 	User
 }
@@ -29,6 +28,8 @@ export interface IKeybindingEvent {
 }
 
 export interface IKeyboardEvent {
+	readonly _standardKeyboardEventBrand: true;
+
 	readonly ctrlKey: boolean;
 	readonly shiftKey: boolean;
 	readonly altKey: boolean;
@@ -54,9 +55,16 @@ export interface IKeybindingService {
 	resolveUserBinding(userBinding: string): ResolvedKeybinding[];
 
 	/**
+	 * Resolve and dispatch `keyboardEvent` and invoke the command.
+	 */
+	dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean;
+
+	/**
 	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.
 	 */
-	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult;
+	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null;
+
+	dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void;
 
 	/**
 	 * Look up keybindings for a command.
@@ -68,7 +76,7 @@ export interface IKeybindingService {
 	 * Look up the preferred (last defined) keybinding for a command.
 	 * @returns The preferred keybinding or null if the command is not bound.
 	 */
-	lookupKeybinding(commandId: string): ResolvedKeybinding;
+	lookupKeybinding(commandId: string): ResolvedKeybinding | undefined;
 
 	getDefaultKeybindingsContent(): string;
 
@@ -77,5 +85,13 @@ export interface IKeybindingService {
 	getKeybindings(): ResolvedKeybindingItem[];
 
 	customKeybindingsCount(): number;
+
+	/**
+	 * Will the given key event produce a character that's rendered on screen, e.g. in a
+	 * text box. *Note* that the results of this function can be incorrect.
+	 */
+	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
+
+	_dumpDebugInfo(): string;
 }
 

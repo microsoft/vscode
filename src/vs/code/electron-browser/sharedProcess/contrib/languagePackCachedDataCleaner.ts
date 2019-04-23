@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 
 import { IStringDictionary } from 'vs/base/common/collections';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -51,22 +50,22 @@ export class LanguagePackCachedDataCleaner {
 	}
 
 	private _manageCachedDataSoon(): void {
-		let handle = setTimeout(async () => {
+		let handle: any = setTimeout(async () => {
 			handle = undefined;
 			this._logService.info('Starting to clean up unused language packs.');
 			const maxAge = product.nameLong.indexOf('Insiders') >= 0
 				? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
 				: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 			try {
-				let installed: IStringDictionary<boolean> = Object.create(null);
+				const installed: IStringDictionary<boolean> = Object.create(null);
 				const metaData: LanguagePackFile = JSON.parse(await pfs.readFile(path.join(this._environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
 				for (let locale of Object.keys(metaData)) {
-					let entry = metaData[locale];
+					const entry = metaData[locale];
 					installed[`${entry.hash}.${locale}`] = true;
 				}
 				// Cleanup entries for language packs that aren't installed anymore
 				const cacheDir = path.join(this._environmentService.userDataPath, 'clp');
-				let exists = await pfs.exists(cacheDir);
+				const exists = await pfs.exists(cacheDir);
 				if (!exists) {
 					return;
 				}
@@ -104,7 +103,7 @@ export class LanguagePackCachedDataCleaner {
 
 		this._disposables.push({
 			dispose() {
-				if (handle !== void 0) {
+				if (handle !== undefined) {
 					clearTimeout(handle);
 				}
 			}

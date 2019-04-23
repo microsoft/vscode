@@ -5,28 +5,23 @@
 
 import * as vscode from 'vscode';
 import { isSupportedLanguageMode } from './languageModeIds';
+import { Disposable } from './dispose';
 
 /**
  * When clause context set when the current file is managed by vscode's built-in typescript extension.
  */
-const isManagedFile_contextName = 'typescript.isManagedFile';
-
-export default class ManagedFileContextManager {
+export default class ManagedFileContextManager extends Disposable {
+	private static readonly contextName = 'typescript.isManagedFile';
 
 	private isInManagedFileContext: boolean = false;
 
-	private readonly onDidChangeActiveTextEditorSub: vscode.Disposable;
-
 	public constructor(
-		private readonly normalizePath: (resource: vscode.Uri) => string | null
+		private readonly normalizePath: (resource: vscode.Uri) => string | undefined
 	) {
-		this.onDidChangeActiveTextEditorSub = vscode.window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this);
+		super();
+		vscode.window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this._disposables);
 
 		this.onDidChangeActiveTextEditor(vscode.window.activeTextEditor);
-	}
-
-	public dispose() {
-		this.onDidChangeActiveTextEditorSub.dispose();
 	}
 
 	private onDidChangeActiveTextEditor(editor?: vscode.TextEditor): any {
@@ -41,8 +36,7 @@ export default class ManagedFileContextManager {
 			return;
 		}
 
-		vscode.commands.executeCommand('setContext', isManagedFile_contextName, newValue);
+		vscode.commands.executeCommand('setContext', ManagedFileContextManager.contextName, newValue);
 		this.isInManagedFileContext = newValue;
 	}
 }
-

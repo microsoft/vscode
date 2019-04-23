@@ -20,7 +20,7 @@ export function splitJoinTag() {
 
 	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let nodeToUpdate = getHtmlNode(editor.document, rootNode, selection.start);
+			let nodeToUpdate = getHtmlNode(editor.document, rootNode, selection.start, true);
 			if (nodeToUpdate) {
 				let textEdit = getRangesToReplace(editor.document, nodeToUpdate);
 				editBuilder.replace(textEdit.range, textEdit.newText);

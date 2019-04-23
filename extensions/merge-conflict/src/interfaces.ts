@@ -11,7 +11,7 @@ export interface IMergeRegion {
 	decoratorContent: vscode.Range;
 }
 
-export enum CommitType {
+export const enum CommitType {
 	Current,
 	Incoming,
 	Both

@@ -5,7 +5,6 @@
 
 import 'vs/css!./selectBox';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
@@ -16,14 +15,16 @@ import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
 import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
 import { isMacintosh } from 'vs/base/common/platform';
 
+
 // Public SelectBox interface - Calls routed to appropriate select implementation class
 
 export interface ISelectBoxDelegate {
 
 	// Public SelectBox Interface
 	readonly onDidSelect: Event<ISelectData>;
-	setOptions(options: string[], selected?: number, disabled?: number): void;
+	setOptions(options: ISelectOptionItem[], selected?: number): void;
 	select(index: number): void;
+	setAriaLabel(label: string): void;
 	focus(): void;
 	blur(): void;
 	dispose(): void;
@@ -35,14 +36,27 @@ export interface ISelectBoxDelegate {
 }
 
 export interface ISelectBoxOptions {
+	useCustomDrawn?: boolean;
+	ariaLabel?: string;
 	minBottomMargin?: number;
+}
+
+// Utilize optionItem interface to capture all option parameters
+export interface ISelectOptionItem {
+	text: string;
+	decoratorRight?: string;
+	description?: string;
+	descriptionIsMarkdown?: boolean;
+	isDisabled?: boolean;
 }
 
 export interface ISelectBoxStyles extends IListStyles {
 	selectBackground?: Color;
 	selectListBackground?: Color;
 	selectForeground?: Color;
+	decoratorRightForeground?: Color;
 	selectBorder?: Color;
+	selectListBorder?: Color;
 	focusBorder?: Color;
 }
 
@@ -58,25 +72,22 @@ export interface ISelectData {
 }
 
 export class SelectBox extends Widget implements ISelectBoxDelegate {
-	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 	private selectBoxDelegate: ISelectBoxDelegate;
 
-	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles = deepClone(defaultStyles), selectBoxOptions?: ISelectBoxOptions) {
+	constructor(options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles = deepClone(defaultStyles), selectBoxOptions?: ISelectBoxOptions) {
 		super();
-
-		this.toDispose = [];
 
 		mixin(this.styles, defaultStyles, false);
 
-		// Instantiate select implementation based on platform
-		if (isMacintosh) {
-			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles);
+		// Default to native SelectBox for OSX unless overridden
+		if (isMacintosh && !(selectBoxOptions && selectBoxOptions.useCustomDrawn)) {
+			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles, selectBoxOptions);
 		} else {
 			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, selectBoxOptions);
 		}
 
-		this.toDispose.push(this.selectBoxDelegate);
+		this._register(this.selectBoxDelegate);
 	}
 
 	// Public SelectBox Methods - routed through delegate interface
@@ -85,12 +96,16 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 		return this.selectBoxDelegate.onDidSelect;
 	}
 
-	public setOptions(options: string[], selected?: number, disabled?: number): void {
-		this.selectBoxDelegate.setOptions(options, selected, disabled);
+	public setOptions(options: ISelectOptionItem[], selected?: number): void {
+		this.selectBoxDelegate.setOptions(options, selected);
 	}
 
 	public select(index: number): void {
 		this.selectBoxDelegate.select(index);
+	}
+
+	public setAriaLabel(label: string): void {
+		this.selectBoxDelegate.setAriaLabel(label);
 	}
 
 	public focus(): void {
@@ -113,10 +128,5 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	public applyStyles(): void {
 		this.selectBoxDelegate.applyStyles();
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-		super.dispose();
 	}
 }

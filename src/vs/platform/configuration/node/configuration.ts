@@ -8,37 +8,49 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ConfigurationModelParser, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 
-export class UserConfiguration extends Disposable {
+export class NodeBasedUserConfiguration extends Disposable {
 
 	private userConfigModelWatcher: ConfigWatcher<ConfigurationModelParser>;
+	private initializePromise: Promise<void>;
 
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
-	constructor(settingsPath: string) {
+	constructor(private settingsPath: string) {
 		super();
-		this.userConfigModelWatcher = new ConfigWatcher(settingsPath, {
-			changeBufferDelay: 300, onError: error => onUnexpectedError(error), defaultConfig: new ConfigurationModelParser(settingsPath), parse: (content: string, parseErrors: any[]) => {
-				const userConfigModelParser = new ConfigurationModelParser(settingsPath);
-				userConfigModelParser.parse(content);
-				parseErrors = [...userConfigModelParser.errors];
-				return userConfigModelParser;
-			}
-		});
-		this._register(this.userConfigModelWatcher);
-
-		// Listeners
-		this._register(this.userConfigModelWatcher.onDidUpdateConfiguration(() => this._onDidChangeConfiguration.fire(this.configurationModel)));
 	}
 
-	get configurationModel(): ConfigurationModel {
+	initialize(): Promise<ConfigurationModel> {
+		if (!this.initializePromise) {
+			this.initializePromise = new Promise<void>((c, e) => {
+				this.userConfigModelWatcher = new ConfigWatcher(this.settingsPath, {
+					changeBufferDelay: 300, onError: error => onUnexpectedError(error), defaultConfig: new ConfigurationModelParser(this.settingsPath), parse: (content: string, parseErrors: any[]) => {
+						const userConfigModelParser = new ConfigurationModelParser(this.settingsPath);
+						userConfigModelParser.parseContent(content);
+						parseErrors = [...userConfigModelParser.errors];
+						return userConfigModelParser;
+					}, initCallback: () => c(undefined)
+				});
+				this._register(this.userConfigModelWatcher);
+
+				// Listeners
+				this._register(this.userConfigModelWatcher.onDidUpdateConfiguration(() => this._onDidChangeConfiguration.fire(this.userConfigModelWatcher.getConfig().configurationModel)));
+			});
+		}
+		return this.initializePromise.then(() => this.userConfigModelWatcher.getConfig().configurationModel);
+	}
+
+	initializeSync(): ConfigurationModel {
+		this.initialize();
 		return this.userConfigModelWatcher.getConfig().configurationModel;
 	}
 
-	reload(): TPromise<void> {
-		return new TPromise(c => this.userConfigModelWatcher.reload(() => c(null)));
+	reload(): Promise<ConfigurationModel> {
+		return this.initialize().then(() => new Promise<ConfigurationModel>(c => this.userConfigModelWatcher.reload(userConfigModelParser => c(userConfigModelParser.configurationModel))));
 	}
 
+	getConfigurationModel(): ConfigurationModel {
+		return this.userConfigModelWatcher.getConfig().configurationModel;
+	}
 }

@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { BrowserWindow, app } from 'electron';
 
 type LoginEvent = {
 	event: Electron.Event;
 	webContents: Electron.WebContents;
-	req: Electron.LoginRequest;
-	authInfo: Electron.LoginAuthInfo;
+	req: Electron.Request;
+	authInfo: Electron.AuthInfo;
 	cb: (username: string, password: string) => void;
 };
 
@@ -32,9 +30,9 @@ export class ProxyAuthHandler {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IWindowsMainService private windowsMainService: IWindowsMainService
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
 	) {
-		const onLogin = fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
+		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
 		onLogin(this.onLogin, this, this.disposables);
 	}
 
@@ -56,10 +54,7 @@ export class ProxyAuthHandler {
 			width: 450,
 			height: 220,
 			show: true,
-			title: 'VS Code',
-			webPreferences: {
-				disableBlinkFeatures: 'Auxclick'
-			}
+			title: 'VS Code'
 		};
 
 		const focusedWindow = this.windowsMainService.getFocusedWindow();

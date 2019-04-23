@@ -35,6 +35,11 @@
 	height: 25px;
 }
 
+.monaco-quick-open-widget .quick-open-result-count {
+	position: absolute;
+	left: -10000px;
+}
+
 .monaco-quick-open-widget .quick-open-tree {
 	line-height: 22px;
 }

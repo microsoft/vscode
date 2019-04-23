@@ -12,8 +12,8 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 	private lastCompletionType: string | undefined;
 
-	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
-		const completionResult = this.provideCompletionItemsInternal(document, position, token, context);
+	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, _: vscode.CancellationToken, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
+		const completionResult = this.provideCompletionItemsInternal(document, position, context);
 		if (!completionResult) {
 			this.lastCompletionType = undefined;
 			return;
@@ -38,7 +38,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		});
 	}
 
-	private provideCompletionItemsInternal(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
+	private provideCompletionItemsInternal(document: vscode.TextDocument, position: vscode.Position, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 		const excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
 		if (excludedLanguages.indexOf(document.languageId) > -1) {

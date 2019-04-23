@@ -5,7 +5,12 @@
 
 declare module 'native-watchdog' {
 
-	export function start(timeout: number): void;
+	/**
+	 * Start monitoring for a certain pid to exist.
+	 * If the process indicated by pid ceases to execute,
+	 * the current process will exit in 6 seconds with exit code 87
+	 */
+	export function start(pid: number): void;
 
 	export function exit(exitCode: number): void;
 

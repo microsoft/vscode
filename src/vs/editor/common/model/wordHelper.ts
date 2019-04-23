@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IWordAtPosition } from 'vs/editor/common/model';
 
@@ -17,11 +16,11 @@ export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
  */
 function createWordRegExp(allowInWords: string = ''): RegExp {
 	let source = '(-?\\d*\\.\\d\\w*)|([^';
-	for (let i = 0; i < USUAL_WORD_SEPARATORS.length; i++) {
-		if (allowInWords.indexOf(USUAL_WORD_SEPARATORS[i]) >= 0) {
+	for (const sep of USUAL_WORD_SEPARATORS) {
+		if (allowInWords.indexOf(sep) >= 0) {
 			continue;
 		}
-		source += '\\' + USUAL_WORD_SEPARATORS[i];
+		source += '\\' + sep;
 	}
 	source += '\\s]+)';
 	return new RegExp(source, 'g');
@@ -30,7 +29,7 @@ function createWordRegExp(allowInWords: string = ''): RegExp {
 // catches numbers (including floating numbers) in the first group, and alphanum in the second
 export const DEFAULT_WORD_REGEXP = createWordRegExp();
 
-export function ensureValidWordDefinition(wordDefinition?: RegExp): RegExp {
+export function ensureValidWordDefinition(wordDefinition?: RegExp | null): RegExp {
 	let result: RegExp = DEFAULT_WORD_REGEXP;
 
 	if (wordDefinition && (wordDefinition instanceof RegExp)) {
@@ -41,6 +40,9 @@ export function ensureValidWordDefinition(wordDefinition?: RegExp): RegExp {
 			}
 			if (wordDefinition.multiline) {
 				flags += 'm';
+			}
+			if ((wordDefinition as any).unicode) {
+				flags += 'u';
 			}
 			result = new RegExp(wordDefinition.source, flags);
 		} else {
@@ -53,23 +55,20 @@ export function ensureValidWordDefinition(wordDefinition?: RegExp): RegExp {
 	return result;
 }
 
-function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition | null {
 	// find whitespace enclosed text around column and match from there
 
 	let pos = column - 1 - textOffset;
 	let start = text.lastIndexOf(' ', pos - 1) + 1;
-	let end = text.indexOf(' ', pos);
-	if (end === -1) {
-		end = text.length;
-	}
 
 	wordDefinition.lastIndex = start;
-	let match: RegExpMatchArray;
+	let match: RegExpMatchArray | null;
 	while (match = wordDefinition.exec(text)) {
-		if (match.index <= pos && wordDefinition.lastIndex >= pos) {
+		const matchIndex = match.index || 0;
+		if (matchIndex <= pos && wordDefinition.lastIndex >= pos) {
 			return {
 				word: match[0],
-				startColumn: textOffset + 1 + match.index,
+				startColumn: textOffset + 1 + matchIndex,
 				endColumn: textOffset + 1 + wordDefinition.lastIndex
 			};
 		}
@@ -79,7 +78,7 @@ function getWordAtPosFast(column: number, wordDefinition: RegExp, text: string, 
 }
 
 
-function getWordAtPosSlow(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+function getWordAtPosSlow(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition | null {
 	// matches all words starting at the beginning
 	// of the input until it finds a match that encloses
 	// the desired column. slow but correct
@@ -87,10 +86,10 @@ function getWordAtPosSlow(column: number, wordDefinition: RegExp, text: string, 
 	let pos = column - 1 - textOffset;
 	wordDefinition.lastIndex = 0;
 
-	let match: RegExpMatchArray;
+	let match: RegExpMatchArray | null;
 	while (match = wordDefinition.exec(text)) {
-
-		if (match.index > pos) {
+		const matchIndex = match.index || 0;
+		if (matchIndex > pos) {
 			// |nW -> matched only after the pos
 			return null;
 
@@ -98,7 +97,7 @@ function getWordAtPosSlow(column: number, wordDefinition: RegExp, text: string, 
 			// W|W -> match encloses pos
 			return {
 				word: match[0],
-				startColumn: textOffset + 1 + match.index,
+				startColumn: textOffset + 1 + matchIndex,
 				endColumn: textOffset + 1 + wordDefinition.lastIndex
 			};
 		}
@@ -107,7 +106,7 @@ function getWordAtPosSlow(column: number, wordDefinition: RegExp, text: string, 
 	return null;
 }
 
-export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition {
+export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number): IWordAtPosition | null {
 
 	// if `words` can contain whitespace character we have to use the slow variant
 	// otherwise we use the fast variant of finding a word

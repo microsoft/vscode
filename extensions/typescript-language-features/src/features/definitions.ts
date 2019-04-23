@@ -5,10 +5,46 @@
 
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
+import * as typeConverters from '../utils/typeConverters';
 import DefinitionProviderBase from './definitionProviderBase';
 
-class TypeScriptDefinitionProvider extends DefinitionProviderBase implements vscode.DefinitionProvider {
-	public provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken | boolean): Promise<vscode.Definition | undefined> {
+export default class TypeScriptDefinitionProvider extends DefinitionProviderBase implements vscode.DefinitionProvider {
+	constructor(
+		client: ITypeScriptServiceClient
+	) {
+		super(client);
+	}
+
+	public async provideDefinition(
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken
+	): Promise<vscode.DefinitionLink[] | vscode.Definition | undefined> {
+		if (this.client.apiVersion.gte(API.v270)) {
+			const filepath = this.client.toOpenedFilePath(document);
+			if (!filepath) {
+				return undefined;
+			}
+
+			const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
+			const response = await this.client.execute('definitionAndBoundSpan', args, token);
+			if (response.type !== 'response' || !response.body) {
+				return undefined;
+			}
+
+			const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
+			return response.body.definitions
+				.map((location): vscode.DefinitionLink => {
+					const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
+					return {
+						originSelectionRange: span,
+						targetRange: target.range,
+						targetUri: target.uri,
+					};
+				});
+		}
+
 		return this.getSymbolLocations('definition', document, position, token);
 	}
 }

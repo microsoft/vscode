@@ -2,14 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
-import { TextDocument, Position, Range, CompletionItem } from 'vscode-languageserver-types';
+import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration, SelectionRange } from 'vscode-html-languageservice';
+import { TextDocument, Position, Range, CompletionItem, FoldingRange } from 'vscode-languageserver-types';
 import { LanguageMode, Workspace } from './languageModes';
-
-import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
 import { getPathCompletionParticipant } from './pathCompletion';
 
 export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace: Workspace): LanguageMode {
@@ -17,6 +14,9 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 	return {
 		getId() {
 			return 'html';
+		},
+		getSelectionRanges(document: TextDocument, positions: Position[]): SelectionRange[][] {
+			return htmlLanguageService.getSelectionRanges(document, positions);
 		},
 		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;
@@ -60,9 +60,8 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			formatSettings = merge(formatParams, formatSettings);
 			return htmlLanguageService.format(document, range, formatSettings);
 		},
-		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
-			let ranges = htmlLanguageService.getFoldingRanges(document);
-			return ranges.filter(r => r.startLine >= range.start.line && r.endLine < range.end.line);
+		getFoldingRanges(document: TextDocument): FoldingRange[] {
+			return htmlLanguageService.getFoldingRanges(document);
 		},
 		doAutoClose(document: TextDocument, position: Position) {
 			let offset = document.offsetAt(position);
@@ -82,7 +81,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 }
 
 function merge(src: any, dst: any): any {
-	for (var key in src) {
+	for (const key in src) {
 		if (src.hasOwnProperty(key)) {
 			dst[key] = src[key];
 		}

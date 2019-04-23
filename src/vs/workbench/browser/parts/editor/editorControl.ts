@@ -3,21 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import { toWinJsPromise } from 'vs/base/common/async';
-import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -26,22 +24,29 @@ export interface IOpenEditorResult {
 
 export class EditorControl extends Disposable {
 
-	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
+	get minimumWidth() { return this._activeControl ? this._activeControl.minimumWidth : DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
+	get minimumHeight() { return this._activeControl ? this._activeControl.minimumHeight : DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
+	get maximumWidth() { return this._activeControl ? this._activeControl.maximumWidth : DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
+	get maximumHeight() { return this._activeControl ? this._activeControl.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
+
+	private readonly _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
 	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
 
-	private activeControlFocusListener: IDisposable;
+	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return this._onDidSizeConstraintsChange.event; }
 
+	private _activeControl: BaseEditor | null;
+	private controls: BaseEditor[] = [];
+
+	private activeControlDisposeables: IDisposable[] = [];
 	private dimension: Dimension;
 	private editorOperation: LongRunningOperation;
-
-	private _activeControl: BaseEditor;
-	private controls: BaseEditor[] = [];
 
 	constructor(
 		private parent: HTMLElement,
 		private groupView: IEditorGroupView,
-		@IPartService private partService: IPartService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProgressService progressService: IProgressService
 	) {
 		super();
@@ -49,21 +54,24 @@ export class EditorControl extends Disposable {
 		this.editorOperation = this._register(new LongRunningOperation(progressService));
 	}
 
-	get activeControl(): BaseEditor {
-		return this._activeControl;
+	get activeControl(): IVisibleEditor | null {
+		return this._activeControl as IVisibleEditor | null;
 	}
 
-	openEditor(editor: EditorInput, options?: EditorOptions): TPromise<IOpenEditorResult> {
+	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
 
 		// Editor control
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
-		const control = this.doShowEditorControl(descriptor, options);
+		if (!descriptor) {
+			throw new Error('No editor descriptor found');
+		}
+		const control = this.doShowEditorControl(descriptor);
 
 		// Set input
-		return this.doSetInput(control, editor, options).then((editorChanged => (({ control, editorChanged } as IOpenEditorResult))));
+		return this.doSetInput(control, editor, withUndefinedAsNull(options)).then((editorChanged => (({ control, editorChanged }))));
 	}
 
-	private doShowEditorControl(descriptor: IEditorDescriptor, options: EditorOptions): BaseEditor {
+	private doShowEditorControl(descriptor: IEditorDescriptor): BaseEditor {
 
 		// Return early if the currently active editor control can handle the input
 		if (this._activeControl && descriptor.describes(this._activeControl)) {
@@ -76,15 +84,12 @@ export class EditorControl extends Disposable {
 		// Create editor
 		const control = this.doCreateEditorControl(descriptor);
 
-		// Remember editor as active
-		this._activeControl = control;
+		// Set editor as active
+		this.doSetActiveControl(control);
 
 		// Show editor
 		this.parent.appendChild(control.getContainer());
 		show(control.getContainer());
-
-		// Track focus
-		this.activeControlFocusListener = control.onDidFocus(() => this._onDidFocus.fire());
 
 		// Indicate to editor that it is now visible
 		control.setVisible(true, this.groupView);
@@ -129,13 +134,29 @@ export class EditorControl extends Disposable {
 		return control;
 	}
 
-	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): TPromise<boolean> {
+	private doSetActiveControl(control: BaseEditor | null) {
+		this._activeControl = control;
+
+		// Clear out previous active control listeners
+		this.activeControlDisposeables = dispose(this.activeControlDisposeables);
+
+		// Listen to control changes
+		if (control) {
+			this.activeControlDisposeables.push(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
+			this.activeControlDisposeables.push(control.onDidFocus(() => this._onDidFocus.fire()));
+		}
+
+		// Indicate that size constraints could have changed due to new editor
+		this._onDidSizeConstraintsChange.fire(undefined);
+	}
+
+	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions | null): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same
-		const forceOpen = options && options.forceOpen;
+		const forceReload = options && options.forceReload;
 		const inputMatches = control.input && control.input.matches(editor);
-		if (inputMatches && !forceOpen) {
+		if (inputMatches && !forceReload) {
 
 			// Forward options
 			control.setOptions(options);
@@ -146,16 +167,16 @@ export class EditorControl extends Disposable {
 				control.focus();
 			}
 
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		// Show progress while setting input after a certain timeout. If the workbench is opening
 		// be more relaxed about progress showing by increasing the delay a little bit to reduce flicker.
-		const operation = this.editorOperation.start(this.partService.isCreated() ? 800 : 3200);
+		const operation = this.editorOperation.start(this.layoutService.isRestored() ? 800 : 3200);
 
 		// Call into editor control
 		const editorWillChange = !inputMatches;
-		return toWinJsPromise(control.setInput(editor, options, operation.token)).then(() => {
+		return control.setInput(editor, options, operation.token).then(() => {
 
 			// Focus (unless prevented or another operation is running)
 			if (operation.isCurrent()) {
@@ -174,7 +195,7 @@ export class EditorControl extends Disposable {
 			// Operation done
 			operation.stop();
 
-			return TPromise.wrapError(e);
+			return Promise.reject(e);
 		});
 	}
 
@@ -196,10 +217,7 @@ export class EditorControl extends Disposable {
 		this._activeControl.setVisible(false, this.groupView);
 
 		// Clear active control
-		this._activeControl = null;
-
-		// Clear focus listener
-		this.activeControlFocusListener = dispose(this.activeControlFocusListener);
+		this.doSetActiveControl(null);
 	}
 
 	closeEditor(editor: EditorInput): void {
@@ -216,14 +234,8 @@ export class EditorControl extends Disposable {
 		}
 	}
 
-	shutdown(): void {
-
-		// Forward to all editor controls
-		this.controls.forEach(editor => editor.shutdown());
-	}
-
 	dispose(): void {
-		this.activeControlFocusListener = dispose(this.activeControlFocusListener);
+		this.activeControlDisposeables = dispose(this.activeControlDisposeables);
 
 		super.dispose();
 	}

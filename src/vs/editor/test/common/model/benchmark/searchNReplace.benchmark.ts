@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ITextBufferBuilder } from 'vs/editor/common/model';
-import { generateRandomReplaces, generateRandomChunkWithLF } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
 import { BenchmarkSuite } from 'vs/editor/test/common/model/benchmark/benchmarkUtils';
+import { generateRandomChunkWithLF, generateRandomReplaces } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
 
 let fileSizes = [1, 1000, 64 * 1000, 32 * 1000 * 1000];
 

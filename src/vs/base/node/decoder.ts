@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as sd from 'string_decoder';
 import { CharCode } from 'vs/base/common/charCode';
 
@@ -18,16 +16,16 @@ import { CharCode } from 'vs/base/common/charCode';
  */
 export class LineDecoder {
 	private stringDecoder: sd.NodeStringDecoder;
-	private remaining: string;
+	private remaining: string | null;
 
 	constructor(encoding: string = 'utf8') {
 		this.stringDecoder = new sd.StringDecoder(encoding);
 		this.remaining = null;
 	}
 
-	public write(buffer: NodeBuffer): string[] {
-		let result: string[] = [];
-		let value = this.remaining
+	write(buffer: Buffer): string[] {
+		const result: string[] = [];
+		const value = this.remaining
 			? this.remaining + this.stringDecoder.write(buffer)
 			: this.stringDecoder.write(buffer);
 
@@ -43,7 +41,7 @@ export class LineDecoder {
 				result.push(value.substring(start, idx));
 				idx++;
 				if (idx < value.length) {
-					let lastChar = ch;
+					const lastChar = ch;
 					ch = value.charCodeAt(idx);
 					if ((lastChar === CharCode.CarriageReturn && ch === CharCode.LineFeed) || (lastChar === CharCode.LineFeed && ch === CharCode.CarriageReturn)) {
 						idx++;
@@ -58,7 +56,7 @@ export class LineDecoder {
 		return result;
 	}
 
-	public end(): string {
+	end(): string | null {
 		return this.remaining;
 	}
 }

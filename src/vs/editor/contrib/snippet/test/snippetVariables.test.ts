@@ -2,16 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
-import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
+import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
 import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Workspace, toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 suite('Snippet Variables Resolver', function () {
 
@@ -35,7 +34,7 @@ suite('Snippet Variables Resolver', function () {
 		model.dispose();
 	});
 
-	function assertVariableResolve(resolver: VariableResolver, varName: string, expected: string) {
+	function assertVariableResolve(resolver: VariableResolver, varName: string, expected?: string) {
 		const snippet = new SnippetParser().parse(`$${varName}`);
 		const variable = <Variable>snippet.children[0];
 		variable.resolve(resolver);
@@ -159,7 +158,8 @@ suite('Snippet Variables Resolver', function () {
 
 		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/g}', 'FARbarFARbar'); // global
 		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/}', 'FARbarfoobar'); // first match
-		assertVariableResolve2('${foobarfoobar/(bazz)/${1:+FAR}/g}', 'foobarfoobar'); // no match
+		assertVariableResolve2('${foobarfoobar/(bazz)/${1:+FAR}/g}', 'foobarfoobar'); // no match, no else
+		// assertVariableResolve2('${foobarfoobar/(bazz)/${1:+FAR}/g}', ''); // no match
 
 		assertVariableResolve2('${foobarfoobar/(foo)/${2:+FAR}/g}', 'barbar'); // bad group reference
 	});
@@ -209,10 +209,10 @@ suite('Snippet Variables Resolver', function () {
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		let readTextResult: string;
+		let readTextResult: string | null | undefined;
 		const clipboardService = new class implements IClipboardService {
 			_serviceBrand: any;
-			readText(): string { return readTextResult; }
+			readText(): any { return readTextResult; }
 			_throw = () => { throw new Error(); };
 			writeText = this._throw;
 			readFindText = this._throw;
@@ -291,5 +291,49 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
+	});
+
+	test('creating snippet - format-condition doesn\'t work #53617', function () {
+
+		const snippet = new SnippetParser().parse('${TM_LINE_NUMBER/(10)/${1:?It is:It is not}/} line 10', true);
+		snippet.resolveVariables({ resolve() { return '10'; } });
+		assert.equal(snippet.toString(), 'It is line 10');
+
+		snippet.resolveVariables({ resolve() { return '11'; } });
+		assert.equal(snippet.toString(), 'It is not line 10');
+	});
+
+	test('Add workspace name variable for snippets #68261', function () {
+
+		let workspace: IWorkspace;
+		let resolver: VariableResolver;
+		const workspaceService = new class implements IWorkspaceContextService {
+			_serviceBrand: any;
+			_throw = () => { throw new Error(); };
+			onDidChangeWorkbenchState = this._throw;
+			onDidChangeWorkspaceName = this._throw;
+			onDidChangeWorkspaceFolders = this._throw;
+			getCompleteWorkspace = this._throw;
+			getWorkspace(): IWorkspace { return workspace; }
+			getWorkbenchState = this._throw;
+			getWorkspaceFolder = this._throw;
+			isCurrentWorkspace = this._throw;
+			isInsideWorkspace = this._throw;
+		};
+
+		resolver = new WorkspaceBasedVariableResolver(workspaceService);
+
+		// empty workspace
+		workspace = new Workspace('');
+		assertVariableResolve(resolver, 'WORKSPACE_NAME', undefined);
+
+		// single folder workspace without config
+		workspace = new Workspace('', [toWorkspaceFolder(URI.file('/folderName'))]);
+		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'folderName');
+
+		// workspace with config
+		const workspaceConfigPath = URI.file('testWorkspace.code-workspace');
+		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }], workspaceConfigPath), workspaceConfigPath);
+		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'testWorkspace');
 	});
 });

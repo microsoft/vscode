@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { toUint8 } from 'vs/editor/common/core/uint';
 
@@ -64,7 +63,7 @@ const enum Boolean {
 
 export class CharacterSet {
 
-	private _actual: CharacterClassifier<Boolean>;
+	private readonly _actual: CharacterClassifier<Boolean>;
 
 	constructor() {
 		this._actual = new CharacterClassifier<Boolean>(Boolean.False);

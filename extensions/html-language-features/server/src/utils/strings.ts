@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 export function getWordAtText(text: string, offset: number, wordDefinition: RegExp): { start: number, length: number } {
 	let lineStart = offset;
@@ -53,7 +52,7 @@ export function endsWith(haystack: string, needle: string): boolean {
 }
 
 export function repeat(value: string, count: number) {
-	var s = '';
+	let s = '';
 	while (count > 0) {
 		if ((count & 1) === 1) {
 			s += value;

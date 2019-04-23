@@ -2,34 +2,34 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./media/diffReview';
 import * as nls from 'vs/nls';
-import { Disposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { renderViewLine2 as renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { Position } from 'vs/editor/common/core/position';
-import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Action } from 'vs/base/common/actions';
-import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { Position } from 'vs/editor/common/core/position';
+import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { ColorId, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
+import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
+import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -82,7 +82,7 @@ export class DiffReview extends Disposable {
 	private readonly _content: FastDomNode<HTMLElement>;
 	private readonly scrollbar: DomScrollableElement;
 	private _diffs: Diff[];
-	private _currentDiff: Diff;
+	private _currentDiff: Diff | null;
 
 	constructor(diffEditor: DiffEditorWidget) {
 		super();
@@ -100,7 +100,7 @@ export class DiffReview extends Disposable {
 
 		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review', true, () => {
 			this.hide();
-			return null;
+			return Promise.resolve(null);
 		}), { label: false, icon: true });
 
 		this.domNode = createFastDomNode(document.createElement('div'));
@@ -200,7 +200,7 @@ export class DiffReview extends Disposable {
 			}
 			index = (this._diffs.length + currentIndex - 1);
 		} else {
-			index = this._findDiffIndex(this._diffEditor.getPosition());
+			index = this._findDiffIndex(this._diffEditor.getPosition()!);
 		}
 
 		if (this._diffs.length === 0) {
@@ -233,7 +233,7 @@ export class DiffReview extends Disposable {
 			}
 			index = (currentIndex + 1);
 		} else {
-			index = this._findDiffIndex(this._diffEditor.getPosition());
+			index = this._findDiffIndex(this._diffEditor.getPosition()!);
 		}
 
 		if (this._diffs.length === 0) {
@@ -253,7 +253,7 @@ export class DiffReview extends Disposable {
 		let jumpToLineNumber = -1;
 		let current = this._getCurrentFocusedRow();
 		if (current) {
-			let lineNumber = parseInt(current.getAttribute('data-line'), 10);
+			let lineNumber = parseInt(current.getAttribute('data-line')!, 10);
 			if (!isNaN(lineNumber)) {
 				jumpToLineNumber = lineNumber;
 			}
@@ -262,7 +262,7 @@ export class DiffReview extends Disposable {
 
 		if (jumpToLineNumber !== -1) {
 			this._diffEditor.setPosition(new Position(jumpToLineNumber, 1));
-			this._diffEditor.revealPosition(new Position(jumpToLineNumber, 1), editorCommon.ScrollType.Immediate);
+			this._diffEditor.revealPosition(new Position(jumpToLineNumber, 1), ScrollType.Immediate);
 		}
 	}
 
@@ -299,7 +299,7 @@ export class DiffReview extends Disposable {
 		return <HTMLElement>this.domNode.domNode.querySelector('.diff-review-row');
 	}
 
-	private _getCurrentFocusedRow(): HTMLElement {
+	private _getCurrentFocusedRow(): HTMLElement | null {
 		let result = <HTMLElement>document.activeElement;
 		if (result && /diff-review-row/.test(result.className)) {
 			return result;
@@ -358,7 +358,7 @@ export class DiffReview extends Disposable {
 		return DiffReview._mergeAdjacent(lineChanges, originalModel.getLineCount(), modifiedModel.getLineCount());
 	}
 
-	private static _mergeAdjacent(lineChanges: editorCommon.ILineChange[], originalLineCount: number, modifiedLineCount: number): Diff[] {
+	private static _mergeAdjacent(lineChanges: ILineChange[], originalLineCount: number, modifiedLineCount: number): Diff[] {
 		if (!lineChanges || lineChanges.length === 0) {
 			return [];
 		}
@@ -530,8 +530,8 @@ export class DiffReview extends Disposable {
 		const originalModel = this._diffEditor.getOriginalEditor().getModel();
 		const modifiedModel = this._diffEditor.getModifiedEditor().getModel();
 
-		const originalModelOpts = originalModel.getOptions();
-		const modifiedModelOpts = modifiedModel.getOptions();
+		const originalModelOpts = originalModel!.getOptions();
+		const modifiedModelOpts = modifiedModel!.getOptions();
 
 		if (!this._isVisible || !originalModel || !modifiedModel) {
 			dom.clearNode(this._content.domNode);
@@ -540,8 +540,7 @@ export class DiffReview extends Disposable {
 			return;
 		}
 
-		const pos = this._diffEditor.getPosition();
-		const diffIndex = this._findDiffIndex(pos);
+		const diffIndex = this._findDiffIndex(this._diffEditor.getPosition()!);
 
 		if (this._diffs[diffIndex] === this._currentDiff) {
 			return;
@@ -731,7 +730,7 @@ export class DiffReview extends Disposable {
 				lineContent = nls.localize('blankLine', "blank");
 			}
 
-			let ariaLabel: string;
+			let ariaLabel: string = '';
 			switch (type) {
 				case DiffEntryType.Equal:
 					ariaLabel = nls.localize('equalLine', "original {0}, modified {1}: {2}", originalLine, modifiedLine, lineContent);
@@ -768,6 +767,7 @@ export class DiffReview extends Disposable {
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
+			config.fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,
 			isBasicASCII,
@@ -790,7 +790,7 @@ export class DiffReview extends Disposable {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	let lineNumbers = theme.getColor(editorLineNumbers);
+	const lineNumbers = theme.getColor(editorLineNumbers);
 	if (lineNumbers) {
 		collector.addRule(`.monaco-diff-editor .diff-review-line-number { color: ${lineNumbers}; }`);
 	}
@@ -810,7 +810,8 @@ class DiffReviewNext extends EditorAction {
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyCode.F7
+				primary: KeyCode.F7,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -832,7 +833,8 @@ class DiffReviewPrev extends EditorAction {
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyMod.Shift | KeyCode.F7
+				primary: KeyMod.Shift | KeyCode.F7,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -845,7 +847,7 @@ class DiffReviewPrev extends EditorAction {
 	}
 }
 
-function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget {
+function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget | null {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const diffEditors = codeEditorService.listDiffEditors();
 	for (let i = 0, len = diffEditors.length; i < len; i++) {

@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
-import product from 'vs/platform/node/product';
-import { TPromise } from 'vs/base/common/winjs.base';
+import product from 'vs/platform/product/node/product';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { DialogService as HTMLDialogService } from 'vs/platform/dialogs/browser/dialogService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 interface IMassagedMessageBoxOptions {
 
@@ -30,22 +35,59 @@ interface IMassagedMessageBoxOptions {
 }
 
 export class DialogService implements IDialogService {
+	_serviceBrand: any;
 
-	public _serviceBrand: any;
+	private impl: IDialogService;
 
 	constructor(
-		@IWindowService private windowService: IWindowService
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
+		@ILayoutService layoutService: ILayoutService,
+		@IThemeService themeService: IThemeService,
+		@IWindowService windowService: IWindowService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService
 	) {
+
+		// Use HTML based dialogs
+		if (configurationService.getValue('workbench.dialogs.customEnabled') === true) {
+			this.impl = new HTMLDialogService(logService, layoutService, themeService);
+		}
+		// Electron dialog service
+		else {
+			this.impl = new NativeDialogService(windowService, logService, sharedProcessService);
+		}
 	}
 
-	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		return this.impl.confirm(confirmation);
+	}
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<number> {
+		return this.impl.show(severity, message, buttons, options);
+	}
+}
+
+class NativeDialogService implements IDialogService {
+
+	_serviceBrand: any;
+
+	constructor(
+		@IWindowService private readonly windowService: IWindowService,
+		@ILogService private readonly logService: ILogService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService
+	) {
+		sharedProcessService.registerChannel('dialog', new DialogChannel(this));
+	}
+
+	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		this.logService.trace('DialogService#confirm', confirmation.message);
+
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
 
 		return this.windowService.showMessageBox(options).then(result => {
 			return {
 				confirmed: buttonIndexMap[result.button] === 0 ? true : false,
 				checkboxChecked: result.checkboxChecked
-			} as IConfirmationResult;
+			};
 		});
 	}
 
@@ -86,21 +128,23 @@ export class DialogService implements IDialogService {
 		return opts;
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): TPromise<number> {
+	show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): Promise<number> {
+		this.logService.trace('DialogService#show', message);
+
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			message,
 			buttons,
 			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
-			cancelId: dialogOptions ? dialogOptions.cancelId : void 0,
-			detail: dialogOptions ? dialogOptions.detail : void 0
+			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
+			detail: dialogOptions ? dialogOptions.detail : undefined
 		});
 
 		return this.windowService.showMessageBox(options).then(result => buttonIndexMap[result.button]);
 	}
 
 	private massageMessageBoxOptions(options: Electron.MessageBoxOptions): IMassagedMessageBoxOptions {
-		let buttonIndexMap = options.buttons.map((button, index) => index);
-		let buttons = options.buttons.map(button => mnemonicButtonLabel(button));
+		let buttonIndexMap = (options.buttons || []).map((button, index) => index);
+		let buttons = (options.buttons || []).map(button => mnemonicButtonLabel(button));
 		let cancelId = options.cancelId;
 
 		// Linux: order of buttons is reverse
@@ -142,3 +186,5 @@ export class DialogService implements IDialogService {
 		return { options, buttonIndexMap };
 	}
 }
+
+registerSingleton(IDialogService, DialogService, true);

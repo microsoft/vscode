@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { Constants } from 'vs/editor/common/core/uint';
+import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 
 class FloatHorizontalRange {
 	_floatHorizontalRangeBrand: void;
@@ -49,8 +48,8 @@ export class RangeUtil {
 		range.selectNodeContents(endNode);
 	}
 
-	private static _readClientRects(startElement: Node, startOffset: number, endElement: Node, endOffset: number, endNode: HTMLElement): ClientRectList {
-		let range = this._createRange();
+	private static _readClientRects(startElement: Node, startOffset: number, endElement: Node, endOffset: number, endNode: HTMLElement): ClientRectList | DOMRectList | null {
+		const range = this._createRange();
 		try {
 			range.setStart(startElement, startOffset);
 			range.setEnd(endElement, endOffset);
@@ -95,7 +94,7 @@ export class RangeUtil {
 		return result;
 	}
 
-	private static _createHorizontalRangesFromClientRects(clientRects: ClientRectList, clientRectDeltaLeft: number): HorizontalRange[] {
+	private static _createHorizontalRangesFromClientRects(clientRects: ClientRectList | DOMRectList | null, clientRectDeltaLeft: number): HorizontalRange[] | null {
 		if (!clientRects || clientRects.length === 0) {
 			return null;
 		}
@@ -103,7 +102,7 @@ export class RangeUtil {
 		// We go through FloatHorizontalRange because it has been observed in bi-di text
 		// that the clientRects are not coming in sorted from the browser
 
-		let result: FloatHorizontalRange[] = [];
+		const result: FloatHorizontalRange[] = [];
 		for (let i = 0, len = clientRects.length; i < len; i++) {
 			const clientRect = clientRects[i];
 			result[i] = new FloatHorizontalRange(Math.max(0, clientRect.left - clientRectDeltaLeft), clientRect.width);
@@ -112,10 +111,10 @@ export class RangeUtil {
 		return this._mergeAdjacentRanges(result);
 	}
 
-	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
+	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] | null {
 		// Panic check
-		let min = 0;
-		let max = domNode.children.length - 1;
+		const min = 0;
+		const max = domNode.children.length - 1;
 		if (min > max) {
 			return null;
 		}
@@ -150,10 +149,10 @@ export class RangeUtil {
 			return null;
 		}
 
-		startOffset = Math.min(startElement.textContent.length, Math.max(0, startOffset));
-		endOffset = Math.min(endElement.textContent.length, Math.max(0, endOffset));
+		startOffset = Math.min(startElement.textContent!.length, Math.max(0, startOffset));
+		endOffset = Math.min(endElement.textContent!.length, Math.max(0, endOffset));
 
-		let clientRects = this._readClientRects(startElement, startOffset, endElement, endOffset, endNode);
+		const clientRects = this._readClientRects(startElement, startOffset, endElement, endOffset, endNode);
 		return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft);
 	}
 }

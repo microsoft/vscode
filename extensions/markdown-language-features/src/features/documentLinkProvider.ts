@@ -3,34 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import * as path from 'path';
+import * as vscode from 'vscode';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
+import { getUriForLinkWithKnownExternalScheme } from '../util/links';
 
 function normalizeLink(
 	document: vscode.TextDocument,
 	link: string,
 	base: string
 ): vscode.Uri {
-	const uri = vscode.Uri.parse(link);
-	if (uri.scheme) {
-		return uri;
+	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
+	if (externalSchemeUri) {
+		return externalSchemeUri;
 	}
 
-	// assume it must be a file
-	let resourcePath = uri.path;
-	if (!uri.path) {
+	// Assume it must be an relative or absolute file path
+	// Use a fake scheme to avoid parse warnings
+	const tempUri = vscode.Uri.parse(`vscode-resource:${link}`);
+
+	let resourcePath = tempUri.path;
+	if (!tempUri.path && document.uri.scheme === 'file') {
 		resourcePath = document.uri.path;
-	} else if (uri.path[0] === '/') {
+	} else if (tempUri.path[0] === '/') {
 		const root = vscode.workspace.getWorkspaceFolder(document.uri);
 		if (root) {
-			resourcePath = path.join(root.uri.fsPath, uri.path);
+			resourcePath = path.join(root.uri.fsPath, tempUri.path);
 		}
 	} else {
-		resourcePath = path.join(base, uri.path);
+		resourcePath = base ? path.join(base, tempUri.path) : tempUri.path;
 	}
 
-	return OpenDocumentLinkCommand.createCommandUri(resourcePath, uri.fragment);
+	return OpenDocumentLinkCommand.createCommandUri(resourcePath, tempUri.fragment);
 }
 
 function matchAll(
@@ -46,8 +50,27 @@ function matchAll(
 	return out;
 }
 
+function extractDocumentLink(
+	document: vscode.TextDocument,
+	base: string,
+	pre: number,
+	link: string,
+	matchIndex: number | undefined
+): vscode.DocumentLink | undefined {
+	const offset = (matchIndex || 0) + pre;
+	const linkStart = document.positionAt(offset);
+	const linkEnd = document.positionAt(offset + link.length);
+	try {
+		return new vscode.DocumentLink(
+			new vscode.Range(linkStart, linkEnd),
+			normalizeLink(document, link, base));
+	} catch (e) {
+		return undefined;
+	}
+}
+
 export default class LinkProvider implements vscode.DocumentLinkProvider {
-	private readonly linkPattern = /(\[[^\]]*\]\(\s*)((([^\s\(\)]|\(\S*?\))+))\s*(".*?")?\)/g;
+	private readonly linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|[^\]]*\])\(\s*)(([^\s\(\)]|\(\S*?\))+)\s*(".*?")?\)/g;
 	private readonly referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)([^\s\]]*?)\]/g;
 	private readonly definitionPattern = /^([\t ]*\[([^\]]+)\]:\s*)(\S+)/gm;
 
@@ -55,11 +78,13 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 		document: vscode.TextDocument,
 		_token: vscode.CancellationToken
 	): vscode.DocumentLink[] {
-		const base = path.dirname(document.uri.fsPath);
+		const base = document.uri.scheme === 'file' ? path.dirname(document.uri.fsPath) : '';
 		const text = document.getText();
 
-		return this.providerInlineLinks(text, document, base)
-			.concat(this.provideReferenceLinks(text, document, base));
+		return [
+			...this.providerInlineLinks(text, document, base),
+			...this.provideReferenceLinks(text, document, base)
+		];
 	}
 
 	private providerInlineLinks(
@@ -69,20 +94,15 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 	): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
 		for (const match of matchAll(this.linkPattern, text)) {
-			const pre = match[1];
-			const link = match[2];
-			const offset = (match.index || 0) + pre.length;
-			const linkStart = document.positionAt(offset);
-			const linkEnd = document.positionAt(offset + link.length);
-			try {
-				results.push(new vscode.DocumentLink(
-					new vscode.Range(linkStart, linkEnd),
-					normalizeLink(document, link, base)));
-			} catch (e) {
-				// noop
+			const matchImage = match[4] && extractDocumentLink(document, base, match[3].length + 1, match[4], match.index);
+			if (matchImage) {
+				results.push(matchImage);
+			}
+			const matchLink = extractDocumentLink(document, base, match[1].length, match[5], match.index);
+			if (matchLink) {
+				results.push(matchLink);
 			}
 		}
-
 		return results;
 	}
 

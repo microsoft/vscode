@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { TypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
-import { Memento, commands, Uri, window, QuickPickItem, workspace } from 'vscode';
+import { TypeScriptVersion, TypeScriptVersionProvider } from './versionProvider';
 
 const localize = nls.loadMessageBundle();
 
 const useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
 
-interface MyQuickPickItem extends QuickPickItem {
+interface MyQuickPickItem extends vscode.QuickPickItem {
 	id: MessageAction;
 	version?: TypeScriptVersion;
 }
@@ -19,7 +19,7 @@ interface MyQuickPickItem extends QuickPickItem {
 enum MessageAction {
 	useLocal,
 	useBundled,
-	learnMore
+	learnMore,
 }
 
 export class TypeScriptVersionPicker {
@@ -27,7 +27,7 @@ export class TypeScriptVersionPicker {
 
 	public constructor(
 		private readonly versionProvider: TypeScriptVersionProvider,
-		private readonly workspaceState: Memento
+		private readonly workspaceState: vscode.Memento
 	) {
 		this._currentVersion = this.versionProvider.defaultVersion;
 
@@ -61,7 +61,7 @@ export class TypeScriptVersionPicker {
 				: '') + localize('useVSCodeVersionOption', 'Use VS Code\'s Version'),
 			description: shippedVersion.versionString,
 			detail: shippedVersion.pathLabel,
-			id: MessageAction.useBundled
+			id: MessageAction.useBundled,
 		});
 
 		for (const version of this.versionProvider.localVersions) {
@@ -72,7 +72,7 @@ export class TypeScriptVersionPicker {
 				description: version.versionString,
 				detail: version.pathLabel,
 				id: MessageAction.useLocal,
-				version: version
+				version
 			});
 		}
 
@@ -82,11 +82,11 @@ export class TypeScriptVersionPicker {
 			id: MessageAction.learnMore
 		});
 
-		const selected = await window.showQuickPick<MyQuickPickItem>(pickOptions, {
+		const selected = await vscode.window.showQuickPick<MyQuickPickItem>(pickOptions, {
 			placeHolder: localize(
 				'selectTsVersion',
 				'Select the TypeScript version used for JavaScript and TypeScript language features'),
-			ignoreFocusOut: firstRun
+			ignoreFocusOut: firstRun,
 		});
 
 		if (!selected) {
@@ -97,7 +97,7 @@ export class TypeScriptVersionPicker {
 			case MessageAction.useLocal:
 				await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
 				if (selected.version) {
-					const tsConfig = workspace.getConfiguration('typescript');
+					const tsConfig = vscode.workspace.getConfiguration('typescript');
 					await tsConfig.update('tsdk', selected.version.pathLabel, false);
 
 					const previousVersion = this.currentVersion;
@@ -112,9 +112,8 @@ export class TypeScriptVersionPicker {
 				this._currentVersion = shippedVersion;
 				return { oldVersion: previousVersion, newVersion: shippedVersion };
 
-
 			case MessageAction.learnMore:
-				commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
+				vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
 				return { oldVersion: this.currentVersion };
 
 			default:

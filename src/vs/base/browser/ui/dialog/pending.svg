@@ -1,0 +1,13 @@
+<?xml version='1.0' standalone='no' ?>
+<svg xmlns='http://www.w3.org/2000/svg' version='1.1' width='10px' height='10px'>
+	<g>
+		<circle cx='5' cy='1' r='1' style='opacity: 1.0;' />
+		<circle cx='7.8284' cy='2.1716' r='1' style='opacity:0.9;' />
+		<circle cx='9' cy='5' r='1' style='opacity:0.8;' />
+		<circle cx='7.8284' cy='7.8284' r='1' style='opacity:0.7;' />
+		<circle cx='5' cy='9' r='1' style='opacity:0.6;' />
+		<circle cx='2.1716' cy='7.8284' r='1' style='opacity:0.5;' />
+		<circle cx='1' cy='5' r='1' style='opacity:0.4;' />
+		<circle cx='2.1716' cy='2.1716' r='1' style='opacity:0.3;' />
+	</g>
+</svg>

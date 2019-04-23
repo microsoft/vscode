@@ -2,189 +2,370 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import uri from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 import * as arrays from 'vs/base/common/arrays';
-import * as objects from 'vs/base/common/objects';
-import * as strings from 'vs/base/common/strings';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
+import { Event } from 'vs/base/common/event';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { keys, ResourceMap, values } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { URI as uri } from 'vs/base/common/uri';
+import * as pfs from 'vs/base/node/pfs';
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, IFolderQuery, ISearchConfiguration, ISearchService, pathIncludedInQuery, ISearchResultProvider } from 'vs/platform/search/common/search';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService, ITelemetryEvent } from './search';
-import { ISearchChannel, SearchChannelClient } from './searchIpc';
-import { IEnvironmentService, IDebugParams } from 'vs/platform/environment/common/environment';
-import { ResourceMap } from 'vs/base/common/map';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Schemas } from 'vs/base/common/network';
-import * as pfs from 'vs/base/node/pfs';
+import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawSearchService, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, isFileMatch, isProgressMessage } from 'vs/workbench/services/search/common/search';
+import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { SearchChannelClient } from './searchIpc';
 
-export class SearchService implements ISearchService {
-	public _serviceBrand: any;
+export class SearchService extends Disposable implements ISearchService {
+	_serviceBrand: any;
 
 	private diskSearch: DiskSearch;
-	private readonly searchProviders: ISearchResultProvider[] = [];
-	private forwardingTelemetry: PPromise<void, ITelemetryEvent>;
+	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
+	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
 
 	constructor(
-		@IModelService private modelService: IModelService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ILogService private logService: ILogService,
-		@IExtensionService private extensionService: IExtensionService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IFileService private readonly fileService: IFileService
 	) {
-		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
+		super();
+		this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, environmentService.debugSearch);
 	}
 
-	public registerSearchResultProvider(provider: ISearchResultProvider): IDisposable {
-		this.searchProviders.push(provider);
-		return {
-			dispose: () => {
-				const idx = this.searchProviders.indexOf(provider);
-				if (idx >= 0) {
-					this.searchProviders.splice(idx, 1);
+	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
+		let list: Map<string, ISearchResultProvider>;
+		if (type === SearchProviderType.file) {
+			list = this.fileSearchProviders;
+		} else if (type === SearchProviderType.text) {
+			list = this.textSearchProviders;
+		} else {
+			throw new Error('Unknown SearchProviderType');
+		}
+
+		list.set(scheme, provider);
+
+		return toDisposable(() => {
+			list.delete(scheme);
+		});
+	}
+
+	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		// Get local results from dirty/untitled
+		const localResults = this.getLocalResults(query);
+
+		if (onProgress) {
+			arrays.coalesce(localResults.values()).forEach(onProgress);
+		}
+
+		const onProviderProgress = (progress: ISearchProgressItem) => {
+			if (isFileMatch(progress)) {
+				// Match
+				if (!localResults.has(progress.resource) && onProgress) { // don't override local results
+					onProgress(progress);
 				}
+			} else if (onProgress) {
+				// Progress
+				onProgress(<IProgressMessage>progress);
+			}
+
+			if (isProgressMessage(progress)) {
+				this.logService.debug('SearchService#search', progress.message);
 			}
 		};
+
+		return this.doSearch(query, token, onProviderProgress);
 	}
 
-	public extendQuery(query: ISearchQuery): void {
-		const configuration = this.configurationService.getValue<ISearchConfiguration>();
-
-		// Configuration: Encoding
-		if (!query.fileEncoding) {
-			const fileEncoding = configuration && configuration.files && configuration.files.encoding;
-			query.fileEncoding = fileEncoding;
-		}
-
-		// Configuration: File Excludes
-		if (!query.disregardExcludeSettings) {
-			const fileExcludes = objects.deepClone(configuration && configuration.files && configuration.files.exclude);
-			if (fileExcludes) {
-				if (!query.excludePattern) {
-					query.excludePattern = fileExcludes;
-				} else {
-					objects.mixin(query.excludePattern, fileExcludes, false /* no overwrite */);
-				}
-			}
-		}
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
+		return this.doSearch(query, token);
 	}
 
-	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
-		this.forwardTelemetry();
+	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		this.logService.trace('SearchService#search', JSON.stringify(query));
 
-		let combinedPromise: TPromise<void>;
+		const schemesInQuery = this.getSchemesInQuery(query);
 
-		return new PPromise<ISearchComplete, ISearchProgressItem>((onComplete, onError, onProgress) => {
+		const providerActivations: Promise<any>[] = [Promise.resolve(null)];
+		schemesInQuery.forEach(scheme => providerActivations.push(this.extensionService.activateByEvent(`onSearch:${scheme}`)));
+		providerActivations.push(this.extensionService.activateByEvent('onSearch:file'));
 
-			// Get local results from dirty/untitled
-			const localResults = this.getLocalResults(query);
-
-			// Allow caller to register progress callback
-			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
-
-			this.logService.trace('SearchService#search', JSON.stringify(query));
-
-			const startTime = Date.now();
-			const searchWithProvider = (provider: ISearchResultProvider) => TPromise.wrap(provider.search(query)).then(e => e,
-				null,
-				progress => {
-					if (progress.resource) {
-						// Match
-						if (!localResults.has(progress.resource)) { // don't override local results
-							onProgress(progress);
-						}
-					} else {
-						// Progress
-						onProgress(<IProgress>progress);
-					}
-
-					if (progress.message) {
-						this.logService.debug('SearchService#search', progress.message);
-					}
-				});
-
-			const providerPromise = this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-				// If no search providers are registered, fall back on DiskSearch
-				// TODO@roblou this is not properly waiting for search-rg to finish registering itself
-				if (this.searchProviders.length) {
-					return TPromise.join(this.searchProviders.map(p => searchWithProvider(p)))
-						.then(completes => {
-							completes = completes.filter(c => !!c);
-							if (!completes.length) {
-								return null;
-							}
-
-							return <ISearchComplete>{
-								limitHit: completes[0] && completes[0].limitHit,
-								stats: completes[0].stats,
-								results: arrays.flatten(completes.map(c => c.results))
-							};
-						}, errs => {
-							if (!Array.isArray(errs)) {
-								errs = [errs];
-							}
-
-							errs = errs.filter(e => !!e);
-							return TPromise.wrapError(errs[0]);
-						});
-				} else {
-					return searchWithProvider(this.diskSearch);
+		const providerPromise = Promise.all(providerActivations)
+			.then(() => this.extensionService.whenInstalledExtensionsRegistered())
+			.then(() => {
+				// Cancel faster if search was canceled while waiting for extensions
+				if (token && token.isCancellationRequested) {
+					return Promise.reject(canceled());
 				}
-			});
 
-			combinedPromise = providerPromise.then(value => {
-				this.logService.debug(`SearchService#search: ${Date.now() - startTime}ms`);
-				const values = [value];
+				const progressCallback = (item: ISearchProgressItem) => {
+					if (token && token.isCancellationRequested) {
+						return;
+					}
 
-				const result: ISearchComplete = {
-					limitHit: false,
-					results: [],
-					stats: undefined
+					if (onProgress) {
+						onProgress(item);
+					}
 				};
 
-				// TODO@joh
-				// sorting, disjunct results
-				for (const value of values) {
-					if (!value) {
-						continue;
-					}
-					// TODO@joh individual stats/limit
-					result.stats = value.stats || result.stats;
-					result.limitHit = value.limitHit || result.limitHit;
-
-					for (const match of value.results) {
-						if (!localResults.has(match.resource)) {
-							result.results.push(match);
-						}
-					}
+				return this.searchWithProviders(query, progressCallback, token);
+			})
+			.then(completes => {
+				completes = arrays.coalesce(completes);
+				if (!completes.length) {
+					return {
+						limitHit: false,
+						results: []
+					};
 				}
 
-				return result;
+				return <ISearchComplete>{
+					limitHit: completes[0] && completes[0].limitHit,
+					stats: completes[0].stats,
+					results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
+				};
+			});
 
-			}).then(onComplete, onError);
+		return new Promise((resolve, reject) => {
+			if (token) {
+				token.onCancellationRequested(() => {
+					reject(canceled());
+				});
+			}
 
-		}, () => combinedPromise && combinedPromise.cancel());
+			providerPromise.then(resolve, reject);
+		});
 	}
 
-	private getLocalResults(query: ISearchQuery): ResourceMap<IFileMatch> {
-		const localResults = new ResourceMap<IFileMatch>();
+	private getSchemesInQuery(query: ISearchQuery): Set<string> {
+		const schemes = new Set<string>();
+		if (query.folderQueries) {
+			query.folderQueries.forEach(fq => schemes.add(fq.folder.scheme));
+		}
+
+		if (query.extraFileResources) {
+			query.extraFileResources.forEach(extraFile => schemes.add(extraFile.scheme));
+		}
+
+		return schemes;
+	}
+
+	private searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void, token?: CancellationToken) {
+		const e2eSW = StopWatch.create(false);
+
+		const diskSearchQueries: IFolderQuery[] = [];
+		const searchPs: Promise<ISearchComplete>[] = [];
+
+		const fqs = this.groupFolderQueriesByScheme(query);
+		keys(fqs).forEach(scheme => {
+			const schemeFQs = fqs.get(scheme)!;
+			const provider = query.type === QueryType.File ?
+				this.fileSearchProviders.get(scheme) :
+				this.textSearchProviders.get(scheme);
+
+			if (!provider && scheme === 'file') {
+				diskSearchQueries.push(...schemeFQs);
+			} else if (!provider) {
+				console.warn('No search provider registered for scheme: ' + scheme);
+			} else {
+				const oneSchemeQuery: ISearchQuery = {
+					...query,
+					...{
+						folderQueries: schemeFQs
+					}
+				};
+
+				searchPs.push(query.type === QueryType.File ?
+					provider.fileSearch(<IFileQuery>oneSchemeQuery, token) :
+					provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token));
+			}
+		});
+
+		const diskSearchExtraFileResources = query.extraFileResources && query.extraFileResources.filter(res => res.scheme === Schemas.file);
+
+		if (diskSearchQueries.length || diskSearchExtraFileResources) {
+			const diskSearchQuery: ISearchQuery = {
+				...query,
+				...{
+					folderQueries: diskSearchQueries
+				},
+				extraFileResources: diskSearchExtraFileResources
+			};
+
+			searchPs.push(diskSearchQuery.type === QueryType.File ?
+				this.diskSearch.fileSearch(diskSearchQuery, token) :
+				this.diskSearch.textSearch(diskSearchQuery, onProviderProgress, token));
+		}
+
+		return Promise.all(searchPs).then(completes => {
+			const endToEndTime = e2eSW.elapsed();
+			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
+			completes.forEach(complete => {
+				this.sendTelemetry(query, endToEndTime, complete);
+			});
+			return completes;
+		}, err => {
+			const endToEndTime = e2eSW.elapsed();
+			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
+			const searchError = deserializeSearchError(err.message);
+			this.sendTelemetry(query, endToEndTime, undefined, searchError);
+
+			throw searchError;
+		});
+	}
+
+	private groupFolderQueriesByScheme(query: ISearchQuery): Map<string, IFolderQuery[]> {
+		const queries = new Map<string, IFolderQuery[]>();
+
+		query.folderQueries.forEach(fq => {
+			const schemeFQs = queries.get(fq.folder.scheme) || [];
+			schemeFQs.push(fq);
+
+			queries.set(fq.folder.scheme, schemeFQs);
+		});
+
+		return queries;
+	}
+
+	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete?: ISearchComplete, err?: SearchError): void {
+		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === 'file');
+		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== 'file');
+		const scheme = fileSchemeOnly ? 'file' :
+			otherSchemeOnly ? 'other' :
+				'mixed';
+
+		if (query.type === QueryType.File && complete && complete.stats) {
+			const fileSearchStats = complete.stats as IFileSearchStats;
+			if (fileSearchStats.fromCache) {
+				const cacheStats: ICachedSearchStats = fileSearchStats.detailStats as ICachedSearchStats;
+
+				/* __GDPR__
+					"cachedSearchComplete" : {
+						"reason" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth"  },
+						"resultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
+						"workspaceFolderCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true  },
+						"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"endToEndTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"sortingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"cacheWasResolved" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"cacheLookupTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"cacheFilterTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"cacheEntryCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					}
+				 */
+				this.telemetryService.publicLog('cachedSearchComplete', {
+					reason: query._reason,
+					resultCount: fileSearchStats.resultCount,
+					workspaceFolderCount: query.folderQueries.length,
+					type: fileSearchStats.type,
+					endToEndTime: endToEndTime,
+					sortingTime: fileSearchStats.sortingTime,
+					cacheWasResolved: cacheStats.cacheWasResolved,
+					cacheLookupTime: cacheStats.cacheLookupTime,
+					cacheFilterTime: cacheStats.cacheFilterTime,
+					cacheEntryCount: cacheStats.cacheEntryCount,
+					scheme
+				});
+			} else {
+				const searchEngineStats: ISearchEngineStats = fileSearchStats.detailStats as ISearchEngineStats;
+
+				/* __GDPR__
+					"searchComplete" : {
+						"reason" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"resultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"workspaceFolderCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"endToEndTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"sortingTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"fileWalkTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"directoriesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"filesWalked" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"cmdTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"cmdResultCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+						"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					}
+				 */
+				this.telemetryService.publicLog('searchComplete', {
+					reason: query._reason,
+					resultCount: fileSearchStats.resultCount,
+					workspaceFolderCount: query.folderQueries.length,
+					type: fileSearchStats.type,
+					endToEndTime: endToEndTime,
+					sortingTime: fileSearchStats.sortingTime,
+					fileWalkTime: searchEngineStats.fileWalkTime,
+					directoriesWalked: searchEngineStats.directoriesWalked,
+					filesWalked: searchEngineStats.filesWalked,
+					cmdTime: searchEngineStats.cmdTime,
+					cmdResultCount: searchEngineStats.cmdResultCount,
+					scheme
+				});
+			}
+		} else if (query.type === QueryType.Text) {
+			let errorType: string | undefined;
+			if (err) {
+				errorType = err.code === SearchErrorCode.regexParseError ? 'regex' :
+					err.code === SearchErrorCode.unknownEncoding ? 'encoding' :
+						err.code === SearchErrorCode.globParseError ? 'glob' :
+							err.code === SearchErrorCode.invalidLiteral ? 'literal' :
+								err.code === SearchErrorCode.other ? 'other' :
+									'unknown';
+			}
+
+			/* __GDPR__
+				"textSearchComplete" : {
+					"reason" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"workspaceFolderCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+					"endToEndTime" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+					"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"error" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"useRipgrep" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"usePCRE2" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			 */
+			this.telemetryService.publicLog('textSearchComplete', {
+				reason: query._reason,
+				workspaceFolderCount: query.folderQueries.length,
+				endToEndTime: endToEndTime,
+				scheme,
+				error: errorType,
+				usePCRE2: !!query.usePCRE2
+			});
+		}
+	}
+
+	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch | null> {
+		const localResults = new ResourceMap<IFileMatch | null>();
 
 		if (query.type === QueryType.Text) {
-			let models = this.modelService.getModels();
+			const models = this.modelService.getModels();
 			models.forEach((model) => {
-				let resource = model.uri;
+				const resource = model.uri;
 				if (!resource) {
+					return;
+				}
+
+				if (!this.editorService.isOpen({ resource })) {
 					return;
 				}
 
@@ -195,11 +376,8 @@ export class SearchService implements ISearchService {
 					}
 				}
 
-				// Don't support other resource schemes than files for now
-				// todo@remote
-				// why is that? we should search for resources from other
-				// schemes
-				else if (resource.scheme !== Schemas.file) {
+				// Block walkthrough, webview, etc.
+				else if (!this.fileService.canHandleResource(resource)) {
 					return;
 				}
 
@@ -208,14 +386,13 @@ export class SearchService implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
+				const matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, query.maxResults);
 				if (matches.length) {
-					let fileMatch = new FileMatch(resource);
+					const fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
 
-					matches.forEach((match) => {
-						fileMatch.lineMatches.push(new LineMatch(model.getLineContent(match.range.startLineNumber), match.range.startLineNumber - 1, [[match.range.startColumn - 1, match.range.endColumn - match.range.startColumn]]));
-					});
+					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
+					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
 				} else {
 					localResults.set(resource, null);
 				}
@@ -225,50 +402,37 @@ export class SearchService implements ISearchService {
 		return localResults;
 	}
 
-	private matches(resource: uri, query: ISearchQuery): boolean {
-		// file pattern
-		if (query.filePattern) {
-			if (resource.scheme !== Schemas.file) {
-				return false; // if we match on file pattern, we have to ignore non file resources
-			}
-
-			if (!strings.fuzzyContains(resource.fsPath, strings.stripWildcards(query.filePattern).toLowerCase())) {
-				return false;
-			}
-		}
-
-		// includes
-		if (query.includePattern) {
-			if (resource.scheme !== Schemas.file) {
-				return false; // if we match on file patterns, we have to ignore non file resources
-			}
-		}
-
+	private matches(resource: uri, query: ITextQuery): boolean {
 		return pathIncludedInQuery(query, resource.fsPath);
 	}
 
-	public clearCache(cacheKey: string): TPromise<void> {
-		return this.diskSearch.clearCache(cacheKey);
-	}
+	clearCache(cacheKey: string): Promise<void> {
+		const clearPs = [
+			this.diskSearch,
+			...values(this.fileSearchProviders)
+		].map(provider => provider && provider.clearCache(cacheKey));
 
-	private forwardTelemetry() {
-		if (!this.forwardingTelemetry) {
-			this.forwardingTelemetry = this.diskSearch.fetchTelemetry()
-				.then(null, onUnexpectedError, event => {
-					this.telemetryService.publicLog(event.eventName, event.data);
-				});
-		}
+		return Promise.all(clearPs)
+			.then(() => { });
 	}
 }
 
 export class DiskSearch implements ISearchResultProvider {
-
 	private raw: IRawSearchService;
 
-	constructor(verboseLogging: boolean, timeout: number = 60 * 60 * 1000, searchDebug?: IDebugParams) {
+	constructor(
+		verboseLogging: boolean,
+		searchDebug: IDebugParams | undefined,
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configService: IConfigurationService,
+	) {
+		const timeout = this.configService.getValue<ISearchConfiguration>().search.maintainFileSearchCache ?
+			Number.MAX_VALUE :
+			60 * 60 * 1000;
+
 		const opts: IIPCOptions = {
 			serverName: 'Search',
-			timeout: timeout,
+			timeout,
 			args: ['--type=searchService'],
 			// See https://github.com/Microsoft/vscode/issues/27665
 			// Pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
@@ -279,7 +443,8 @@ export class DiskSearch implements ISearchResultProvider {
 				AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
 				PIPE_LOGGING: 'true',
 				VERBOSE_LOGGING: verboseLogging
-			}
+			},
+			useQueue: true
 		};
 
 		if (searchDebug) {
@@ -291,120 +456,123 @@ export class DiskSearch implements ISearchResultProvider {
 		}
 
 		const client = new Client(
-			uri.parse(require.toUrl('bootstrap')).fsPath,
+			getPathFromAmdModule(require, 'bootstrap-fork'),
 			opts);
 
-		const channel = getNextTickChannel(client.getChannel<ISearchChannel>('search'));
+		const channel = getNextTickChannel(client.getChannel('search'));
 		this.raw = new SearchChannelClient(channel);
 	}
 
-	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		const folderQueries = query.folderQueries || [];
-		return TPromise.join(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
+		return Promise.all(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
 			.then(exists => {
-				const existingFolders = folderQueries.filter((q, index) => exists[index]);
-				const rawSearch = this.rawSearchQuery(query, existingFolders);
-
-				let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
-				if (query.type === QueryType.File) {
-					request = this.raw.fileSearch(rawSearch);
-				} else {
-					request = this.raw.textSearch(rawSearch);
+				if (token && token.isCancellationRequested) {
+					throw canceled();
 				}
 
-				return DiskSearch.collectResults(request);
+				query.folderQueries = folderQueries.filter((q, index) => exists[index]);
+				const event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete> = this.raw.textSearch(query);
+
+				return DiskSearch.collectResultsFromEvent(event, onProgress, token);
 			});
 	}
 
-	private rawSearchQuery(query: ISearchQuery, existingFolders: IFolderQuery[]) {
-		let rawSearch: IRawSearch = {
-			folderQueries: [],
-			extraFiles: [],
-			filePattern: query.filePattern,
-			excludePattern: query.excludePattern,
-			includePattern: query.includePattern,
-			maxResults: query.maxResults,
-			exists: query.exists,
-			sortByScore: query.sortByScore,
-			cacheKey: query.cacheKey,
-			useRipgrep: query.useRipgrep,
-			disregardIgnoreFiles: query.disregardIgnoreFiles,
-			ignoreSymlinks: query.ignoreSymlinks
-		};
-
-		for (const q of existingFolders) {
-			rawSearch.folderQueries.push({
-				excludePattern: q.excludePattern,
-				includePattern: q.includePattern,
-				fileEncoding: q.fileEncoding,
-				disregardIgnoreFiles: q.disregardIgnoreFiles,
-				folder: q.folder.fsPath
-			});
-		}
-
-		if (query.extraFileResources) {
-			for (const r of query.extraFileResources) {
-				if (r.scheme === Schemas.file) {
-					rawSearch.extraFiles.push(r.fsPath);
+	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
+		const folderQueries = query.folderQueries || [];
+		return Promise.all(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
+			.then(exists => {
+				if (token && token.isCancellationRequested) {
+					throw canceled();
 				}
-			}
-		}
 
-		if (query.type === QueryType.Text) {
-			rawSearch.contentPattern = query.contentPattern;
-		}
+				query.folderQueries = folderQueries.filter((q, index) => exists[index]);
+				let event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
+				event = this.raw.fileSearch(query);
 
-		return rawSearch;
+				const onProgress = (p: IProgressMessage) => {
+					if (p.message) {
+						// Should only be for logs
+						this.logService.debug('SearchService#search', p.message);
+					}
+				};
+
+				return DiskSearch.collectResultsFromEvent(event, onProgress, token);
+			});
 	}
 
-	public static collectResults(request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>): PPromise<ISearchComplete, ISearchProgressItem> {
+	/**
+	 * Public for test
+	 */
+	static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		let result: IFileMatch[] = [];
-		return new PPromise<ISearchComplete, ISearchProgressItem>((c, e, p) => {
-			request.done((complete) => {
-				c({
-					limitHit: complete.limitHit,
-					results: result,
-					stats: complete.stats
+
+		let listener: IDisposable;
+		return new Promise<ISearchComplete>((c, e) => {
+			if (token) {
+				token.onCancellationRequested(() => {
+					if (listener) {
+						listener.dispose();
+					}
+
+					e(canceled());
 				});
-			}, e, (data) => {
+			}
 
-				// Matches
-				if (Array.isArray(data)) {
-					const fileMatches = data.map(d => this.createFileMatch(d));
-					result = result.concat(fileMatches);
-					fileMatches.forEach(p);
-				}
+			listener = event(ev => {
+				if (isSerializedSearchComplete(ev)) {
+					if (isSerializedSearchSuccess(ev)) {
+						c({
+							limitHit: ev.limitHit,
+							results: result,
+							stats: ev.stats
+						});
+					} else {
+						e(ev.error);
+					}
 
-				// Match
-				else if ((<ISerializedFileMatch>data).path) {
-					const fileMatch = this.createFileMatch(<ISerializedFileMatch>data);
-					result.push(fileMatch);
-					p(fileMatch);
-				}
+					listener.dispose();
+				} else {
+					// Matches
+					if (Array.isArray(ev)) {
+						const fileMatches = ev.map(d => this.createFileMatch(d));
+						result = result.concat(fileMatches);
+						if (onProgress) {
+							fileMatches.forEach(onProgress);
+						}
+					}
 
-				// Progress
-				else {
-					p(<IProgress>data);
+					// Match
+					else if ((<ISerializedFileMatch>ev).path) {
+						const fileMatch = this.createFileMatch(<ISerializedFileMatch>ev);
+						result.push(fileMatch);
+
+						if (onProgress) {
+							onProgress(fileMatch);
+						}
+					}
+
+					// Progress
+					else if (onProgress) {
+						onProgress(<IProgressMessage>ev);
+					}
 				}
 			});
-		}, () => request.cancel());
+		});
 	}
 
 	private static createFileMatch(data: ISerializedFileMatch): FileMatch {
-		let fileMatch = new FileMatch(uri.file(data.path));
-		if (data.lineMatches) {
-			for (let j = 0; j < data.lineMatches.length; j++) {
-				fileMatch.lineMatches.push(new LineMatch(data.lineMatches[j].preview, data.lineMatches[j].lineNumber, data.lineMatches[j].offsetAndLengths));
-			}
+		const fileMatch = new FileMatch(uri.file(data.path));
+		if (data.results) {
+			// const matches = data.results.filter(resultIsMatch);
+			fileMatch.results.push(...data.results);
 		}
 		return fileMatch;
 	}
 
-	public clearCache(cacheKey: string): TPromise<void> {
+	clearCache(cacheKey: string): Promise<void> {
 		return this.raw.clearCache(cacheKey);
 	}
-
-	public fetchTelemetry(): PPromise<void, ITelemetryEvent> {
-		return this.raw.fetchTelemetry();
-	}
 }
+
+registerSingleton(ISearchService, SearchService, true);

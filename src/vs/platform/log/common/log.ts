@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
@@ -12,6 +10,10 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const ILogService = createServiceDecorator<ILogService>('logService');
+
+function now(): string {
+	return new Date().toISOString();
+}
 
 export enum LogLevel {
 	Trace,
@@ -71,9 +73,9 @@ export class ConsoleLogMainService extends AbstractLogService implements ILogSer
 	trace(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Trace) {
 			if (this.useColors) {
-				console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
-				console.log(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+				console.log(`[main ${now()}]`, message, ...args);
 			}
 		}
 	}
@@ -81,9 +83,9 @@ export class ConsoleLogMainService extends AbstractLogService implements ILogSer
 	debug(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Debug) {
 			if (this.useColors) {
-				console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
-				console.log(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+				console.log(`[main ${now()}]`, message, ...args);
 			}
 		}
 	}
@@ -91,9 +93,9 @@ export class ConsoleLogMainService extends AbstractLogService implements ILogSer
 	info(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Info) {
 			if (this.useColors) {
-				console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
-				console.log(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+				console.log(`[main ${now()}]`, message, ...args);
 			}
 		}
 	}
@@ -101,9 +103,9 @@ export class ConsoleLogMainService extends AbstractLogService implements ILogSer
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Warning) {
 			if (this.useColors) {
-				console.warn(`\x1b[93m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+				console.warn(`\x1b[93m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
-				console.warn(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+				console.warn(`[main ${now()}]`, message, ...args);
 			}
 		}
 	}
@@ -111,9 +113,9 @@ export class ConsoleLogMainService extends AbstractLogService implements ILogSer
 	error(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Error) {
 			if (this.useColors) {
-				console.error(`\x1b[91m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+				console.error(`\x1b[91m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
-				console.error(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+				console.error(`[main ${now()}]`, message, ...args);
 			}
 		}
 	}
@@ -121,9 +123,9 @@ export class ConsoleLogMainService extends AbstractLogService implements ILogSer
 	critical(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Critical) {
 			if (this.useColors) {
-				console.error(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+				console.error(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
-				console.error(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+				console.error(`[main ${now()}]`, message, ...args);
 			}
 		}
 	}

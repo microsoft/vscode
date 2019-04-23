@@ -1,8 +1,0 @@
-// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
-[{
-	"name": "atom/language-objective-c",
-	"version": "0.0.0",
-	"license": "MIT",
-	"repositoryURL": "https://github.com/atom/language-objective-c",
-	"description": "The files syntaxes/objective-c.tmLanguage.json and syntaxes/objective-c++.tmLanguage.json were derived from the Atom package https://github.com/atom/language-objective-c which was originally converted from the TextMate bundle https://github.com/textmate/objective-c.tmbundle."
-}]

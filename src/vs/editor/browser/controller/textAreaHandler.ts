@@ -2,35 +2,35 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./textAreaHandler';
-import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, ITypeData, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
+import { Configuration } from 'vs/editor/browser/config/configuration';
+import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
+import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { ViewController } from 'vs/editor/browser/view/viewController';
+import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
+import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
+import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
+import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ViewController } from 'vs/editor/browser/view/viewController';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { PartFingerprints, PartFingerprint, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
-import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
-import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export interface ITextAreaHandlerHelper {
-	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
+	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange | null;
 }
 
 class VisibleTextAreaData {
@@ -56,7 +56,7 @@ const canUseZeroSizeTextarea = (browser.isEdgeOrIE || browser.isFirefox);
 interface LocalClipboardMetadata {
 	lastCopiedValue: string;
 	isFromEmptySelection: boolean;
-	multicursorText: string[];
+	multicursorText: string[] | null;
 }
 
 /**
@@ -67,17 +67,17 @@ interface LocalClipboardMetadata {
 class LocalClipboardMetadataManager {
 	public static INSTANCE = new LocalClipboardMetadataManager();
 
-	private _lastState: LocalClipboardMetadata;
+	private _lastState: LocalClipboardMetadata | null;
 
 	constructor() {
 		this._lastState = null;
 	}
 
-	public set(state: LocalClipboardMetadata): void {
+	public set(state: LocalClipboardMetadata | null): void {
 		this._lastState = state;
 	}
 
-	public get(pastedText: string): LocalClipboardMetadata {
+	public get(pastedText: string): LocalClipboardMetadata | null {
 		if (this._lastState && this._lastState.lastCopiedValue === pastedText) {
 			// match!
 			return this._lastState;
@@ -91,7 +91,7 @@ export class TextAreaHandler extends ViewPart {
 
 	private readonly _viewController: ViewController;
 	private readonly _viewHelper: ITextAreaHandlerHelper;
-	private _accessibilitySupport: platform.AccessibilitySupport;
+	private _accessibilitySupport: AccessibilitySupport;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
@@ -100,11 +100,12 @@ export class TextAreaHandler extends ViewPart {
 	private _fontInfo: BareFontInfo;
 	private _lineHeight: number;
 	private _emptySelectionClipboard: boolean;
+	private _copyWithSyntaxHighlighting: boolean;
 
 	/**
 	 * Defined only when the text area is visible (composition case).
 	 */
-	private _visibleTextArea: VisibleTextAreaData;
+	private _visibleTextArea: VisibleTextAreaData | null;
 	private _selections: Selection[];
 
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
@@ -128,6 +129,7 @@ export class TextAreaHandler extends ViewPart {
 		this._fontInfo = conf.fontInfo;
 		this._lineHeight = conf.lineHeight;
 		this._emptySelectionClipboard = conf.emptySelectionClipboard;
+		this._copyWithSyntaxHighlighting = conf.copyWithSyntaxHighlighting;
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -171,7 +173,7 @@ export class TextAreaHandler extends ViewPart {
 				const multicursorText = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy : null);
 				const whatToCopy = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy.join(newLineCharacter) : rawWhatToCopy);
 
-				let metadata: LocalClipboardMetadata = null;
+				let metadata: LocalClipboardMetadata | null = null;
 				if (isFromEmptySelection || multicursorText) {
 					// Only store the non-default metadata
 
@@ -190,7 +192,11 @@ export class TextAreaHandler extends ViewPart {
 				return whatToCopy;
 			},
 
-			getHTMLToCopy: (): string => {
+			getHTMLToCopy: (): string | null => {
+				if (!this._copyWithSyntaxHighlighting && !CopyOptions.forceCopyWithSyntaxHighlighting) {
+					return null;
+				}
+
 				return this._context.model.getHTMLToCopy(this._selections, this._emptySelectionClipboard);
 			},
 
@@ -201,7 +207,7 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 
-				if (this._accessibilitySupport === platform.AccessibilitySupport.Disabled) {
+				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
 					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
@@ -223,7 +229,7 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 
-				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilitySupport === platform.AccessibilitySupport.Unknown);
+				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilitySupport === AccessibilitySupport.Unknown);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
@@ -245,7 +251,7 @@ export class TextAreaHandler extends ViewPart {
 			const metadata = LocalClipboardMetadataManager.INSTANCE.get(e.text);
 
 			let pasteOnNewLine = false;
-			let multicursorText: string[] = null;
+			let multicursorText: string[] | null = null;
 			if (metadata) {
 				pasteOnNewLine = (this._emptySelectionClipboard && metadata.isFromEmptySelection);
 				multicursorText = metadata.multicursorText;
@@ -302,10 +308,10 @@ export class TextAreaHandler extends ViewPart {
 			if (browser.isEdgeOrIE) {
 				// Due to isEdgeOrIE (where the textarea was not cleared initially)
 				// we cannot assume the text consists only of the composited text
-				this._visibleTextArea = this._visibleTextArea.setWidth(0);
+				this._visibleTextArea = this._visibleTextArea!.setWidth(0);
 			} else {
 				// adjust width by its size
-				this._visibleTextArea = this._visibleTextArea.setWidth(measureText(e.data, this._fontInfo));
+				this._visibleTextArea = this._visibleTextArea!.setWidth(measureText(e.data, this._fontInfo));
 			}
 			this._render();
 		}));
@@ -387,6 +393,9 @@ export class TextAreaHandler extends ViewPart {
 		if (e.emptySelectionClipboard) {
 			this._emptySelectionClipboard = conf.emptySelectionClipboard;
 		}
+		if (e.copyWithSyntaxHighlighting) {
+			this._copyWithSyntaxHighlighting = conf.copyWithSyntaxHighlighting;
+		}
 
 		return true;
 	}
@@ -434,10 +443,10 @@ export class TextAreaHandler extends ViewPart {
 
 	// --- end view API
 
-	private _primaryCursorVisibleRange: HorizontalRange = null;
+	private _primaryCursorVisibleRange: HorizontalRange | null = null;
 
 	public prepareRender(ctx: RenderingContext): void {
-		if (this._accessibilitySupport === platform.AccessibilitySupport.Enabled) {
+		if (this._accessibilitySupport === AccessibilitySupport.Enabled) {
 			// Do not move the textarea with the cursor, as this generates accessibility events that might confuse screen readers
 			// See https://github.com/Microsoft/vscode/issues/26730
 			this._primaryCursorVisibleRange = null;
@@ -534,7 +543,7 @@ export class TextAreaHandler extends ViewPart {
 		}
 
 		// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
-		// specifically, when doing Korean IME, setting the textare to 0x0 breaks IME badly.
+		// specifically, when doing Korean IME, setting the textarea to 0x0 breaks IME badly.
 
 		ta.setWidth(1);
 		ta.setHeight(1);
@@ -556,7 +565,7 @@ export class TextAreaHandler extends ViewPart {
 function measureText(text: string, fontInfo: BareFontInfo): number {
 	// adjust width by its size
 	const canvasElem = <HTMLCanvasElement>document.createElement('canvas');
-	const context = canvasElem.getContext('2d');
+	const context = canvasElem.getContext('2d')!;
 	context.font = createFontString(fontInfo);
 	const metrics = context.measureText(text);
 

@@ -46,7 +46,15 @@ var NLSLoaderPlugin;
         else {
             result = message.replace(/\{(\d+)\}/g, function (match, rest) {
                 var index = rest[0];
-                return typeof args[index] !== 'undefined' ? args[index] : match;
+                var arg = args[index];
+                var result = match;
+                if (typeof arg === 'string') {
+                    result = arg;
+                }
+                else if (typeof arg === 'number' || typeof arg === 'boolean' || arg === undefined || arg === null) {
+                    result = String(arg);
+                }
+                return result;
             });
         }
         if (env.isPseudo) {
@@ -86,7 +94,7 @@ var NLSLoaderPlugin;
                 for (var _i = 2; _i < arguments.length; _i++) {
                     args[_i - 2] = arguments[_i];
                 }
-                return localize.apply(void 0, [_this._env, data, message].concat(args));
+                return localize.apply(undefined, [_this._env, data, message].concat(args));
             };
         }
         NLSPlugin.prototype.setPseudoTranslation = function (value) {

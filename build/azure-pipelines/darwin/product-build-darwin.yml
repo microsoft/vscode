@@ -1,0 +1,90 @@
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+
+- script: |
+    set -e
+
+    cat << EOF > ~/.netrc
+    machine monacotools.visualstudio.com
+    password $(VSO_PAT)
+    machine github.com
+    login vscode
+    password $(VSCODE_MIXIN_PASSWORD)
+    EOF
+
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+    git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+    git fetch distro
+    git merge $(node -p "require('./package.json').distro")
+
+    yarn
+    yarn gulp mixin
+    yarn gulp hygiene
+    yarn monaco-compile-check
+    node build/azure-pipelines/common/installDistro.js
+    node build/lib/builtInExtensions.js
+  displayName: Prepare build
+
+- script: |
+    set -e
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
+    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+    ./build/azure-pipelines/darwin/build.sh
+  displayName: Build
+
+- script: |
+    set -e
+    ./scripts/test.sh --build --tfs "Unit Tests"
+    # APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
+    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
+  displayName: Run unit tests
+
+- script: |
+    set -e
+    ./scripts/test-integration.sh --build --tfs "Integration Tests"
+  displayName: Run integration tests
+
+- script: |
+    set -e
+    pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin.zip * && popd
+  displayName: Archive build
+
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  inputs:
+    ConnectedServiceName: 'ESRP CodeSign'
+    FolderPath: '$(agent.builddirectory)'
+    Pattern: 'VSCode-darwin.zip'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+      [
+        {
+          "keyCode": "CP-401337-Apple",
+          "operationSetCode": "MacAppDeveloperSign",
+          "parameters": [ ],
+          "toolName": "sign",
+          "toolVersion": "1.0"
+        }
+      ]
+    SessionTimeout: 120
+  displayName: Codesign
+
+- script: |
+    set -e
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    VSCODE_HOCKEYAPP_TOKEN="$(VSCODE_HOCKEYAPP_TOKEN)" \
+    ./build/azure-pipelines/darwin/publish.sh
+  displayName: Publish
+
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'
+  continueOnError: true

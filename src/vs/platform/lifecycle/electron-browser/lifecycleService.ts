@@ -2,146 +2,130 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, StartupKind, handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
-import { Event, Emitter } from 'vs/base/common/event';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { mark } from 'vs/base/common/performance';
-import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 
-export class LifecycleService implements ILifecycleService {
+export class LifecycleService extends AbstractLifecycleService {
 
-	private static readonly _lastShutdownReasonKey = 'lifecyle.lastShutdownReason';
+	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecyle.lastShutdownReason';
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
-	private readonly _onWillShutdown = new Emitter<ShutdownEvent>();
-	private readonly _onShutdown = new Emitter<ShutdownReason>();
-	private readonly _startupKind: StartupKind;
-
-	private _phase: LifecyclePhase = LifecyclePhase.Starting;
-	private _phaseWhen = new Map<LifecyclePhase, Barrier>();
+	private shutdownReason: ShutdownReason;
 
 	constructor(
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IWindowService private readonly _windowService: IWindowService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@ILogService private readonly _logService: ILogService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWindowService private readonly windowService: IWindowService,
+		@IStorageService readonly storageService: IStorageService,
+		@ILogService readonly logService: ILogService
 	) {
-		const lastShutdownReason = this._storageService.getInteger(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
-		this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
-		if (lastShutdownReason === ShutdownReason.RELOAD) {
-			this._startupKind = StartupKind.ReloadedWindow;
-		} else if (lastShutdownReason === ShutdownReason.LOAD) {
-			this._startupKind = StartupKind.ReopenedWindow;
-		} else {
-			this._startupKind = StartupKind.NewWindow;
-		}
+		super(logService);
 
-		this._logService.trace(`lifecycle: starting up (startup kind: ${this._startupKind})`);
+		this._startupKind = this.resolveStartupKind();
 
-		this._registerListeners();
+		this.registerListeners();
 	}
 
-	private _registerListeners(): void {
-		const windowId = this._windowService.getCurrentWindowId();
+	private resolveStartupKind(): StartupKind {
+		const lastShutdownReason = this.storageService.getNumber(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+		this.storageService.remove(LifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
+
+		let startupKind: StartupKind;
+		if (lastShutdownReason === ShutdownReason.RELOAD) {
+			startupKind = StartupKind.ReloadedWindow;
+		} else if (lastShutdownReason === ShutdownReason.LOAD) {
+			startupKind = StartupKind.ReopenedWindow;
+		} else {
+			startupKind = StartupKind.NewWindow;
+		}
+
+		this.logService.trace(`lifecycle: starting up (startup kind: ${this._startupKind})`);
+
+		return startupKind;
+	}
+
+	private registerListeners(): void {
+		const windowId = this.windowService.windowId;
 
 		// Main side indicates that window is about to unload, check for vetos
-		ipc.on('vscode:onBeforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
-			this._logService.trace(`lifecycle: onBeforeUnload (reason: ${reply.reason})`);
+		ipc.on('vscode:onBeforeUnload', (_event: unknown, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
+			this.logService.trace(`lifecycle: onBeforeUnload (reason: ${reply.reason})`);
 
-			// store shutdown reason to retrieve next startup
-			this._storageService.store(LifecycleService._lastShutdownReasonKey, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
-
-			// trigger onWillShutdown events and veto collecting
-			this.onBeforeUnload(reply.reason).done(veto => {
+			// trigger onBeforeShutdown events and veto collecting
+			this.handleBeforeShutdown(reply.reason).then(veto => {
 				if (veto) {
-					this._logService.trace('lifecycle: onBeforeUnload prevented via veto');
-					this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
+					this.logService.trace('lifecycle: onBeforeUnload prevented via veto');
+
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
-					this._logService.trace('lifecycle: onBeforeUnload continues without veto');
+					this.logService.trace('lifecycle: onBeforeUnload continues without veto');
+
+					this.shutdownReason = reply.reason;
 					ipc.send(reply.okChannel, windowId);
 				}
 			});
 		});
 
 		// Main side indicates that we will indeed shutdown
-		ipc.on('vscode:onWillUnload', (event, reply: { replyChannel: string, reason: ShutdownReason }) => {
-			this._logService.trace(`lifecycle: onWillUnload (reason: ${reply.reason})`);
+		ipc.on('vscode:onWillUnload', (_event: unknown, reply: { replyChannel: string, reason: ShutdownReason }) => {
+			this.logService.trace(`lifecycle: onWillUnload (reason: ${reply.reason})`);
 
-			this._onShutdown.fire(reply.reason);
-			ipc.send(reply.replyChannel, windowId);
+			// trigger onWillShutdown events and joining
+			return this.handleWillShutdown(reply.reason).then(() => {
+
+				// trigger onShutdown event now that we know we will quit
+				this._onShutdown.fire();
+
+				// acknowledge to main side
+				ipc.send(reply.replyChannel, windowId);
+			});
+		});
+
+		// Save shutdown reason to retrieve on next startup
+		this.storageService.onWillSaveState(() => {
+			this.storageService.store(LifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE);
 		});
 	}
 
-	private onBeforeUnload(reason: ShutdownReason): TPromise<boolean> {
-		const vetos: (boolean | TPromise<boolean>)[] = [];
+	private handleBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
+		const vetos: (boolean | Promise<boolean>)[] = [];
 
-		this._onWillShutdown.fire({
+		this._onBeforeShutdown.fire({
 			veto(value) {
 				vetos.push(value);
 			},
 			reason
 		});
 
-		return handleVetos(vetos, err => this._notificationService.error(toErrorMessage(err)));
+		return handleVetos(vetos, err => {
+			this.notificationService.error(toErrorMessage(err));
+			onUnexpectedError(err);
+		});
 	}
 
-	public get phase(): LifecyclePhase {
-		return this._phase;
-	}
+	private handleWillShutdown(reason: ShutdownReason): Promise<void> {
+		const joiners: Promise<void>[] = [];
 
-	public set phase(value: LifecyclePhase) {
-		if (value < this.phase) {
-			throw new Error('Lifecycle cannot go backwards');
-		}
+		this._onWillShutdown.fire({
+			join(promise) {
+				if (promise) {
+					joiners.push(promise);
+				}
+			},
+			reason
+		});
 
-		if (this._phase === value) {
-			return;
-		}
-
-		this._logService.trace(`lifecycle: phase changed (value: ${value})`);
-
-		this._phase = value;
-		mark(`LifecyclePhase/${LifecyclePhase[value]}`);
-
-		if (this._phaseWhen.has(this._phase)) {
-			this._phaseWhen.get(this._phase).open();
-			this._phaseWhen.delete(this._phase);
-		}
-	}
-
-	public when(phase: LifecyclePhase): Thenable<any> {
-		if (phase <= this._phase) {
-			return Promise.resolve();
-		}
-
-		let barrier = this._phaseWhen.get(phase);
-		if (!barrier) {
-			barrier = new Barrier();
-			this._phaseWhen.set(phase, barrier);
-		}
-
-		return barrier.wait();
-	}
-
-	public get startupKind(): StartupKind {
-		return this._startupKind;
-	}
-
-	public get onWillShutdown(): Event<ShutdownEvent> {
-		return this._onWillShutdown.event;
-	}
-
-	public get onShutdown(): Event<ShutdownReason> {
-		return this._onShutdown.event;
+		return Promise.all(joiners).then(() => undefined, err => {
+			this.notificationService.error(toErrorMessage(err));
+			onUnexpectedError(err);
+		});
 	}
 }

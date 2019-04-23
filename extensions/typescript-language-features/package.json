@@ -10,19 +10,20 @@
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
   "engines": {
-    "vscode": "*"
+    "vscode": "^1.30.0"
   },
   "categories": [
     "Programming Languages"
   ],
   "dependencies": {
-    "semver": "4.3.6",
-    "vscode-extension-telemetry": "0.0.17",
-    "vscode-nls": "^3.2.1"
+    "jsonc-parser": "^2.0.1",
+    "semver": "5.5.1",
+    "vscode-extension-telemetry": "0.1.1",
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "8.0.33",
-    "@types/semver": "5.4.0",
+    "@types/semver": "^5.5.0",
     "vscode": "^1.1.10"
   },
   "scripts": {
@@ -40,7 +41,9 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
-    "onCommand:workbench.action.tasks.runTask"
+    "onCommand:workbench.action.tasks.runTask",
+    "onCommand:_typescript.configurePlugin",
+    "onLanguage:jsonc"
   ],
   "main": "./out/extension",
   "contributes": {
@@ -68,7 +71,10 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.disableAutomaticTypeAcquisition%",
-          "scope": "window"
+          "scope": "window",
+          "tags": [
+            "usesOnlineServices"
+          ]
         },
         "typescript.npm": {
           "type": [
@@ -77,7 +83,7 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "scope": "application"
+          "scope": "machine"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
@@ -123,7 +129,7 @@
           },
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
-          "scope": "application"
+          "scope": "machine"
         },
         "typescript.tsserver.trace": {
           "type": "string",
@@ -136,10 +142,16 @@
           "description": "%typescript.tsserver.trace%",
           "scope": "window"
         },
-        "typescript.useCodeSnippetsOnMethodSuggest": {
+        "javascript.suggest.completeFunctionCalls": {
           "type": "boolean",
           "default": false,
-          "description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%",
+          "description": "%configuration.suggest.completeFunctionCalls%",
+          "scope": "resource"
+        },
+        "typescript.suggest.completeFunctionCalls": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.suggest.completeFunctionCalls%",
           "scope": "resource"
         },
         "typescript.reportStyleChecksAsWarnings": {
@@ -346,12 +358,6 @@
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
         },
-        "jsDocCompletion.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%jsDocCompletion.enabled%",
-          "scope": "resource"
-        },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
@@ -361,13 +367,13 @@
         "javascript.implicitProjectConfig.experimentalDecorators": {
           "type": "boolean",
           "default": false,
-          "description": "%javascript.implicitProjectConfig.experimentalDecorators%",
+          "markdownDescription": "%javascript.implicitProjectConfig.experimentalDecorators%",
           "scope": "window"
         },
-        "javascript.nameSuggestions": {
+        "javascript.suggest.names": {
           "type": "boolean",
           "default": true,
-          "description": "%javascript.nameSuggestions%",
+          "description": "%configuration.suggest.names%",
           "scope": "resource"
         },
         "typescript.tsc.autoDetect": {
@@ -379,19 +385,49 @@
             "build",
             "watch"
           ],
+          "markdownEnumDescriptions": [
+            "%typescript.tsc.autoDetect.on%",
+            "%typescript.tsc.autoDetect.off%",
+            "%typescript.tsc.autoDetect.build%",
+            "%typescript.tsc.autoDetect.watch%"
+          ],
           "description": "%typescript.tsc.autoDetect%",
           "scope": "window"
         },
-        "typescript.quickSuggestionsForPaths": {
+        "javascript.suggest.paths": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.quickSuggestionsForPaths%",
+          "description": "%configuration.suggest.paths%",
           "scope": "resource"
         },
-        "typescript.autoImportSuggestions.enabled": {
+        "typescript.suggest.paths": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.autoImportSuggestions.enabled%",
+          "description": "%configuration.suggest.paths%",
+          "scope": "resource"
+        },
+        "javascript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "typescript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "javascript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
+          "scope": "resource"
+        },
+        "typescript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
           "scope": "resource"
         },
         "typescript.locale": {
@@ -413,7 +449,7 @@
             null
           ],
           "default": null,
-          "description": "%typescript.locale%",
+          "markdownDescription": "%typescript.locale%",
           "scope": "window"
         },
         "javascript.suggestionActions.enabled": {
@@ -436,7 +472,7 @@
             "double"
           ],
           "default": "auto",
-          "description": "%typescript.preferences.quoteStyle%",
+          "markdownDescription": "%typescript.preferences.quoteStyle%",
           "scope": "resource"
         },
         "typescript.preferences.quoteStyle": {
@@ -447,7 +483,7 @@
             "double"
           ],
           "default": "auto",
-          "description": "%typescript.preferences.quoteStyle%",
+          "markdownDescription": "%typescript.preferences.quoteStyle%",
           "scope": "resource"
         },
         "javascript.preferences.importModuleSpecifier": {
@@ -456,6 +492,11 @@
             "auto",
             "relative",
             "non-relative"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.relative%",
+            "%typescript.preferences.importModuleSpecifier.nonRelative%"
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
@@ -468,20 +509,25 @@
             "relative",
             "non-relative"
           ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.relative%",
+            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+          ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
         },
-        "javascript.showUnused": {
+        "javascript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.showUnused%",
+          "description": "%typescript.preferences.renameShorthandProperties%",
           "scope": "resource"
         },
-        "typescript.showUnused": {
+        "typescript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.showUnused%",
+          "description": "%typescript.preferences.renameShorthandProperties%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {
@@ -490,6 +536,11 @@
             "prompt",
             "always",
             "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.updateImportsOnFileMove.enabled.prompt%",
+            "%typescript.updateImportsOnFileMove.enabled.always%",
+            "%typescript.updateImportsOnFileMove.enabled.never%"
           ],
           "default": "prompt",
           "description": "%typescript.updateImportsOnFileMove.enabled%",
@@ -502,9 +553,42 @@
             "always",
             "never"
           ],
+          "markdownEnumDescriptions": [
+            "%typescript.updateImportsOnFileMove.enabled.prompt%",
+            "%typescript.updateImportsOnFileMove.enabled.always%",
+            "%typescript.updateImportsOnFileMove.enabled.never%"
+          ],
           "default": "prompt",
           "description": "%typescript.updateImportsOnFileMove.enabled%",
           "scope": "resource"
+        },
+        "typescript.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.autoClosingTags%"
+        },
+        "javascript.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.autoClosingTags%"
+        },
+        "javascript.suggest.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggest.enabled%",
+          "scope": "resource"
+        },
+        "typescript.suggest.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggest.enabled%",
+          "scope": "resource"
+        },
+        "typescript.surveys.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.surveys.enabled%",
+          "scope": "window"
         }
       }
     },
@@ -621,7 +705,7 @@
     "problemPatterns": [
       {
         "name": "tsc",
-        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+TS(\\d+)\\s*:\\s*(.*)$",
         "file": 1,
         "line": 2,
         "column": 3,

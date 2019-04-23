@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 export class Uint8Matrix {
 
-	private _data: Uint8Array;
+	private readonly _data: Uint8Array;
 	public readonly rows: number;
 	public readonly cols: number;
 

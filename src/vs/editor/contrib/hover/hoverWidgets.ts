@@ -2,28 +2,29 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { toggleClass } from 'vs/base/browser/dom';
-import { Position } from 'vs/editor/common/core/position';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { Widget } from 'vs/base/browser/ui/widget';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 export class ContentHoverWidget extends Widget implements editorBrowser.IContentWidget {
 
-	private _id: string;
+	private readonly _id: string;
 	protected _editor: editorBrowser.ICodeEditor;
 	private _isVisible: boolean;
-	private _containerDomNode: HTMLElement;
-	private _domNode: HTMLElement;
-	protected _showAtPosition: Position;
+	private readonly _containerDomNode: HTMLElement;
+	private readonly _domNode: HTMLElement;
+	protected _showAtPosition: Position | null;
+	protected _showAtRange: Range | null;
 	private _stoleFocus: boolean;
-	private scrollbar: DomScrollableElement;
+	private readonly scrollbar: DomScrollableElement;
 	private disposables: IDisposable[] = [];
 
 	// Editor.IContentWidget.allowEditorOverflow
@@ -67,11 +68,12 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 			}
 		}));
 
-		this._editor.onDidLayoutChange(e => this.updateMaxHeight());
+		this._editor.onDidLayoutChange(e => this.layout());
 
-		this.updateMaxHeight();
+		this.layout();
 		this._editor.addContentWidget(this);
 		this._showAtPosition = null;
+		this._showAtRange = null;
 	}
 
 	public getId(): string {
@@ -82,9 +84,10 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		return this._containerDomNode;
 	}
 
-	public showAt(position: Position, focus: boolean): void {
+	public showAt(position: Position, range: Range | null, focus: boolean): void {
 		// Position has changed
-		this._showAtPosition = new Position(position.lineNumber, position.column);
+		this._showAtPosition = position;
+		this._showAtRange = range;
 		this.isVisible = true;
 
 		this._editor.layoutContentWidget(this);
@@ -110,10 +113,11 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		}
 	}
 
-	public getPosition(): editorBrowser.IContentWidgetPosition {
+	public getPosition(): editorBrowser.IContentWidgetPosition | null {
 		if (this.isVisible) {
 			return {
 				position: this._showAtPosition,
+				range: this._showAtRange,
 				preference: [
 					editorBrowser.ContentWidgetPositionPreference.ABOVE,
 					editorBrowser.ContentWidgetPositionPreference.BELOW
@@ -147,22 +151,23 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this.scrollbar.scanDomNode();
 	}
 
-	private updateMaxHeight(): void {
+	private layout(): void {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 		const { fontSize, lineHeight } = this._editor.getConfiguration().fontInfo;
 
 		this._domNode.style.fontSize = `${fontSize}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;
 		this._domNode.style.maxHeight = `${height}px`;
+		this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}
 }
 
 export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWidget {
 
-	private _id: string;
+	private readonly _id: string;
 	protected _editor: editorBrowser.ICodeEditor;
 	private _isVisible: boolean;
-	private _domNode: HTMLElement;
+	private readonly _domNode: HTMLElement;
 	protected _showAtLineNumber: number;
 
 	constructor(id: string, editor: editorBrowser.ICodeEditor) {
@@ -229,7 +234,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		this.isVisible = false;
 	}
 
-	public getPosition(): editorBrowser.IOverlayWidgetPosition {
+	public getPosition(): editorBrowser.IOverlayWidgetPosition | null {
 		return null;
 	}
 

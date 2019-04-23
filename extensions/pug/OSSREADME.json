@@ -1,8 +1,0 @@
-// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
-[{
-	"name": "davidrios/pug-tmbundle",
-	"version": "0.0.0",
-	"license": "MIT",
-	"repositoryURL": "https://github.com/davidrios/pug-tmbundle",
-	"description": "The file syntaxes/pug.tmLanguage.json was derived from Syntaxes/Pug.JSON-tmLanguage in https://github.com/davidrios/pug-tmbundle."
-}]

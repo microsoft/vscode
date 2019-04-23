@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as getmac from 'getmac';
 import { getMachineId } from 'vs/base/node/id';
@@ -11,12 +9,13 @@ import { getMachineId } from 'vs/base/node/id';
 suite('ID', () => {
 
 	test('getMachineId', function () {
+		this.timeout(20000);
 		return getMachineId().then(id => {
 			assert.ok(id);
 		});
 	});
 
-	test('getMac', function () {
+	test('getMac', () => {
 		return new Promise<string>((resolve, reject) => {
 			getmac.getMac((err, macAddress) => err ? reject(err) : resolve(macAddress));
 		}).then(macAddress => {

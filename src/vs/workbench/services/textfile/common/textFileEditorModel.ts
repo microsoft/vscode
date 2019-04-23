@@ -2,96 +2,107 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import * as path from 'vs/base/common/paths';
+import { join } from 'vs/base/common/path';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import URI from 'vs/base/common/uri';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as diagnostics from 'vs/base/common/diagnostics';
-import * as types from 'vs/base/common/types';
-import { IMode } from 'vs/editor/common/modes';
+import { URI } from 'vs/base/common/uri';
+import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent, ILoadOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, IFileStat, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ITextBufferFactory } from 'vs/editor/common/model';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { hash } from 'vs/base/common/hash';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isLinux } from 'vs/base/common/platform';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
+import { isEqual, isEqualOrParent, extname, basename } from 'vs/base/common/resources';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
 export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel {
 
-	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
-	public static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
+	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
+	static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
+	static WHITELIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
+	static WHITELIST_WORKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'launch.json'];
 
 	private static saveErrorHandler: ISaveErrorHandler;
-	private static saveParticipant: ISaveParticipant;
+	static setSaveErrorHandler(handler: ISaveErrorHandler): void { TextFileEditorModel.saveErrorHandler = handler; }
+
+	private static saveParticipant: ISaveParticipant | null;
+	static setSaveParticipant(handler: ISaveParticipant | null): void { TextFileEditorModel.saveParticipant = handler; }
+
+	private readonly _onDidContentChange: Emitter<StateChange> = this._register(new Emitter<StateChange>());
+	get onDidContentChange(): Event<StateChange> { return this._onDidContentChange.event; }
+
+	private readonly _onDidStateChange: Emitter<StateChange> = this._register(new Emitter<StateChange>());
+	get onDidStateChange(): Event<StateChange> { return this._onDidStateChange.event; }
 
 	private resource: URI;
+
 	private contentEncoding: string; 			// encoding as reported from disk
 	private preferredEncoding: string;			// encoding as chosen by the user
-	private dirty: boolean;
+
 	private versionId: number;
 	private bufferSavedVersionId: number;
-	private lastResolvedDiskStat: IFileStat;
-	private toDispose: IDisposable[];
 	private blockModelContentChange: boolean;
-	private autoSaveAfterMillies: number;
+
+	private createTextEditorModelPromise: Promise<TextFileEditorModel> | null;
+
+	private lastResolvedDiskStat: IFileStatWithMetadata;
+
+	private autoSaveAfterMillies?: number;
 	private autoSaveAfterMilliesEnabled: boolean;
-	private autoSavePromise: TPromise<void>;
+	private autoSaveDisposable?: IDisposable;
+
+	private saveSequentializer: SaveSequentializer;
+	private lastSaveAttemptTime: number;
+
 	private contentChangeEventScheduler: RunOnceScheduler;
 	private orphanedChangeEventScheduler: RunOnceScheduler;
-	private saveSequentializer: SaveSequentializer;
-	private disposed: boolean;
-	private lastSaveAttemptTime: number;
-	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
-	private readonly _onDidContentChange: Emitter<StateChange>;
-	private readonly _onDidStateChange: Emitter<StateChange>;
 
+	private dirty: boolean;
 	private inConflictMode: boolean;
 	private inOrphanMode: boolean;
 	private inErrorMode: boolean;
 
+	private disposed: boolean;
+
 	constructor(
 		resource: URI,
 		preferredEncoding: string,
-		@INotificationService private notificationService: INotificationService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IFileService private fileService: IFileService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IBackupFileService private backupFileService: IBackupFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IHashService private hashService: IHashService
+		@IFileService private readonly fileService: IFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(modelService, modeService);
+
 		this.resource = resource;
-		this.toDispose = [];
-		this._onDidContentChange = new Emitter<StateChange>();
-		this._onDidStateChange = new Emitter<StateChange>();
-		this.toDispose.push(this._onDidContentChange);
-		this.toDispose.push(this._onDidStateChange);
 		this.preferredEncoding = preferredEncoding;
 		this.inOrphanMode = false;
 		this.dirty = false;
@@ -99,11 +110,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.lastSaveAttemptTime = 0;
 		this.saveSequentializer = new SaveSequentializer();
 
-		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidContentChange.fire(StateChange.CONTENT_CHANGE), TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
-		this.toDispose.push(this.contentChangeEventScheduler);
-
-		this.orphanedChangeEventScheduler = new RunOnceScheduler(() => this._onDidStateChange.fire(StateChange.ORPHANED_CHANGE), TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY);
-		this.toDispose.push(this.orphanedChangeEventScheduler);
+		this.contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidContentChange.fire(StateChange.CONTENT_CHANGE), TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
+		this.orphanedChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidStateChange.fire(StateChange.ORPHANED_CHANGE), TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY));
 
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
 
@@ -111,10 +119,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this.toDispose.push(this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
-		this.toDispose.push(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
-		this.toDispose.push(this.onDidStateChange(e => this.onStateChange(e)));
+		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this._register(this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
+		this._register(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
+		this._register(this.onDidStateChange(e => this.onStateChange(e)));
 	}
 
 	private onStateChange(e: StateChange): void {
@@ -130,7 +138,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private onFileChanges(e: FileChangesEvent): void {
 		let fileEventImpactsModel = false;
-		let newInOrphanModeGuess: boolean;
+		let newInOrphanModeGuess: boolean | undefined;
 
 		// If we are currently orphaned, we check if the model file was added back
 		if (this.inOrphanMode) {
@@ -151,24 +159,24 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		if (fileEventImpactsModel && this.inOrphanMode !== newInOrphanModeGuess) {
-			let checkOrphanedPromise: TPromise<boolean>;
+			let checkOrphanedPromise: Promise<boolean>;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
 				// Since we do not want to mark the model as orphaned, we have to check if the
 				// file is really gone and not just a faulty file event.
-				checkOrphanedPromise = TPromise.timeout(100).then(() => {
+				checkOrphanedPromise = timeout(100).then(() => {
 					if (this.disposed) {
 						return true;
 					}
 
-					return this.fileService.existsFile(this.resource).then(exists => !exists);
+					return this.fileService.exists(this.resource).then(exists => !exists);
 				});
 			} else {
-				checkOrphanedPromise = TPromise.as(false);
+				checkOrphanedPromise = Promise.resolve(false);
 			}
 
-			checkOrphanedPromise.done(newInOrphanModeValidated => {
+			checkOrphanedPromise.then(newInOrphanModeValidated => {
 				if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
 					this.setOrphaned(newInOrphanModeValidated);
 				}
@@ -184,231 +192,210 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
-		if (typeof config.autoSaveDelay === 'number' && config.autoSaveDelay > 0) {
-			this.autoSaveAfterMillies = config.autoSaveDelay;
-			this.autoSaveAfterMilliesEnabled = true;
-		} else {
-			this.autoSaveAfterMillies = void 0;
-			this.autoSaveAfterMilliesEnabled = false;
-		}
+		const autoSaveAfterMilliesEnabled = (typeof config.autoSaveDelay === 'number') && config.autoSaveDelay > 0;
+
+		this.autoSaveAfterMilliesEnabled = autoSaveAfterMilliesEnabled;
+		this.autoSaveAfterMillies = autoSaveAfterMilliesEnabled ? config.autoSaveDelay : undefined;
 	}
 
 	private onFilesAssociationChange(): void {
-		this.updateTextEditorModelMode();
-	}
-
-	private updateTextEditorModelMode(modeId?: string): void {
 		if (!this.textEditorModel) {
 			return;
 		}
 
 		const firstLineText = this.getFirstLineText(this.textEditorModel);
-		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
+		const languageSelection = this.getOrCreateMode(this.modeService, undefined, firstLineText);
 
-		this.modelService.setMode(this.textEditorModel, mode);
+		this.modelService.setMode(this.textEditorModel, languageSelection);
 	}
 
-	public get onDidContentChange(): Event<StateChange> {
-		return this._onDidContentChange.event;
-	}
-
-	public get onDidStateChange(): Event<StateChange> {
-		return this._onDidStateChange.event;
-	}
-
-	/**
-	 * The current version id of the model.
-	 */
-	public getVersionId(): number {
+	getVersionId(): number {
 		return this.versionId;
 	}
 
-	/**
-	 * Set a save error handler to install code that executes when save errors occur.
-	 */
-	public static setSaveErrorHandler(handler: ISaveErrorHandler): void {
-		TextFileEditorModel.saveErrorHandler = handler;
-	}
-
-	/**
-	 * Set a save participant handler to react on models getting saved.
-	 */
-	public static setSaveParticipant(handler: ISaveParticipant): void {
-		TextFileEditorModel.saveParticipant = handler;
-	}
-
-	/**
-	 * Discards any local changes and replaces the model with the contents of the version on disk.
-	 *
-	 * @param if the parameter soft is true, will not attempt to load the contents from disk.
-	 */
-	public revert(soft?: boolean): TPromise<void> {
+	async revert(soft?: boolean): Promise<void> {
 		if (!this.isResolved()) {
-			return TPromise.wrap<void>(null);
+			return Promise.resolve(undefined);
 		}
 
 		// Cancel any running auto-save
-		this.cancelAutoSavePromise();
+		this.cancelPendingAutoSave();
 
 		// Unset flags
 		const undo = this.setDirty(false);
 
-		let loadPromise: TPromise<TextFileEditorModel>;
+		let loadPromise: Promise<unknown>;
 		if (soft) {
-			loadPromise = TPromise.as(this);
+			loadPromise = Promise.resolve();
 		} else {
 			loadPromise = this.load({ forceReadFromDisk: true });
 		}
 
-		return loadPromise.then(() => {
+		try {
+			await loadPromise;
 
 			// Emit file change event
 			this._onDidStateChange.fire(StateChange.REVERTED);
-		}, error => {
+		} catch (error) {
 
 			// Set flags back to previous values, we are still dirty if revert failed
 			undo();
 
-			return TPromise.wrapError(error);
-		});
+			return Promise.reject(error);
+		}
 	}
 
-	public load(options?: ILoadOptions): TPromise<TextFileEditorModel> {
-		diag('load() - enter', this.resource, new Date());
+	load(options?: ILoadOptions): Promise<ITextFileEditorModel> {
+		this.logService.trace('load() - enter', this.resource);
 
-		// It is very important to not reload the model when the model is dirty. We only want to reload the model from the disk
-		// if no save is pending to avoid data loss. This might cause a save conflict in case the file has been modified on the disk
-		// meanwhile, but this is a very low risk.
+		// It is very important to not reload the model when the model is dirty.
+		// We also only want to reload the model from the disk if no save is pending
+		// to avoid data loss.
 		if (this.dirty || this.saveSequentializer.hasPendingSave()) {
-			diag('load() - exit - without loading because model is dirty or being saved', this.resource, new Date());
+			this.logService.trace('load() - exit - without loading because model is dirty or being saved', this.resource);
 
-			return TPromise.as(this);
+			return Promise.resolve(this);
 		}
 
 		// Only for new models we support to load from backup
 		if (!this.textEditorModel && !this.createTextEditorModelPromise) {
-			return this.loadWithBackup(options);
+			return this.loadFromBackup(options);
 		}
 
 		// Otherwise load from file resource
 		return this.loadFromFile(options);
 	}
 
-	private loadWithBackup(options?: ILoadOptions): TPromise<TextFileEditorModel> {
-		return this.backupFileService.loadBackupResource(this.resource).then(backup => {
+	private async loadFromBackup(options?: ILoadOptions): Promise<TextFileEditorModel> {
+		const backup = await this.backupFileService.loadBackupResource(this.resource);
 
-			// Make sure meanwhile someone else did not suceed or start loading
-			if (this.createTextEditorModelPromise || this.textEditorModel) {
-				return this.createTextEditorModelPromise || TPromise.as(this);
-			}
+		// Make sure meanwhile someone else did not suceed or start loading
+		if (this.createTextEditorModelPromise || this.textEditorModel) {
+			return this.createTextEditorModelPromise || this;
+		}
 
-			// If we have a backup, continue loading with it
-			if (!!backup) {
-				const content: IRawTextContent = {
-					resource: this.resource,
-					name: path.basename(this.resource.fsPath),
-					mtime: Date.now(),
-					etag: void 0,
-					value: createTextBufferFactory(''), /* will be filled later from backup */
-					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding)
-				};
+		// If we have a backup, continue loading with it
+		if (!!backup) {
+			const content: ITextFileStreamContent = {
+				resource: this.resource,
+				name: basename(this.resource),
+				mtime: Date.now(),
+				size: 0,
+				etag: ETAG_DISABLED, // always allow to save content restored from a backup (see https://github.com/Microsoft/vscode/issues/72343)
+				value: createTextBufferFactory(''), // will be filled later from backup
+				encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding,
+				isReadonly: false
+			};
 
-				return this.loadWithContent(content, backup);
-			}
+			return this.loadWithContent(content, options, backup);
+		}
 
-			// Otherwise load from file
-			return this.loadFromFile(options);
-		});
+		// Otherwise load from file
+		return this.loadFromFile(options);
 	}
 
-	private loadFromFile(options?: ILoadOptions): TPromise<TextFileEditorModel> {
+	private async loadFromFile(options?: ILoadOptions): Promise<TextFileEditorModel> {
 		const forceReadFromDisk = options && options.forceReadFromDisk;
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || (options && options.allowBinary);
 
 		// Decide on etag
-		let etag: string;
+		let etag: string | undefined;
 		if (forceReadFromDisk) {
-			etag = void 0; // reset ETag if we enforce to read from disk
+			etag = undefined; // reset ETag if we enforce to read from disk
 		} else if (this.lastResolvedDiskStat) {
 			etag = this.lastResolvedDiskStat.etag; // otherwise respect etag to support caching
 		}
 
+		// Ensure to track the versionId before doing a long running operation
+		// to make sure the model was not changed in the meantime which would
+		// indicate that the user or program has made edits. If we would ignore
+		// this, we could potentially loose the changes that were made because
+		// after resolving the content we update the model and reset the dirty
+		// flag.
+		const currentVersionId = this.versionId;
+
 		// Resolve Content
-		return this.textFileService
-			.resolveTextContent(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding })
-			.then(content => this.handleLoadSuccess(content), error => this.handleLoadError(error));
-	}
+		try {
+			const content = await this.textFileService.readStream(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding });
 
-	private handleLoadSuccess(content: IRawTextContent): TPromise<TextFileEditorModel> {
+			// Clear orphaned state when loading was successful
+			this.setOrphaned(false);
 
-		// Clear orphaned state when load was successful
-		this.setOrphaned(false);
-
-		return this.loadWithContent(content);
-	}
-
-	private handleLoadError(error: FileOperationError): TPromise<TextFileEditorModel> {
-		const result = error.fileOperationResult;
-
-		// Apply orphaned state based on error code
-		this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
-
-		// NotModified status is expected and can be handled gracefully
-		if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-			this.setDirty(false); // Ensure we are not tracking a stale state
-
-			return TPromise.as<TextFileEditorModel>(this);
-		}
-
-		// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
-		// we already have the model loaded, we can return to this state and update the orphaned
-		// flag to indicate that this model has no version on disk anymore.
-		if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
-			return TPromise.as<TextFileEditorModel>(this);
-		}
-
-		// Otherwise bubble up the error
-		return TPromise.wrapError<TextFileEditorModel>(error);
-	}
-
-	private loadWithContent(content: IRawTextContent, backup?: URI): TPromise<TextFileEditorModel> {
-		return this.doLoadWithContent(content, backup).then(model => {
-
-			// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
-			if (this.isSettingsFile()) {
-				/* __GDPR__
-					"settingsRead" : {}
-				*/
-				this.telemetryService.publicLog('settingsRead'); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
-			} else {
-				/* __GDPR__
-					"fileGet" : {
-						"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: path.extname(this.resource.fsPath), path: this.hashService.createSHA1(this.resource.fsPath) });
+			// Guard against the model having changed in the meantime
+			if (currentVersionId === this.versionId) {
+				return this.loadWithContent(content, options);
 			}
 
-			return model;
-		});
+			return this;
+		} catch (error) {
+			const result = error.fileOperationResult;
+
+			// Apply orphaned state based on error code
+			this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
+
+			// NotModified status is expected and can be handled gracefully
+			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+
+				// Guard against the model having changed in the meantime
+				if (currentVersionId === this.versionId) {
+					this.setDirty(false); // Ensure we are not tracking a stale state
+				}
+
+				return this;
+			}
+
+			// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
+			// we already have the model loaded, we can return to this state and update the orphaned
+			// flag to indicate that this model has no version on disk anymore.
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
+				return this;
+			}
+
+			// Otherwise bubble up the error
+			throw error;
+		}
 	}
 
-	private doLoadWithContent(content: IRawTextContent, backup?: URI): TPromise<TextFileEditorModel> {
-		diag('load() - resolved content', this.resource, new Date());
+	private async loadWithContent(content: ITextFileStreamContent, options?: ILoadOptions, backup?: URI): Promise<TextFileEditorModel> {
+		const model = await this.doLoadWithContent(content, backup);
+
+		// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
+		const settingsType = this.getTypeIfSettings();
+		if (settingsType) {
+			/* __GDPR__
+				"settingsRead" : {
+					"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
+		} else {
+			/* __GDPR__
+				"fileGet" : {
+					"${include}": [
+						"${FileTelemetryData}"
+					]
+				}
+			*/
+			this.telemetryService.publicLog('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
+		}
+
+		return model;
+	}
+
+	private doLoadWithContent(content: ITextFileStreamContent, backup?: URI): Promise<TextFileEditorModel> {
+		this.logService.trace('load() - resolved content', this.resource);
 
 		// Update our resolved disk stat model
-		const resolvedStat: IFileStat = {
+		this.updateLastResolvedDiskStat({
 			resource: this.resource,
 			name: content.name,
 			mtime: content.mtime,
+			size: content.size,
 			etag: content.etag,
 			isDirectory: false,
 			isSymbolicLink: false,
-			children: void 0
-		};
-		this.updateLastResolvedDiskStat(resolvedStat);
+			isReadonly: content.isReadonly
+		});
 
 		// Keep the original encoding to not loose it when saving
 		const oldEncoding = this.contentEncoding;
@@ -423,12 +410,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Update Existing Model
 		if (this.textEditorModel) {
-			return this.doUpdateTextModel(content.value);
+			this.doUpdateTextModel(content.value);
+
+			return Promise.resolve(this);
 		}
 
 		// Join an existing request to create the editor model to avoid race conditions
 		else if (this.createTextEditorModelPromise) {
-			diag('load() - join existing text editor model promise', this.resource, new Date());
+			this.logService.trace('load() - join existing text editor model promise', this.resource);
 
 			return this.createTextEditorModelPromise;
 		}
@@ -437,8 +426,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.doCreateTextModel(content.resource, content.value, backup);
 	}
 
-	private doUpdateTextModel(value: ITextBufferFactory): TPromise<TextFileEditorModel> {
-		diag('load() - updated text editor model', this.resource, new Date());
+	private doUpdateTextModel(value: ITextBufferFactory): void {
+		this.logService.trace('load() - updated text editor model', this.resource);
 
 		// Ensure we are not tracking a stale state
 		this.setDirty(false);
@@ -453,43 +442,41 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Ensure we track the latest saved version ID given that the contents changed
 		this.updateSavedVersionId();
-
-		return TPromise.as<TextFileEditorModel>(this);
 	}
 
-	private doCreateTextModel(resource: URI, value: ITextBufferFactory, backup: URI): TPromise<TextFileEditorModel> {
-		diag('load() - created text editor model', this.resource, new Date());
+	private doCreateTextModel(resource: URI, value: ITextBufferFactory, backup: URI | undefined): Promise<TextFileEditorModel> {
+		this.logService.trace('load() - created text editor model', this.resource);
 
 		this.createTextEditorModelPromise = this.doLoadBackup(backup).then(backupContent => {
+			this.createTextEditorModelPromise = null;
+
+			// Create model
 			const hasBackupContent = !!backupContent;
+			this.createTextEditorModel(backupContent ? backupContent : value, resource);
 
-			return this.createTextEditorModel(hasBackupContent ? backupContent : value, resource).then(() => {
-				this.createTextEditorModelPromise = null;
-
-				// We restored a backup so we have to set the model as being dirty
-				// We also want to trigger auto save if it is enabled to simulate the exact same behaviour
-				// you would get if manually making the model dirty (fixes https://github.com/Microsoft/vscode/issues/16977)
-				if (hasBackupContent) {
-					this.makeDirty();
-					if (this.autoSaveAfterMilliesEnabled) {
-						this.doAutoSave(this.versionId);
-					}
+			// We restored a backup so we have to set the model as being dirty
+			// We also want to trigger auto save if it is enabled to simulate the exact same behaviour
+			// you would get if manually making the model dirty (fixes https://github.com/Microsoft/vscode/issues/16977)
+			if (hasBackupContent) {
+				this.makeDirty();
+				if (this.autoSaveAfterMilliesEnabled) {
+					this.doAutoSave(this.versionId);
 				}
+			}
 
-				// Ensure we are not tracking a stale state
-				else {
-					this.setDirty(false);
-				}
+			// Ensure we are not tracking a stale state
+			else {
+				this.setDirty(false);
+			}
 
-				// Model Listeners
-				this.installModelListeners();
+			// Model Listeners
+			this.installModelListeners();
 
-				return this;
-			}, error => {
-				this.createTextEditorModelPromise = null;
+			return this;
+		}, error => {
+			this.createTextEditorModelPromise = null;
 
-				return TPromise.wrapError<TextFileEditorModel>(error);
-			});
+			return Promise.reject<TextFileEditorModel>(error);
 		});
 
 		return this.createTextEditorModelPromise;
@@ -502,27 +489,33 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// where `value` was captured in the content change listener closure scope.
 
 		// Content Change
-		this.toDispose.push(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+		if (this.textEditorModel) {
+			this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+		}
 	}
 
-	private doLoadBackup(backup: URI): TPromise<ITextBufferFactory> {
+	private async doLoadBackup(backup: URI | undefined): Promise<ITextBufferFactory | null> {
 		if (!backup) {
-			return TPromise.as(null);
+			return null;
 		}
 
-		return this.backupFileService.resolveBackupContent(backup).then(backupContent => backupContent, error => null /* ignore errors */);
+		try {
+			return withUndefinedAsNull(await this.backupFileService.resolveBackupContent(backup));
+		} catch (error) {
+			return null; // ignore errors
+		}
 	}
 
-	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): TPromise<IMode> {
-		return modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath, firstLineText);
+	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string | undefined, firstLineText?: string): ILanguageSelection {
+		return modeService.createByFilepathOrFirstLine(this.resource.fsPath, firstLineText);
 	}
 
 	private onModelContentChanged(): void {
-		diag(`onModelContentChanged() - enter`, this.resource, new Date());
+		this.logService.trace(`onModelContentChanged() - enter`, this.resource);
 
 		// In any case increment the version id because it tracks the textual content state of the model at all times
 		this.versionId++;
-		diag(`onModelContentChanged() - new versionId ${this.versionId}`, this.resource, new Date());
+		this.logService.trace(`onModelContentChanged() - new versionId ${this.versionId}`, this.resource);
 
 		// Ignore if blocking model changes
 		if (this.blockModelContentChange) {
@@ -533,8 +526,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
 		// Note: we currently only do this check when auto-save is turned off because there you see
 		// a dirty indicator that you want to get rid of when undoing to the saved version.
-		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
-			diag('onModelContentChanged() - model content changed back to last saved version', this.resource, new Date());
+		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
+			this.logService.trace('onModelContentChanged() - model content changed back to last saved version', this.resource);
 
 			// Clear flags
 			const wasDirty = this.dirty;
@@ -548,7 +541,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return;
 		}
 
-		diag('onModelContentChanged() - model content changed and marked as dirty', this.resource, new Date());
+		this.logService.trace('onModelContentChanged() - model content changed and marked as dirty', this.resource);
 
 		// Mark as dirty
 		this.makeDirty();
@@ -558,7 +551,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (!this.inConflictMode) {
 				this.doAutoSave(this.versionId);
 			} else {
-				diag('makeDirty() - prevented save because we are in conflict resolution mode', this.resource, new Date());
+				this.logService.trace('makeDirty() - prevented save because we are in conflict resolution mode', this.resource);
 			}
 		}
 
@@ -578,53 +571,50 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private doAutoSave(versionId: number): TPromise<void> {
-		diag(`doAutoSave() - enter for versionId ${versionId}`, this.resource, new Date());
+	private doAutoSave(versionId: number): void {
+		this.logService.trace(`doAutoSave() - enter for versionId ${versionId}`, this.resource);
 
 		// Cancel any currently running auto saves to make this the one that succeeds
-		this.cancelAutoSavePromise();
+		this.cancelPendingAutoSave();
 
-		// Create new save promise and keep it
-		this.autoSavePromise = TPromise.timeout(this.autoSaveAfterMillies).then(() => {
+		// Create new save timer and store it for disposal as needed
+		const handle = setTimeout(() => {
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
-				this.doSave(versionId, { reason: SaveReason.AUTO }).done(null, onUnexpectedError); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+				this.doSave(versionId, { reason: SaveReason.AUTO }); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
 			}
-		});
+		}, this.autoSaveAfterMillies);
 
-		return this.autoSavePromise;
+		this.autoSaveDisposable = toDisposable(() => clearTimeout(handle));
 	}
 
-	private cancelAutoSavePromise(): void {
-		if (this.autoSavePromise) {
-			this.autoSavePromise.cancel();
-			this.autoSavePromise = void 0;
+	private cancelPendingAutoSave(): void {
+		if (this.autoSaveDisposable) {
+			this.autoSaveDisposable.dispose();
+			this.autoSaveDisposable = undefined;
 		}
 	}
 
-	/**
-	 * Saves the current versionId of this editor model if it is dirty.
-	 */
-	public save(options: ISaveOptions = Object.create(null)): TPromise<void> {
+	save(options: ISaveOptions = Object.create(null)): Promise<void> {
 		if (!this.isResolved()) {
-			return TPromise.wrap<void>(null);
+			return Promise.resolve(undefined);
 		}
 
-		diag('save() - enter', this.resource, new Date());
+		this.logService.trace('save() - enter', this.resource);
 
 		// Cancel any currently running auto saves to make this the one that succeeds
-		this.cancelAutoSavePromise();
+		this.cancelPendingAutoSave();
 
 		return this.doSave(this.versionId, options);
 	}
 
-	private doSave(versionId: number, options: ISaveOptions): TPromise<void> {
-		if (types.isUndefinedOrNull(options.reason)) {
+	private doSave(versionId: number, options: ISaveOptions): Promise<void> {
+		if (isUndefinedOrNull(options.reason)) {
 			options.reason = SaveReason.EXPLICIT;
 		}
 
-		diag(`doSave(${versionId}) - enter with versionId ' + versionId`, this.resource, new Date());
+		this.logService.trace(`doSave(${versionId}) - enter with versionId ' + versionId`, this.resource);
 
 		// Lookup any running pending save for this versionId and return it if found
 		//
@@ -632,9 +622,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		//           while the save was not yet finished to disk
 		//
 		if (this.saveSequentializer.hasPendingSave(versionId)) {
-			diag(`doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`, this.resource, new Date());
+			this.logService.trace(`doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`, this.resource);
 
-			return this.saveSequentializer.pendingSave;
+			return this.saveSequentializer.pendingSave || Promise.resolve(undefined);
 		}
 
 		// Return early if not dirty (unless forced) or version changed meanwhile
@@ -645,9 +635,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		//             Thus we avoid spawning multiple auto saves and only take the latest.
 		//
 		if ((!options.force && !this.dirty) || versionId !== this.versionId) {
-			diag(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource, new Date());
+			this.logService.trace(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource);
 
-			return TPromise.wrap<void>(null);
+			return Promise.resolve(undefined);
 		}
 
 		// Return if currently saving by storing this save request as the next save that should happen.
@@ -659,7 +649,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		//             while the first save has not returned yet.
 		//
 		if (this.saveSequentializer.hasPendingSave()) {
-			diag(`doSave(${versionId}) - exit - because busy saving`, this.resource, new Date());
+			this.logService.trace(`doSave(${versionId}) - exit - because busy saving`, this.resource);
 
 			// Register this as the next upcoming save and return
 			return this.saveSequentializer.setNext(() => this.doSave(this.versionId /* make sure to use latest version id here */, options));
@@ -667,7 +657,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Push all edit operations to the undo stack so that the user has a chance to
 		// Ctrl+Z back to the saved version. We only do this when auto-save is turned off
-		if (!this.autoSaveAfterMilliesEnabled) {
+		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel) {
 			this.textEditorModel.pushStackElement();
 		}
 
@@ -675,7 +665,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// we do not want to trigger another auto save or similar, so we block this
 		// In addition we update our version right after in case it changed because of a model change
 		// Save participants can also be skipped through API.
-		let saveParticipantPromise = TPromise.as(versionId);
+		let saveParticipantPromise: Promise<number> = Promise.resolve(versionId);
 		if (TextFileEditorModel.saveParticipant && !options.skipSaveParticipants) {
 			const onCompleteOrError = () => {
 				this.blockModelContentChange = false;
@@ -683,11 +673,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return this.versionId;
 			};
 
-			saveParticipantPromise = TPromise.as(undefined).then(() => {
-				this.blockModelContentChange = true;
-
-				return TextFileEditorModel.saveParticipant.participate(this, { reason: options.reason });
-			}).then(onCompleteOrError, onCompleteOrError);
+			this.blockModelContentChange = true;
+			saveParticipantPromise = TextFileEditorModel.saveParticipant.participate(this as IResolvedTextFileEditorModel, { reason: options.reason }).then(onCompleteOrError, onCompleteOrError);
 		}
 
 		// mark the save participant as current pending save operation
@@ -698,9 +685,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// be disposed if we are dirty, but if we are not dirty, save() and dispose() can still be triggered
 			// one after the other without waiting for the save() to complete. If we are disposed(), we risk
 			// saving contents to disk that are stale (see https://github.com/Microsoft/vscode/issues/50942).
-			// To fix this issue, we will not store the contents to disk when we got disposed. 
+			// To fix this issue, we will not store the contents to disk when we got disposed.
 			if (this.disposed) {
-				return void 0;
+				return undefined;
 			}
 
 			// Under certain conditions we do a short-cut of flushing contents to disk when we can assume that
@@ -725,8 +712,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Save to Disk
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
-			diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
-			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
+			this.logService.trace(`doSave(${versionId}) - before write()`, this.resource);
+			const snapshot = this.createSnapshot();
+			if (!snapshot) {
+				throw new Error('Invalid snapshot');
+			}
+			return this.saveSequentializer.setPending(newVersionId, this.textFileService.write(this.lastResolvedDiskStat.resource, snapshot, {
 				overwriteReadonly: options.overwriteReadonly,
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: this.lastResolvedDiskStat.mtime,
@@ -734,30 +725,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				etag: this.lastResolvedDiskStat.etag,
 				writeElevated: options.writeElevated
 			}).then(stat => {
-				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
-
-				// Telemetry
-				if (this.isSettingsFile()) {
-					/* __GDPR__
-						"settingsWritten" : {}
-					*/
-					this.telemetryService.publicLog('settingsWritten'); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
-				} else {
-					/* __GDPR__
-						"filePUT" : {
-							"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: path.extname(this.lastResolvedDiskStat.resource.fsPath) });
-				}
+				this.logService.trace(`doSave(${versionId}) - after write()`, this.resource);
 
 				// Update dirty state unless model has changed meanwhile
 				if (versionId === this.versionId) {
-					diag(`doSave(${versionId}) - setting dirty to false because versionId did not change`, this.resource, new Date());
+					this.logService.trace(`doSave(${versionId}) - setting dirty to false because versionId did not change`, this.resource);
 					this.setDirty(false);
 				} else {
-					diag(`doSave(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource, new Date());
+					this.logService.trace(`doSave(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource);
 				}
 
 				// Updated resolved stat with updated stat
@@ -768,8 +743,28 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 				// Emit File Saved Event
 				this._onDidStateChange.fire(StateChange.SAVED);
+
+				// Telemetry
+				const settingsType = this.getTypeIfSettings();
+				if (settingsType) {
+					/* __GDPR__
+						"settingsWritten" : {
+							"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.telemetryService.publicLog('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
+				} else {
+					/* __GDPR__
+							"filePUT" : {
+								"${include}": [
+									"${FileTelemetryData}"
+								]
+							}
+						*/
+					this.telemetryService.publicLog('filePUT', this.getTelemetryData(options.reason));
+				}
 			}, error => {
-				diag(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource, new Date());
+				this.logService.error(`doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource);
 
 				// Flag as error state in the model
 				this.inErrorMode = true;
@@ -788,21 +783,79 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}));
 	}
 
-	private isSettingsFile(): boolean {
+	private getTypeIfSettings(): string {
+		if (extname(this.resource) !== '.json') {
+			return '';
+		}
 
 		// Check for global settings file
-		if (path.isEqual(this.resource.fsPath, this.environmentService.appSettingsPath, !isLinux)) {
-			return true;
+		if (isEqual(this.resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
+			return 'global-settings';
+		}
+
+		// Check for keybindings file
+		if (isEqual(this.resource, URI.file(this.environmentService.appKeybindingsPath), !isLinux)) {
+			return 'keybindings';
+		}
+
+		// Check for locale file
+		if (isEqual(this.resource, URI.file(join(this.environmentService.appSettingsHome, 'locale.json')), !isLinux)) {
+			return 'locale';
+		}
+
+		// Check for snippets
+		if (isEqualOrParent(this.resource, URI.file(join(this.environmentService.appSettingsHome, 'snippets')))) {
+			return 'snippets';
 		}
 
 		// Check for workspace settings file
-		return this.contextService.getWorkspace().folders.some(folder => {
-			return path.isEqualOrParent(this.resource.fsPath, path.join(folder.uri.fsPath, '.vscode'));
-		});
+		const folders = this.contextService.getWorkspace().folders;
+		for (const folder of folders) {
+			if (isEqualOrParent(this.resource, folder.toResource('.vscode'))) {
+				const filename = basename(this.resource);
+				if (TextFileEditorModel.WHITELIST_WORKSPACE_JSON.indexOf(filename) > -1) {
+					return `.vscode/${filename}`;
+				}
+			}
+		}
+
+		return '';
 	}
 
-	private doTouch(versionId: number): TPromise<void> {
-		return this.saveSequentializer.setPending(versionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
+	private getTelemetryData(reason: number | undefined): object {
+		const ext = extname(this.resource);
+		const fileName = basename(this.resource);
+		const path = this.resource.scheme === Schemas.file ? this.resource.fsPath : this.resource.path;
+		const telemetryData = {
+			mimeType: guessMimeTypes(path).join(', '),
+			ext,
+			path: hash(path),
+			reason
+		};
+
+		if (ext === '.json' && TextFileEditorModel.WHITELIST_JSON.indexOf(fileName) > -1) {
+			telemetryData['whitelistedjson'] = fileName;
+		}
+
+		/* __GDPR__FRAGMENT__
+			"FileTelemetryData" : {
+				"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"whitelistedjson": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		return telemetryData;
+	}
+
+	private doTouch(versionId: number): Promise<void> {
+		const snapshot = this.createSnapshot();
+		if (!snapshot) {
+			throw new Error('invalid snapshot');
+		}
+
+		return this.saveSequentializer.setPending(versionId, this.textFileService.write(this.lastResolvedDiskStat.resource, snapshot, {
 			mtime: this.lastResolvedDiskStat.mtime,
 			encoding: this.getEncoding(),
 			etag: this.lastResolvedDiskStat.etag
@@ -810,7 +863,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Updated resolved stat with updated stat since touching it might have changed mtime
 			this.updateLastResolvedDiskStat(stat);
-		}, () => void 0 /* gracefully ignore errors if just touching */));
+		}, error => onUnexpectedError(error) /* just log any error but do not notify the user since the file was not dirty */));
 	}
 
 	private setDirty(dirty: boolean): () => void {
@@ -848,7 +901,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private updateLastResolvedDiskStat(newVersionOnDiskStat: IFileStat): void {
+	private updateLastResolvedDiskStat(newVersionOnDiskStat: IFileStatWithMetadata): void {
 
 		// First resolve - just take
 		if (!this.lastResolvedDiskStat) {
@@ -863,7 +916,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private onSaveError(error: any): void {
+	private onSaveError(error: Error): void {
 
 		// Prepare handler
 		if (!TextFileEditorModel.saveErrorHandler) {
@@ -874,31 +927,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		TextFileEditorModel.saveErrorHandler.onSaveError(error, this);
 	}
 
-	/**
-	 * Returns true if the content of this model has changes that are not yet saved back to the disk.
-	 */
-	public isDirty(): boolean {
+	isDirty(): boolean {
 		return this.dirty;
 	}
 
-	/**
-	 * Returns the time in millies when this working copy was attempted to be saved.
-	 */
-	public getLastSaveAttemptTime(): number {
+	getLastSaveAttemptTime(): number {
 		return this.lastSaveAttemptTime;
 	}
 
-	/**
-	 * Returns the time in millies when this working copy was last modified by the user or some other program.
-	 */
-	public getETag(): string {
-		return this.lastResolvedDiskStat ? this.lastResolvedDiskStat.etag : null;
+	getETag(): string | null {
+		return this.lastResolvedDiskStat ? this.lastResolvedDiskStat.etag || null : null;
 	}
 
-	/**
-	 * Answers if this model is in a specific state.
-	 */
-	public hasState(state: ModelState): boolean {
+	hasState(state: ModelState): boolean {
 		switch (state) {
 			case ModelState.CONFLICT:
 				return this.inConflictMode;
@@ -915,11 +956,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	public getEncoding(): string {
+	getEncoding(): string {
 		return this.preferredEncoding || this.contentEncoding;
 	}
 
-	public setEncoding(encoding: string, mode: EncodingMode): void {
+	setEncoding(encoding: string, mode: EncodingMode): void {
 		if (!this.isNewEncoding(encoding)) {
 			return; // return early if the encoding is already the same
 		}
@@ -935,7 +976,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			if (!this.inConflictMode) {
-				this.save({ overwriteEncoding: true }).done(null, onUnexpectedError);
+				this.save({ overwriteEncoding: true });
 			}
 		}
 
@@ -952,11 +993,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Load
 			this.load({
 				forceReadFromDisk: true	// because encoding has changed
-			}).done(null, onUnexpectedError);
+			});
 		}
 	}
 
-	public updatePreferredEncoding(encoding: string): void {
+	updatePreferredEncoding(encoding: string): void {
 		if (!this.isNewEncoding(encoding)) {
 			return;
 		}
@@ -979,41 +1020,35 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return true;
 	}
 
-	public isResolved(): boolean {
-		return !types.isUndefinedOrNull(this.lastResolvedDiskStat);
+	isResolved(): boolean {
+		return !isUndefinedOrNull(this.lastResolvedDiskStat);
 	}
 
-	/**
-	 * Returns true if the dispose() method of this model has been called.
-	 */
-	public isDisposed(): boolean {
+	isReadonly(): boolean {
+		return !!(this.lastResolvedDiskStat && this.lastResolvedDiskStat.isReadonly);
+	}
+
+	isDisposed(): boolean {
 		return this.disposed;
 	}
 
-	/**
-	 * Returns the full resource URI of the file this text file editor model is about.
-	 */
-	public getResource(): URI {
+	getResource(): URI {
 		return this.resource;
 	}
 
-	/**
-	 * Stat accessor only used by tests.
-	 */
-	public getStat(): IFileStat {
+	getStat(): IFileStatWithMetadata {
 		return this.lastResolvedDiskStat;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.disposed = true;
 		this.inConflictMode = false;
 		this.inOrphanMode = false;
 		this.inErrorMode = false;
 
-		this.toDispose = dispose(this.toDispose);
 		this.createTextEditorModelPromise = null;
 
-		this.cancelAutoSavePromise();
+		this.cancelPendingAutoSave();
 
 		super.dispose();
 	}
@@ -1021,21 +1056,21 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 interface IPendingSave {
 	versionId: number;
-	promise: TPromise<void>;
+	promise: Promise<void>;
 }
 
 interface ISaveOperation {
-	promise: TPromise<void>;
-	promiseValue: TValueCallback<void>;
-	promiseError: ErrorCallback;
-	run: () => TPromise<void>;
+	promise: Promise<void>;
+	promiseResolve: () => void;
+	promiseReject: (error: Error) => void;
+	run: () => Promise<void>;
 }
 
 export class SaveSequentializer {
-	private _pendingSave: IPendingSave;
-	private _nextSave: ISaveOperation;
+	private _pendingSave?: IPendingSave;
+	private _nextSave?: ISaveOperation;
 
-	public hasPendingSave(versionId?: number): boolean {
+	hasPendingSave(versionId?: number): boolean {
 		if (!this._pendingSave) {
 			return false;
 		}
@@ -1047,14 +1082,14 @@ export class SaveSequentializer {
 		return !!this._pendingSave;
 	}
 
-	public get pendingSave(): TPromise<void> {
-		return this._pendingSave ? this._pendingSave.promise : void 0;
+	get pendingSave(): Promise<void> | undefined {
+		return this._pendingSave ? this._pendingSave.promise : undefined;
 	}
 
-	public setPending(versionId: number, promise: TPromise<void>): TPromise<void> {
+	setPending(versionId: number, promise: Promise<void>): Promise<void> {
 		this._pendingSave = { versionId, promise };
 
-		promise.done(() => this.donePending(versionId), () => this.donePending(versionId));
+		promise.then(() => this.donePending(versionId), () => this.donePending(versionId));
 
 		return promise;
 	}
@@ -1063,7 +1098,7 @@ export class SaveSequentializer {
 		if (this._pendingSave && versionId === this._pendingSave.versionId) {
 
 			// only set pending to done if the promise finished that is associated with that versionId
-			this._pendingSave = void 0;
+			this._pendingSave = undefined;
 
 			// schedule the next save now that we are free if we have any
 			this.triggerNextSave();
@@ -1073,31 +1108,31 @@ export class SaveSequentializer {
 	private triggerNextSave(): void {
 		if (this._nextSave) {
 			const saveOperation = this._nextSave;
-			this._nextSave = void 0;
+			this._nextSave = undefined;
 
 			// Run next save and complete on the associated promise
-			saveOperation.run().done(saveOperation.promiseValue, saveOperation.promiseError);
+			saveOperation.run().then(saveOperation.promiseResolve, saveOperation.promiseReject);
 		}
 	}
 
-	public setNext(run: () => TPromise<void>): TPromise<void> {
+	setNext(run: () => Promise<void>): Promise<void> {
 
 		// this is our first next save, so we create associated promise with it
 		// so that we can return a promise that completes when the save operation
 		// has completed.
 		if (!this._nextSave) {
-			let promiseValue: TValueCallback<void>;
-			let promiseError: ErrorCallback;
-			const promise = new TPromise<void>((c, e) => {
-				promiseValue = c;
-				promiseError = e;
+			let promiseResolve: () => void;
+			let promiseReject: (error: Error) => void;
+			const promise = new Promise<void>((resolve, reject) => {
+				promiseResolve = resolve;
+				promiseReject = reject;
 			});
 
 			this._nextSave = {
 				run,
 				promise,
-				promiseValue,
-				promiseError
+				promiseResolve: promiseResolve!,
+				promiseReject: promiseReject!
 			};
 		}
 
@@ -1112,17 +1147,9 @@ export class SaveSequentializer {
 
 class DefaultSaveErrorHandler implements ISaveErrorHandler {
 
-	constructor(@INotificationService private notificationService: INotificationService) { }
+	constructor(@INotificationService private readonly notificationService: INotificationService) { }
 
-	public onSaveError(error: any, model: TextFileEditorModel): void {
-		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", path.basename(model.getResource().fsPath), toErrorMessage(error, false)));
+	onSaveError(error: Error, model: TextFileEditorModel): void {
+		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(model.getResource()), toErrorMessage(error, false)));
 	}
-}
-
-// Diagnostics support
-let diag: (...args: any[]) => void;
-if (!diag) {
-	diag = diagnostics.register('TextFileEditorModelDiagnostics', function (...args: any[]) {
-		console.log(args[1] + ' - ' + args[0] + ' (time: ' + args[2].getTime() + ' [' + args[2].toUTCString() + '])');
-	});
 }

@@ -56,7 +56,7 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 	teardown(closeAllEditors);
 
 	test('Expand abbreviation (CSS)', () => {
-		return withRandomFileEditor(cssContents, 'css', (editor, doc) => {
+		return withRandomFileEditor(cssContents, 'css', (editor, _) => {
 			editor.selections = [new Selection(3, 1, 3, 6), new Selection(5, 1, 5, 6)];
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), cssContents.replace(/pos:f/g, 'position: fixed;'));
@@ -75,7 +75,7 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 }
 `;
 
-		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			editor.selection = new Selection(3, 4, 3, 4);
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), testContent);
@@ -98,7 +98,7 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 nav#
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			editor.selection = new Selection(5, 4, 5, 4);
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), testContent);
@@ -120,7 +120,7 @@ nav#
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			editor.selection = new Selection(2, 10, 2, 10);
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), testContent);
@@ -137,7 +137,7 @@ nav#
 	test('Skip when typing the last property value in single line rules (CSS)', () => {
 		const testContent = `.foo {padding: 10px; margin: a}`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			editor.selection = new Selection(0, 30, 0, 30);
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), testContent);
@@ -159,7 +159,7 @@ nav#
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(2, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -198,7 +198,7 @@ nav#
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			editor.selection = new Selection(3, 10, 3, 10);
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), testContent);
@@ -220,7 +220,7 @@ nav#
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(3, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -258,7 +258,7 @@ nav#
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			editor.selection = new Selection(2, 10, 2, 10);
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), testContent);
@@ -279,7 +279,7 @@ nav#
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(2, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -317,7 +317,7 @@ nav#
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			editor.selection = new Selection(2, 2, 2, 2);
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), testContent);
@@ -336,7 +336,7 @@ nav#
 		const abbreviation = 'pos:f';
 		const expandedText = 'position: fixed;';
 
-		return withRandomFileEditor(cssContents, 'css', (editor, doc) => {
+		return withRandomFileEditor(cssContents, 'css', (editor, _) => {
 			editor.selection = new Selection(3, 1, 3, 6);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 6), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -366,7 +366,7 @@ nav#
 	});
 
 	test('Expand abbreviation (SCSS)', () => {
-		return withRandomFileEditor(scssContents, 'scss', (editor, doc) => {
+		return withRandomFileEditor(scssContents, 'scss', (editor, _) => {
 			editor.selections = [
 				new Selection(3, 4, 3, 4),
 				new Selection(5, 5, 5, 5),
@@ -382,7 +382,7 @@ nav#
 
 	test('Expand abbreviation in completion list (SCSS)', () => {
 
-		return withRandomFileEditor(scssContents, 'scss', (editor, doc) => {
+		return withRandomFileEditor(scssContents, 'scss', (editor, _) => {
 			editor.selection = new Selection(3, 4, 3, 4);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 4), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -406,7 +406,7 @@ nav#
 				return Promise.resolve();
 			}
 
-			const callBack = (completionList: CompletionList, abbreviation, expandedText) => {
+			const callBack = (completionList: CompletionList, abbreviation: string, expandedText: string) => {
 				if (!completionList.items || !completionList.items.length) {
 					assert.equal(1, 2, `Problem with expanding m10`);
 					return;
@@ -439,7 +439,7 @@ m10
 		}
 		`;
 
-		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, doc) => {
+		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, _) => {
 			editor.selections = [
 				new Selection(1, 3, 1, 3), // outside rule
 				new Selection(5, 15, 5, 15) // in the value part of property value
@@ -462,7 +462,7 @@ m10
 		}
 		`;
 
-		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, doc) => {
+		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, _) => {
 			editor.selection = new Selection(1, 3, 1, 3); // outside rule
 			const cancelSrc = new CancellationTokenSource();
 			let completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
@@ -473,7 +473,7 @@ m10
 			editor.selection = new Selection(5, 15, 5, 15); // in the value part of property value
 			completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			if (completionPromise) {
-				return completionPromise.then((completionList: CompletionList) => {
+				return completionPromise.then((completionList: CompletionList | undefined) => {
 					if (completionList && completionList.items && completionList.items.length > 0) {
 						assert.equal(1, 2, `m10 gets expanded in invalid location (n the value part of property value)`);
 					}
@@ -486,18 +486,18 @@ m10
 
 });
 
-	test('Skip when typing property values when there is a nested rule in the next line (SCSS)', () => {
-		return withRandomFileEditor(scssContents, 'scss', (editor, doc) => {
-			editor.selection = new Selection(19, 10, 19, 10);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), scssContents);
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(19, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (completionPromise) {
-					assert.equal(1, 2, `Invalid completion at property value`);
-				}
-				return Promise.resolve();
-			});
+test('Skip when typing property values when there is a nested rule in the next line (SCSS)', () => {
+	return withRandomFileEditor(scssContents, 'scss', (editor, _) => {
+		editor.selection = new Selection(19, 10, 19, 10);
+		return expandEmmetAbbreviation(null).then(() => {
+			assert.equal(editor.document.getText(), scssContents);
+			const cancelSrc = new CancellationTokenSource();
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(19, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			if (completionPromise) {
+				assert.equal(1, 2, `Invalid completion at property value`);
+			}
+			return Promise.resolve();
 		});
+	});
 });
 

@@ -2,25 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
  */
 export class PageCoordinates {
 	_pageCoordinatesBrand: void;
-	public readonly x: number;
-	public readonly y: number;
 
-	constructor(x: number, y: number) {
-		this.x = x;
-		this.y = y;
-	}
+	constructor(
+		public readonly x: number,
+		public readonly y: number
+	) { }
 
 	public toClientCoordinates(): ClientCoordinates {
 		return new ClientCoordinates(this.x - dom.StandardWindow.scrollX, this.y - dom.StandardWindow.scrollY);
@@ -37,13 +34,10 @@ export class PageCoordinates {
 export class ClientCoordinates {
 	_clientCoordinatesBrand: void;
 
-	public readonly clientX: number;
-	public readonly clientY: number;
-
-	constructor(clientX: number, clientY: number) {
-		this.clientX = clientX;
-		this.clientY = clientY;
-	}
+	constructor(
+		public readonly clientX: number,
+		public readonly clientY: number
+	) { }
 
 	public toPageCoordinates(): PageCoordinates {
 		return new PageCoordinates(this.clientX + dom.StandardWindow.scrollX, this.clientY + dom.StandardWindow.scrollY);
@@ -56,21 +50,16 @@ export class ClientCoordinates {
 export class EditorPagePosition {
 	_editorPagePositionBrand: void;
 
-	public readonly x: number;
-	public readonly y: number;
-	public readonly width: number;
-	public readonly height: number;
-
-	constructor(x: number, y: number, width: number, height: number) {
-		this.x = x;
-		this.y = y;
-		this.width = width;
-		this.height = height;
-	}
+	constructor(
+		public readonly x: number,
+		public readonly y: number,
+		public readonly width: number,
+		public readonly height: number
+	) { }
 }
 
 export function createEditorPagePosition(editorViewDomNode: HTMLElement): EditorPagePosition {
-	let editorPos = dom.getDomNodePagePosition(editorViewDomNode);
+	const editorPos = dom.getDomNodePagePosition(editorViewDomNode);
 	return new EditorPagePosition(editorPos.left, editorPos.top, editorPos.width, editorPos.height);
 }
 
@@ -100,7 +89,7 @@ export interface EditorMouseEventMerger {
 
 export class EditorMouseEventFactory {
 
-	private _editorViewDomNode: HTMLElement;
+	private readonly _editorViewDomNode: HTMLElement;
 
 	constructor(editorViewDomNode: HTMLElement) {
 		this._editorViewDomNode = editorViewDomNode;
@@ -135,7 +124,7 @@ export class EditorMouseEventFactory {
 	}
 
 	public onMouseMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		let myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, this._create(currentEvent));
 		};
 		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'mousemove', callback, myMerger, minimumTimeMs);
@@ -144,9 +133,9 @@ export class EditorMouseEventFactory {
 
 export class GlobalEditorMouseMoveMonitor extends Disposable {
 
-	private _editorViewDomNode: HTMLElement;
-	private _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
-	private _keydownListener: IDisposable;
+	private readonly _editorViewDomNode: HTMLElement;
+	private readonly _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
+	private _keydownListener: IDisposable | null;
 
 	constructor(editorViewDomNode: HTMLElement) {
 		super();
@@ -168,12 +157,12 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 			this._globalMouseMoveMonitor.stopMonitoring(true);
 		}, true);
 
-		let myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, new EditorMouseEvent(currentEvent, this._editorViewDomNode));
 		};
 
 		this._globalMouseMoveMonitor.startMonitoring(myMerger, mouseMoveCallback, () => {
-			this._keydownListener.dispose();
+			this._keydownListener!.dispose();
 			onStopCallback();
 		});
 	}

@@ -1,7 +1,0 @@
-[{
-	"name": "typescript",
-	"version": "2.6.2",
-	"license": "Apache-2.0",
-	"repositoryURL": "https://github.com/Microsoft/TypeScript",
-	"isProd": true
-}]

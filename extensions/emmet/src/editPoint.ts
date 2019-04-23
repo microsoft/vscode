@@ -69,4 +69,5 @@ function findEditPoint(lineNum: number, editor: vscode.TextEditor, position: vsc
 	if (winner > -1) {
 		return new vscode.Selection(lineNum, winner + 1, lineNum, winner + 1);
 	}
+	return;
 }

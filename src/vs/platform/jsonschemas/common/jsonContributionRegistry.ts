@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as platform from 'vs/platform/registry/common/platform';
@@ -13,7 +12,7 @@ export const Extensions = {
 };
 
 export interface ISchemaContributions {
-	schemas?: { [id: string]: IJSONSchema };
+	schemas: { [id: string]: IJSONSchema };
 }
 
 export interface IJSONContributionRegistry {
@@ -27,7 +26,7 @@ export interface IJSONContributionRegistry {
 
 
 	/**
-	 * Notifies all listeneres that the content of the given schema has changed.
+	 * Notifies all listeners that the content of the given schema has changed.
 	 * @param uri The id of the schema
 	 */
 	notifySchemaChanged(uri: string): void;
@@ -53,7 +52,7 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 
 	private schemasById: { [id: string]: IJSONSchema };
 
-	private readonly _onDidChangeSchema: Emitter<string> = new Emitter<string>();
+	private readonly _onDidChangeSchema = new Emitter<string>();
 	readonly onDidChangeSchema: Event<string> = this._onDidChangeSchema.event;
 
 	constructor() {

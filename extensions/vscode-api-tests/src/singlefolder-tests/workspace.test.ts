@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals } from '../utils';
-import { join, basename } from 'path';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll } from '../utils';
+import { join, posix, basename } from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 
 suite('workspace-namespace', () => {
 
@@ -37,10 +36,12 @@ suite('workspace-namespace', () => {
 	});
 
 	test('rootPath', () => {
-		if (vscode.workspace.rootPath) {
-			assert.ok(pathEquals(vscode.workspace.rootPath, join(__dirname, '../../testWorkspace')));
-		}
-		assert.throws(() => vscode.workspace.rootPath = 'farboo');
+		assert.ok(pathEquals(vscode.workspace.rootPath!, join(__dirname, '../../testWorkspace')));
+		assert.throws(() => (vscode.workspace as any).rootPath = 'farboo');
+	});
+
+	test('workspaceFile', () => {
+		assert.ok(!vscode.workspace.workspaceFile);
 	});
 
 	test('workspaceFolders', () => {
@@ -68,15 +69,15 @@ suite('workspace-namespace', () => {
 	});
 
 	test('openTextDocument, illegal path', () => {
-		return vscode.workspace.openTextDocument('funkydonky.txt').then(doc => {
+		return vscode.workspace.openTextDocument('funkydonky.txt').then(_doc => {
 			throw new Error('missing error');
-		}, err => {
+		}, _err => {
 			// good!
 		});
 	});
 
 	test('openTextDocument, untitled is dirty', function () {
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './newfile.txt'))).then(doc => {
+		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.workspaceFolders![0].uri.toString() || '', './newfile.txt'))).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 		});
@@ -270,18 +271,13 @@ suite('workspace-namespace', () => {
 				return vscode.window.showTextDocument(doc).then((editor) => {
 					return editor.edit((builder) => {
 						builder.insert(new vscode.Position(0, 0), 'Hello World');
-					}).then(applied => {
-						return doc.save().then(saved => {
+					}).then(_applied => {
+						return doc.save().then(_saved => {
 							assert.ok(onDidOpenTextDocument);
 							assert.ok(onDidChangeTextDocument);
 							assert.ok(onDidSaveTextDocument);
 
-							while (disposables.length) {
-								const item = disposables.pop();
-								if (item) {
-									item.dispose();
-								}
-							}
+							disposeAll(disposables);
 
 							return deleteFile(file);
 						});
@@ -335,7 +331,7 @@ suite('workspace-namespace', () => {
 		// missing scheme
 		return vscode.workspace.openTextDocument(vscode.Uri.parse('notThere://foo/far/boo/bar')).then(() => {
 			assert.ok(false, 'expected failure');
-		}, err => {
+		}, _err => {
 			// expected
 		});
 	});
@@ -348,6 +344,7 @@ suite('workspace-namespace', () => {
 				if (uri.authority === 'foo') {
 					return '1';
 				}
+				return undefined;
 			}
 		});
 		let registration2 = vscode.workspace.registerTextDocumentContentProvider('foo', {
@@ -355,6 +352,7 @@ suite('workspace-namespace', () => {
 				if (uri.authority === 'bar') {
 					return '2';
 				}
+				return undefined;
 			}
 		});
 
@@ -371,12 +369,12 @@ suite('workspace-namespace', () => {
 
 		// duplicate registration
 		let registration1 = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				return '1';
 			}
 		});
 		let registration2 = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri): string {
+			provideTextDocumentContent(_uri): string {
 				throw new Error('fail');
 			}
 		});
@@ -391,13 +389,13 @@ suite('workspace-namespace', () => {
 	test('registerTextDocumentContentProvider, invalid text', function () {
 
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				return <any>123;
 			}
 		});
 		return vscode.workspace.openTextDocument(vscode.Uri.parse('foo://auth/path')).then(() => {
 			assert.ok(false, 'expected failure');
-		}, err => {
+		}, _err => {
 			// expected
 			registration.dispose();
 		});
@@ -406,7 +404,7 @@ suite('workspace-namespace', () => {
 	test('registerTextDocumentContentProvider, show virtual document', function () {
 
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				return 'I am virtual';
 			}
 		});
@@ -425,7 +423,7 @@ suite('workspace-namespace', () => {
 
 		let callCount = 0;
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				callCount += 1;
 				return 'I am virtual';
 			}
@@ -445,7 +443,7 @@ suite('workspace-namespace', () => {
 	test('registerTextDocumentContentProvider, empty doc', function () {
 
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				return '';
 			}
 		});
@@ -466,7 +464,7 @@ suite('workspace-namespace', () => {
 
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			onDidChange: emitter.event,
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				return 'call' + (callCount++);
 			}
 		});
@@ -492,23 +490,66 @@ suite('workspace-namespace', () => {
 	});
 
 	test('findFiles', () => {
-		return vscode.workspace.findFiles('*.js').then((res) => {
-			assert.equal(res.length, 1);
-			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'far.js');
+		return vscode.workspace.findFiles('**/*.png').then((res) => {
+			assert.equal(res.length, 2);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
 	});
 
-	// TODO@Joh this test fails randomly
-	// test('findFiles, cancellation', () => {
+	test('findFiles - exclude', () => {
+		return vscode.workspace.findFiles('**/*.png').then((res) => {
+			assert.equal(res.length, 2);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
+		});
+	});
 
-	// 	const source = new CancellationTokenSource();
-	// 	const token = source.token; // just to get an instance first
-	// 	source.cancel();
+	test('findFiles, exclude', () => {
+		return vscode.workspace.findFiles('**/*.png', '**/sub/**').then((res) => {
+			assert.equal(res.length, 1);
+			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
+		});
+	});
 
-	// 	return vscode.workspace.findFiles('*.js', null, 100, token).then((res) => {
-	// 		assert.equal(res, void 0);
-	// 	});
-	// });
+	test('findFiles, cancellation', () => {
+
+		const source = new vscode.CancellationTokenSource();
+		const token = source.token; // just to get an instance first
+		source.cancel();
+
+		return vscode.workspace.findFiles('*.js', null, 100, token).then((res) => {
+			assert.deepEqual(res, []);
+		});
+	});
+
+	test('findTextInFiles', async () => {
+		const options: vscode.FindTextInFilesOptions = {
+			include: '*.ts',
+			previewOptions: {
+				matchLines: 1,
+				charsPerLine: 100
+			}
+		};
+
+		const results: vscode.TextSearchResult[] = [];
+		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, options, result => {
+			results.push(result);
+		});
+
+		assert.equal(results.length, 1);
+		const match = <vscode.TextSearchMatch>results[0];
+		assert(match.preview.text.indexOf('foo') >= 0);
+		assert.equal(vscode.workspace.asRelativePath(match.uri), '10linefile.ts');
+	});
+
+	test('findTextInFiles, cancellation', async () => {
+		const results: vscode.TextSearchResult[] = [];
+		const cancellation = new vscode.CancellationTokenSource();
+		cancellation.cancel();
+
+		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, result => {
+			results.push(result);
+		}, cancellation.token);
+	});
 
 	test('applyEdit', () => {
 
@@ -519,43 +560,216 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('applyEdit should fail when editing deleted resource', async () => {
+		const resource = await createRandomFile();
 
-	// test('applyEdit should fail when editing deleted resource', async () => {
-	// 	const resource = await createRandomFile();
+		const edit = new vscode.WorkspaceEdit();
+		edit.deleteFile(resource);
+		edit.insert(resource, new vscode.Position(0, 0), '');
 
-	// 	const edit = new vscode.WorkspaceEdit();
-	// 	edit.deleteResource(resource);
-	// 	try {
-	// 		edit.insert(resource, new vscode.Position(0, 0), '');
-	// 		assert.fail(false, 'Should disallow edit of deleted resource');
-	// 	} catch {
-	// 		// noop
-	// 	}
-	// });
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, false);
+	});
 
-	// test('applyEdit should fail when renaming deleted resource', async () => {
-	// 	const resource = await createRandomFile();
+	test('applyEdit should fail when renaming deleted resource', async () => {
+		const resource = await createRandomFile();
 
-	// 	const edit = new vscode.WorkspaceEdit();
-	// 	edit.deleteResource(resource);
-	// 	try {
-	// 		edit.renameResource(resource, resource);
-	// 		assert.fail(false, 'Should disallow rename of deleted resource');
-	// 	} catch {
-	// 		// noop
-	// 	}
-	// });
+		const edit = new vscode.WorkspaceEdit();
+		edit.deleteFile(resource);
+		edit.renameFile(resource, resource);
 
-	// test('applyEdit should fail when editing renamed from resource', async () => {
-	// 	const resource = await createRandomFile();
-	// 	const newResource = vscode.Uri.parse(resource.fsPath + '.1');
-	// 	const edit = new vscode.WorkspaceEdit();
-	// 	edit.renameResource(resource, newResource);
-	// 	try {
-	// 		edit.insert(resource, new vscode.Position(0, 0), '');
-	// 		assert.fail(false, 'Should disallow editing renamed file');
-	// 	} catch {
-	// 		// noop
-	// 	}
-	// });
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, false);
+	});
+
+	test('applyEdit should fail when editing renamed from resource', async () => {
+		const resource = await createRandomFile();
+		const newResource = vscode.Uri.file(resource.fsPath + '.1');
+		const edit = new vscode.WorkspaceEdit();
+		edit.renameFile(resource, newResource);
+		edit.insert(resource, new vscode.Position(0, 0), '');
+
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, false);
+	});
+
+	test('applyEdit "edit A -> rename A to B -> edit B"', async () => {
+		const oldUri = await createRandomFile();
+		const newUri = oldUri.with({ path: oldUri.path + 'NEW' });
+		const edit = new vscode.WorkspaceEdit();
+		edit.insert(oldUri, new vscode.Position(0, 0), 'BEFORE');
+		edit.renameFile(oldUri, newUri);
+		edit.insert(newUri, new vscode.Position(0, 0), 'AFTER');
+
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, true);
+
+		let doc = await vscode.workspace.openTextDocument(newUri);
+		assert.equal(doc.getText(), 'AFTERBEFORE');
+	});
+
+	function nameWithUnderscore(uri: vscode.Uri) {
+		return uri.with({ path: posix.join(posix.dirname(uri.path), `_${posix.basename(uri.path)}`) });
+	}
+
+	test('WorkspaceEdit: applying edits before and after rename duplicates resource #42633', async function () {
+		let docUri = await createRandomFile();
+		let newUri = nameWithUnderscore(docUri);
+
+		let we = new vscode.WorkspaceEdit();
+		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
+		we.insert(docUri, new vscode.Position(0, 0), 'Foo');
+		we.renameFile(docUri, newUri);
+		we.insert(newUri, new vscode.Position(0, 0), 'Bar');
+
+		assert.ok(await vscode.workspace.applyEdit(we));
+		let doc = await vscode.workspace.openTextDocument(newUri);
+		assert.equal(doc.getText(), 'BarHelloFoo');
+	});
+
+	test('WorkspaceEdit: Problem recreating a renamed resource #42634', async function () {
+		let docUri = await createRandomFile();
+		let newUri = nameWithUnderscore(docUri);
+
+		let we = new vscode.WorkspaceEdit();
+		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
+		we.insert(docUri, new vscode.Position(0, 0), 'Foo');
+		we.renameFile(docUri, newUri);
+
+		we.createFile(docUri);
+		we.insert(docUri, new vscode.Position(0, 0), 'Bar');
+
+		assert.ok(await vscode.workspace.applyEdit(we));
+
+		let newDoc = await vscode.workspace.openTextDocument(newUri);
+		assert.equal(newDoc.getText(), 'HelloFoo');
+		let doc = await vscode.workspace.openTextDocument(docUri);
+		assert.equal(doc.getText(), 'Bar');
+	});
+
+	test('WorkspaceEdit api - after saving a deleted file, it still shows up as deleted. #42667', async function () {
+		let docUri = await createRandomFile();
+		let we = new vscode.WorkspaceEdit();
+		we.deleteFile(docUri);
+		we.insert(docUri, new vscode.Position(0, 0), 'InsertText');
+
+		assert.ok(!(await vscode.workspace.applyEdit(we)));
+		try {
+			await vscode.workspace.openTextDocument(docUri);
+			assert.ok(false);
+		} catch (e) {
+			assert.ok(true);
+		}
+	});
+
+	test('WorkspaceEdit: edit and rename parent folder duplicates resource #42641', async function () {
+
+		let dir = join(os.tmpdir(), 'before-' + rndName());
+		if (!fs.existsSync(dir)) {
+			fs.mkdirSync(dir);
+		}
+
+		let docUri = await createRandomFile('', dir);
+		let docParent = docUri.with({ path: posix.dirname(docUri.path) });
+		let newParent = nameWithUnderscore(docParent);
+
+		let we = new vscode.WorkspaceEdit();
+		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
+		we.renameFile(docParent, newParent);
+
+		assert.ok(await vscode.workspace.applyEdit(we));
+
+		try {
+			await vscode.workspace.openTextDocument(docUri);
+			assert.ok(false);
+		} catch (e) {
+			assert.ok(true);
+		}
+
+		let newUri = newParent.with({ path: posix.join(newParent.path, posix.basename(docUri.path)) });
+		let doc = await vscode.workspace.openTextDocument(newUri);
+		assert.ok(doc);
+
+		assert.equal(doc.getText(), 'Hello');
+	});
+
+	test('WorkspaceEdit: rename resource followed by edit does not work #42638', async function () {
+		let docUri = await createRandomFile();
+		let newUri = nameWithUnderscore(docUri);
+
+		let we = new vscode.WorkspaceEdit();
+		we.renameFile(docUri, newUri);
+		we.insert(newUri, new vscode.Position(0, 0), 'Hello');
+
+		assert.ok(await vscode.workspace.applyEdit(we));
+
+		let doc = await vscode.workspace.openTextDocument(newUri);
+		assert.equal(doc.getText(), 'Hello');
+	});
+
+	test('WorkspaceEdit: create & override', async function () {
+
+		let docUri = await createRandomFile('before');
+
+		let we = new vscode.WorkspaceEdit();
+		we.createFile(docUri);
+		assert.ok(!await vscode.workspace.applyEdit(we));
+		assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), 'before');
+
+		we = new vscode.WorkspaceEdit();
+		we.createFile(docUri, { overwrite: true });
+		assert.ok(await vscode.workspace.applyEdit(we));
+		assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), '');
+	});
+
+	test('WorkspaceEdit: create & ignoreIfExists', async function () {
+		let docUri = await createRandomFile('before');
+
+		let we = new vscode.WorkspaceEdit();
+		we.createFile(docUri, { ignoreIfExists: true });
+		assert.ok(await vscode.workspace.applyEdit(we));
+		assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), 'before');
+
+		we = new vscode.WorkspaceEdit();
+		we.createFile(docUri, { overwrite: true, ignoreIfExists: true });
+		assert.ok(await vscode.workspace.applyEdit(we));
+		assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), '');
+	});
+
+	test('WorkspaceEdit: rename & ignoreIfExists', async function () {
+		let aUri = await createRandomFile('aaa');
+		let bUri = await createRandomFile('bbb');
+
+		let we = new vscode.WorkspaceEdit();
+		we.renameFile(aUri, bUri);
+		assert.ok(!await vscode.workspace.applyEdit(we));
+
+		we = new vscode.WorkspaceEdit();
+		we.renameFile(aUri, bUri, { ignoreIfExists: true });
+		assert.ok(await vscode.workspace.applyEdit(we));
+
+		we = new vscode.WorkspaceEdit();
+		we.renameFile(aUri, bUri, { overwrite: false, ignoreIfExists: true });
+		assert.ok(!await vscode.workspace.applyEdit(we));
+
+		we = new vscode.WorkspaceEdit();
+		we.renameFile(aUri, bUri, { overwrite: true, ignoreIfExists: true });
+		assert.ok(await vscode.workspace.applyEdit(we));
+	});
+
+	test('WorkspaceEdit: delete & ignoreIfNotExists', async function () {
+
+		let docUri = await createRandomFile();
+		let we = new vscode.WorkspaceEdit();
+		we.deleteFile(docUri, { ignoreIfNotExists: false });
+		assert.ok(await vscode.workspace.applyEdit(we));
+
+		we = new vscode.WorkspaceEdit();
+		we.deleteFile(docUri, { ignoreIfNotExists: false });
+		assert.ok(!await vscode.workspace.applyEdit(we));
+
+		we = new vscode.WorkspaceEdit();
+		we.deleteFile(docUri, { ignoreIfNotExists: true });
+		assert.ok(await vscode.workspace.applyEdit(we));
+	});
 });

@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
 import { join } from 'path';
 
-function rndName() {
+export function rndName() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
 }
 
-export function createRandomFile(contents = ''): Thenable<vscode.Uri> {
+export function createRandomFile(contents = '', dir: string = os.tmpdir(), ext = ''): Thenable<vscode.Uri> {
 	return new Promise((resolve, reject) => {
-		const tmpFile = join(os.tmpdir(), rndName());
+		const tmpFile = join(dir, rndName() + ext);
 		fs.writeFile(tmpFile, contents, (error) => {
 			if (error) {
 				return reject(error);
@@ -51,4 +49,28 @@ export function deleteFile(file: vscode.Uri): Thenable<boolean> {
 export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 
+}
+
+export function disposeAll(disposables: vscode.Disposable[]) {
+	while (disposables.length) {
+		let item = disposables.pop();
+		if (item) {
+			item.dispose();
+		}
+	}
+}
+
+export function conditionalTest(name: string, testCallback: (done: MochaDone) => void | Thenable<any>) {
+	if (isTestTypeActive()) {
+		const async = !!testCallback.length;
+		if (async) {
+			test(name, (done) => testCallback(done));
+		} else {
+			test(name, () => (<() => void | Thenable<any>>testCallback)());
+		}
+	}
+}
+
+function isTestTypeActive(): boolean {
+	return !!vscode.extensions.getExtension('vscode-resolver-test');
 }

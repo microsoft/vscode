@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
-export enum StatusbarAlignment {
+export const enum StatusbarAlignment {
 	LEFT, RIGHT
 }
 
@@ -25,37 +24,42 @@ export interface IStatusbarEntry {
 	 *
 	 * `My text ${icon name} contains icons like ${icon name} this one.`
 	 */
-	text: string;
+	readonly text: string;
 
 	/**
 	 * An optional tooltip text to show when you hover over the entry
 	 */
-	tooltip?: string;
+	readonly tooltip?: string;
 
 	/**
 	 * An optional color to use for the entry
 	 */
-	color?: string | ThemeColor;
+	readonly color?: string | ThemeColor;
+
+	/**
+	 * An optional background color to use for the entry
+	 */
+	readonly backgroundColor?: string | ThemeColor;
 
 	/**
 	 * An optional id of a command that is known to the workbench to execute on click
 	 */
-	command?: string;
+	readonly command?: string;
 
 	/**
 	 * Optional arguments for the command.
 	 */
-	arguments?: any[];
+	readonly arguments?: any[];
 
 	/**
 	 * An optional extension ID if this entry is provided from an extension.
 	 */
-	extensionId?: string;
+	readonly extensionId?: ExtensionIdentifier;
 
 	/**
 	 * Wether to show a beak above the status bar entry.
 	 */
-	showBeak?: boolean;
+	readonly showBeak?: boolean;
 }
 
 export interface IStatusbarService {
@@ -63,13 +67,21 @@ export interface IStatusbarService {
 	_serviceBrand: any;
 
 	/**
-	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned IDisposable
-	 * to remove the statusbar entry.
+	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
+	 * to update or remove the statusbar entry.
 	 */
-	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority?: number): IDisposable;
+	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
 
 	/**
 	 * Prints something to the status bar area with optional auto dispose and delay.
 	 */
 	setStatusMessage(message: string, autoDisposeAfter?: number, delayBy?: number): IDisposable;
+}
+
+export interface IStatusbarEntryAccessor extends IDisposable {
+
+	/**
+	 * Allows to update an existing status bar entry.
+	 */
+	update(properties: IStatusbarEntry): void;
 }

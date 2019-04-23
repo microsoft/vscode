@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { memoize } from 'vs/base/common/decorators';
 
@@ -13,7 +11,7 @@ suite('Decorators', () => {
 		class Foo {
 			count = 0;
 
-			constructor(private _answer: number) { }
+			constructor(private _answer: number | null | undefined) { }
 
 			@memoize
 			answer() {
@@ -58,7 +56,7 @@ suite('Decorators', () => {
 		class Foo {
 			count = 0;
 
-			constructor(private _answer: number) { }
+			constructor(private _answer: number | null | undefined) { }
 
 			@memoize
 			get answer() {

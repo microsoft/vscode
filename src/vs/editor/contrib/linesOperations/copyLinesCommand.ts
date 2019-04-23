@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -11,8 +10,8 @@ import { ITextModel } from 'vs/editor/common/model';
 
 export class CopyLinesCommand implements editorCommon.ICommand {
 
-	private _selection: Selection;
-	private _isCopyingDown: boolean;
+	private readonly _selection: Selection;
+	private readonly _isCopyingDown: boolean;
 
 	private _selectionDirection: SelectionDirection;
 	private _selectionId: string;

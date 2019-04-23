@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { EditorModel } from 'vs/workbench/common/editor';
@@ -16,13 +14,19 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextBufferFactory } from 'vs/editor/common/model';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 
 class MyEditorModel extends EditorModel { }
 class MyTextEditorModel extends BaseTextEditorModel {
 	public createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string) {
 		return super.createTextEditorModel(value, resource, modeId);
+	}
+
+	isReadonly(): boolean {
+		return false;
 	}
 }
 
@@ -36,7 +40,7 @@ suite('Workbench editor model', () => {
 		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 	});
 
-	test('EditorModel', function () {
+	test('EditorModel', () => {
 		let counter = 0;
 
 		let m = new MyEditorModel();
@@ -54,15 +58,14 @@ suite('Workbench editor model', () => {
 		});
 	});
 
-	test('BaseTextEditorModel', function () {
+	test('BaseTextEditorModel', () => {
 		let modelService = stubModelService(instantiationService);
 
 		let m = new MyTextEditorModel(modelService, modeService);
 		return m.load().then((model: MyTextEditorModel) => {
 			assert(model === m);
-			return model.createTextEditorModel(createTextBufferFactory('foo'), null, 'text/plain').then(() => {
-				assert.strictEqual(m.isResolved(), true);
-			});
+			model.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
+			assert.strictEqual(m.isResolved(), true);
 		}).then(() => {
 			m.dispose();
 		});
@@ -70,6 +73,7 @@ suite('Workbench editor model', () => {
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
 		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });

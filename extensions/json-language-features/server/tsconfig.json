@@ -1,15 +1,9 @@
 {
+	"extends": "../../shared.tsconfig.json",
 	"compilerOptions": {
-		"target": "es5",
-		"module": "commonjs",
-		"sourceMap": true,
-		"sourceRoot": "../src",
 		"outDir": "./out",
-		"noUnusedLocals": true,
-		"lib": [
-			"es5", "es2015.promise"
-		],
-		"strict": true
+		"sourceMap": true,
+		"sourceRoot": "../src"
 	},
 	"include": [
 		"src/**/*"

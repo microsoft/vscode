@@ -8,31 +8,39 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
-import { ISelectBoxDelegate, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
+import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
 
 export class SelectBoxNative implements ISelectBoxDelegate {
 
 	private selectElement: HTMLSelectElement;
-	private options: string[];
+	private selectBoxOptions: ISelectBoxOptions;
+	private options: ISelectOptionItem[];
 	private selected: number;
 	private readonly _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 
-	constructor(options: string[], selected: number, styles: ISelectBoxStyles) {
-
+	constructor(options: ISelectOptionItem[], selected: number, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 		this.toDispose = [];
+		this.selectBoxOptions = selectBoxOptions || Object.create(null);
+
+		this.options = [];
 
 		this.selectElement = document.createElement('select');
+
 		this.selectElement.className = 'monaco-select-box';
 
+		if (typeof this.selectBoxOptions.ariaLabel === 'string') {
+			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
+		}
+
 		this._onDidSelect = new Emitter<ISelectData>();
+		this.toDispose.push(this._onDidSelect);
 
 		this.styles = styles;
 
 		this.registerListeners();
-
 		this.setOptions(options, selected);
 	}
 
@@ -70,15 +78,14 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		return this._onDidSelect.event;
 	}
 
-	public setOptions(options: string[], selected?: number, disabled?: number): void {
+	public setOptions(options: ISelectOptionItem[], selected?: number): void {
 
 		if (!this.options || !arrays.equals(this.options, options)) {
 			this.options = options;
 			this.selectElement.options.length = 0;
 
-			let i = 0;
-			this.options.forEach((option) => {
-				this.selectElement.add(this.createOption(option, i, disabled === i++));
+			this.options.forEach((option, index) => {
+				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
 			});
 
 		}
@@ -89,7 +96,9 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	}
 
 	public select(index: number): void {
-		if (index >= 0 && index < this.options.length) {
+		if (this.options.length === 0) {
+			this.selected = 0;
+		} else if (index >= 0 && index < this.options.length) {
 			this.selected = index;
 		} else if (index > this.options.length - 1) {
 			// Adjust index to end of list
@@ -100,7 +109,16 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		}
 
 		this.selectElement.selectedIndex = this.selected;
-		this.selectElement.title = this.options[this.selected];
+		if ((this.selected < this.options.length) && typeof this.options[this.selected].text === 'string') {
+			this.selectElement.title = this.options[this.selected].text;
+		} else {
+			this.selectElement.title = '';
+		}
+	}
+
+	public setAriaLabel(label: string): void {
+		this.selectBoxOptions.ariaLabel = label;
+		this.selectElement.setAttribute('aria-label', label);
 	}
 
 	public focus(): void {
@@ -143,10 +161,10 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	}
 
 	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
-		let option = document.createElement('option');
+		const option = document.createElement('option');
 		option.value = value;
 		option.text = value;
-		option.disabled = disabled;
+		option.disabled = !!disabled;
 
 		return option;
 	}

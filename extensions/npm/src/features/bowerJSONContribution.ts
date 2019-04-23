@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString } from 'vscode';
+import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
@@ -25,11 +24,18 @@ export class BowerJSONContribution implements IJSONContribution {
 		'hui', 'bootstrap-languages', 'async', 'gulp', 'jquery-pjax', 'coffeescript', 'hammer.js', 'ace', 'leaflet', 'jquery-mobile', 'sweetalert', 'typeahead.js', 'soup', 'typehead.js',
 		'sails', 'codeigniter2'];
 
-	public constructor(private xhr: XHRRequest) {
+	private xhr: XHRRequest;
+
+	public constructor(xhr: XHRRequest) {
+		this.xhr = xhr;
 	}
 
 	public getDocumentSelector(): DocumentSelector {
 		return [{ language: 'json', scheme: '*', pattern: '**/bower.json' }, { language: 'json', scheme: '*', pattern: '**/.bower.json' }];
+	}
+
+	private onlineEnabled() {
+		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
 	}
 
 	public collectDefaultSuggestions(_resource: string, collector: ISuggestionsCollector): Thenable<any> {
@@ -50,7 +56,7 @@ export class BowerJSONContribution implements IJSONContribution {
 
 	public collectPropertySuggestions(_resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']))) {
-			if (currentWord.length > 0) {
+			if (currentWord.length > 0 && this.onlineEnabled()) {
 				const queryUrl = 'https://registry.bower.io/packages/search/' + encodeURIComponent(currentWord);
 
 				return this.xhr({
@@ -62,9 +68,9 @@ export class BowerJSONContribution implements IJSONContribution {
 							const obj = JSON.parse(success.responseText);
 							if (Array.isArray(obj)) {
 								const results = <{ name: string; description: string; }[]>obj;
-								for (let i = 0; i < results.length; i++) {
-									const name = results[i].name;
-									const description = results[i].description || '';
+								for (const result of results) {
+									const name = result.name;
+									const description = result.description || '';
 									const insertText = new SnippetString().appendText(JSON.stringify(name));
 									if (addValue) {
 										insertText.appendText(': ').appendPlaceholder('latest');
@@ -144,6 +150,10 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string | undefined> {
+		if (!this.onlineEnabled()) {
+			return Promise.resolve(undefined);
+		}
+
 		const queryUrl = 'https://registry.bower.io/packages/' + encodeURIComponent(pack);
 
 		return this.xhr({
@@ -157,7 +167,7 @@ export class BowerJSONContribution implements IJSONContribution {
 					if (url.indexOf('git://') === 0) {
 						url = url.substring(6);
 					}
-					if (url.lastIndexOf('.git') === url.length - 4) {
+					if (url.length >= 4 && url.substr(url.length - 4) === '.git') {
 						url = url.substring(0, url.length - 4);
 					}
 					return url;
@@ -165,9 +175,9 @@ export class BowerJSONContribution implements IJSONContribution {
 			} catch (e) {
 				// ignore
 			}
-			return void 0;
+			return undefined;
 		}, () => {
-			return void 0;
+			return undefined;
 		});
 	}
 

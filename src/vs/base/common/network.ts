@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 export namespace Schemas {
 
@@ -43,4 +42,8 @@ export namespace Schemas {
 	export const untitled: string = 'untitled';
 
 	export const data: string = 'data';
+
+	export const command: string = 'command';
+
+	export const vscodeRemote: string = 'vscode-remote';
 }

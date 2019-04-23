@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
-import { basename, dirname } from 'vs/base/common/paths';
+import { basename, dirname } from 'vs/base/common/path';
 import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad } from 'vs/base/common/strings';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from 'vs/base/common/strings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 
 export const KnownSnippetVariableNames = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -36,6 +37,10 @@ export const KnownSnippetVariableNames = Object.freeze({
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
+	'BLOCK_COMMENT_START': true,
+	'BLOCK_COMMENT_END': true,
+	'LINE_COMMENT': true,
+	'WORKSPACE_NAME': true,
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -44,10 +49,10 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string {
+	resolve(variable: Variable): string | undefined {
 		for (const delegate of this._delegates) {
 			let value = delegate.resolve(variable);
-			if (value !== void 0) {
+			if (value !== undefined) {
 				return value;
 			}
 		}
@@ -64,13 +69,13 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string {
+	resolve(variable: Variable): string | undefined {
 
 		const { name } = variable;
 
 		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
 			let value = this._model.getValueInRange(this._selection) || undefined;
-			if (value && this._selection.startLineNumber !== this._selection.endLineNumber) {
+			if (value && this._selection.startLineNumber !== this._selection.endLineNumber && variable.snippet) {
 				// Selection is a multiline string which we indentation we now
 				// need to adjust. We compare the indentation of this variable
 				// with the indentation at the editor position and add potential
@@ -85,7 +90,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 						return false;
 					}
 					if (marker instanceof Text) {
-						varLeadingWhitespace = getLeadingWhitespace(marker.value.split(/\r\n|\r|\n/).pop());
+						varLeadingWhitespace = getLeadingWhitespace(marker.value.split(/\r\n|\r|\n/).pop()!);
 					}
 					return true;
 				});
@@ -126,7 +131,7 @@ export class ModelBasedVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string {
+	resolve(variable: Variable): string | undefined {
 
 		const { name } = variable;
 
@@ -164,7 +169,7 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string {
+	resolve(variable: Variable): string | undefined {
 		if (variable.name !== 'CLIPBOARD' || !this._clipboardService) {
 			return undefined;
 		}
@@ -182,7 +187,29 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 		}
 	}
 }
-
+export class CommentBasedVariableResolver implements VariableResolver {
+	constructor(
+		private readonly _model: ITextModel
+	) {
+		//
+	}
+	resolve(variable: Variable): string | undefined {
+		const { name } = variable;
+		const language = this._model.getLanguageIdentifier();
+		const config = LanguageConfigurationRegistry.getComments(language.id);
+		if (!config) {
+			return undefined;
+		}
+		if (name === 'LINE_COMMENT') {
+			return config.lineCommentToken || undefined;
+		} else if (name === 'BLOCK_COMMENT_START') {
+			return config.blockCommentStartToken || undefined;
+		} else if (name === 'BLOCK_COMMENT_END') {
+			return config.blockCommentEndToken || undefined;
+		}
+		return undefined;
+	}
+}
 export class TimeBasedVariableResolver implements VariableResolver {
 
 	private static readonly dayNames = [nls.localize('Sunday', "Sunday"), nls.localize('Monday', "Monday"), nls.localize('Tuesday', "Tuesday"), nls.localize('Wednesday', "Wednesday"), nls.localize('Thursday', "Thursday"), nls.localize('Friday', "Friday"), nls.localize('Saturday', "Saturday")];
@@ -190,7 +217,7 @@ export class TimeBasedVariableResolver implements VariableResolver {
 	private static readonly monthNames = [nls.localize('January', "January"), nls.localize('February', "February"), nls.localize('March', "March"), nls.localize('April', "April"), nls.localize('May', "May"), nls.localize('June', "June"), nls.localize('July', "July"), nls.localize('August', "August"), nls.localize('September', "September"), nls.localize('October', "October"), nls.localize('November', "November"), nls.localize('December', "December")];
 	private static readonly monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
 
-	resolve(variable: Variable): string {
+	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
 
 		if (name === 'CURRENT_YEAR') {
@@ -218,5 +245,34 @@ export class TimeBasedVariableResolver implements VariableResolver {
 		}
 
 		return undefined;
+	}
+}
+
+export class WorkspaceBasedVariableResolver implements VariableResolver {
+	constructor(
+		private readonly _workspaceService: IWorkspaceContextService,
+	) {
+		//
+	}
+
+	resolve(variable: Variable): string | undefined {
+		if (variable.name !== 'WORKSPACE_NAME' || !this._workspaceService) {
+			return undefined;
+		}
+
+		const workspaceIdentifier = toWorkspaceIdentifier(this._workspaceService.getWorkspace());
+		if (!workspaceIdentifier) {
+			return undefined;
+		}
+
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return basename(workspaceIdentifier.path);
+		}
+
+		let filename = basename(workspaceIdentifier.configPath.path);
+		if (endsWith(filename, WORKSPACE_EXTENSION)) {
+			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		}
+		return filename;
 	}
 }

@@ -2,18 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IActionOptions, registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { MoveCaretCommand } from './moveCaretCommand';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/moveCaretCommand';
 
 class MoveCaretAction extends EditorAction {
 
-	private left: boolean;
+	private readonly left: boolean;
 
 	constructor(left: boolean, opts: IActionOptions) {
 		super(opts);
@@ -22,12 +21,15 @@ class MoveCaretAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
 
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
 
-		for (let i = 0; i < selections.length; i++) {
-			commands.push(new MoveCaretCommand(selections[i], this.left));
+		for (const selection of selections) {
+			commands.push(new MoveCaretCommand(selection, this.left));
 		}
 
 		editor.pushUndoStop();

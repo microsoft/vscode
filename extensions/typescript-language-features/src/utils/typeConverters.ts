@@ -24,16 +24,29 @@ export namespace Range {
 		endLine: range.end.line + 1,
 		endOffset: range.end.character + 1
 	});
+
+	export const toFormattingRequestArgs = (file: string, range: vscode.Range): Proto.FormatRequestArgs => ({
+		file,
+		line: range.start.line + 1,
+		offset: range.start.character + 1,
+		endLine: range.end.line + 1,
+		endOffset: range.end.character + 1
+	});
 }
 
 export namespace Position {
 	export const fromLocation = (tslocation: Proto.Location): vscode.Position =>
 		new vscode.Position(tslocation.line - 1, tslocation.offset - 1);
 
+	export const toLocation = (vsPosition: vscode.Position): Proto.Location => ({
+		line: vsPosition.line + 1,
+		offset: vsPosition.character + 1,
+	});
+
 	export const toFileLocationRequestArgs = (file: string, position: vscode.Position): Proto.FileLocationRequestArgs => ({
 		file,
 		line: position.line + 1,
-		offset: position.character + 1
+		offset: position.character + 1,
 	});
 }
 
@@ -50,14 +63,22 @@ export namespace TextEdit {
 }
 
 export namespace WorkspaceEdit {
-	export function fromFromFileCodeEdits(
+	export function fromFileCodeEdits(
 		client: ITypeScriptServiceClient,
 		edits: Iterable<Proto.FileCodeEdits>
 	): vscode.WorkspaceEdit {
-		const workspaceEdit = new vscode.WorkspaceEdit();
+		return withFileCodeEdits(new vscode.WorkspaceEdit(), client, edits);
+	}
+
+	export function withFileCodeEdits(
+		workspaceEdit: vscode.WorkspaceEdit,
+		client: ITypeScriptServiceClient,
+		edits: Iterable<Proto.FileCodeEdits>
+	): vscode.WorkspaceEdit {
 		for (const edit of edits) {
+			const resource = client.toResource(edit.fileName);
 			for (const textChange of edit.textChanges) {
-				workspaceEdit.replace(client.toResource(edit.fileName),
+				workspaceEdit.replace(resource,
 					Range.fromTextSpan(textChange),
 					textChange.newText);
 			}

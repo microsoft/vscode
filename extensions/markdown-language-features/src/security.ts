@@ -11,7 +11,7 @@ import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
-export enum MarkdownPreviewSecurityLevel {
+export const enum MarkdownPreviewSecurityLevel {
 	Strict = 0,
 	AllowInsecureContent = 1,
 	AllowScriptsAndAllContent = 2,
@@ -149,6 +149,7 @@ export class PreviewSecuritySelector {
 
 		if (selection.type === 'toggle') {
 			this.cspArbiter.setShouldDisableSecurityWarning(!this.cspArbiter.shouldDisableSecurityWarnings());
+			this.webviewManager.refresh();
 			return;
 		} else {
 			await this.cspArbiter.setSecurityLevelForResource(resource, selection.type);

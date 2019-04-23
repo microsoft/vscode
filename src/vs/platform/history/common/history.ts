@@ -3,28 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { IPath } from 'vs/platform/windows/common/windows';
 import { Event as CommonEvent } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { URI } from 'vs/base/common/uri';
+import { IPath } from 'vs/platform/windows/common/windows';
 
 export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
 
 export interface IRecentlyOpened {
-	workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[];
-	files: string[];
+	workspaces: Array<IRecentWorkspace | IRecentFolder>;
+	files: IRecentFile[];
 }
+
+export type IRecent = IRecentWorkspace | IRecentFolder | IRecentFile;
+
+export interface IRecentWorkspace {
+	workspace: IWorkspaceIdentifier;
+	label?: string;
+}
+
+export interface IRecentFolder {
+	folderUri: ISingleFolderWorkspaceIdentifier;
+	label?: string;
+}
+
+export interface IRecentFile {
+	fileUri: URI;
+	label?: string;
+}
+
+export function isRecentWorkspace(curr: IRecent): curr is IRecentWorkspace {
+	return !!curr['workspace'];
+}
+
+export function isRecentFolder(curr: IRecent): curr is IRecentFolder {
+	return !!curr['folderUri'];
+}
+
+export function isRecentFile(curr: IRecent): curr is IRecentFile {
+	return !!curr['fileUri'];
+}
+
 
 export interface IHistoryMainService {
 	_serviceBrand: any;
 
 	onRecentlyOpenedChange: CommonEvent<void>;
 
-	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void;
-	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened;
-	removeFromRecentlyOpened(paths: string[]): void;
+	addRecentlyOpened(recents: IRecent[]): void;
+	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier, currentFolder?: ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened;
+	removeFromRecentlyOpened(paths: URI[]): void;
 	clearRecentlyOpened(): void;
 
 	updateWindowsJumpList(): void;

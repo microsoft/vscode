@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as Types from 'vs/base/common/types';
 
-export enum ValidationState {
+export const enum ValidationState {
 	OK = 0,
 	Info = 1,
 	Warning = 2,
@@ -82,8 +81,8 @@ export abstract class Parser {
 
 	protected static merge<T>(destination: T, source: T, overwrite: boolean): void {
 		Object.keys(source).forEach((key: string) => {
-			let destValue = destination[key];
-			let sourceValue = source[key];
+			const destValue = destination[key];
+			const sourceValue = source[key];
 			if (Types.isUndefined(sourceValue)) {
 				return;
 			}

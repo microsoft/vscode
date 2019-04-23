@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/zargony/atom-language-rust/commit/179f449a69182cae4fcdf644d59d842b7e445f89",
+	"version": "https://github.com/zargony/atom-language-rust/commit/5238d9834953ed7c58d9b5b9bb0c084c3c11ecd6",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -29,6 +29,9 @@
 				},
 				{
 					"include": "#mut"
+				},
+				{
+					"include": "#dyn"
 				},
 				{
 					"include": "#ref_lifetime"
@@ -182,6 +185,12 @@
 			"include": "#mut"
 		},
 		{
+			"include": "#dyn"
+		},
+		{
+			"include": "#impl"
+		},
+		{
 			"include": "#box"
 		},
 		{
@@ -324,6 +333,12 @@
 					"include": "#mut"
 				},
 				{
+					"include": "#dyn"
+				},
+				{
+					"include": "#impl"
+				},
+				{
 					"include": "#ref_lifetime"
 				},
 				{
@@ -423,6 +438,12 @@
 				},
 				{
 					"include": "#mut"
+				},
+				{
+					"include": "#dyn"
+				},
+				{
+					"include": "#impl"
 				},
 				{
 					"include": "#lifetime"
@@ -528,6 +549,16 @@
 			"name": "storage.modifier.mut.rust",
 			"match": "\\bmut\\b"
 		},
+		"dyn": {
+			"comment": "Dynamic modifier",
+			"name": "storage.modifier.dyn.rust",
+			"match": "\\bdyn\\b"
+		},
+		"impl": {
+			"comment": "Existential type modifier",
+			"name": "storage.modifier.impl.rust",
+			"match": "\\bimpl\\b"
+		},
 		"box": {
 			"comment": "Box storage modifier",
 			"name": "storage.modifier.box.rust",
@@ -627,6 +658,12 @@
 				},
 				{
 					"include": "#mut"
+				},
+				{
+					"include": "#dyn"
+				},
+				{
+					"include": "#impl"
 				},
 				{
 					"include": "#lifetime"

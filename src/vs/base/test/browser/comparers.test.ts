@@ -3,17 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { compareFileNames, compareFileExtensions, setFileNameComparer } from 'vs/base/common/comparers';
 import * as assert from 'assert';
+import { IdleValue } from 'vs/base/common/async';
 
 suite('Comparers', () => {
 
 	test('compareFileNames', () => {
 
 		// Setup Intl
-		setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
+		setFileNameComparer(new IdleValue(() => {
+			const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+			return {
+				collator: collator,
+				collatorIsNumeric: collator.resolvedOptions().numeric
+			};
+		}));
 
 		assert(compareFileNames(null, null) === 0, 'null should be equal');
 		assert(compareFileNames(null, 'abc') < 0, 'null should be come before real values');
@@ -31,7 +36,13 @@ suite('Comparers', () => {
 	test('compareFileExtensions', () => {
 
 		// Setup Intl
-		setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
+		setFileNameComparer(new IdleValue(() => {
+			const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+			return {
+				collator: collator,
+				collatorIsNumeric: collator.resolvedOptions().numeric
+			};
+		}));
 
 		assert(compareFileExtensions(null, null) === 0, 'null should be equal');
 		assert(compareFileExtensions(null, '.abc') < 0, 'null should come before real files');

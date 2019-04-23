@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./viewCursors';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { Position } from 'vs/editor/common/core/position';
-import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
+import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { editorCursorBackground, editorCursorForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorCursorForeground, editorCursorBackground } from 'vs/editor/common/view/editorColorRegistry';
-import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 
 export class ViewCursors extends ViewPart {
 
@@ -25,20 +23,21 @@ export class ViewCursors extends ViewPart {
 	private _readOnly: boolean;
 	private _cursorBlinking: TextEditorCursorBlinkingStyle;
 	private _cursorStyle: TextEditorCursorStyle;
+	private _cursorSmoothCaretAnimation: boolean;
 	private _selectionIsEmpty: boolean;
 
 	private _isVisible: boolean;
 
-	private _domNode: FastDomNode<HTMLElement>;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 
-	private _startCursorBlinkAnimation: TimeoutTimer;
-	private _cursorFlatBlinkInterval: IntervalTimer;
+	private readonly _startCursorBlinkAnimation: TimeoutTimer;
+	private readonly _cursorFlatBlinkInterval: IntervalTimer;
 	private _blinkingEnabled: boolean;
 
 	private _editorHasFocus: boolean;
 
-	private _primaryCursor: ViewCursor;
-	private _secondaryCursors: ViewCursor[];
+	private readonly _primaryCursor: ViewCursor;
+	private readonly _secondaryCursors: ViewCursor[];
 	private _renderData: IViewCursorRenderData[];
 
 	constructor(context: ViewContext) {
@@ -47,6 +46,7 @@ export class ViewCursors extends ViewPart {
 		this._readOnly = this._context.configuration.editor.readOnly;
 		this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+		this._cursorSmoothCaretAnimation = this._context.configuration.editor.viewInfo.cursorSmoothCaretAnimation;
 		this._selectionIsEmpty = true;
 
 		this._primaryCursor = new ViewCursor(this._context);
@@ -89,6 +89,7 @@ export class ViewCursors extends ViewPart {
 		if (e.viewInfo) {
 			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
 			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+			this._cursorSmoothCaretAnimation = this._context.configuration.editor.viewInfo.cursorSmoothCaretAnimation;
 		}
 
 		this._primaryCursor.onConfigurationChanged(e);
@@ -107,15 +108,15 @@ export class ViewCursors extends ViewPart {
 
 		if (this._secondaryCursors.length < secondaryPositions.length) {
 			// Create new cursors
-			let addCnt = secondaryPositions.length - this._secondaryCursors.length;
+			const addCnt = secondaryPositions.length - this._secondaryCursors.length;
 			for (let i = 0; i < addCnt; i++) {
-				let newCursor = new ViewCursor(this._context);
+				const newCursor = new ViewCursor(this._context);
 				this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
 				this._secondaryCursors.push(newCursor);
 			}
 		} else if (this._secondaryCursors.length > secondaryPositions.length) {
 			// Remove some cursors
-			let removeCnt = this._secondaryCursors.length - secondaryPositions.length;
+			const removeCnt = this._secondaryCursors.length - secondaryPositions.length;
 			for (let i = 0; i < removeCnt; i++) {
 				this._domNode.removeChild(this._secondaryCursors[0].getDomNode());
 				this._secondaryCursors.splice(0, 1);
@@ -128,7 +129,7 @@ export class ViewCursors extends ViewPart {
 
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		let positions: Position[] = [];
+		const positions: Position[] = [];
 		for (let i = 0, len = e.selections.length; i < len; i++) {
 			positions[i] = e.selections[i].getPosition();
 		}
@@ -168,7 +169,7 @@ export class ViewCursors extends ViewPart {
 		return true;
 	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		let shouldRender = (position: Position) => {
+		const shouldRender = (position: Position) => {
 			for (let i = 0, len = e.ranges.length; i < len; i++) {
 				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
 					return true;
@@ -179,8 +180,8 @@ export class ViewCursors extends ViewPart {
 		if (shouldRender(this._primaryCursor.getPosition())) {
 			return true;
 		}
-		for (let i = 0; i < this._secondaryCursors.length; i++) {
-			if (shouldRender(this._secondaryCursors[i].getPosition())) {
+		for (const secondaryCursor of this._secondaryCursors) {
+			if (shouldRender(secondaryCursor.getPosition())) {
 				return true;
 			}
 		}
@@ -208,11 +209,11 @@ export class ViewCursors extends ViewPart {
 		this._startCursorBlinkAnimation.cancel();
 		this._cursorFlatBlinkInterval.cancel();
 
-		let blinkingStyle = this._getCursorBlinking();
+		const blinkingStyle = this._getCursorBlinking();
 
 		// hidden and solid are special as they involve no animations
-		let isHidden = (blinkingStyle === TextEditorCursorBlinkingStyle.Hidden);
-		let isSolid = (blinkingStyle === TextEditorCursorBlinkingStyle.Solid);
+		const isHidden = (blinkingStyle === TextEditorCursorBlinkingStyle.Hidden);
+		const isSolid = (blinkingStyle === TextEditorCursorBlinkingStyle.Solid);
 
 		if (isHidden) {
 			this._hide();
@@ -297,6 +298,9 @@ export class ViewCursors extends ViewPart {
 		} else {
 			result += ' cursor-solid';
 		}
+		if (this._cursorSmoothCaretAnimation) {
+			result += ' cursor-smooth-caret-animation';
+		}
 		return result;
 	}
 
@@ -349,7 +353,7 @@ export class ViewCursors extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let caret = theme.getColor(editorCursorForeground);
+	const caret = theme.getColor(editorCursorForeground);
 	if (caret) {
 		let caretBackground = theme.getColor(editorCursorBackground);
 		if (!caretBackground) {

@@ -15,7 +15,7 @@ export interface IComposite {
 	/**
 	 * Returns the name of this composite to show in the title area.
 	 */
-	getTitle(): string;
+	getTitle(): string | null;
 
 	/**
 	 * Returns the primary actions of the composite.
@@ -35,12 +35,12 @@ export interface IComposite {
 	/**
 	 * Returns the action item for a specific action.
 	 */
-	getActionItem(action: IAction): IActionItem;
+	getActionItem(action: IAction): IActionItem | undefined;
 
 	/**
 	 * Returns the underlying control of this composite.
 	 */
-	getControl(): ICompositeControl;
+	getControl(): ICompositeControl | undefined;
 
 	/**
 	 * Asks the underlying control to focus.

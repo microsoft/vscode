@@ -9,14 +9,12 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
-import { disposeAll } from '../utils/dispose';
+import { Disposable } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
 
 const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
 	indentationRules: {
-		// ^(.*\*/)?\s*\}.*$
-		decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
-		// ^.*\{[^}"']*$
+		decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]].*$/,
 		increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
 	},
 	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
@@ -25,24 +23,30 @@ const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
 			// e.g. /** | */
 			beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
 			afterText: /^\s*\*\/$/,
-			action: { indentAction: vscode.IndentAction.IndentOutdent, appendText: ' * ' }
+			action: { indentAction: vscode.IndentAction.IndentOutdent, appendText: ' * ' },
 		}, {
 			// e.g. /** ...|
 			beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-			action: { indentAction: vscode.IndentAction.None, appendText: ' * ' }
+			action: { indentAction: vscode.IndentAction.None, appendText: ' * ' },
 		}, {
 			// e.g.  * ...|
 			beforeText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
-			action: { indentAction: vscode.IndentAction.None, appendText: '* ' }
+			oneLineAboveText: /^(\s*(\/\*\*|\*)).*/,
+			action: { indentAction: vscode.IndentAction.None, appendText: '* ' },
 		}, {
 			// e.g.  */|
 			beforeText: /^(\t|[ ])*[ ]\*\/\s*$/,
-			action: { indentAction: vscode.IndentAction.None, removeText: 1 }
+			action: { indentAction: vscode.IndentAction.None, removeText: 1 },
 		},
 		{
 			// e.g.  *-----*/|
 			beforeText: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$/,
-			action: { indentAction: vscode.IndentAction.None, removeText: 1 }
+			action: { indentAction: vscode.IndentAction.None, removeText: 1 },
+		},
+		{
+			beforeText: /^\s*(\bcase\s.+:|\bdefault:)$/,
+			afterText: /^(?!\s*(\bcase\b|\bdefault\b))/,
+			action: { indentAction: vscode.IndentAction.Indent },
 		}
 	]
 };
@@ -53,21 +57,33 @@ const jsxTagsLanguageConfiguration: vscode.LanguageConfiguration = {
 	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
 	onEnterRules: [
 		{
-			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 			afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
 			action: { indentAction: vscode.IndentAction.IndentOutdent }
 		},
 		{
-			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+			beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w\\-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 			action: { indentAction: vscode.IndentAction.Indent }
-		}
+		},
+		{
+			// `beforeText` only applies to tokens of a given language. Since we are dealing with jsx-tags,
+			// make sure we apply to the closing `>` of a tag so that mixed language spans
+			// such as `<div onclick={1}>` are handled properly.
+			beforeText: /^>$/,
+			afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+			action: { indentAction: vscode.IndentAction.IndentOutdent }
+		},
+		{
+			beforeText: /^>$/,
+			action: { indentAction: vscode.IndentAction.Indent }
+		},
 	],
 };
 
-export class LanguageConfigurationManager {
-	private readonly _registrations: vscode.Disposable[] = [];
+export class LanguageConfigurationManager extends Disposable {
 
 	constructor() {
+		super();
 		const standardLanguages = [
 			languageModeIds.javascript,
 			languageModeIds.javascriptreact,
@@ -82,10 +98,6 @@ export class LanguageConfigurationManager {
 	}
 
 	private registerConfiguration(language: string, config: vscode.LanguageConfiguration) {
-		this._registrations.push(vscode.languages.setLanguageConfiguration(language, config));
-	}
-
-	dispose() {
-		disposeAll(this._registrations);
+		this._register(vscode.languages.setLanguageConfiguration(language, config));
 	}
 }

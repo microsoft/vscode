@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 
 export interface ILocalization {
@@ -21,7 +19,7 @@ export interface ITranslation {
 	path: string;
 }
 
-export enum LanguageType {
+export const enum LanguageType {
 	Core = 1,
 	Contributed
 }
@@ -31,7 +29,7 @@ export interface ILocalizationsService {
 	_serviceBrand: any;
 
 	readonly onDidLanguagesChange: Event<void>;
-	getLanguageIds(type?: LanguageType): TPromise<string[]>;
+	getLanguageIds(type?: LanguageType): Promise<string[]>;
 }
 
 export function isValidLocalization(localization: ILocalization): boolean {

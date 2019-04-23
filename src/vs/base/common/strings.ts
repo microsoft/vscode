@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { CharCode } from 'vs/base/common/charCode';
 
@@ -11,7 +10,7 @@ import { CharCode } from 'vs/base/common/charCode';
  */
 export const empty = '';
 
-export function isFalsyOrWhitespace(str: string): boolean {
+export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	if (!str || typeof str !== 'string') {
 		return true;
 	}
@@ -22,8 +21,8 @@ export function isFalsyOrWhitespace(str: string): boolean {
  * @returns the provided number with the given number of preceding zeros.
  */
 export function pad(n: number, l: number, char: string = '0'): string {
-	let str = '' + n;
-	let r = [str];
+	const str = '' + n;
+	const r = [str];
 
 	for (let i = str.length; i < l; i++) {
 		r.push(char);
@@ -45,7 +44,7 @@ export function format(value: string, ...args: any[]): string {
 		return value;
 	}
 	return value.replace(_formatRegexp, function (match, group) {
-		let idx = parseInt(group, 10);
+		const idx = parseInt(group, 10);
 		return isNaN(idx) || idx < 0 || idx >= args.length ?
 			match :
 			args[idx];
@@ -57,7 +56,7 @@ export function format(value: string, ...args: any[]): string {
  * being used e.g. in HTMLElement.innerHTML.
  */
 export function escape(html: string): string {
-	return html.replace(/[<|>|&]/g, function (match) {
+	return html.replace(/[<>&]/g, function (match) {
 		switch (match) {
 			case '<': return '&lt;';
 			case '>': return '&gt;';
@@ -80,7 +79,7 @@ export function escapeRegExpCharacters(value: string): string {
  * @param needle the thing to trim (default is a blank)
  */
 export function trim(haystack: string, needle: string = ' '): string {
-	let trimmed = ltrim(haystack, needle);
+	const trimmed = ltrim(haystack, needle);
 	return rtrim(trimmed, needle);
 }
 
@@ -89,20 +88,19 @@ export function trim(haystack: string, needle: string = ' '): string {
  * @param haystack string to trim
  * @param needle the thing to trim
  */
-export function ltrim(haystack?: string, needle?: string): string {
+export function ltrim(haystack: string, needle: string): string {
 	if (!haystack || !needle) {
 		return haystack;
 	}
 
-	let needleLen = needle.length;
+	const needleLen = needle.length;
 	if (needleLen === 0 || haystack.length === 0) {
 		return haystack;
 	}
 
-	let offset = 0,
-		idx = -1;
+	let offset = 0;
 
-	while ((idx = haystack.indexOf(needle, offset)) === offset) {
+	while (haystack.indexOf(needle, offset) === offset) {
 		offset = offset + needleLen;
 	}
 	return haystack.substring(offset);
@@ -113,12 +111,12 @@ export function ltrim(haystack?: string, needle?: string): string {
  * @param haystack string to trim
  * @param needle the thing to trim
  */
-export function rtrim(haystack?: string, needle?: string): string {
+export function rtrim(haystack: string, needle: string): string {
 	if (!haystack || !needle) {
 		return haystack;
 	}
 
-	let needleLen = needle.length,
+	const needleLen = needle.length,
 		haystackLen = haystack.length;
 
 	if (needleLen === 0 || haystackLen === 0) {
@@ -175,7 +173,7 @@ export function startsWith(haystack: string, needle: string): boolean {
  * Determines if haystack ends with needle.
  */
 export function endsWith(haystack: string, needle: string): boolean {
-	let diff = haystack.length - needle.length;
+	const diff = haystack.length - needle.length;
 	if (diff > 0) {
 		return haystack.indexOf(needle, diff) === diff;
 	} else if (diff === 0) {
@@ -190,6 +188,7 @@ export interface RegExpOptions {
 	wholeWord?: boolean;
 	multiline?: boolean;
 	global?: boolean;
+	unicode?: boolean;
 }
 
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
@@ -217,6 +216,9 @@ export function createRegExp(searchString: string, isRegex: boolean, options: Re
 	if (options.multiline) {
 		modifiers += 'm';
 	}
+	if (options.unicode) {
+		modifiers += 'u';
+	}
 
 	return new RegExp(searchString, modifiers);
 }
@@ -230,12 +232,19 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 
 	// We check against an empty string. If the regular expression doesn't advance
 	// (e.g. ends in an endless loop) it will match an empty string.
-	let match = regexp.exec('');
-	return (match && <any>regexp.lastIndex === 0);
+	const match = regexp.exec('');
+	return !!(match && <any>regexp.lastIndex === 0);
 }
 
 export function regExpContainsBackreference(regexpValue: string): boolean {
 	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
+}
+
+export function regExpFlags(regexp: RegExp): string {
+	return (regexp.global ? 'g' : '')
+		+ (regexp.ignoreCase ? 'i' : '')
+		+ (regexp.multiline ? 'm' : '')
+		+ ((regexp as any).unicode ? 'u' : '');
 }
 
 /**
@@ -244,7 +253,7 @@ export function regExpContainsBackreference(regexpValue: string): boolean {
  */
 export function firstNonWhitespaceIndex(str: string): number {
 	for (let i = 0, len = str.length; i < len; i++) {
-		let chCode = str.charCodeAt(i);
+		const chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return i;
 		}
@@ -258,7 +267,7 @@ export function firstNonWhitespaceIndex(str: string): number {
  */
 export function getLeadingWhitespace(str: string, start: number = 0, end: number = str.length): string {
 	for (let i = start; i < end; i++) {
-		let chCode = str.charCodeAt(i);
+		const chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return str.substring(start, i);
 		}
@@ -272,7 +281,7 @@ export function getLeadingWhitespace(str: string, start: number = 0, end: number
  */
 export function lastNonWhitespaceIndex(str: string, startIndex: number = str.length - 1): number {
 	for (let i = startIndex; i >= 0; i--) {
-		let chCode = str.charCodeAt(i);
+		const chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return i;
 		}
@@ -333,11 +342,11 @@ export function compareIgnoreCase(a: string, b: string): number {
 	}
 }
 
-function isLowerAsciiLetter(code: number): boolean {
+export function isLowerAsciiLetter(code: number): boolean {
 	return code >= CharCode.a && code <= CharCode.z;
 }
 
-function isUpperAsciiLetter(code: number): boolean {
+export function isUpperAsciiLetter(code: number): boolean {
 	return code >= CharCode.A && code <= CharCode.Z;
 }
 
@@ -371,7 +380,7 @@ function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
 
 		// a-z A-Z
 		if (isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
-			let diff = Math.abs(codeA - codeB);
+			const diff = Math.abs(codeA - codeB);
 			if (diff !== 0 && diff !== 32) {
 				return false;
 			}
@@ -422,8 +431,8 @@ export function commonSuffixLength(a: string, b: string): number {
 	let i: number,
 		len = Math.min(a.length, b.length);
 
-	let aLastIndex = a.length - 1;
-	let bLastIndex = b.length - 1;
+	const aLastIndex = a.length - 1;
+	const bLastIndex = b.length - 1;
 
 	for (i = 0; i < len; i++) {
 		if (a.charCodeAt(aLastIndex - i) !== b.charCodeAt(bLastIndex - i)) {
@@ -450,7 +459,7 @@ function substrEquals(a: string, aStart: number, aEnd: number, b: string, bStart
  * For instance `overlap("foobar", "arr, I'm a pirate") === 2`.
  */
 export function overlap(a: string, b: string): number {
-	let aEnd = a.length;
+	const aEnd = a.length;
 	let bEnd = b.length;
 	let aStart = aEnd - bEnd;
 
@@ -477,9 +486,9 @@ export function overlap(a: string, b: string): number {
 // Code points U+0000 to U+D7FF and U+E000 to U+FFFF are represented on a single character
 // Code points U+10000 to U+10FFFF are represented on two consecutive characters
 //export function getUnicodePoint(str:string, index:number, len:number):number {
-//	let chrCode = str.charCodeAt(index);
+//	const chrCode = str.charCodeAt(index);
 //	if (0xD800 <= chrCode && chrCode <= 0xDBFF && index + 1 < len) {
-//		let nextChrCode = str.charCodeAt(index + 1);
+//		const nextChrCode = str.charCodeAt(index + 1);
 //		if (0xDC00 <= nextChrCode && nextChrCode <= 0xDFFF) {
 //			return (chrCode - 0xD800) << 10 + (nextChrCode - 0xDC00) + 0x10000;
 //		}
@@ -618,12 +627,27 @@ export function removeAnsiEscapeCodes(str: string): string {
 	return str;
 }
 
+export const removeAccents: (str: string) => string = (function () {
+	if (typeof (String.prototype as any).normalize !== 'function') {
+		// ☹️ no ES6 features...
+		return function (str: string) { return str; };
+	} else {
+		// transform into NFD form and remove accents
+		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
+		const regex = /[\u0300-\u036f]/g;
+		return function (str: string) {
+			return (str as any).normalize('NFD').replace(regex, empty);
+		};
+	}
+})();
+
+
 // -- UTF-8 BOM
 
 export const UTF8_BOM_CHARACTER = String.fromCharCode(CharCode.UTF8_BOM);
 
 export function startsWithUTF8BOM(str: string): boolean {
-	return (str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
+	return !!(str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
 }
 
 export function stripUTF8BOM(str: string): string {
@@ -661,7 +685,7 @@ export function fuzzyContains(target: string, query: string): boolean {
 	let index = 0;
 	let lastIndexOf = -1;
 	while (index < queryLen) {
-		let indexOf = targetLower.indexOf(query[index], lastIndexOf + 1);
+		const indexOf = targetLower.indexOf(query[index], lastIndexOf + 1);
 		if (indexOf < 0) {
 			return false;
 		}
@@ -684,4 +708,24 @@ export function containsUppercaseCharacter(target: string, ignoreEscapedChars = 
 	}
 
 	return target.toLowerCase() !== target;
+}
+
+export function uppercaseFirstLetter(str: string): string {
+	return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+export function getNLines(str: string, n = 1): string {
+	if (n === 0) {
+		return '';
+	}
+
+	let idx = -1;
+	do {
+		idx = str.indexOf('\n', idx + 1);
+		n--;
+	} while (n > 0 && idx >= 0);
+
+	return idx >= 0 ?
+		str.substr(0, idx) :
+		str;
 }

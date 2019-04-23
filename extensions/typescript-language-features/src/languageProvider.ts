@@ -3,31 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { basename } from 'path';
-
-import TypeScriptServiceClient from './typescriptServiceClient';
-import TypingsStatus from './utils/typingsStatus';
+import * as vscode from 'vscode';
+import { CachedResponse } from './tsServer/cachedResponse';
+import { DiagnosticKind } from './features/diagnostics';
 import FileConfigurationManager from './features/fileConfigurationManager';
+import TypeScriptServiceClient from './typescriptServiceClient';
 import { CommandManager } from './utils/commandManager';
-import { DiagnosticsManager, DiagnosticKind } from './features/diagnostics';
-import { LanguageDescription } from './utils/languageDescription';
+import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
-import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
+import { LanguageDescription } from './utils/languageDescription';
 import { memoize } from './utils/memoize';
-import { disposeAll } from './utils/dispose';
 import TelemetryReporter from './utils/telemetry';
+import TypingsStatus from './utils/typingsStatus';
+
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
 
-export default class LanguageProvider {
-	private readonly diagnosticsManager: DiagnosticsManager;
-
-	private _validate: boolean = true;
-	private _enableSuggestionDiagnostics: boolean = true;
-
-	private readonly disposables: vscode.Disposable[] = [];
+export default class LanguageProvider extends Disposable {
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
@@ -35,26 +29,14 @@ export default class LanguageProvider {
 		private readonly commandManager: CommandManager,
 		private readonly telemetryReporter: TelemetryReporter,
 		private readonly typingsStatus: TypingsStatus,
-		private readonly fileConfigurationManager: FileConfigurationManager
+		private readonly fileConfigurationManager: FileConfigurationManager,
+		private readonly onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
-		this.client.bufferSyncSupport.onDelete(resource => {
-			this.diagnosticsManager.delete(resource);
-		}, null, this.disposables);
-
-		this.diagnosticsManager = new DiagnosticsManager(description.diagnosticOwner);
-
-		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
+		super();
+		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
 
-		client.onReady(async () => {
-			await this.registerProviders();
-		});
-	}
-
-	public dispose(): void {
-		disposeAll(this.disposables);
-
-		this.diagnosticsManager.dispose();
+		client.onReady(() => this.registerProviders());
 	}
 
 	@memoize
@@ -71,28 +53,32 @@ export default class LanguageProvider {
 	private async registerProviders(): Promise<void> {
 		const selector = this.documentSelector;
 
-		const cachedResponse = new CachedNavTreeResponse();
+		const cachedResponse = new CachedResponse();
 
-		this.disposables.push((await import('./features/completions')).register(selector, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager));
-		this.disposables.push((await import('./features/definitions')).register(selector, this.client));
-		this.disposables.push((await import('./features/directiveCommentCompletions')).register(selector, this.client));
-		this.disposables.push((await import('./features/documentHighlight')).register(selector, this.client));
-		this.disposables.push((await import('./features/documentSymbol')).register(selector, this.client));
-		this.disposables.push((await import('./features/folding')).register(selector, this.client));
-		this.disposables.push((await import('./features/formatting')).register(selector, this.description.id, this.client, this.fileConfigurationManager));
-		this.disposables.push((await import('./features/hover')).register(selector, this.client));
-		this.disposables.push((await import('./features/implementations')).register(selector, this.client));
-		this.disposables.push((await import('./features/implementationsCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
-		this.disposables.push((await import('./features/jsDocCompletions')).register(selector, this.client, this.commandManager));
-		this.disposables.push((await import('./features/organizeImports')).register(selector, this.client, this.commandManager, this.fileConfigurationManager));
-		this.disposables.push((await import('./features/quickFix')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.diagnosticsManager, this.telemetryReporter));
-		this.disposables.push((await import('./features/refactor')).register(selector, this.client, this.fileConfigurationManager, this.commandManager));
-		this.disposables.push((await import('./features/references')).register(selector, this.client));
-		this.disposables.push((await import('./features/referencesCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
-		this.disposables.push((await import('./features/rename')).register(selector, this.client));
-		this.disposables.push((await import('./features/signatureHelp')).register(selector, this.client));
-		this.disposables.push((await import('./features/typeDefinitions')).register(selector, this.client));
-		this.disposables.push((await import('./features/workspaceSymbols')).register(this.client, this.description.modeIds));
+		await Promise.all([
+			import('./features/completions').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.telemetryReporter, this.onCompletionAccepted))),
+			import('./features/definitions').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/directiveCommentCompletions').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/documentHighlight').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/documentSymbol').then(provider => this._register(provider.register(selector, this.client, cachedResponse))),
+			import('./features/folding').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/formatting').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
+			import('./features/hover').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/implementations').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/implementationsCodeLens').then(provider => this._register(provider.register(selector, this.description.id, this.client, cachedResponse))),
+			import('./features/jsDocCompletions').then(provider => this._register(provider.register(selector, this.description.id, this.client))),
+			import('./features/organizeImports').then(provider => this._register(provider.register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter))),
+			import('./features/quickFix').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter))),
+			import('./features/fixAll').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.client.diagnosticsManager))),
+			import('./features/refactor').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter))),
+			import('./features/references').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description.id, this.client, cachedResponse))),
+			import('./features/rename').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager))),
+			import('./features/smartSelect').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/signatureHelp').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/tagClosing').then(provider => this._register(provider.register(selector, this.description.id, this.client))),
+			import('./features/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
+		]);
 	}
 
 	private configurationChanged(): void {
@@ -107,7 +93,7 @@ export default class LanguageProvider {
 		}
 
 		const base = basename(resource.fsPath);
-		return !!base && base === this.description.configFile;
+		return !!base && (!!this.description.configFilePattern && this.description.configFilePattern.test(base));
 	}
 
 	private get id(): string {
@@ -119,30 +105,15 @@ export default class LanguageProvider {
 	}
 
 	private updateValidate(value: boolean) {
-		if (this._validate === value) {
-			return;
-		}
-		this._validate = value;
-		this.diagnosticsManager.validate = value;
-		if (value) {
-			this.triggerAllDiagnostics();
-		}
+		this.client.diagnosticsManager.setValidate(this._diagnosticLanguage, value);
 	}
 
 	private updateSuggestionDiagnostics(value: boolean) {
-		if (this._enableSuggestionDiagnostics === value) {
-			return;
-		}
-
-		this._enableSuggestionDiagnostics = value;
-		this.diagnosticsManager.enableSuggestions = value;
-		if (value) {
-			this.triggerAllDiagnostics();
-		}
+		this.client.diagnosticsManager.setEnableSuggestions(this._diagnosticLanguage, value);
 	}
 
 	public reInitialize(): void {
-		this.diagnosticsManager.reInitialize();
+		this.client.diagnosticsManager.reInitialize();
 	}
 
 	public triggerAllDiagnostics(): void {
@@ -152,9 +123,9 @@ export default class LanguageProvider {
 	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any })[]): void {
 		const config = vscode.workspace.getConfiguration(this.id, file);
 		const reportUnnecessary = config.get<boolean>('showUnused', true);
-		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => {
+		this.client.diagnosticsManager.updateDiagnostics(file, this._diagnosticLanguage, diagnosticsKind, diagnostics.filter(diag => {
 			if (!reportUnnecessary) {
-				diag.customTags = undefined;
+				diag.tags = undefined;
 				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
 					return false;
 				}
@@ -164,6 +135,10 @@ export default class LanguageProvider {
 	}
 
 	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {
-		this.diagnosticsManager.configFileDiagnosticsReceived(file, diagnostics);
+		this.client.diagnosticsManager.configFileDiagnosticsReceived(file, diagnostics);
+	}
+
+	private get _diagnosticLanguage() {
+		return this.description.diagnosticLanguage;
 	}
 }

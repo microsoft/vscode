@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
 import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
-import { marked, MarkedOptions } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
+import { parse } from 'vs/base/common/marshalling';
+import { cloneAndChange } from 'vs/base/common/objects';
 
 export interface IContentActionHandler {
 	callback: (content: string, event?: IMouseEvent) => void;
@@ -22,7 +24,7 @@ export interface RenderOptions {
 	className?: string;
 	inline?: boolean;
 	actionHandler?: IContentActionHandler;
-	codeBlockRenderer?: (modeId: string, value: string) => Thenable<string>;
+	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
 	codeBlockRenderCallback?: () => void;
 }
 
@@ -53,13 +55,49 @@ export function renderFormattedText(formattedText: string, options: RenderOption
 export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 
+	const _uriMassage = function (part: string): string {
+		let data: any;
+		try {
+			data = parse(decodeURIComponent(part));
+		} catch (e) {
+			// ignore
+		}
+		if (!data) {
+			return part;
+		}
+		data = cloneAndChange(data, value => {
+			if (markdown.uris && markdown.uris[value]) {
+				return URI.revive(markdown.uris[value]);
+			} else {
+				return undefined;
+			}
+		});
+		return encodeURIComponent(JSON.stringify(data));
+	};
+
+	const _href = function (href: string): string {
+		const data = markdown.uris && markdown.uris[href];
+		if (!data) {
+			return href;
+		}
+		let uri = URI.revive(data);
+		if (uri.query) {
+			uri = uri.with({ query: _uriMassage(uri.query) });
+		}
+		if (data) {
+			href = uri.toString(true);
+		}
+		return href;
+	};
+
 	// signal to code-block render that the
 	// element has been created
-	let signalInnerHTML: Function;
+	let signalInnerHTML: () => void;
 	const withInnerHTML = new Promise(c => signalInnerHTML = c);
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
+		href = _href(href);
 		let dimensions: string[] = [];
 		if (href) {
 			const splitted = href.split('|').map(s => s.trim());
@@ -68,8 +106,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			if (parameters) {
 				const heightFromParams = /height=(\d+)/.exec(parameters);
 				const widthFromParams = /width=(\d+)/.exec(parameters);
-				const height = (heightFromParams && heightFromParams[1]);
-				const width = (widthFromParams && widthFromParams[1]);
+				const height = heightFromParams ? heightFromParams[1] : '';
+				const width = widthFromParams ? widthFromParams[1] : '';
 				const widthIsFinite = isFinite(parseInt(width));
 				const heightIsFinite = isFinite(parseInt(height));
 				if (widthIsFinite) {
@@ -100,17 +138,25 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 		if (href === text) { // raw link case
 			text = removeMarkdownEscapes(text);
 		}
+		href = _href(href);
 		title = removeMarkdownEscapes(title);
 		href = removeMarkdownEscapes(href);
 		if (
 			!href
 			|| href.match(/^data:|javascript:/i)
 			|| (href.match(/^command:/i) && !markdown.isTrusted)
+			|| href.match(/^command:(\/\/\/)?_workbench\.downloadResource/i)
 		) {
 			// drop the link
 			return text;
 
 		} else {
+			// HTML Encode href
+			href = href.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#39;');
 			return `<a href="#" data-href="${href}" title="${title || href}">${text}</a>`;
 		}
 	};
@@ -120,7 +166,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
-			const value = options.codeBlockRenderer(lang, code);
+			const value = options.codeBlockRenderer!(lang, code);
 			// when code-block rendering is async we return sync
 			// but update the node with the real result later.
 			const id = defaultGenerator.nextId();
@@ -144,28 +190,33 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 	if (options.actionHandler) {
 		options.actionHandler.disposeables.push(DOM.addStandardDisposableListener(element, 'click', event => {
-			let target = event.target;
+			let target: HTMLElement | null = event.target;
 			if (target.tagName !== 'A') {
 				target = target.parentElement;
 				if (!target || target.tagName !== 'A') {
 					return;
 				}
 			}
-
-			const href = target.dataset['href'];
-			if (href) {
-				options.actionHandler.callback(href, event);
+			try {
+				const href = target.dataset['href'];
+				if (href) {
+					options.actionHandler!.callback(href, event);
+				}
+			} catch (err) {
+				onUnexpectedError(err);
+			} finally {
+				event.preventDefault();
 			}
 		}));
 	}
 
-	const markedOptions: MarkedOptions = {
+	const markedOptions: marked.MarkedOptions = {
 		sanitize: true,
 		renderer
 	};
 
-	element.innerHTML = marked(markdown.value, markedOptions);
-	signalInnerHTML();
+	element.innerHTML = marked.parse(markdown.value, markedOptions);
+	signalInnerHTML!();
 
 	return element;
 }
@@ -219,10 +270,10 @@ interface IFormatParseTree {
 }
 
 function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionHandler?: IContentActionHandler) {
-	let child: Node;
+	let child: Node | undefined;
 
 	if (treeNode.type === FormatType.Text) {
-		child = document.createTextNode(treeNode.content);
+		child = document.createTextNode(treeNode.content || '');
 	}
 	else if (treeNode.type === FormatType.Bold) {
 		child = document.createElement('b');
@@ -246,13 +297,13 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 		child = element;
 	}
 
-	if (element !== child) {
+	if (child && element !== child) {
 		element.appendChild(child);
 	}
 
-	if (Array.isArray(treeNode.children)) {
+	if (child && Array.isArray(treeNode.children)) {
 		treeNode.children.forEach((nodeChild) => {
-			_renderFormattedText(child, nodeChild, actionHandler);
+			_renderFormattedText(child!, nodeChild, actionHandler);
 		});
 	}
 }
@@ -281,12 +332,12 @@ function parseFormattedText(content: string): IFormatParseTree {
 			stream.advance();
 
 			if (current.type === FormatType.Text) {
-				current = stack.pop();
+				current = stack.pop()!;
 			}
 
 			const type = formatTagType(next);
 			if (current.type === type || (current.type === FormatType.Action && type === FormatType.ActionClose)) {
-				current = stack.pop();
+				current = stack.pop()!;
 			} else {
 				const newCurrent: IFormatParseTree = {
 					type: type,
@@ -298,16 +349,16 @@ function parseFormattedText(content: string): IFormatParseTree {
 					actionItemIndex++;
 				}
 
-				current.children.push(newCurrent);
+				current.children!.push(newCurrent);
 				stack.push(current);
 				current = newCurrent;
 			}
 		} else if (next === '\n') {
 			if (current.type === FormatType.Text) {
-				current = stack.pop();
+				current = stack.pop()!;
 			}
 
-			current.children.push({
+			current.children!.push({
 				type: FormatType.NewLine
 			});
 
@@ -317,7 +368,7 @@ function parseFormattedText(content: string): IFormatParseTree {
 					type: FormatType.Text,
 					content: next
 				};
-				current.children.push(textCurrent);
+				current.children!.push(textCurrent);
 				stack.push(current);
 				current = textCurrent;
 
@@ -328,7 +379,7 @@ function parseFormattedText(content: string): IFormatParseTree {
 	}
 
 	if (current.type === FormatType.Text) {
-		current = stack.pop();
+		current = stack.pop()!;
 	}
 
 	if (stack.length) {

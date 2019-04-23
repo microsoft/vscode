@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
 import * as path from 'path';
-import { Repository, GitResourceGroup, Status } from './repository';
+import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent, dispose, anyEvent, fireEvent } from './util';
-import { GitErrorCodes } from './git';
+import { GitErrorCodes, Status } from './api/git';
 
 type Callback = { resolve: (status: boolean) => void, reject: (err: any) => void };
 
@@ -22,7 +20,6 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
-		//todo@joh -> events when the ignore status actually changes, not only when the file changes
 		this.onDidChangeDecorations = fireEvent(anyEvent<any>(
 			filterEvent(workspace.onDidSaveTextDocument, e => e.fileName.endsWith('.gitignore')),
 			model.onDidOpenRepository,
@@ -56,6 +53,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 					color: new ThemeColor('gitDecoration.ignoredResourceForeground')
 				};
 			}
+			return undefined;
 		});
 	}
 
@@ -93,7 +91,7 @@ class GitDecorationProvider implements DecorationProvider {
 
 	private static SubmoduleDecorationData: DecorationData = {
 		title: 'Submodule',
-		abbreviation: 'S',
+		letter: 'S',
 		color: new ThemeColor('gitDecoration.submoduleResourceForeground')
 	};
 
@@ -120,7 +118,7 @@ class GitDecorationProvider implements DecorationProvider {
 
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
 		this.decorations = newDecorations;
-		this._onDidChangeDecorations.fire([...uris.values()].map(Uri.parse));
+		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
 	}
 
 	private collectDecorationData(group: GitResourceGroup, bucket: Map<string, DecorationData>): void {

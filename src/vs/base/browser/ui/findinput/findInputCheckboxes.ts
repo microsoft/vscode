@@ -2,20 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import 'vs/css!./findInputCheckboxes';
-
-import * as nls from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Color } from 'vs/base/common/color';
+import 'vs/css!./findInputCheckboxes';
+import * as nls from 'vs/nls';
 
 export interface IFindInputCheckboxOpts {
 	readonly appendTitle: string;
 	readonly isChecked: boolean;
-	readonly onChange: (viaKeyboard: boolean) => void;
-	readonly onKeyDown?: (e: IKeyboardEvent) => void;
 	readonly inputActiveOptionBorder?: Color;
 }
 
@@ -29,8 +24,6 @@ export class CaseSensitiveCheckbox extends Checkbox {
 			actionClassName: 'monaco-case-sensitive',
 			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			onChange: opts.onChange,
-			onKeyDown: opts.onKeyDown,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder
 		});
 	}
@@ -42,8 +35,6 @@ export class WholeWordsCheckbox extends Checkbox {
 			actionClassName: 'monaco-whole-word',
 			title: NLS_WHOLE_WORD_CHECKBOX_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			onChange: opts.onChange,
-			onKeyDown: opts.onKeyDown,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder
 		});
 	}
@@ -55,8 +46,6 @@ export class RegexCheckbox extends Checkbox {
 			actionClassName: 'monaco-regex',
 			title: NLS_REGEX_CHECKBOX_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
-			onChange: opts.onChange,
-			onKeyDown: opts.onKeyDown,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder
 		});
 	}

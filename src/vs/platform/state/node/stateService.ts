@@ -3,31 +3,63 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import * as path from 'path';
-import * as fs from 'original-fs';
+import * as path from 'vs/base/common/path';
+import * as fs from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { writeFileAndFlushSync } from 'vs/base/node/extfs';
+import { writeFileSync, readFile } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { IStateService } from 'vs/platform/state/common/state';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class FileStorage {
 
-	private database: object = null;
+	private _database: object | null = null;
+	private lastFlushedSerializedDatabase: string | null = null;
 
-	constructor(private dbPath: string, private onError: (error) => void) { }
+	constructor(private dbPath: string, private onError: (error: Error) => void) { }
 
-	private ensureLoaded(): void {
-		if (!this.database) {
-			this.database = this.loadSync();
+	private get database(): object {
+		if (!this._database) {
+			this._database = this.loadSync();
+		}
+
+		return this._database;
+	}
+
+	init(): Promise<void> {
+		return readFile(this.dbPath).then(contents => {
+			try {
+				this.lastFlushedSerializedDatabase = contents.toString();
+				this._database = JSON.parse(this.lastFlushedSerializedDatabase);
+			} catch (error) {
+				this._database = {};
+			}
+		}, error => {
+			if (error.code !== 'ENOENT') {
+				this.onError(error);
+			}
+
+			this._database = {};
+		});
+	}
+
+	private loadSync(): object {
+		try {
+			this.lastFlushedSerializedDatabase = fs.readFileSync(this.dbPath).toString();
+
+			return JSON.parse(this.lastFlushedSerializedDatabase);
+		} catch (error) {
+			if (error.code !== 'ENOENT') {
+				this.onError(error);
+			}
+
+			return {};
 		}
 	}
 
-	public getItem<T>(key: string, defaultValue?: T): T {
-		this.ensureLoaded();
-
+	getItem<T>(key: string, defaultValue: T): T;
+	getItem<T>(key: string, defaultValue?: T): T | undefined;
+	getItem<T>(key: string, defaultValue?: T): T | undefined {
 		const res = this.database[key];
 		if (isUndefinedOrNull(res)) {
 			return defaultValue;
@@ -36,8 +68,7 @@ export class FileStorage {
 		return res;
 	}
 
-	public setItem(key: string, data: any): void {
-		this.ensureLoaded();
+	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
 
 		// Remove an item when it is undefined or null
 		if (isUndefinedOrNull(data)) {
@@ -55,31 +86,24 @@ export class FileStorage {
 		this.saveSync();
 	}
 
-	public removeItem(key: string): void {
-		this.ensureLoaded();
+	removeItem(key: string): void {
 
 		// Only update if the key is actually present (not undefined)
 		if (!isUndefined(this.database[key])) {
-			this.database[key] = void 0;
+			this.database[key] = undefined;
 			this.saveSync();
 		}
 	}
 
-	private loadSync(): object {
-		try {
-			return JSON.parse(fs.readFileSync(this.dbPath).toString()); // invalid JSON or permission issue can happen here
-		} catch (error) {
-			if (error && error.code !== 'ENOENT') {
-				this.onError(error);
-			}
-
-			return {};
-		}
-	}
-
 	private saveSync(): void {
+		const serializedDatabase = JSON.stringify(this.database, null, 4);
+		if (serializedDatabase === this.lastFlushedSerializedDatabase) {
+			return; // return early if the database has not changed
+		}
+
 		try {
-			writeFileAndFlushSync(this.dbPath, JSON.stringify(this.database, null, 4)); // permission issue can happen here
+			writeFileSync(this.dbPath, serializedDatabase); // permission issue can happen here
+			this.lastFlushedSerializedDatabase = serializedDatabase;
 		} catch (error) {
 			this.onError(error);
 		}
@@ -90,21 +114,32 @@ export class StateService implements IStateService {
 
 	_serviceBrand: any;
 
+	private static STATE_FILE = 'storage.json';
+
 	private fileStorage: FileStorage;
 
-	constructor(@IEnvironmentService environmentService: IEnvironmentService, @ILogService logService: ILogService) {
-		this.fileStorage = new FileStorage(path.join(environmentService.userDataPath, 'storage.json'), error => logService.error(error));
+	constructor(
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILogService logService: ILogService
+	) {
+		this.fileStorage = new FileStorage(path.join(environmentService.userDataPath, StateService.STATE_FILE), error => logService.error(error));
 	}
 
-	public getItem<T>(key: string, defaultValue?: T): T {
+	init(): Promise<void> {
+		return this.fileStorage.init();
+	}
+
+	getItem<T>(key: string, defaultValue: T): T;
+	getItem<T>(key: string, defaultValue: T | undefined): T | undefined;
+	getItem<T>(key: string, defaultValue?: T): T | undefined {
 		return this.fileStorage.getItem(key, defaultValue);
 	}
 
-	public setItem(key: string, data: any): void {
+	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
 		this.fileStorage.setItem(key, data);
 	}
 
-	public removeItem(key: string): void {
+	removeItem(key: string): void {
 		this.fileStorage.removeItem(key);
 	}
 }

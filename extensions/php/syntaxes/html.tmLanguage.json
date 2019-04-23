@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/72bfa9592e689fdcb70562ff7d882ad5308e79f7",
+	"version": "https://github.com/atom/language-php/commit/b6c5e83016b52311cdc622c2579462861ee91587",
 	"name": "PHP",
 	"scopeName": "text.html.php",
 	"injections": {
@@ -109,7 +109,7 @@
 				}
 			]
 		},
-		"text.html.php - (meta.embedded | meta.tag), L:text.html.php meta.tag, L:text.html.php source.js": {
+		"text.html.php - (meta.embedded | meta.tag), L:((text.html.php meta.tag) - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.js - (meta.embedded.block.php | meta.embedded.line.php))": {
 			"patterns": [
 				{
 					"include": "#php-tag"

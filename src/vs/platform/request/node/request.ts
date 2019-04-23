@@ -2,21 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestOptions, IRequestContext } from 'vs/base/node/request';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
-export const IRequestService = createDecorator<IRequestService>('requestService2');
+export const IRequestService = createDecorator<IRequestService>('requestService');
 
 export interface IRequestService {
 	_serviceBrand: any;
 
-	request(options: IRequestOptions): TPromise<IRequestContext>;
+	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 }
 
 export interface IHTTPConfiguration {
@@ -37,17 +36,33 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			'http.proxy': {
 				type: 'string',
 				pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+)(:\\d+)?/?$|^$',
-				description: localize('proxy', "The proxy setting to use. If not set will be taken from the http_proxy and https_proxy environment variables")
+				description: localize('proxy', "The proxy setting to use. If not set will be taken from the http_proxy and https_proxy environment variables.")
 			},
 			'http.proxyStrictSSL': {
 				type: 'boolean',
 				default: true,
-				description: localize('strictSSL', "Whether the proxy server certificate should be verified against the list of supplied CAs.")
+				description: localize('strictSSL', "Controls whether the proxy server certificate should be verified against the list of supplied CAs.")
 			},
 			'http.proxyAuthorization': {
 				type: ['null', 'string'],
 				default: null,
 				description: localize('proxyAuthorization', "The value to send as the 'Proxy-Authorization' header for every network request.")
+			},
+			'http.proxySupport': {
+				type: 'string',
+				enum: ['off', 'on', 'override'],
+				enumDescriptions: [
+					localize('proxySupportOff', "Disable proxy support for extensions."),
+					localize('proxySupportOn', "Enable proxy support for extensions."),
+					localize('proxySupportOverride', "Enable proxy support for extensions, override request options."),
+				],
+				default: 'override',
+				description: localize('proxySupport', "Use the proxy support for extensions.")
+			},
+			'http.systemCertificates': {
+				type: 'boolean',
+				default: true,
+				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. (On Windows and macOS a reload of the window is required after turning this off.)")
 			}
 		}
 	});

@@ -3,25 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, INotificationViewItem } from 'vs/workbench/common/notifications';
-import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
 
-export class NotificationsStatus {
-	private statusItem: IDisposable;
-	private toDispose: IDisposable[];
+export class NotificationsStatus extends Disposable {
+	private statusItem: IStatusbarEntryAccessor;
 	private isNotificationsCenterVisible: boolean;
 	private _counter: Set<INotificationViewItem>;
 
 	constructor(
 		private model: INotificationsModel,
-		@IStatusbarService private statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
-		this.toDispose = [];
+		super();
+
 		this._counter = new Set<INotificationViewItem>();
 
 		this.updateNotificationsStatusItem();
@@ -33,7 +31,7 @@ export class NotificationsStatus {
 		return this._counter.size;
 	}
 
-	public update(isCenterVisible: boolean): void {
+	update(isCenterVisible: boolean): void {
 		if (this.isNotificationsCenterVisible !== isCenterVisible) {
 			this.isNotificationsCenterVisible = isCenterVisible;
 
@@ -44,7 +42,7 @@ export class NotificationsStatus {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -66,19 +64,18 @@ export class NotificationsStatus {
 	}
 
 	private updateNotificationsStatusItem(): void {
-
-		// Dispose old first
-		if (this.statusItem) {
-			this.statusItem.dispose();
-		}
-
-		// Create new
-		this.statusItem = this.statusbarService.addEntry({
+		const statusProperties: IStatusbarEntry = {
 			text: this.count === 0 ? '$(bell)' : `$(bell) ${this.count}`,
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
 			tooltip: this.getTooltip(),
 			showBeak: this.isNotificationsCenterVisible
-		}, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
+		};
+
+		if (!this.statusItem) {
+			this.statusItem = this.statusbarService.addEntry(statusProperties, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
+		} else {
+			this.statusItem.update(statusProperties);
+		}
 	}
 
 	private getTooltip(): string {
@@ -99,13 +96,5 @@ export class NotificationsStatus {
 		}
 
 		return localize('notifications', "{0} New Notifications", this.count);
-	}
-
-	public dispose() {
-		this.toDispose = dispose(this.toDispose);
-
-		if (this.statusItem) {
-			this.statusItem.dispose();
-		}
 	}
 }

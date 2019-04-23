@@ -41,6 +41,8 @@
 	opacity: 0.7;
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
+	background-position: center;
+	background-size: 11px 11px;
 }
 .monaco-editor.hc-black .insert-sign,
 .monaco-diff-editor.hc-black .insert-sign,

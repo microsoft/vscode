@@ -2,88 +2,64 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { MainContext, MainThreadOutputServiceShape, IMainContext } from './extHost.protocol';
+import { MainThreadOutputServiceShape } from '../common/extHost.protocol';
 import * as vscode from 'vscode';
+import { URI } from 'vs/base/common/uri';
+import { join } from 'vs/base/common/path';
+import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
+import { toLocalISOString } from 'vs/base/common/date';
+import { dirExists, mkdirp } from 'vs/base/node/pfs';
+import { AbstractExtHostOutputChannel, IOutputChannelFactory, ExtHostPushOutputChannel } from 'vs/workbench/api/common/extHostOutput';
 
-export class ExtHostOutputChannel implements vscode.OutputChannel {
+export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
-	private static _idPool = 1;
+	private _appender: OutputAppender;
 
-	private _proxy: MainThreadOutputServiceShape;
-	private _name: string;
-	private _id: string;
-	private _disposed: boolean;
-
-	constructor(name: string, proxy: MainThreadOutputServiceShape) {
-		this._name = name;
-		this._id = 'extension-output-#' + (ExtHostOutputChannel._idPool++);
-		this._proxy = proxy;
-	}
-
-	get name(): string {
-		return this._name;
-	}
-
-	dispose(): void {
-		if (!this._disposed) {
-			this._proxy.$dispose(this._id, this._name).then(() => {
-				this._disposed = true;
-			});
-		}
+	constructor(name: string, appender: OutputAppender, proxy: MainThreadOutputServiceShape) {
+		super(name, false, URI.file(appender.file), proxy);
+		this._appender = appender;
 	}
 
 	append(value: string): void {
-		this.validate();
-		this._proxy.$append(this._id, this._name, value);
+		super.append(value);
+		this._appender.append(value);
+		this._onDidAppend.fire();
 	}
 
-	appendLine(value: string): void {
-		this.validate();
-		this.append(value + '\n');
-	}
-
-	clear(): void {
-		this.validate();
-		this._proxy.$clear(this._id, this._name);
+	update(): void {
+		this._appender.flush();
+		super.update();
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
-		this.validate();
-		if (typeof columnOrPreserveFocus === 'boolean') {
-			preserveFocus = columnOrPreserveFocus;
-		}
-
-		this._proxy.$reveal(this._id, this._name, preserveFocus);
+		this._appender.flush();
+		super.show(columnOrPreserveFocus, preserveFocus);
 	}
 
-	hide(): void {
-		this.validate();
-		this._proxy.$close(this._id);
-	}
-
-	private validate(): void {
-		if (this._disposed) {
-			throw new Error('Channel has been closed');
-		}
+	clear(): void {
+		this._appender.flush();
+		super.clear();
 	}
 }
 
-export class ExtHostOutputService {
+export const LogOutputChannelFactory = new class implements IOutputChannelFactory {
 
-	private _proxy: MainThreadOutputServiceShape;
+	_namePool = 1;
 
-	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
-	}
-
-	createOutputChannel(name: string): vscode.OutputChannel {
-		name = name.trim();
-		if (!name) {
-			throw new Error('illegal argument `name`. must not be falsy');
-		} else {
-			return new ExtHostOutputChannel(name, this._proxy);
+	async createOutputChannel(name: string, logsLocation: URI, proxy: MainThreadOutputServiceShape): Promise<AbstractExtHostOutputChannel> {
+		try {
+			const outputDirPath = join(logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+			const outputDir = await dirExists(outputDirPath).then(exists => exists ? exists : mkdirp(outputDirPath).then(() => true)).then(() => outputDirPath);
+			const fileName = `${this._namePool++}-${name}`;
+			const file = URI.file(join(outputDir, `${fileName}.log`));
+			const appender = new OutputAppender(fileName, file.fsPath);
+			return new ExtHostOutputChannelBackedByFile(name, appender, proxy);
+		} catch (error) {
+			// Do not crash if logger cannot be created
+			console.log(error);
+			return new ExtHostPushOutputChannel(name, proxy);
 		}
 	}
-}
+};
+

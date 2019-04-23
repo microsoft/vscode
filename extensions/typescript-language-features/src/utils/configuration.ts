@@ -2,8 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { WorkspaceConfiguration, workspace } from 'vscode';
+import * as vscode from 'vscode';
 import * as arrays from './arrays';
+import * as os from 'os';
+import * as path from 'path';
 
 export enum TsServerLogLevel {
 	Off,
@@ -58,7 +60,7 @@ export class TypeScriptServiceConfiguration {
 	}
 
 	private constructor() {
-		const configuration = workspace.getConfiguration();
+		const configuration = vscode.workspace.getConfiguration();
 
 		this.locale = TypeScriptServiceConfiguration.extractLocale(configuration);
 		this.globalTsdk = TypeScriptServiceConfiguration.extractGlobalTsdk(configuration);
@@ -83,48 +85,58 @@ export class TypeScriptServiceConfiguration {
 			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths);
 	}
 
-	private static extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
+	private static fixPathPrefixes(inspectValue: string): string {
+		const pathPrefixes = ['~' + path.sep];
+		for (const pathPrefix of pathPrefixes) {
+			if (inspectValue.startsWith(pathPrefix)) {
+				return path.join(os.homedir(), inspectValue.slice(pathPrefix.length));
+			}
+		}
+		return inspectValue;
+	}
+
+	private static extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
 		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && inspect.globalValue && 'string' === typeof inspect.globalValue) {
-			return inspect.globalValue;
+		if (inspect && typeof inspect.globalValue === 'string') {
+			return this.fixPathPrefixes(inspect.globalValue);
 		}
 		return null;
 	}
 
-	private static extractLocalTsdk(configuration: WorkspaceConfiguration): string | null {
+	private static extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
 		const inspect = configuration.inspect('typescript.tsdk');
-		if (inspect && inspect.workspaceValue && 'string' === typeof inspect.workspaceValue) {
-			return inspect.workspaceValue;
+		if (inspect && typeof inspect.workspaceValue === 'string') {
+			return this.fixPathPrefixes(inspect.workspaceValue);
 		}
 		return null;
 	}
 
-	private static readTsServerLogLevel(configuration: WorkspaceConfiguration): TsServerLogLevel {
+	private static readTsServerLogLevel(configuration: vscode.WorkspaceConfiguration): TsServerLogLevel {
 		const setting = configuration.get<string>('typescript.tsserver.log', 'off');
 		return TsServerLogLevel.fromString(setting);
 	}
 
-	private static readTsServerPluginPaths(configuration: WorkspaceConfiguration): string[] {
+	private static readTsServerPluginPaths(configuration: vscode.WorkspaceConfiguration): string[] {
 		return configuration.get<string[]>('typescript.tsserver.pluginPaths', []);
 	}
 
-	private static readCheckJs(configuration: WorkspaceConfiguration): boolean {
+	private static readCheckJs(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('javascript.implicitProjectConfig.checkJs', false);
 	}
 
-	private static readExperimentalDecorators(configuration: WorkspaceConfiguration): boolean {
+	private static readExperimentalDecorators(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('javascript.implicitProjectConfig.experimentalDecorators', false);
 	}
 
-	private static readNpmLocation(configuration: WorkspaceConfiguration): string | null {
+	private static readNpmLocation(configuration: vscode.WorkspaceConfiguration): string | null {
 		return configuration.get<string | null>('typescript.npm', null);
 	}
 
-	private static readDisableAutomaticTypeAcquisition(configuration: WorkspaceConfiguration): boolean {
+	private static readDisableAutomaticTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false);
 	}
 
-	private static extractLocale(configuration: WorkspaceConfiguration): string | null {
+	private static extractLocale(configuration: vscode.WorkspaceConfiguration): string | null {
 		return configuration.get<string | null>('typescript.locale', null);
 	}
 }

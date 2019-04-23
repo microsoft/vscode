@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace as Workspace, FormattingOptions, TextDocument, CancellationToken, window, Disposable, workspace, WorkspaceConfiguration } from 'vscode';
-
+import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import * as languageIds from '../utils/languageModeIds';
 import API from '../utils/api';
+import { isTypeScriptDocument } from '../utils/languageModeIds';
+import { ResourceMap } from '../utils/resourceMap';
+import { Disposable } from '../utils/dispose';
+
 
 function objsAreEqual<T>(a: T, b: T): boolean {
 	let keys = Object.keys(a);
-	for (let i = 0; i < keys.length; i++) {
-		let key = keys[i];
+	for (const key of keys) {
 		if ((a as any)[key] !== (b as any)[key]) {
 			return false;
 		}
@@ -22,8 +23,8 @@ function objsAreEqual<T>(a: T, b: T): boolean {
 }
 
 interface FileConfiguration {
-	formatOptions: Proto.FormatCodeSettings;
-	preferences: Proto.UserPreferences;
+	readonly formatOptions: Proto.FormatCodeSettings;
+	readonly preferences: Proto.UserPreferences;
 }
 
 function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration): boolean {
@@ -33,78 +34,101 @@ function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration):
 	);
 }
 
-export default class FileConfigurationManager {
-	private onDidCloseTextDocumentSub: Disposable | undefined;
-	private formatOptions: { [key: string]: FileConfiguration | undefined } = Object.create(null);
+export default class FileConfigurationManager extends Disposable {
+	private readonly formatOptions = new ResourceMap<Promise<FileConfiguration | undefined>>();
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) {
-		this.onDidCloseTextDocumentSub = Workspace.onDidCloseTextDocument((textDocument) => {
-			const key = textDocument.uri.toString();
+		super();
+		vscode.workspace.onDidCloseTextDocument(textDocument => {
 			// When a document gets closed delete the cached formatting options.
 			// This is necessary since the tsserver now closed a project when its
 			// last file in it closes which drops the stored formatting options
 			// as well.
-			delete this.formatOptions[key];
-		});
-	}
-
-	public dispose() {
-		if (this.onDidCloseTextDocumentSub) {
-			this.onDidCloseTextDocumentSub.dispose();
-			this.onDidCloseTextDocumentSub = undefined;
-		}
+			this.formatOptions.delete(textDocument.uri);
+		}, undefined, this._disposables);
 	}
 
 	public async ensureConfigurationForDocument(
-		document: TextDocument,
-		token: CancellationToken | undefined
+		document: vscode.TextDocument,
+		token: vscode.CancellationToken
 	): Promise<void> {
-		const editor = window.visibleTextEditors.find(editor => editor.document.fileName === document.fileName);
-		if (editor) {
-			const formattingOptions = {
-				tabSize: editor.options.tabSize,
-				insertSpaces: editor.options.insertSpaces
-			} as FormattingOptions;
+		const formattingOptions = this.getFormattingOptions(document);
+		if (formattingOptions) {
 			return this.ensureConfigurationOptions(document, formattingOptions, token);
 		}
 	}
 
+	private getFormattingOptions(
+		document: vscode.TextDocument
+	): vscode.FormattingOptions | undefined {
+		const editor = vscode.window.visibleTextEditors.find(editor => editor.document.fileName === document.fileName);
+		return editor
+			? {
+				tabSize: editor.options.tabSize,
+				insertSpaces: editor.options.insertSpaces
+			} as vscode.FormattingOptions
+			: undefined;
+	}
+
 	public async ensureConfigurationOptions(
-		document: TextDocument,
-		options: FormattingOptions,
-		token: CancellationToken | undefined
+		document: vscode.TextDocument,
+		options: vscode.FormattingOptions,
+		token: vscode.CancellationToken
 	): Promise<void> {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return;
 		}
 
-		const key = document.uri.toString();
-		const cachedOptions = this.formatOptions[key];
 		const currentOptions = this.getFileOptions(document, options);
-
-		if (cachedOptions && areFileConfigurationsEqual(cachedOptions, currentOptions)) {
-			return;
+		const cachedOptions = this.formatOptions.get(document.uri);
+		if (cachedOptions) {
+			const cachedOptionsValue = await cachedOptions;
+			if (cachedOptionsValue && areFileConfigurationsEqual(cachedOptionsValue, currentOptions)) {
+				return;
+			}
 		}
+
+		let resolve: (x: FileConfiguration | undefined) => void;
+		this.formatOptions.set(document.uri, new Promise<FileConfiguration | undefined>(r => resolve = r));
 
 		const args: Proto.ConfigureRequestArguments = {
 			file,
 			...currentOptions,
 		};
+		try {
+			const response = await this.client.execute('configure', args, token);
+			resolve!(response.type === 'response' ? currentOptions : undefined);
+		} finally {
+			resolve!(undefined);
+		}
+	}
+
+	public async setGlobalConfigurationFromDocument(
+		document: vscode.TextDocument,
+		token: vscode.CancellationToken,
+	): Promise<void> {
+		const formattingOptions = this.getFormattingOptions(document);
+		if (!formattingOptions) {
+			return;
+		}
+
+		const args: Proto.ConfigureRequestArguments = {
+			file: undefined /*global*/,
+			...this.getFileOptions(document, formattingOptions),
+		};
 		await this.client.execute('configure', args, token);
-		this.formatOptions[key] = currentOptions;
 	}
 
 	public reset() {
-		this.formatOptions = Object.create(null);
+		this.formatOptions.clear();
 	}
 
-
 	private getFileOptions(
-		document: TextDocument,
-		options: FormattingOptions
+		document: vscode.TextDocument,
+		options: vscode.FormattingOptions
 	): FileConfiguration {
 		return {
 			formatOptions: this.getFormatOptions(document, options),
@@ -113,10 +137,10 @@ export default class FileConfigurationManager {
 	}
 
 	private getFormatOptions(
-		document: TextDocument,
-		options: FormattingOptions
+		document: vscode.TextDocument,
+		options: vscode.FormattingOptions
 	): Proto.FormatCodeSettings {
-		const config = workspace.getConfiguration(
+		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
 			document.uri);
 
@@ -144,39 +168,37 @@ export default class FileConfigurationManager {
 		};
 	}
 
-	private getPreferences(document: TextDocument): Proto.UserPreferences {
-		if (!this.client.apiVersion.gte(API.v290)) {
+	private getPreferences(document: vscode.TextDocument): Proto.UserPreferences {
+		if (this.client.apiVersion.lt(API.v290)) {
 			return {};
 		}
 
-		const preferences = workspace.getConfiguration(
+		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
 		return {
-			quotePreference: getQuoteStylePreference(preferences),
-			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
-			allowTextChangesInNewFiles: document.uri.scheme === 'file'
+			quotePreference: this.getQuoteStylePreference(config),
+			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config),
+			allowTextChangesInNewFiles: document.uri.scheme === 'file',
+			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true),
+			allowRenameOfImportPath: true,
 		};
 	}
-}
 
-function getQuoteStylePreference(config: WorkspaceConfiguration) {
-	switch (config.get<string>('quoteStyle')) {
-		case 'single': return 'single';
-		case 'double': return 'double';
-		default: return undefined;
+	private getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
+		switch (config.get<string>('quoteStyle')) {
+			case 'single': return 'single';
+			case 'double': return 'double';
+			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
+		}
 	}
 }
 
-function getImportModuleSpecifierPreference(config: WorkspaceConfiguration) {
+function getImportModuleSpecifierPreference(config: vscode.WorkspaceConfiguration) {
 	switch (config.get<string>('importModuleSpecifier')) {
 		case 'relative': return 'relative';
 		case 'non-relative': return 'non-relative';
 		default: return undefined;
 	}
-}
-
-function isTypeScriptDocument(document: TextDocument) {
-	return document.languageId === languageIds.typescript || document.languageId === languageIds.typescriptreact;
 }

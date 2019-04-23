@@ -6,9 +6,9 @@
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from './api';
-import { disposeAll } from './dispose';
+import { Disposable } from './dispose';
 
-class ConditionalRegistration {
+export class ConditionalRegistration {
 	private registration: vscode.Disposable | undefined = undefined;
 
 	public constructor(
@@ -36,15 +36,15 @@ class ConditionalRegistration {
 	}
 }
 
-export class VersionDependentRegistration {
+export class VersionDependentRegistration extends Disposable {
 	private readonly _registration: ConditionalRegistration;
-	private readonly _disposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly minVersion: API,
 		register: () => vscode.Disposable,
 	) {
+		super();
 		this._registration = new ConditionalRegistration(register);
 
 		this.update(client.apiVersion);
@@ -55,7 +55,7 @@ export class VersionDependentRegistration {
 	}
 
 	public dispose() {
-		disposeAll(this._disposables);
+		super.dispose();
 		this._registration.dispose();
 	}
 
@@ -65,26 +65,22 @@ export class VersionDependentRegistration {
 }
 
 
-export class ConfigurationDependentRegistration {
+export class ConfigurationDependentRegistration extends Disposable {
 	private readonly _registration: ConditionalRegistration;
-	private readonly _disposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly language: string,
 		private readonly configValue: string,
 		register: () => vscode.Disposable,
 	) {
+		super();
 		this._registration = new ConditionalRegistration(register);
-
 		this.update();
-
-		vscode.workspace.onDidChangeConfiguration(() => {
-			this.update();
-		}, null, this._disposables);
+		vscode.workspace.onDidChangeConfiguration(this.update, this, this._disposables);
 	}
 
 	public dispose() {
-		disposeAll(this._disposables);
+		super.dispose();
 		this._registration.dispose();
 	}
 

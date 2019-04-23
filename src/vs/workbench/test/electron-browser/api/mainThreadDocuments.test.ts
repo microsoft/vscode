@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import { BoundModelReferenceCollection } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
+import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { timeout } from 'vs/base/common/async';
 
@@ -18,7 +16,7 @@ suite('BoundModelReferenceCollection', () => {
 		col.dispose();
 	});
 
-	test('max age', () => {
+	test('max age', async () => {
 
 		let didDispose = false;
 
@@ -29,9 +27,8 @@ suite('BoundModelReferenceCollection', () => {
 			}
 		});
 
-		return timeout(30).then(() => {
-			assert.equal(didDispose, true);
-		});
+		await timeout(30);
+		assert.equal(didDispose, true);
 	});
 
 	test('max size', () => {

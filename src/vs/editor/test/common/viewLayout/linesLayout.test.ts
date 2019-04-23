@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 
@@ -565,13 +563,13 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.equal(whitespace, null);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(60);
-		assert.equal(whitespace.id, a);
+		assert.equal(whitespace!.id, a);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(61);
-		assert.equal(whitespace.id, a);
+		assert.equal(whitespace!.id, a);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(159);
-		assert.equal(whitespace.id, a);
+		assert.equal(whitespace!.id, a);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(160);
 		assert.equal(whitespace, null);
@@ -583,13 +581,13 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.equal(whitespace, null);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(170);
-		assert.equal(whitespace.id, b);
+		assert.equal(whitespace!.id, b);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(171);
-		assert.equal(whitespace.id, b);
+		assert.equal(whitespace!.id, b);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(219);
-		assert.equal(whitespace.id, b);
+		assert.equal(whitespace!.id, b);
 
 		whitespace = linesLayout.getWhitespaceAtVerticalOffset(220);
 		assert.equal(whitespace, null);

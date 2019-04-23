@@ -4,22 +4,24 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/lua.tmbundle/commit/42da2c6ff5d86c068f72520f856190f413911a80",
+	"version": "https://github.com/textmate/lua.tmbundle/commit/8ae5641365b28f697121ba1133890e8d81f5b00e",
 	"name": "Lua",
 	"scopeName": "source.lua",
-	"comment": "Lua Syntax: version 0.8",
 	"patterns": [
 		{
-			"begin": "\\b((local\\b)\\s+)?(function)\\s*(\\s+[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)*(:[a-zA-Z_][a-zA-Z0-9_]*)?\\s*)?(\\()",
+			"begin": "\\b(?:(local)\\s+)?(function)\\s*(?:\\s+([a-zA-Z_][a-zA-Z0-9_]*(?:([\\.:])[a-zA-Z_][a-zA-Z0-9_]*)?)\\s*)?(\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.local.lua"
 				},
-				"3": {
+				"2": {
 					"name": "keyword.control.lua"
 				},
-				"4": {
+				"3": {
 					"name": "entity.name.function.lua"
+				},
+				"4": {
+					"name": "punctuation.separator.parameter.lua"
 				},
 				"5": {
 					"name": "punctuation.definition.parameters.begin.lua"
@@ -36,6 +38,10 @@
 				{
 					"match": "[a-zA-Z_][a-zA-Z0-9_]*",
 					"name": "variable.parameter.function.lua"
+				},
+				{
+					"match": ",",
+					"name": "punctuation.separator.arguments.lua"
 				}
 			]
 		},
