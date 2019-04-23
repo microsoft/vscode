@@ -8,7 +8,7 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, IFileEditorInput, IEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestStorageService, NullFileSystemProvider } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -27,6 +27,8 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
+import { IFileService } from 'vs/platform/files/common/files';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export class TestEditorControl extends BaseEditor {
 
@@ -62,6 +64,14 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	dispose(): void {
 		super.dispose();
 		this.gotDisposed = true;
+	}
+}
+
+class FileServiceProvider extends Disposable {
+	constructor(scheme: string, @IFileService fileService: IFileService) {
+		super();
+
+		this._register(fileService.registerProvider(scheme, new NullFileSystemProvider()));
 	}
 }
 
@@ -249,9 +259,23 @@ suite('Editor service', () => {
 		assert(input instanceof UntitledEditorInput);
 
 		// Untyped Input (untitled with file path)
-		input = service.createInput({ filePath: '/some/path.txt', options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		input = service.createInput({ resource: URI.file('/some/path.txt'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledEditorInput);
 		assert.ok((input as UntitledEditorInput).hasAssociatedFilePath);
+
+		// Untyped Input (untitled with untitled resource)
+		input = service.createInput({ resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		assert(input instanceof UntitledEditorInput);
+		assert.ok(!(input as UntitledEditorInput).hasAssociatedFilePath);
+
+		// Untyped Input (untitled with custom resource)
+		const provider = instantiationService.createInstance(FileServiceProvider, 'untitled-custom');
+
+		input = service.createInput({ resource: URI.parse('untitled-custom://some/path'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		assert(input instanceof UntitledEditorInput);
+		assert.ok((input as UntitledEditorInput).hasAssociatedFilePath);
+
+		provider.dispose();
 	});
 
 	test('delegate', function (done) {
