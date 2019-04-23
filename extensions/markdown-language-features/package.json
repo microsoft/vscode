@@ -10,7 +10,6 @@
 		"vscode": "^1.20.0"
 	},
 	"main": "./out/extension",
-	"extensionKind": "ui",
 	"categories": [
 		"Programming Languages"
 	],
