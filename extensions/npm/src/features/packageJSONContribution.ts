@@ -173,7 +173,6 @@ export class PackageJSONContribution implements IJSONContribution {
 				url: queryUrl,
 				agent: USER_AGENT
 			}).then((success) => {
-				console.log(success.responseText);
 				if (success.status === 200) {
 					try {
 						const obj = JSON.parse(success.responseText);
@@ -287,7 +286,6 @@ export class PackageJSONContribution implements IJSONContribution {
 	private getInfo(pack: string): Thenable<string[]> {
 		return new Promise((resolve) => {
 			return this.npmView(pack).then(info => {
-				console.log(info);
 				const result: string[] = [];
 				result.push(info.description || '');
 				result.push(info['dist-tags.latest'] ? localize('json.npm.version.hover', 'Latest version: {0}', info['dist-tags.latest']) : '');
