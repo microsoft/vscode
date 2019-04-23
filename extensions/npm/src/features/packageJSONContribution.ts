@@ -173,6 +173,7 @@ export class PackageJSONContribution implements IJSONContribution {
 				url: queryUrl,
 				agent: USER_AGENT
 			}).then((success) => {
+				console.log(success.responseText);
 				if (success.status === 200) {
 					try {
 						const obj = JSON.parse(success.responseText);
@@ -230,14 +231,9 @@ export class PackageJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
-				const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(currentKey).replace(/%40/g, '@');
-				return this.xhr({
-					url: queryUrl,
-					agent: USER_AGENT
-				}).then((success) => {
+				return this.npmView(currentKey).then(info => {
 					try {
-						const obj = JSON.parse(success.responseText);
-						const latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
+						const latest = info && info['dist-tags.latest'];
 						if (latest) {
 							let name = JSON.stringify(latest);
 							let proposal = new CompletionItem(name);
@@ -289,11 +285,26 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string[]> {
-		return new Promise((resolve, reject) => {
+		return new Promise((resolve) => {
+			return this.npmView(pack).then(info => {
+				console.log(info);
+				const result: string[] = [];
+				result.push(info.description || '');
+				result.push(info['dist-tags.latest'] ? localize('json.npm.version.hover', 'Latest version: {0}', info['dist-tags.latest']) : '');
+				result.push(info.homepage || '');
+				return resolve(result);
+			}).catch(() => {
+				return resolve([]);
+			});
+		});
+	}
+
+	private npmView(pack: string): Promise<any> {
+		return new Promise((resolve) => {
 			const command = 'npm view ' + pack + ' description dist-tags.latest homepage';
-			cp.exec(command, (error: object, stdout: string, stderr: string) => {
+			cp.exec(command, (error, stdout) => {
 				if (error) {
-					return resolve([]);
+					return resolve();
 				}
 				const lines = stdout.split('\n');
 				if (lines.length) {
@@ -309,13 +320,8 @@ export class PackageJSONContribution implements IJSONContribution {
 							info[nameval[0]] = val;
 						}
 					});
-					const result: string[] = [];
-					result.push(info.description || '');
-					result.push(info['dist-tags.latest'] ? localize('json.npm.version.hover', 'Latest version: {0}', info['dist-tags.latest']) : '');
-					result.push(info.homepage || '');
-					return resolve(result);
+					return resolve(info);
 				}
-				return resolve([]);
 			});
 		});
 	}
