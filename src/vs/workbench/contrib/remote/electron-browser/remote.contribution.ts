@@ -301,8 +301,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 							'workspace'
 						],
 						enumDescriptions: [
-							nls.localize('ui', "UI extension kind. Such extensions are enabled only when available locally in a remote window."),
-							nls.localize('workspace', "Workspace extension kind. Such extensions are enabled only when available on remote server in a remote window.")
+							nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
+							nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
 						],
 						default: 'ui'
 					},
