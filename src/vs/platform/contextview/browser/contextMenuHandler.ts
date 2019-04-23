@@ -123,7 +123,7 @@ export class ContextMenuHandler {
 					this.block = null;
 				}
 
-				if (this.focusToReturn) {
+				if (this.focusToReturn && this.focusToReturn.localName !== 'webview') {  // Temporarily resolve "command palette, color theme, file icon theme, user segment" and webview focus conflicts.
 					this.focusToReturn.focus();
 				}
 			}
@@ -144,7 +144,7 @@ export class ContextMenuHandler {
 		this.contextViewService.hideContextView(false);
 
 		// Restore focus here
-		if (this.focusToReturn) {
+		if (this.focusToReturn && this.focusToReturn.localName !== 'webview') {  // Temporarily resolve "command palette, color theme, file icon theme, user segment" and webview focus conflicts.
 			this.focusToReturn.focus();
 		}
 	}
