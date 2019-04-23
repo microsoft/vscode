@@ -10,8 +10,7 @@ import { onDidChangeFullscreen, isFullscreen, getZoomFactor } from 'vs/base/brow
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IUntitledResourceInput } from 'vs/workbench/common/editor';
+import { IUntitledResourceInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
@@ -24,7 +23,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWindowService, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -34,7 +33,6 @@ import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
-import { coalesce } from 'vs/base/common/arrays';
 import { IFileService } from 'vs/platform/files/common/files';
 
 enum Settings {
@@ -401,7 +399,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (hasInitialFilesToOpen) {
 
 			// Files to diff is exclusive
-			return this.toInputs(configuration.filesToDiff, fileService).then(filesToDiff => {
+			return pathsToEditors(configuration.filesToDiff, fileService).then(filesToDiff => {
 				if (filesToDiff && filesToDiff.length === 2) {
 					return [{
 						leftResource: filesToDiff[0].resource,
@@ -412,7 +410,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 
 				// Otherwise: Open/Create files
-				return this.toInputs(configuration.filesToOpenOrCreate, fileService);
+				return pathsToEditors(configuration.filesToOpenOrCreate, fileService);
 			});
 		}
 
@@ -441,39 +439,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			(configuration.filesToOpenOrCreate && configuration.filesToOpenOrCreate.length > 0) ||
 			(configuration.filesToDiff && configuration.filesToDiff.length > 0)
 		);
-	}
-
-	private async toInputs(paths: IPath[] | undefined, fileService: IFileService): Promise<(IResourceInput | IUntitledResourceInput)[]> {
-		if (!paths || !paths.length) {
-			return [];
-		}
-
-		const editors = await Promise.all(paths.map(async p => {
-			const resource = p.fileUri;
-			if (!resource || !fileService.canHandleResource(resource)) {
-				return;
-			}
-
-			const exists = await fileService.exists(resource);
-
-			let input: IResourceInput | IUntitledResourceInput;
-			if (!exists) {
-				input = { filePath: resource.fsPath, options: { pinned: true } };
-			} else {
-				input = { resource, options: { pinned: true }, forceFile: true };
-			}
-
-			if (exists && typeof p.lineNumber === 'number') {
-				input.options!.selection = {
-					startLineNumber: p.lineNumber,
-					startColumn: p.columnNumber || 1
-				};
-			}
-
-			return input;
-		}));
-
-		return coalesce(editors);
 	}
 
 	private updatePanelPosition() {

@@ -1055,7 +1055,7 @@ export class WindowsManager implements IWindowsMainService {
 			anyPath = parsedPath.path;
 		}
 
-		// open remote if either specified in the cli even if it is a local file. TODO: Future idea: resolve in remote host context.
+		// open remote if either specified in the cli even if it is a local file. TODO@aeschli: Future idea: resolve in remote host context.
 		const remoteAuthority = options.remoteAuthority;
 
 		const candidate = normalize(anyPath);

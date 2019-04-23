@@ -11,10 +11,10 @@ import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { toResource, IUntitledResourceInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, IUntitledResourceInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IPathData, IRunKeybindingInWindowRequest } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -473,11 +473,11 @@ export class ElectronWindow extends Disposable {
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
 		if (!diffMode && request.filesToOpenOrCreate) {
-			inputs.push(...(await this.toInputs(request.filesToOpenOrCreate)));
+			inputs.push(...(await pathsToEditors(request.filesToOpenOrCreate, this.fileService)));
 		}
 
 		if (diffMode && request.filesToDiff) {
-			inputs.push(...(await this.toInputs(request.filesToDiff)));
+			inputs.push(...(await pathsToEditors(request.filesToDiff, this.fileService)));
 		}
 
 		if (inputs.length) {
@@ -515,35 +515,6 @@ export class ElectronWindow extends Disposable {
 			// Otherwise open all
 			return this.editorService.openEditors(resources);
 		});
-	}
-
-	private async toInputs(paths: IPathData[]): Promise<IResourceEditor[]> {
-		const editors = await Promise.all(paths.map(async p => {
-			const resource = URI.revive(p.fileUri);
-			if (!resource || !this.fileService.canHandleResource(resource)) {
-				return;
-			}
-
-			const exists = await this.fileService.exists(resource);
-
-			let input: IResourceInput | IUntitledResourceInput;
-			if (!exists) {
-				input = { filePath: resource!.fsPath, options: { pinned: true } };
-			} else {
-				input = { resource, options: { pinned: true } };
-			}
-
-			if (exists && typeof p.lineNumber === 'number' && typeof p.columnNumber === 'number') {
-				input.options!.selection = {
-					startLineNumber: p.lineNumber,
-					startColumn: p.columnNumber
-				};
-			}
-
-			return input;
-		}));
-
-		return coalesce(editors);
 	}
 
 	dispose(): void {
