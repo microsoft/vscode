@@ -1093,7 +1093,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		const exists = await fileService.exists(resource);
+		const exists = (typeof path.exists === 'boolean') ? path.exists : await fileService.exists(resource);
 
 		const options: ITextEditorOptions = { pinned: true };
 		if (exists && typeof path.lineNumber === 'number') {

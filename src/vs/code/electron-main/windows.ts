@@ -1061,41 +1061,51 @@ export class WindowsManager implements IWindowsMainService {
 		const candidate = normalize(anyPath);
 		try {
 			const candidateStat = fs.statSync(candidate);
-			if (candidateStat) {
-				if (candidateStat.isFile()) {
+			if (candidateStat.isFile()) {
 
-					// Workspace (unless disabled via flag)
-					if (!forceOpenWorkspaceAsFile) {
-						const workspace = this.workspacesMainService.resolveLocalWorkspaceSync(URI.file(candidate));
-						if (workspace) {
-							return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority };
-						}
+				// Workspace (unless disabled via flag)
+				if (!forceOpenWorkspaceAsFile) {
+					const workspace = this.workspacesMainService.resolveLocalWorkspaceSync(URI.file(candidate));
+					if (workspace) {
+						return {
+							workspace: { id: workspace.id, configPath: workspace.configPath },
+							remoteAuthority: workspace.remoteAuthority,
+							exists: true
+						};
 					}
-
-					// File
-					return {
-						fileUri: URI.file(candidate),
-						lineNumber,
-						columnNumber,
-						remoteAuthority
-					};
 				}
 
-				// Folder (we check for isDirectory() because e.g. paths like /dev/null
-				// are neither file nor folder but some external tools might pass them
-				// over to us)
-				else if (candidateStat.isDirectory()) {
-					return {
-						folderUri: URI.file(candidate),
-						remoteAuthority
-					};
-				}
+				// File
+				return {
+					fileUri: URI.file(candidate),
+					lineNumber,
+					columnNumber,
+					remoteAuthority,
+					exists: true
+				};
+			}
+
+			// Folder (we check for isDirectory() because e.g. paths like /dev/null
+			// are neither file nor folder but some external tools might pass them
+			// over to us)
+			else if (candidateStat.isDirectory()) {
+				return {
+					folderUri: URI.file(candidate),
+					remoteAuthority,
+					exists: true
+				};
 			}
 		} catch (error) {
 			const fileUri = URI.file(candidate);
 			this.historyMainService.removeFromRecentlyOpened([fileUri]); // since file does not seem to exist anymore, remove from recent
+
+			// assume this is a file that does not yet exist
 			if (options && options.ignoreFileNotFound) {
-				return { fileUri, remoteAuthority }; // assume this is a file that does not yet exist
+				return {
+					fileUri,
+					remoteAuthority,
+					exists: false
+				};
 			}
 		}
 
