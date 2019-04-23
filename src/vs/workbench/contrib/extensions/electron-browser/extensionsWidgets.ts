@@ -174,7 +174,7 @@ export class TooltipWidget extends ExtensionWidget {
 		if (this.reloadAction.enabled) {
 			return this.reloadAction.tooltip;
 		}
-		if (this.extensionLabelAction.enabled) {
+		if (this.extensionLabelAction.label) {
 			return this.extensionLabelAction.label;
 		}
 		return this.recommendationWidget.tooltip;

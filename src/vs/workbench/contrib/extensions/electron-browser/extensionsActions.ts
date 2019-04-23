@@ -2565,12 +2565,10 @@ export class DisabledLabelAction extends ExtensionAction {
 	update(): void {
 		this.class = `${DisabledLabelAction.Class} hide`;
 		this.label = '';
-		this.enabled = false;
 		if (this.extension && this.extension.local && isLanguagePackExtension(this.extension.local.manifest)) {
 			return;
 		}
-		if (this.warningAction.enabled) {
-			this.enabled = true;
+		if (this.warningAction.tooltip) {
 			this.class = DisabledLabelAction.Class;
 			this.label = this.warningAction.tooltip;
 			return;
@@ -2579,7 +2577,6 @@ export class DisabledLabelAction extends ExtensionAction {
 			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
 			const isExtensionRunning = this._runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier));
 			if (!isExtensionRunning && !isEnabled) {
-				this.enabled = true;
 				this.class = DisabledLabelAction.Class;
 				this.label = localize('disabled by user', "This extension is disabled by the user.");
 				return;
@@ -2625,7 +2622,6 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = false;
 		this.class = `${SystemDisabledWarningAction.Class} hide`;
 		this.tooltip = '';
 		if (this.extension && this.extension.local && isLanguagePackExtension(this.extension.local.manifest)) {
@@ -2638,13 +2634,11 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 			const localExtensionServer = localExtension ? localExtension.server : null;
 			if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)) {
 				if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
-					this.enabled = true;
 					this.class = `${SystemDisabledWarningAction.Class}`;
 					this.tooltip = localize('disabled locally', "Extension is enabled on '{0}' and disabled locally.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));
 					return;
 				}
 				if (localExtensionServer !== this.extensionManagementServerService.remoteExtensionManagementServer) {
-					this.enabled = true;
 					this.class = `${SystemDisabledWarningAction.Class}`;
 					this.tooltip = localize('Install in remote server', "Install the extension on '{0}' to enable.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));
 					return;
@@ -2652,13 +2646,11 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 			}
 			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && isUIExtension(this.extension.local.manifest, this.configurationService)) {
 				if (runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
-					this.enabled = true;
 					this.class = `${SystemDisabledWarningAction.Class}`;
 					this.tooltip = localize('disabled remotely', "Extension is enabled locally and disabled on '{0}'.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));
 					return;
 				}
 				if (localExtensionServer !== this.extensionManagementServerService.localExtensionManagementServer) {
-					this.enabled = true;
 					this.class = `${SystemDisabledWarningAction.Class}`;
 					this.tooltip = localize('Install in local server', "Install the extension locally to enable.");
 					return;
