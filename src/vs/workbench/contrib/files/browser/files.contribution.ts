@@ -306,6 +306,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.hotExit': {
 			'type': 'string',
+			'scope': ConfigurationScope.APPLICATION,
 			'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
 			'default': HotExitConfiguration.ON_EXIT,
 			'markdownEnumDescriptions': [
