@@ -121,24 +121,20 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 	 * Get the executable file path of shell from registry.
 	 * @param Registry The data of imported from `vscode-windows-registry`
 	 * @param shellName The shell name to get the executable file path
-	 * @returns [] or [ 'path' ]
+	 * @returns `[]` or `[ 'path' ]`
 	 */
 	private async _getShellPathFromRegistry(shellName: string): Promise<string[]> {
 		const Registry = await import('vscode-windows-registry');
-		const shellNotFound = 'ShellNotFound';
-		let shellPath;
 
 		try {
-			shellPath = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${shellName}.exe`, '');
-		} catch (e) {
-			shellPath = shellNotFound;
+			const shellPath = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${shellName}.exe`, '');
+			if (shellPath === undefined) {
+				return [];
+			}
+			return [shellPath];
+		} catch (error) {
+			return [];
 		}
-
-		if (shellPath === undefined) {
-			shellPath = shellNotFound;
-		}
-
-		return [shellPath];
 	}
 
 	private async _detectWindowsShells(): Promise<IQuickPickItem[]> {
