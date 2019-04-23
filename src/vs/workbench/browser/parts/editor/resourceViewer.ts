@@ -64,7 +64,7 @@ export interface ResourceViewerContext extends IDisposable {
 
 interface ResourceViewerDelegate {
 	openInternalClb(uri: URI): void;
-	openExternalClb(uri: URI): void;
+	openExternalClb?(uri: URI): void;
 	metadataClb(meta: string): void;
 }
 
@@ -166,12 +166,13 @@ class LargeImageView {
 		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", size);
 		container.appendChild(label);
 
-		if (descriptor.resource.scheme === Schemas.file) {
+		const openExternal = delegate.openExternalClb;
+		if (descriptor.resource.scheme === Schemas.file && openExternal) {
 			const link = DOM.append(label, DOM.$('a.embedded-link'));
 			link.setAttribute('role', 'button');
 			link.textContent = nls.localize('resourceOpenExternalButton', "Open image using external program?");
 
-			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => delegate.openExternalClb(descriptor.resource)));
+			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openExternal(descriptor.resource)));
 		}
 
 		return combinedDisposable(disposables);
