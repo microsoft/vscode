@@ -870,12 +870,19 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				return false;
 			}
 
-			// take over encoding and model value from source model
+			// take over encoding, mode and model value from source model
 			targetModel.updatePreferredEncoding(sourceModel.getEncoding());
 			if (targetModel.textEditorModel) {
 				const snapshot = sourceModel.createSnapshot();
 				if (snapshot) {
 					this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(snapshot));
+				}
+
+				if (sourceModel.textEditorModel) {
+					const language = sourceModel.textEditorModel.getLanguageIdentifier();
+					if (language.id > 1) {
+						targetModel.textEditorModel.setMode(language); // only use if more specific than plain/text
+					}
 				}
 			}
 
