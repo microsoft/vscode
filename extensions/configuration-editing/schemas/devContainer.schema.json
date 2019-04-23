@@ -54,11 +54,11 @@
 			"properties": {
 				"dockerFile": {
 					"type": "string",
-					"description": "The location of the Dockerfile that defines the contents. The path is relative to the `.devcontainer` folder."
+					"description": "The location of the Dockerfile that defines the contents of the container. The path is relative to the folder containing the `devcontainer.json` file."
 				},
 				"context": {
 					"type": "string",
-					"description": "The location of the context folder for building the Docker image. The path is relative to the `.devcontainer` folder."
+					"description": "The location of the context folder for building the Docker image. The path is relative to the folder containing the `devcontainer.json` file."
 				}
 			},
 			"required": ["dockerFile"]
