@@ -359,6 +359,85 @@ export class RemoteInstallAction extends ExtensionAction {
 	}
 }
 
+export class LocalInstallAction extends ExtensionAction {
+
+	private static INSTALL_LABEL = localize('install locally', "Install Locally");
+	private static INSTALLING_LABEL = localize('installing', "Installing");
+
+	private static readonly Class = 'extension-action prominent install';
+	private static readonly InstallingClass = 'extension-action install installing';
+
+	updateWhenCounterExtensionChanges: boolean = true;
+	private disposables: IDisposable[] = [];
+	private installing: boolean = false;
+
+	constructor(
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super(`extensions.localinstall`, LocalInstallAction.INSTALL_LABEL, LocalInstallAction.Class, false);
+		this.labelService.onDidChangeFormatters(() => this.updateLabel(), this, this.disposables);
+		this.updateLabel();
+		this.update();
+	}
+
+	private updateLabel(): void {
+		if (this.installing) {
+			this.label = LocalInstallAction.INSTALLING_LABEL;
+			this.tooltip = this.label;
+			return;
+		}
+		this.label = `${LocalInstallAction.INSTALL_LABEL}`;
+		this.tooltip = this.label;
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = LocalInstallAction.Class;
+		if (this.installing) {
+			this.enabled = true;
+			this.class = LocalInstallAction.InstallingClass;
+			this.updateLabel();
+			return;
+		}
+		if (this.environmentService.configuration.remoteAuthority
+			// Installed User Extension
+			&& this.extension && this.extension.local && this.extension.type === ExtensionType.User && this.extension.state === ExtensionState.Installed
+			// Remote UI Extension
+			&& this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && isUIExtension(this.extension.local.manifest, this.configurationService)
+			// Extension does not exist in local
+			&& !this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.localExtensionManagementServer)
+			&& this.extensionsWorkbenchService.canInstall(this.extension)
+		) {
+			this.enabled = true;
+			this.updateLabel();
+			return;
+		}
+	}
+
+	async run(): Promise<void> {
+		if (!this.installing) {
+			this.installing = true;
+			this.update();
+			this.extensionsWorkbenchService.open(this.extension);
+			alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
+			if (this.extension.gallery) {
+				await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(this.extension.gallery);
+				this.installing = false;
+				this.update();
+			}
+		}
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
+	}
+}
+
 export class UninstallAction extends ExtensionAction {
 
 	private static readonly UninstallLabel = localize('uninstallAction', "Uninstall");
@@ -1245,18 +1324,31 @@ export class ReloadAction extends ExtensionAction {
 					this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
 					return;
 				}
-				if (this.workbenchEnvironmentService.configuration.remoteAuthority
+				if (this.workbenchEnvironmentService.configuration.remoteAuthority) {
+					const uiExtension = isUIExtension(this.extension.local.manifest, this.configurationService);
 					// Local Workspace Extension
-					&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)
-				) {
-					const remoteExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)[0];
-					// Extension exist in remote and enabled
-					if (remoteExtension && remoteExtension.local && this.extensionEnablementService.isEnabled(remoteExtension.local)) {
-						this.enabled = true;
-						this.label = localize('reloadRequired', "Reload Required");
-						this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
-						alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
-						return;
+					if (!uiExtension && this.extension.server === this.extensionManagementServerService.localExtensionManagementServer) {
+						const remoteExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)[0];
+						// Extension exist in remote and enabled
+						if (remoteExtension && remoteExtension.local && this.extensionEnablementService.isEnabled(remoteExtension.local)) {
+							this.enabled = true;
+							this.label = localize('reloadRequired', "Reload Required");
+							this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+							alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+							return;
+						}
+					}
+					// Remote UI Extension
+					if (uiExtension && this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
+						const localExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.localExtensionManagementServer)[0];
+						// Extension exist in local and enabled
+						if (localExtension && localExtension.local && this.extensionEnablementService.isEnabled(localExtension.local)) {
+							this.enabled = true;
+							this.label = localize('reloadRequired', "Reload Required");
+							this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+							alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+							return;
+						}
 					}
 				}
 			}
