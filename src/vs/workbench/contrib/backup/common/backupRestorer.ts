@@ -11,6 +11,8 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IUntitledResourceInput } from 'vs/workbench/common/editor';
+import { toLocalResource } from 'vs/base/common/resources';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -19,7 +21,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		this.restoreBackups();
 	}
@@ -73,8 +76,11 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledResourceInput {
 		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
 
+		// this is a (weak) strategy to find out if the untitled input had
+		// an associated file path or not by just looking at the path. and
+		// if so, we must ensure to restore the local resource it had.
 		if (resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
-			return { filePath: resource.fsPath, options };
+			return { resource: toLocalResource(resource, this.environmentService.configuration.remoteAuthority), options, forceUntitled: true };
 		}
 
 		return { resource, options };

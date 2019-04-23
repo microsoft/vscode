@@ -953,8 +953,7 @@ export class SimpleWindowConfiguration implements IWindowConfiguration {
 	perfWindowLoadTime?: number;
 	perfEntries: ExportData;
 
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
+	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
 	termProgram?: string;
