@@ -126,11 +126,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		const Registry = await import('vscode-windows-registry');
 
 		try {
-			const shellPath = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${shellName}.exe`, '');
-			if (shellPath === undefined) {
-				return [];
-			}
-			return [shellPath];
+			return [Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${shellName}.exe`, '')!];
 		} catch (error) {
 			return [];
 		}
