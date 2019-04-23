@@ -11,8 +11,11 @@ if grep -qi Microsoft /proc/version; then
 	# in a wsl shell
 	WIN_CODE_CMD=$(wslpath -w "$(dirname "$(realpath "$0")")/$APP_NAME.cmd")
 	if ! [ -z "$WIN_CODE_CMD" ]; then
+		# make sure the cwd is in the windows fs, otherwise there will be a warning from cmd
+		pushd "$(dirname "$0")" > /dev/null
 		WSL_EXT_ID="ms-vscode.remote-wsl"
 		WSL_EXT_WLOC=$(cmd.exe /c "$WIN_CODE_CMD" --locate-extension $WSL_EXT_ID)
+		popd > /dev/null
 		if ! [ -z "$WSL_EXT_WLOC" ]; then
 			# replace \r\n with \n in WSL_EXT_WLOC, get linux path for
 			WSL_CODE=$(wslpath -u "${WSL_EXT_WLOC%%[[:cntrl:]]}")/scripts/wslCode.sh
