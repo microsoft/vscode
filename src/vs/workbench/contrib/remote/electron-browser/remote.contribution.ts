@@ -287,7 +287,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnab
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		id: 'remote',
-		title: nls.localize('remote', "Remote"),
+		title: nls.localize('remote title', "Remote"),
 		type: 'object',
 		properties: {
 			'remote.extensionKind': {
