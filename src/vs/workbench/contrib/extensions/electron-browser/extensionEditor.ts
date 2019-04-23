@@ -296,7 +296,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
 		this.extensionDependencies = new Cache(() => createCancelablePromise(token => this.extensionsWorkbenchService.loadDependencies(extension, token)));
 
-		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, this.iconContainer);
+		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, this.iconContainer, true);
 		const onError = Event.once(domEvent(this.icon, 'error'));
 		onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
 		this.icon.src = extension.iconUrl;
