@@ -16,6 +16,24 @@
 
 declare module 'vscode' {
 
+	//#region Joh - ExecutionContext
+
+	export enum ExtensionExecutionContext {
+		Local = 1,
+		Remote = 2
+	}
+
+	export interface ExtensionContext {
+		/**
+		 * Describes the context in which this extension is executed, e.g.
+		 * a Node.js-context on the same machine or on a remote machine
+		 */
+		executionContext: ExtensionExecutionContext;
+	}
+
+	//#endregion
+
+
 	//#region Joh - call hierarchy
 
 	export enum CallHierarchyDirection {
