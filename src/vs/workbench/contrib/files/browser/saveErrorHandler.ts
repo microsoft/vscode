@@ -248,7 +248,7 @@ class ResolveSaveConflictAction extends Action {
 
 			return this.editorService.openEditor(
 				{
-					leftResource: URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }),
+					leftResource: resource.with({ scheme: CONFLICT_RESOLUTION_SCHEME }),
 					rightResource: resource,
 					label: editorLabel,
 					options: { pinned: true }
