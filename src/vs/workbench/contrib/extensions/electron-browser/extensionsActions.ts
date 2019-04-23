@@ -303,12 +303,14 @@ export class RemoteInstallAction extends ExtensionAction {
 	private updateLabel(): void {
 		if (this.installing) {
 			this.label = RemoteInstallAction.INSTALLING_LABEL;
+			this.tooltip = this.label;
 			return;
 		}
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		if (remoteAuthority) {
 			const host = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.environmentService.configuration.remoteAuthority) || localize('remote', "Remote");
 			this.label = `${RemoteInstallAction.INSTALL_LABEL} on ${host}`;
+			this.tooltip = this.label;
 			return;
 		}
 	}

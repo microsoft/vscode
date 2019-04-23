@@ -224,6 +224,14 @@
 	flex-wrap: wrap-reverse;
 }
 
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container .extension-action {
+	max-width: 150px;
+}
+
+.extensions-viewlet.narrow > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container .extension-action {
+	max-width: 100px;
+}
+
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label {
 	margin-top: 0.3em;
 	margin-left: 0.3em;

@@ -7,6 +7,9 @@
 	padding: 0 5px;
 	outline-offset: 2px;
 	line-height: initial;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .monaco-action-bar .action-item .action-label.clear-extensions {
