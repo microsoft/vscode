@@ -714,6 +714,71 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		};
 	}
 
+	private tokenizeViewPort(model: ITextModel): void {
+		this.editor.getVisibleRanges().forEach(visibleRange => {
+			model.tokenizeViewport(visibleRange.startLineNumber, visibleRange.endLineNumber);
+			for (let lineNumber = visibleRange.startLineNumber; lineNumber <= visibleRange.endLineNumber; ++lineNumber) {
+				const lineTokens = model.getLineTokens(lineNumber);
+				const lineContent = model.getLineContent(lineNumber);
+				for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
+					const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
+					const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
+					const tokenType = lineTokens.getStandardTokenType(tokenIndex);
+					const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
+
+					if (tokenType === StandardTokenType.Other) {
+						DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
+						const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
+
+						if (wordMatch && this.wordToLineNumbersMap) {
+							const word = wordMatch[0];
+							if (!this.wordToLineNumbersMap.has(word)) {
+								this.wordToLineNumbersMap.set(word, []);
+							}
+							this.wordToLineNumbersMap.get(word)!.push(new Position(lineNumber, tokenStartOffset));
+						}
+					}
+				}
+			}
+		});
+	}
+
+	private tokenizeCompleteDocument(model: ITextModel): void {
+		// For every word in every line, map its ranges for fast lookup
+		for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
+			const lineContent = model.getLineContent(lineNumber);
+
+			// If line is too long then skip the line
+			if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
+				continue;
+			}
+
+			model.forceTokenization(lineNumber);
+			const lineTokens = model.getLineTokens(lineNumber);
+			for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
+				const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
+				const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
+				const tokenType = lineTokens.getStandardTokenType(tokenIndex);
+				const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
+
+				// Token is a word and not a comment
+				if (tokenType === StandardTokenType.Other) {
+					DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
+					const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
+
+					if (wordMatch && this.wordToLineNumbersMap) {
+						const word = wordMatch[0];
+						if (!this.wordToLineNumbersMap.has(word)) {
+							this.wordToLineNumbersMap.set(word, []);
+						}
+
+						this.wordToLineNumbersMap.get(word)!.push(new Position(lineNumber, tokenStartOffset));
+					}
+				}
+			}
+		}
+	}
+
 	private getWordToPositionsMap(): Map<string, Position[]> {
 		if (!this.wordToLineNumbersMap) {
 			this.wordToLineNumbersMap = new Map<string, Position[]>();
@@ -722,39 +787,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				return this.wordToLineNumbersMap;
 			}
 
-			// For every word in every line, map its ranges for fast lookup
-			for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
-				const lineContent = model.getLineContent(lineNumber);
+			this.tokenizeViewPort(model);
 
-				// If line is too long then skip the line
-				if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
-					continue;
-				}
-
-				model.forceTokenization(lineNumber);
-				const lineTokens = model.getLineTokens(lineNumber);
-				for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
-					const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
-					const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
-					const tokenType = lineTokens.getStandardTokenType(tokenIndex);
-					const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
-
-					// Token is a word and not a comment
-					if (tokenType === StandardTokenType.Other) {
-						DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
-						const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
-
-						if (wordMatch) {
-							const word = wordMatch[0];
-							if (!this.wordToLineNumbersMap.has(word)) {
-								this.wordToLineNumbersMap.set(word, []);
-							}
-
-							this.wordToLineNumbersMap.get(word)!.push(new Position(lineNumber, tokenStartOffset));
-						}
+			this.editor.onDidScrollChange(() => {
+				this.editor.getVisibleRanges().forEach(visibleRange => {
+					if (model.isCheapToTokenize(visibleRange.endLineNumber)) {
+						this.tokenizeCompleteDocument(model);
 					}
-				}
-			}
+					else {
+						this.tokenizeViewPort(model);
+					}
+				});
+			});
 		}
 
 		return this.wordToLineNumbersMap;
