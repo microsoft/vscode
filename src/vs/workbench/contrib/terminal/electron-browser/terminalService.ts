@@ -121,9 +121,10 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 	 * Get the executable file path of shell from registry.
 	 * @param Registry The data of imported from `vscode-windows-registry`
 	 * @param shellName The shell name to get the executable file path
-	 * @returns The executable file path of shell or `'ShellNotFound'`
+	 * @returns [] or [ 'path' ]
 	 */
-	private _getShellPathFromRegistry(Registry: typeof import('vscode-windows-registry'), shellName: string): string {
+	private async _getShellPathFromRegistry(shellName: string): Promise<string[]> {
+		const Registry = await import('vscode-windows-registry');
 		const shellNotFound = 'ShellNotFound';
 		let shellPath;
 
@@ -137,7 +138,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			shellPath = shellNotFound;
 		}
 
-		return shellPath;
+		return [shellPath];
 	}
 
 	private async _detectWindowsShells(): Promise<IQuickPickItem[]> {
@@ -154,12 +155,10 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			useWSLexe = true;
 		}
 
-		const Registry = await import('vscode-windows-registry');
-
 		const expectedLocations = {
 			'Command Prompt': [`${system32Path}\\cmd.exe`],
 			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
-			'PowerShell Core': [this._getShellPathFromRegistry(Registry, 'pwsh')],
+			'PowerShell Core': await this._getShellPathFromRegistry('pwsh'),
 			'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 			'Git Bash': [
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
