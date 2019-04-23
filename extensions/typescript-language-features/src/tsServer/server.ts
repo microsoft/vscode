@@ -209,7 +209,7 @@ export class TypeScriptServerSpawner {
 			args.push('--noGetErrOnBackgroundUpdate');
 		}
 
-		if (apiVersion.gte(API.v344)) {
+		if (apiVersion.gte(API.v345)) {
 			args.push('--validateDefaultNpmLocation');
 		}
 
