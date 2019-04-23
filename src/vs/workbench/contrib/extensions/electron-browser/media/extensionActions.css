@@ -69,7 +69,6 @@
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.disable-warning,
 .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.disable-warning {
-	cursor: default;
 	margin: 0.1em;
 }
 
