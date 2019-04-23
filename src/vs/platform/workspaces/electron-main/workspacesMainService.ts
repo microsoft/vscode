@@ -61,7 +61,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 
 	private isWorkspacePath(uri: URI): boolean {
-		return this.isInsideWorkspacesHome(uri) || hasWorkspaceFileExtension(uri.path);
+		return this.isInsideWorkspacesHome(uri) || hasWorkspaceFileExtension(uri);
 	}
 
 	private doResolveWorkspace(path: URI, contents: string): IResolvedWorkspace | null {

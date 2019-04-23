@@ -146,7 +146,7 @@ export function normalizePath(resource: URI): URI {
 export function originalFSPath(uri: URI): string {
 	let value: string;
 	const uriPath = uri.path;
-	if (uri.authority && uriPath.length > 1 && uri.scheme === 'file') {
+	if (uri.authority && uriPath.length > 1 && uri.scheme === Schemas.file) {
 		// unc path: file://shares/c$/far/boo
 		value = `//${uri.authority}${uriPath}`;
 	} else if (
