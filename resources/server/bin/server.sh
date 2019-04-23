@@ -1,14 +1,12 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See License.txt in the project root for license information.
+#
 
-if  [[ $1 =~ ^\-\-inspect ]]; then
-	INSPECT=$1
-	shift
-fi
+case "$1" in
+	--inspect*) INSPECT="$1"; shift;;
+esac
 
 ROOT="$(dirname "$(realpath "$0")")"
 
 "$ROOT/node" ${INSPECT:-} "$ROOT/out/remoteExtensionHostAgent.js" "$@"
-
