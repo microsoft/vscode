@@ -201,14 +201,10 @@ export interface IEditorInputFactory {
 export interface IUntitledResourceInput extends IBaseResourceInput {
 
 	/**
-	 * Optional resource. If the resource is not provided a new untitled file is created.
+	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
+	 * Otherwise the untitled editor will have an associated path and use that when saving.
 	 */
 	resource?: URI;
-
-	/**
-	 * Optional file path. Using the file resource will associate the file to the untitled resource.
-	 */
-	filePath?: string;
 
 	/**
 	 * Optional language of the untitled resource.
@@ -1105,7 +1101,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 
 		let input: IResourceInput | IUntitledResourceInput;
 		if (!exists) {
-			input = { filePath: resource.fsPath, options };
+			input = { resource, options, forceUntitled: true };
 		} else {
 			input = { resource, options, forceFile: true };
 		}
