@@ -55,7 +55,7 @@
             type: 'label',
             name: '*english-please',
             action: 'close',
-            comment: "This issue is closed because its non-English descrpition makes it hard for us to understand. Please open a new issue with English description. You might find [Bing Translate](https://www.bing.com/translator) useful."
+            comment: "This issue is being closed because its description is not in English, that makes it hard for us to work on it. Please open a new issue with an English description. You might find [Bing Translator](https://www.bing.com/translator) useful."
         },
         {
             type: 'comment',
