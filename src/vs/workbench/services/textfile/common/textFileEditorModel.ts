@@ -31,6 +31,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent, extname, basename } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -824,10 +825,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private getTelemetryData(reason: number | undefined): object {
 		const ext = extname(this.resource);
 		const fileName = basename(this.resource);
+		const path = this.resource.scheme === Schemas.file ? this.resource.fsPath : this.resource.path;
 		const telemetryData = {
-			mimeType: guessMimeTypes(this.resource.fsPath).join(', '),
+			mimeType: guessMimeTypes(path).join(', '),
 			ext,
-			path: hash(this.resource.fsPath),
+			path: hash(path),
 			reason
 		};
 

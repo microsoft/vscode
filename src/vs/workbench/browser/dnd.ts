@@ -260,7 +260,7 @@ export class ResourcesDropHandler {
 		return Promise.all(fileOnDiskResources.map(fileOnDiskResource => {
 
 			// Check for Workspace
-			if (hasWorkspaceFileExtension(fileOnDiskResource.fsPath)) {
+			if (hasWorkspaceFileExtension(fileOnDiskResource)) {
 				urisToOpen.push({ workspaceUri: fileOnDiskResource });
 
 				return undefined;

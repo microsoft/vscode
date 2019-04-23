@@ -47,7 +47,8 @@ import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorServic
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
-import { extname } from 'vs/base/common/path';
+import { extname } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -520,8 +521,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const descriptor = editor.getTelemetryDescriptor();
 
 		const resource = editor.getResource();
-		if (resource && resource.fsPath) {
-			descriptor['resource'] = { mimeType: guessMimeTypes(resource.fsPath).join(', '), scheme: resource.scheme, ext: extname(resource.fsPath), path: hash(resource.fsPath) };
+		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
+		if (resource && path) {
+			descriptor['resource'] = { mimeType: guessMimeTypes(path).join(', '), scheme: resource.scheme, ext: extname(resource), path: hash(path) };
 
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {
