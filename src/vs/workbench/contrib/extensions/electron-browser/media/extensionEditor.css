@@ -145,6 +145,9 @@
 	padding: 1px 6px;
 }
 
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action {
+	max-width: 300px;
+}
 
 .extension-editor > .header > .details > .subtext-container {
 	display: block;
