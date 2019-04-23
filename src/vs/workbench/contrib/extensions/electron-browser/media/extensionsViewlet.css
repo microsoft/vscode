@@ -113,6 +113,10 @@
 	text-align: center;
 }
 
+.extensions-viewlet > .extensions .monaco-list-row > .extension > .icon-container .extension-remote-badge > .octicon {
+	vertical-align: middle
+}
+
 .extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header > .extension-remote-badge-container {
 	margin-left: 6px;
 }
@@ -126,8 +130,7 @@
 }
 
 .extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header .extension-remote-badge > .octicon {
-	font-size: 13px;
-	vertical-align: middle;
+	font-size: 12px;
 }
 
 .extensions-viewlet.narrow > .extensions .extension > .icon-container,
