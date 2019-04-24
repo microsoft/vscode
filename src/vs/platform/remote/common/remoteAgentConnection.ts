@@ -370,6 +370,14 @@ abstract class PersistentConnection extends Disposable {
 					break;
 				}
 				if (RemoteAuthorityResolverError.isTemporarilyNotAvailable(err)) {
+					console.warn(`A temporarily not available error occured while trying to reconnect:`);
+					console.warn(err);
+					// try again!
+					continue;
+				}
+				if (err.code === 'ETIMEDOUT' && err.syscall === 'connect') {
+					console.warn(`A connect timeout error occured while trying to reconnect:`);
+					console.warn(err);
 					// try again!
 					continue;
 				}
