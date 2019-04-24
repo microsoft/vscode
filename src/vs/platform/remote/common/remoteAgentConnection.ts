@@ -373,7 +373,7 @@ abstract class PersistentConnection extends Disposable {
 					// try again!
 					continue;
 				}
-				if (err.code === 'ETIMEDOUT' && err.syscall === 'connect') {
+				if ((err.code === 'ETIMEDOUT' || err.code === 'ENETUNREACH') && err.syscall === 'connect') {
 					console.warn(`A connect timeout error occured while trying to reconnect:`);
 					console.warn(err);
 					// try again!
