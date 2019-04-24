@@ -310,15 +310,15 @@ export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusB
 }, nls.localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.hostBackground', {
-	dark: STATUS_BAR_PROMINENT_ITEM_BACKGROUND,
-	light: STATUS_BAR_PROMINENT_ITEM_BACKGROUND,
-	hc: STATUS_BAR_PROMINENT_ITEM_BACKGROUND
+	dark: '#C40057',
+	light: '#C40057',
+	hc: '#C40057'
 }, nls.localize('statusBarItemHostBackground', "Background color for the host indicator on the status bar."));
 
 export const STATUS_BAR_HOST_NAME_FOREGROUND = registerColor('statusBarItem.hostForeground', {
-	dark: STATUS_BAR_PROMINENT_ITEM_FOREGROUND,
-	light: STATUS_BAR_PROMINENT_ITEM_FOREGROUND,
-	hc: STATUS_BAR_PROMINENT_ITEM_FOREGROUND
+	dark: '#FFFFFF',
+	light: '#FFFFFF',
+	hc: '#FFFFFF'
 }, nls.localize('statusBarItemHostForeground', "Foreground color for the host indicator on the status bar."));
 
 
