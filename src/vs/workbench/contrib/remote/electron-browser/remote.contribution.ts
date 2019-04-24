@@ -223,7 +223,6 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 			let currentTimer: ReconnectionTimer | null = null;
 
 			connection.onDidStateChange((e) => {
-				console.log(`received event... `, e);
 				if (currentTimer) {
 					currentTimer.dispose();
 					currentTimer = null;

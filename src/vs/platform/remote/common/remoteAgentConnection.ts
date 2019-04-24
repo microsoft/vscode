@@ -341,12 +341,10 @@ abstract class PersistentConnection extends Disposable {
 			attempt++;
 			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : 300);
 			try {
-				console.log(`Waiting for ${waitTime} s before trying to reconnect.`);
 				this._onDidStateChange.fire(new ReconnectionWaitEvent(waitTime));
 				await sleep(waitTime);
 
 				// connection was lost, let's try to re-establish it
-				console.log(`Trying to reconnect using my secret token ${this.reconnectionToken}`);
 				this._onDidStateChange.fire(new ReconnectionRunningEvent());
 				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol);
 				await this._reconnect(simpleOptions);
