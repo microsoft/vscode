@@ -355,7 +355,7 @@ suite('Disk File Service', () => {
 
 	test('resolve - folder symbolic link', async () => {
 		if (isWindows) {
-			return; // not happy
+			return; // not reliable on windows
 		}
 
 		const link = URI.file(join(testDir, 'deep-link'));
@@ -369,7 +369,7 @@ suite('Disk File Service', () => {
 
 	test('resolve - file symbolic link', async () => {
 		if (isWindows) {
-			return; // not happy
+			return; // not reliable on windows
 		}
 
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
@@ -382,7 +382,7 @@ suite('Disk File Service', () => {
 
 	test('resolve - invalid symbolic link does not break', async () => {
 		if (isWindows) {
-			return; // not happy
+			return; // not reliable on windows
 		}
 
 		const link = URI.file(join(testDir, 'foo'));
@@ -1370,7 +1370,7 @@ suite('Disk File Service', () => {
 
 	test('watch - file symbolic link', async done => {
 		if (isWindows) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
@@ -1383,7 +1383,7 @@ suite('Disk File Service', () => {
 
 	test('watch - file - multiple writes', done => {
 		if (isWindows) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
@@ -1446,6 +1446,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - change file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch3'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1458,6 +1462,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - add file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch4'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1469,6 +1477,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - delete file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch5'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1481,6 +1493,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - add folder', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch6'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1492,8 +1508,8 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - delete folder', done => {
-		if (isWindows) {
-			return done(); // not happy
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const watchDir = URI.file(join(testDir, 'watch7'));
@@ -1508,8 +1524,8 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - symbolic link - change file', async done => {
-		if (isWindows) {
-			return done(); // not happy
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const watchDir = URI.file(join(testDir, 'deep-link'));
@@ -1525,7 +1541,7 @@ suite('Disk File Service', () => {
 
 	test('watch - folder (non recursive) - rename file', done => {
 		if (!isLinux) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const watchDir = URI.file(join(testDir, 'watch8'));
@@ -1543,7 +1559,7 @@ suite('Disk File Service', () => {
 
 	test('watch - folder (non recursive) - rename file (different case)', done => {
 		if (!isLinux) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const watchDir = URI.file(join(testDir, 'watch8'));
