@@ -687,6 +687,10 @@ export class PersistentProtocol {
 		this._recvKeepAliveCheck();
 	}
 
+	public acceptDisconnect(): void {
+		this._onClose.fire();
+	}
+
 	private _receiveMessage(msg: ProtocolMessage): void {
 		if (msg.ack > this._outgoingAckId) {
 			this._outgoingAckId = msg.ack;
