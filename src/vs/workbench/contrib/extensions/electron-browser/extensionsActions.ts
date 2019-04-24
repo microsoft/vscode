@@ -2671,7 +2671,7 @@ export class DisabledLabelAction extends ExtensionAction {
 		if (this.extension && this.extension.local && this._runningExtensions) {
 			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
 			const isExtensionRunning = this._runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier));
-			if (!isExtensionRunning && !isEnabled) {
+			if (!isExtensionRunning && !isEnabled && this.extensionEnablementService.canChangeEnablement(this.extension.local)) {
 				this.class = DisabledLabelAction.Class;
 				this.label = localize('disabled by user', "This extension is disabled by the user.");
 				return;
@@ -2737,7 +2737,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
 				this.tooltip = this.extension.server === this.extensionManagementServerService.localExtensionManagementServer
 					? localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it also there.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer))
-					: localize('Install language pack also locally', "Install the extension locally to enable it also there.");
+					: localize('Install language pack also locally', "Install the language pack extension locally to enable it also there.");
 			}
 			return;
 		}
