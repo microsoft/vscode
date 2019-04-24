@@ -36,6 +36,8 @@ import { IProgressService2, IProgress, IProgressStep, ProgressLocation } from 'v
 import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import Severity from 'vs/base/common/severity';
+import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions/windowActions';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
 
@@ -214,7 +216,9 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IProgressService2 progressService: IProgressService2
+		@IProgressService2 progressService: IProgressService2,
+		@IDialogService dialogService: IDialogService,
+		@ICommandService commandService: ICommandService
 	) {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
@@ -242,7 +246,16 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						currentProgress!.report({ message: nls.localize('reconnectionRunning', "Attempting to reconnect...") });
 						break;
 					case PersistenConnectionEventType.ReconnectionPermanentFailure:
-						currentProgress!.report({ message: nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the workbench.") });
+						currentProgressPromiseResolve!();
+						currentProgressPromiseResolve = null;
+						currentProgress = null;
+
+						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(choice => {
+							// Reload the window
+							if (choice === 0) {
+								commandService.executeCommand(ReloadWindowAction.ID);
+							}
+						});
 						break;
 					case PersistenConnectionEventType.ConnectionGain:
 						currentProgressPromiseResolve!();
