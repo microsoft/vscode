@@ -45,9 +45,6 @@ import { ExtensionType, ExtensionIdentifier, IExtensionDescription, isLanguagePa
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import product from 'vs/platform/product/node/product';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
@@ -822,18 +819,11 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 }
 
-function getViewTitleForServer(viewTitle: string, server: IExtensionManagementServer, labelService: ILabelService, workbenchEnvironmentService: IWorkbenchEnvironmentService): string {
-	const serverLabel = workbenchEnvironmentService.configuration.remoteAuthority === server.authority ? labelService.getHostLabel(REMOTE_HOST_SCHEME, server.authority) || server.label : server.label;
-	if (viewTitle && workbenchEnvironmentService.configuration.remoteAuthority) {
-		return `${serverLabel} - ${viewTitle}`;
-	}
-	return viewTitle ? viewTitle : serverLabel;
-}
-
 export class ServerExtensionsView extends ExtensionsListView {
 
 	constructor(
 		server: IExtensionManagementServer,
+		onDidChangeTitle: Event<string>,
 		options: ExtensionsListViewOptions,
 		@INotificationService notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -850,15 +840,11 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IExperimentService experimentService: IExperimentService,
 		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@ILabelService labelService: ILabelService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService
 	) {
-		const viewTitle = options.title;
-		options.title = getViewTitleForServer(viewTitle, server, labelService, workbenchEnvironmentService);
 		options.server = server;
 		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, modeService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService);
-		this.disposables.push(labelService.onDidChangeFormatters(() => this.updateTitle(getViewTitleForServer(viewTitle, server, labelService, workbenchEnvironmentService))));
+		this.disposables.push(onDidChangeTitle(title => this.updateTitle(title)));
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
