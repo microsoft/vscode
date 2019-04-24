@@ -118,6 +118,12 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 					this._onExtHostConnectionLost();
 				});
 
+				protocol.onSocketClose(() => {
+					if (this._isExtensionDevHost) {
+						this._onExtHostConnectionLost();
+					}
+				});
+
 				// 1) wait for the incoming `ready` event and send the initialization data.
 				// 2) wait for the incoming `initialized` event.
 				return new Promise<IMessagePassingProtocol>((resolve, reject) => {
