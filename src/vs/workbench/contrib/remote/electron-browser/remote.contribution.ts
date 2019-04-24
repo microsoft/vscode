@@ -37,7 +37,7 @@ import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAg
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
-const WINDOW_ACTIONS_COMMAND_ID = '_remote.showWindowActions';
+const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
 
 export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenchContribution {
 
