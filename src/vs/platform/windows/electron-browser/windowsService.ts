@@ -74,9 +74,11 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('closeWorkspace', windowId);
 	}
 
-	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult> {
+	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return this.channel.call('enterWorkspace', [windowId, path]).then((result: IEnterWorkspaceResult) => {
-			result.workspace = reviveWorkspaceIdentifier(result.workspace);
+			if (result) {
+				result.workspace = reviveWorkspaceIdentifier(result.workspace);
+			}
 			return result;
 		});
 	}
