@@ -730,6 +730,10 @@
 		"vincaslt.highlight-matching-tag",
 		"vscodevim.vim",
 		"WakaTime.vscode-wakatime",
-		"wayou.vscode-todo-highlight"
+		"wayou.vscode-todo-highlight",
+		"shalldie.background",
+		"hnw.vscode-auto-open-markdown-preview",
+		"emilast.logfilehighlighter",
+		"johnpapa.vscode-peacock"
 	]
 }
