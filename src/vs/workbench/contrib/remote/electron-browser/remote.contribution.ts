@@ -9,7 +9,7 @@ import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from
 
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { RemoteExtensionLogFileName, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 import { MenuId, IMenuService, MenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
@@ -220,9 +220,14 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 		if (connection) {
 			let currentProgressPromiseResolve: (() => void) | null = null;
 			let currentProgress: IProgress<IProgressStep> | null = null;
+			let currentTimer: ReconnectionTimer | null = null;
 
 			connection.onDidStateChange((e) => {
 				console.log(`received event... `, e);
+				if (currentTimer) {
+					currentTimer.dispose();
+					currentTimer = null;
+				}
 				switch (e.type) {
 					case PersistenConnectionEventType.ConnectionLost:
 						if (!currentProgressPromiseResolve) {
@@ -232,10 +237,10 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						currentProgress!.report({ message: nls.localize('connectionLost', "Connection Lost") });
 						break;
 					case PersistenConnectionEventType.ReconnectionWait:
-						currentProgress!.report({ message: nls.localize('reconnectionWait', "Attempting to reconnect in {0} seconds...", e.durationSeconds) });
+						currentTimer = new ReconnectionTimer(currentProgress!, Date.now() + 1000 * e.durationSeconds);
 						break;
 					case PersistenConnectionEventType.ReconnectionRunning:
-						currentProgress!.report({ message: nls.localize('reconnectionRunning', "Reconnecting...") });
+						currentProgress!.report({ message: nls.localize('reconnectionRunning', "Attempting to reconnect...") });
 						break;
 					case PersistenConnectionEventType.ReconnectionPermanentFailure:
 						currentProgress!.report({ message: nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the workbench.") });
@@ -247,6 +252,36 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						break;
 				}
 			});
+		}
+	}
+}
+
+class ReconnectionTimer implements IDisposable {
+	private readonly _currentProgress: IProgress<IProgressStep>;
+	private readonly _completionTime: number;
+	private readonly _token: NodeJS.Timeout;
+
+	constructor(currentProgress: IProgress<IProgressStep>, completionTime: number) {
+		this._currentProgress = currentProgress;
+		this._completionTime = completionTime;
+		this._token = setInterval(() => this._render(), 1000);
+		this._render();
+	}
+
+	public dispose(): void {
+		clearInterval(this._token);
+	}
+
+	private _render() {
+		const remainingTimeMs = this._completionTime - Date.now();
+		if (remainingTimeMs < 0) {
+			return;
+		}
+		const remainingTime = Math.ceil(remainingTimeMs / 1000);
+		if (remainingTime === 1) {
+			this._currentProgress.report({ message: nls.localize('reconnectionWaitOne', "Attempting to reconnect in {0} second...", remainingTime) });
+		} else {
+			this._currentProgress.report({ message: nls.localize('reconnectionWaitMany', "Attempting to reconnect in {0} seconds...", remainingTime) });
 		}
 	}
 }
