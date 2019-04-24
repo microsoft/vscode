@@ -187,7 +187,7 @@ export class RemoteExtensionManagementServer extends Disposable {
 			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._environmentService, logService, accessor.get(ITelemetryService));
 			server.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
-			const remoteFileSystemChannel = new RemoteAgentFileSystemChannel(logService);
+			const remoteFileSystemChannel = new RemoteAgentFileSystemChannel(logService, this._environmentService);
 			server.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
 
 			const extensionManagementService = accessor.get(IExtensionManagementService);

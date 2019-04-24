@@ -14,16 +14,20 @@ import { createRemoteURITransformer } from 'vs/agent/remoteUriTransformer';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { posix } from 'vs/base/common/path';
 
 class SessionFileWatcher extends Disposable {
 
 	private readonly _uriTransformer: IURITransformer;
 	private readonly _watcherRequests: Map<number, IDisposable>;
 	private readonly _fileWatcher: DiskFileSystemProvider;
+	private readonly _environmentService: IEnvironmentService;
 
-	constructor(logService: ILogService, uriTransformer: IURITransformer, emitter: Emitter<IFileChange[]>) {
+	constructor(logService: ILogService, environmentService: IEnvironmentService, uriTransformer: IURITransformer, emitter: Emitter<IFileChange[]>) {
 		super();
 		this._uriTransformer = uriTransformer;
+		this._environmentService = environmentService;
 		this._watcherRequests = new Map();
 
 		const localEmitter = this._register(new Emitter<IFileChange[]>());
@@ -42,6 +46,12 @@ class SessionFileWatcher extends Disposable {
 
 	watch(req: number, _resource: UriComponents, opts: IWatchOptions): IDisposable {
 		const resource = URI.revive(this._uriTransformer.transformIncoming(_resource));
+
+		if (this._environmentService.extensionsPath) {
+			// exclude watching the extensions folder, see Microsoft/vscode-remotee#1473
+			opts.excludes = [...(opts.excludes || []), posix.join(this._environmentService.extensionsPath, '**')];
+		}
+
 		this._watcherRequests.set(req, this._fileWatcher.watch(resource, opts));
 
 		return toDisposable(() => {
@@ -61,14 +71,16 @@ class SessionFileWatcher extends Disposable {
 export class RemoteAgentFileSystemChannel extends Disposable implements IServerChannel<RemoteAgentConnectionContext> {
 
 	private readonly _logService: ILogService;
+	private readonly _environmentService: IEnvironmentService;
 	private readonly _uriTransformerCache: Map<string, IURITransformer>;
 	private readonly _fileWatchers: Map<string, SessionFileWatcher>;
 	private readonly _fsProvider: DiskFileSystemProvider;
 	private readonly _watchRequests: Map<string, IDisposable> = new Map();
 
-	constructor(logService: ILogService) {
+	constructor(logService: ILogService, environmentService: IEnvironmentService) {
 		super();
 		this._logService = logService;
+		this._environmentService = environmentService;
 		this._uriTransformerCache = new Map();
 		this._fileWatchers = new Map();
 		this._fsProvider = this._register(new DiskFileSystemProvider(logService));
@@ -102,7 +114,7 @@ export class RemoteAgentFileSystemChannel extends Disposable implements IServerC
 			const session = arg[0];
 			const emitter = new Emitter<IFileChange[]>({
 				onFirstListenerAdd: () => {
-					this._fileWatchers.set(session, new SessionFileWatcher(this._logService, uriTransformer, emitter));
+					this._fileWatchers.set(session, new SessionFileWatcher(this._logService, this._environmentService, uriTransformer, emitter));
 				},
 				onLastListenerRemove: () => {
 					dispose(this._fileWatchers.get(session));
