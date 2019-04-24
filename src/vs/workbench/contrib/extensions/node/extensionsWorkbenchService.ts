@@ -812,7 +812,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		return this.installWithProgress(async () => {
-			await this.extensionService.installFromGallery(gallery);
+			const extensionService = extension.server ? extension.server.extensionManagementService : this.extensionService;
+			await extensionService.installFromGallery(gallery);
 			this.checkAndEnableDisabledDependencies(gallery.identifier);
 			return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
 		}, gallery.displayName);
@@ -854,7 +855,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' with version '{1}' as it is not compatible with VS Code.", extension.gallery!.identifier.id, version)));
 				}
 				return this.installWithProgress(async () => {
-					await this.extensionService.installFromGallery(gallery);
+					const extensionService = extension.server ? extension.server.extensionManagementService : this.extensionService;
+					await extensionService.installFromGallery(gallery);
 					if (extension.latestVersion !== version) {
 						this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(gallery.identifier, version));
 					}

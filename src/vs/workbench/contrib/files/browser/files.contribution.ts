@@ -38,6 +38,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
+import { Schemas } from 'vs/base/common/network';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -59,7 +60,7 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 
 	constructor(@ILabelService labelService: ILabelService) {
 		labelService.registerFormatter({
-			scheme: 'file',
+			scheme: Schemas.file,
 			formatting: {
 				label: '${authority}${path}',
 				separator: sep,
@@ -305,6 +306,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.hotExit': {
 			'type': 'string',
+			'scope': ConfigurationScope.APPLICATION,
 			'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
 			'default': HotExitConfiguration.ON_EXIT,
 			'markdownEnumDescriptions': [

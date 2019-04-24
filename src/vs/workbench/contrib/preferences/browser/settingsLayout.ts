@@ -159,6 +159,11 @@ export const tocData: ITOCEntry = {
 					id: 'features/comments',
 					label: localize('comments', "Comments"),
 					settings: ['comments.*']
+				},
+				{
+					id: 'features/remote',
+					label: localize('remote', "Remote"),
+					settings: ['remote.*']
 				}
 			]
 		},

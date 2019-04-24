@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionsWidgets';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from '../common/extensions';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState } from '../common/extensions';
 import { append, $, addClass } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
@@ -148,34 +148,46 @@ export class TooltipWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly parent: HTMLElement,
-		private readonly extensionLabelAction: DisabledLabelAction,
+		private readonly disabledLabelAction: DisabledLabelAction,
 		private readonly recommendationWidget: RecommendationWidget,
-		private readonly reloadAction: ReloadAction
+		private readonly reloadAction: ReloadAction,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 		this._register(Event.any<any>(
-			this.extensionLabelAction.onDidChange,
+			this.disabledLabelAction.onDidChange,
 			this.reloadAction.onDidChange,
-			this.recommendationWidget.onDidChangeTooltip
+			this.recommendationWidget.onDidChangeTooltip,
+			this.labelService.onDidChangeFormatters
 		)(() => this.render()));
 	}
 
 	render(): void {
 		this.parent.title = '';
 		this.parent.removeAttribute('aria-label');
+		this.parent.title = this.getTooltip();
 		if (this.extension) {
-			const title = this.getTitle();
-			this.parent.title = title;
 			this.parent.setAttribute('aria-label', localize('extension-arialabel', "{0}. {1} Press enter for extension details.", this.extension.displayName));
 		}
 	}
 
-	private getTitle(): string {
+	private getTooltip(): string {
+		if (!this.extension) {
+			return '';
+		}
 		if (this.reloadAction.enabled) {
 			return this.reloadAction.tooltip;
 		}
-		if (this.extensionLabelAction.enabled) {
-			return this.extensionLabelAction.label;
+		if (this.disabledLabelAction.label) {
+			return this.disabledLabelAction.label;
+		}
+		if (this.extension.local && this.extension.state === ExtensionState.Installed) {
+			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
+				return localize('extension enabled on remote', "Extension is enabled on '{0}'", this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.workbenchEnvironmentService.configuration.remoteAuthority));
+			}
+			return localize('extension enabled locally', "Extension is enabled locally.");
 		}
 		return this.recommendationWidget.tooltip;
 	}
@@ -252,6 +264,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 
 	constructor(
 		parent: HTMLElement,
+		private readonly tooltip: boolean,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -276,7 +289,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 			return;
 		}
 		if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
-			this.remoteBadge = this.instantiationService.createInstance(RemoteBadge);
+			this.remoteBadge = this.instantiationService.createInstance(RemoteBadge, this.tooltip);
 			append(this.element, this.remoteBadge.element);
 		}
 	}
@@ -294,6 +307,7 @@ class RemoteBadge extends Disposable {
 	readonly element: HTMLElement;
 
 	constructor(
+		private readonly tooltip: boolean,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -320,12 +334,14 @@ class RemoteBadge extends Disposable {
 		this._register(this.themeService.onThemeChange(() => applyBadgeStyle()));
 		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => applyBadgeStyle()));
 
-		const updateTitle = () => {
-			if (this.element) {
-				this.element.title = localize('remote extension title', "Extension in {0}", this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.environmentService.configuration.remoteAuthority));
-			}
-		};
-		this._register(this.labelService.onDidChangeFormatters(() => updateTitle()));
-		updateTitle();
+		if (this.tooltip) {
+			const updateTitle = () => {
+				if (this.element) {
+					this.element.title = localize('remote extension title', "Extension in {0}", this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.environmentService.configuration.remoteAuthority));
+				}
+			};
+			this._register(this.labelService.onDidChangeFormatters(() => updateTitle()));
+			updateTitle();
+		}
 	}
 }

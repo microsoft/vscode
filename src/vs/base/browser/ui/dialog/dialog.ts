@@ -6,7 +6,7 @@
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode } from 'vs/base/browser/dom';
+import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode, isAncestor } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -39,6 +39,8 @@ export class Dialog extends Disposable {
 	private toolbarContainer: HTMLElement | undefined;
 	private buttonGroup: ButtonGroup | undefined;
 	private styles: IDialogStyles | undefined;
+	private focusToReturn: HTMLElement | undefined;
+	private iconRotatingInternal: any | undefined;
 
 	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
 		super();
@@ -72,6 +74,8 @@ export class Dialog extends Disposable {
 	}
 
 	async show(): Promise<number> {
+		this.focusToReturn = document.activeElement as HTMLElement;
+
 		return new Promise<number>((resolve) => {
 			if (!this.element || !this.buttonsContainer || !this.iconElement || !this.toolbarContainer) {
 				resolve(0);
@@ -135,6 +139,19 @@ export class Dialog extends Disposable {
 				}
 			}));
 
+			this._register(domEvent(this.element, 'focusout', false)((e: FocusEvent) => {
+				if (!!e.relatedTarget && !!this.element) {
+					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
+						this.focusToReturn = e.relatedTarget as HTMLElement;
+
+						if (e.target) {
+							(e.target as HTMLElement).focus();
+							EventHelper.stop(e, true);
+						}
+					}
+				}
+			}));
+
 			removeClasses(this.iconElement, 'icon-error', 'icon-warning', 'icon-info');
 
 			switch (this.options.type) {
@@ -146,6 +163,15 @@ export class Dialog extends Disposable {
 					break;
 				case 'pending':
 					addClass(this.iconElement, 'icon-pending');
+					let deg = 0;
+					this.iconRotatingInternal = setInterval(() => {
+						if (this.iconElement) {
+							this.iconElement.style.transform = `rotate(${deg}deg)`;
+							deg += 45; // 360 / 8
+						} else {
+							this.iconRotatingInternal = undefined;
+						}
+					}, 125 /** 1000 / 8 */);
 					break;
 				case 'none':
 				case 'info':
@@ -205,6 +231,15 @@ export class Dialog extends Disposable {
 		if (this.modal) {
 			removeNode(this.modal);
 			this.modal = undefined;
+		}
+
+		if (this.iconRotatingInternal) {
+			this.iconRotatingInternal = undefined;
+		}
+
+		if (this.focusToReturn && isAncestor(this.focusToReturn, document.body)) {
+			this.focusToReturn.focus();
+			this.focusToReturn = undefined;
 		}
 	}
 }

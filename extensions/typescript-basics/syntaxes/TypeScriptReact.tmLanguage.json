@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/d8c9720c4ebb9e0ec4b0d691525f33570a4387ea",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/a4c4dafb226a4c1d037a52434aa1154d9dabad8b",
 	"name": "TypeScriptReact",
 	"scopeName": "source.tsx",
 	"patterns": [
@@ -3900,8 +3900,12 @@
 					"include": "#type-function-return-type"
 				},
 				{
-					"name": "storage.modifier.tsx",
-					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(readonly)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(readonly)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))\\s*",
+					"captures": {
+						"1": {
+							"name": "storage.modifier.tsx"
+						}
+					}
 				},
 				{
 					"include": "#type-name"

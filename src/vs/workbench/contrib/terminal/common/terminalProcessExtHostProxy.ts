@@ -72,7 +72,7 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	}
 
 	public emitTitle(title: string): void {
-		// hasReceivedResponse = true;
+		hasReceivedResponse = true;
 		this._onProcessTitleChanged.fire(title);
 	}
 

@@ -19,6 +19,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions) => Promise<void>;
@@ -48,6 +49,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		@ITextFileService private readonly textFileService: ITextFileService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, telemetryService, themeService, storageService);
@@ -92,9 +94,11 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 					this.textFileService,
 					this.binaryContainer,
 					this.scrollbar,
-					resource => this.handleOpenInternalCallback(input, options),
-					resource => this.callbacks.openExternal(resource),
-					meta => this.handleMetadataChanged(meta)
+					{
+						openInternalClb: _ => this.handleOpenInternalCallback(input, options),
+						openExternalClb: this.environmentService.configuration.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
+						metadataClb: meta => this.handleMetadataChanged(meta)
+					}
 				);
 
 				return undefined;
