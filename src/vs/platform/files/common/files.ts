@@ -288,7 +288,12 @@ export function markAsFileSystemProviderError(error: Error, code: FileSystemProv
 	return error;
 }
 
-export function toFileSystemProviderErrorCode(error: Error): FileSystemProviderErrorCode {
+export function toFileSystemProviderErrorCode(error: Error | undefined | null): FileSystemProviderErrorCode {
+
+	// Guard against abuse
+	if (!error) {
+		return FileSystemProviderErrorCode.Unknown;
+	}
 
 	// FileSystemProviderError comes with the code
 	if (error instanceof FileSystemProviderError) {
