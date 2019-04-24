@@ -34,6 +34,7 @@ interface FileQuickPickItem extends IQuickPickItem {
 
 enum UpdateResult {
 	Updated,
+	Updating,
 	NotUpdated,
 	InvalidPath
 }
@@ -369,11 +370,11 @@ export class RemoteFileDialog {
 	}
 
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
-		this.filePickBox.busy = true;
-		if (value[value.length - 1] === '~') {
-			await this.updateItems(this.userHome);
+		if (this.filePickBox.busy) {
 			this.badPath = undefined;
-			this.filePickBox.busy = false;
+			return UpdateResult.Updating;
+		} else if (value[value.length - 1] === '~') {
+			await this.updateItems(this.userHome);
 			return UpdateResult.Updated;
 		} else if (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true))) {
 			let stat: IFileStat | undefined;
@@ -384,7 +385,6 @@ export class RemoteFileDialog {
 			}
 			if (stat && stat.isDirectory && (resources.basename(valueUri) !== '.') && this.endsWithSlash(value)) {
 				await this.updateItems(valueUri);
-				this.filePickBox.busy = false;
 				return UpdateResult.Updated;
 			} else if (this.endsWithSlash(value)) {
 				// The input box contains a path that doesn't exist on the system.
@@ -392,7 +392,6 @@ export class RemoteFileDialog {
 				// Save this bad path. It can take too long to to a stat on every user entered character, but once a user enters a bad path they are likely
 				// to keep typing more bad path. We can compare against this bad path and see if the user entered path starts with it.
 				this.badPath = value;
-				this.filePickBox.busy = false;
 				return UpdateResult.InvalidPath;
 			} else {
 				const inputUriDirname = resources.dirname(valueUri);
@@ -406,14 +405,12 @@ export class RemoteFileDialog {
 					if (statWithoutTrailing && statWithoutTrailing.isDirectory && (resources.basename(valueUri) !== '.')) {
 						await this.updateItems(inputUriDirname, resources.basename(valueUri));
 						this.badPath = undefined;
-						this.filePickBox.busy = false;
 						return UpdateResult.Updated;
 					}
 				}
 			}
 		}
 		this.badPath = undefined;
-		this.filePickBox.busy = false;
 		return UpdateResult.NotUpdated;
 	}
 
@@ -454,7 +451,17 @@ export class RemoteFileDialog {
 		}
 		const itemBasename = quickPickItem.label;
 		// Either force the autocomplete, or the old value should be one smaller than the new value and match the new value.
-		if (!force && (itemBasename.length >= startingBasename.length) && equalsIgnoreCase(itemBasename.substr(0, startingBasename.length), startingBasename)) {
+		if (itemBasename === '..') {
+			// Don't match on the up directory item ever.
+			this.userEnteredPathSegment = startingBasename;
+			this.autoCompletePathSegment = '';
+			this.activeItem = quickPickItem;
+			if (force) {
+				// clear any selected text
+				this.insertText(this.userEnteredPathSegment, '');
+			}
+			return false;
+		} else if (!force && (itemBasename.length >= startingBasename.length) && equalsIgnoreCase(itemBasename.substr(0, startingBasename.length), startingBasename)) {
 			this.userEnteredPathSegment = startingBasename;
 			this.activeItem = quickPickItem;
 			// Changing the active items will trigger the onDidActiveItemsChanged. Clear the autocomplete first, then set it after.
@@ -595,6 +602,7 @@ export class RemoteFileDialog {
 	}
 
 	private async updateItems(newFolder: URI, trailing?: string) {
+		this.filePickBox.busy = true;
 		this.userEnteredPathSegment = trailing ? trailing : '';
 		this.autoCompletePathSegment = '';
 		const newValue = trailing ? this.pathFromUri(resources.joinPath(newFolder, trailing)) : this.pathFromUri(newFolder, true);
@@ -605,10 +613,14 @@ export class RemoteFileDialog {
 				this.filePickBox.activeItems = [];
 			}
 			if (!equalsIgnoreCase(this.filePickBox.value, newValue)) {
-				this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
-				this.insertText(newValue, newValue);
+				// the user might have continued typing while we were updating. Only update the input box if it doesn't match the directory.
+				if (!equalsIgnoreCase(this.filePickBox.value.substring(0, newValue.length), newValue)) {
+					this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
+					this.insertText(newValue, newValue);
+				}
 			}
 			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
+			this.filePickBox.busy = false;
 		});
 	}
 
