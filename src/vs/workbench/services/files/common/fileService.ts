@@ -206,7 +206,7 @@ export class FileService extends Disposable implements IFileService {
 			isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 			mtime: stat.mtime,
 			size: stat.size,
-			etag: etag(stat.mtime, stat.size)
+			etag: etag({ mtime: stat.mtime, size: stat.size })
 		};
 
 		// check to recurse for directories
@@ -339,7 +339,7 @@ export class FileService extends Disposable implements IFileService {
 		// the file content for comparison which would be much slower to compute.
 		if (
 			options && typeof options.mtime === 'number' && typeof options.etag === 'string' &&
-			options.etag !== ETAG_DISABLED && options.mtime < stat.mtime && options.etag !== etag(options.mtime /* not using stat.mtime for a reason, see above */, stat.size)
+			options.etag !== ETAG_DISABLED && options.mtime < stat.mtime && options.etag !== etag({ mtime: options.mtime /* not using stat.mtime for a reason, see above */, size: stat.size })
 		) {
 			throw new FileOperationError(localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE, options);
 		}

@@ -1406,7 +1406,7 @@ suite('Disk File Service', () => {
 
 		let error: FileOperationError | undefined = undefined;
 		try {
-			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToError), { etag: etag(fakeMtime, fakeSize), mtime: fakeMtime });
+			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToError), { etag: etag({ mtime: fakeMtime, size: fakeSize }), mtime: fakeMtime });
 		} catch (err) {
 			error = err;
 		}
@@ -1434,7 +1434,7 @@ suite('Disk File Service', () => {
 
 		let error: FileOperationError | undefined = undefined;
 		try {
-			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToNoError), { etag: etag(fakeMtime, actualSize), mtime: fakeMtime });
+			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToNoError), { etag: etag({ mtime: fakeMtime, size: actualSize }), mtime: fakeMtime });
 		} catch (err) {
 			error = err;
 		}

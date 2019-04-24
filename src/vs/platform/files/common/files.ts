@@ -763,12 +763,12 @@ export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
  */
 export const ETAG_DISABLED = '';
 
-export function etag(mtime: number, size: number): string;
-export function etag(mtime: number | undefined, size: number | undefined): string | undefined;
-export function etag(mtime: number | undefined, size: number | undefined): string | undefined {
-	if (typeof size !== 'number' || typeof mtime !== 'number') {
+export function etag(stat: { mtime: number, size: number }): string;
+export function etag(stat: { mtime: number | undefined, size: number | undefined }): string | undefined;
+export function etag(stat: { mtime: number | undefined, size: number | undefined }): string | undefined {
+	if (typeof stat.size !== 'number' || typeof stat.mtime !== 'number') {
 		return undefined;
 	}
 
-	return mtime.toString(29) + size.toString(31);
+	return stat.mtime.toString(29) + stat.size.toString(31);
 }
