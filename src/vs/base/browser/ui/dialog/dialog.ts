@@ -40,7 +40,7 @@ export class Dialog extends Disposable {
 	private buttonGroup: ButtonGroup | undefined;
 	private styles: IDialogStyles | undefined;
 	private focusToReturn: HTMLElement | undefined;
-	private iconRotatingInternal: any | undefined;
+	private iconRotatingInternal: NodeJS.Timer | undefined;
 
 	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
 		super();
@@ -169,7 +169,7 @@ export class Dialog extends Disposable {
 							this.iconElement.style.transform = `rotate(${deg}deg)`;
 							deg += 45; // 360 / 8
 						} else {
-							this.iconRotatingInternal = undefined;
+							this.stopAnimation();
 						}
 					}, 125 /** 1000 / 8 */);
 					break;
@@ -197,6 +197,13 @@ export class Dialog extends Disposable {
 			// Focus first element
 			this.buttonGroup.buttons[focusedButton].focus();
 		});
+	}
+
+	private stopAnimation() {
+		if (this.iconRotatingInternal) {
+			clearInterval(this.iconRotatingInternal);
+			this.iconRotatingInternal = undefined;
+		}
 	}
 
 	private applyStyles() {
@@ -233,9 +240,7 @@ export class Dialog extends Disposable {
 			this.modal = undefined;
 		}
 
-		if (this.iconRotatingInternal) {
-			this.iconRotatingInternal = undefined;
-		}
+		this.stopAnimation();
 
 		if (this.focusToReturn && isAncestor(this.focusToReturn, document.body)) {
 			this.focusToReturn.focus();
