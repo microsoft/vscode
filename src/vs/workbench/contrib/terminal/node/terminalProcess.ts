@@ -70,12 +70,22 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		};
 
 		try {
-			this._ptyProcess = pty.spawn(shellLaunchConfig.executable!, shellLaunchConfig.args || [], options);
-			this._processStartupComplete = new Promise<void>(c => {
-				this.onProcessIdReady((pid) => {
-					c();
+			const filePath = path.basename(shellLaunchConfig.executable!);
+			if (fs.existsSync(filePath)) {
+				this._ptyProcess = pty.spawn(shellLaunchConfig.executable!, shellLaunchConfig.args || [], options);
+				this._processStartupComplete = new Promise<void>(c => {
+					this.onProcessIdReady((pid) => {
+						c();
+					});
 				});
-			});
+			}
+			else {
+				// file path does not exist , handle it with negative exit code
+				this._exitCode = -1;
+				this._queueProcessExit();
+				this._processStartupComplete = Promise.resolve(undefined);
+				return;
+			}
 		} catch (error) {
 			// The only time this is expected to happen is when the file specified to launch with does not exist.
 			this._exitCode = 2;

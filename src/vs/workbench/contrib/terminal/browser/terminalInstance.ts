@@ -976,6 +976,10 @@ export class TerminalInstance implements ITerminalInstance {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
 
+		if (exitCode! < 0) {
+			exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPath', 'The terminal process terminated as it could not find the specified path : {0}', this._shellLaunchConfig.executable);
+		}
+
 		this._logService.debug(`Terminal process exit (id: ${this.id})${this._processManager ? ' state ' + this._processManager.processState : ''}`);
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
