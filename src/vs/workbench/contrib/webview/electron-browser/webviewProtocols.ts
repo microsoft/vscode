@@ -34,24 +34,26 @@ export function registerFileProtocol(
 	getRoots: () => ReadonlyArray<URI>
 ) {
 	contents.session.protocol.registerBufferProtocol(protocol, (request, callback: any) => {
-		if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
-			const requestUri = URI.parse(request.url);
-			const redirectedUri = URI.from({
-				scheme: REMOTE_HOST_SCHEME,
-				authority: extensionLocation.authority,
-				path: '/vscode-resource',
-				query: JSON.stringify({
-					requestResourcePath: requestUri.path
-				})
-			});
-			resolveContent(textFileService, redirectedUri, getMimeType(requestUri), callback);
-			return;
-		}
-
 		const requestPath = URI.parse(request.url).path;
 		const normalizedPath = URI.file(requestPath);
 		for (const root of getRoots()) {
-			if (startsWith(normalizedPath.fsPath, root.fsPath + sep)) {
+			if (!startsWith(normalizedPath.fsPath, root.fsPath + sep)) {
+				continue;
+			}
+
+			if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
+				const requestUri = URI.parse(request.url);
+				const redirectedUri = URI.from({
+					scheme: REMOTE_HOST_SCHEME,
+					authority: extensionLocation.authority,
+					path: '/vscode-resource',
+					query: JSON.stringify({
+						requestResourcePath: requestUri.path
+					})
+				});
+				resolveContent(textFileService, redirectedUri, getMimeType(requestUri), callback);
+				return;
+			} else {
 				resolveContent(textFileService, normalizedPath, getMimeType(normalizedPath), callback);
 				return;
 			}
