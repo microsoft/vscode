@@ -824,8 +824,20 @@ suite('Disk File Service', () => {
 		return testReadFile(URI.file(join(testDir, 'small.txt')));
 	});
 
+	test('readFile - small file - buffered / readonly', () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
+
+		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	});
+
 	test('readFile - small file - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	});
+
+	test('readFile - small file - unbuffered / readonly', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly);
 
 		return testReadFile(URI.file(join(testDir, 'small.txt')));
 	});
@@ -1200,6 +1212,26 @@ suite('Disk File Service', () => {
 		assert.equal(readFileSync(resource.fsPath), newContent);
 	});
 
+	test('writeFile - buffered - readonly throws', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
+
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+
+		let error: Error;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent));
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error!);
+	});
+
 	test('writeFile - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
@@ -1226,6 +1258,26 @@ suite('Disk File Service', () => {
 		assert.equal(fileStat.name, 'lorem.txt');
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile - unbuffered - readonly throws', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly);
+
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+
+		let error: Error;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent));
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error!);
 	});
 
 	test('writeFile (large file) - multiple parallel writes queue up', async () => {
