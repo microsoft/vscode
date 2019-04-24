@@ -534,6 +534,7 @@ export class RemoteFileDialog {
 		prompt.items = [{ label: no, value: false }, { label: nls.localize('remoteFileDialog.yes', 'Yes'), value: true }];
 		prompt.title = message;
 		prompt.placeholder = no;
+		prompt.ignoreFocusOut = true;
 		let isResolving = false;
 		return new Promise<boolean>(resolve => {
 			prompt.onDidAccept(() => {
