@@ -2737,7 +2737,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
 				this.tooltip = this.extension.server === this.extensionManagementServerService.localExtensionManagementServer
 					? localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it also there.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer))
-					: localize('Install language pack also locally', "Install the extension locally to enable it also there.");
+					: localize('Install language pack also locally', "Install the language pack extension locally to enable it also there.");
 			}
 			return;
 		}
