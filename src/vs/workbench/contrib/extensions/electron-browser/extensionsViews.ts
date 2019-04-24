@@ -338,11 +338,20 @@ export class ExtensionsListView extends ViewletPanel {
 					const isE1Running = running1 && this.extensionManagementServerService.getExtensionManagementServer(running1.extensionLocation) === e1.server;
 					const running2 = runningExtensionsById.get(ExtensionIdentifier.toKey(e2.identifier.id));
 					const isE2Running = running2 && this.extensionManagementServerService.getExtensionManagementServer(running2.extensionLocation) === e2.server;
-					if ((isE1Running && isE2Running) || (!isE1Running && !isE2Running)) {
+					if ((isE1Running && isE2Running)) {
 						return e1.displayName.localeCompare(e2.displayName);
 					}
 					const isE1LanguagePackExtension = e1.local && isLanguagePackExtension(e1.local.manifest);
 					const isE2LanguagePackExtension = e2.local && isLanguagePackExtension(e2.local.manifest);
+					if (!isE1Running && !isE2Running) {
+						if (isE1LanguagePackExtension) {
+							return -1;
+						}
+						if (isE2LanguagePackExtension) {
+							return 1;
+						}
+						return e1.displayName.localeCompare(e2.displayName);
+					}
 					if ((isE1Running && isE2LanguagePackExtension) || (isE2Running && isE1LanguagePackExtension)) {
 						return e1.displayName.localeCompare(e2.displayName);
 					}
