@@ -525,22 +525,24 @@ export class RemoteFileDialog {
 		return ((path.length > 1) && this.endsWithSlash(path)) ? path.substr(0, path.length - 1) : path;
 	}
 
-	private yesNoPrompt(message: string): Promise<boolean> {
+	private yesNoPrompt(uri: URI, message: string): Promise<boolean> {
 		interface YesNoItem extends IQuickPickItem {
 			value: boolean;
 		}
 		const prompt = this.quickInputService.createQuickPick<YesNoItem>();
-		const no = nls.localize('remoteFileDialog.no', 'No');
-		prompt.items = [{ label: no, value: false }, { label: nls.localize('remoteFileDialog.yes', 'Yes'), value: true }];
 		prompt.title = message;
-		prompt.placeholder = no;
 		prompt.ignoreFocusOut = true;
+		prompt.ok = true;
+		prompt.customButton = true;
+		prompt.customLabel = nls.localize('remoteFileDialog.cancel', 'Cancel');
+		prompt.value = this.pathFromUri(uri);
+
 		let isResolving = false;
 		return new Promise<boolean>(resolve => {
 			prompt.onDidAccept(() => {
 				isResolving = true;
 				prompt.hide();
-				resolve(prompt.selectedItems ? prompt.selectedItems[0].value : false);
+				resolve(true);
 			});
 			prompt.onDidHide(() => {
 				if (!isResolving) {
@@ -550,6 +552,12 @@ export class RemoteFileDialog {
 				this.hidden = false;
 				this.filePickBox.items = this.filePickBox.items;
 				prompt.dispose();
+			});
+			prompt.onDidChangeValue(() => {
+				prompt.hide();
+			});
+			prompt.onDidCustom(() => {
+				prompt.hide();
 			});
 			prompt.show();
 		});
@@ -574,7 +582,7 @@ export class RemoteFileDialog {
 				// Replacing a file.
 				// Show a yes/no prompt
 				const message = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri));
-				return this.yesNoPrompt(message);
+				return this.yesNoPrompt(uri, message);
 			} else if (!this.isValidBaseName(resources.basename(uri))) {
 				// Filename not allowed
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
