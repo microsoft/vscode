@@ -337,7 +337,10 @@ export class FileService extends Disposable implements IFileService {
 		// check for size is a weaker check because it can return a false negative if the file has changed
 		// but to the same length. This is a compromise we take to avoid having to produce checksums of
 		// the file content for comparison which would be much slower to compute.
-		if (options && typeof options.mtime === 'number' && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED && options.mtime < stat.mtime && options.etag !== etag(stat.size, options.mtime)) {
+		if (
+			options && typeof options.mtime === 'number' && typeof options.etag === 'string' &&
+			options.etag !== ETAG_DISABLED && options.mtime < stat.mtime && options.etag !== etag(options.mtime /* not using stat.mtime for a reason, see above */, stat.size)
+		) {
 			throw new FileOperationError(localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE, options);
 		}
 
@@ -492,8 +495,8 @@ export class FileService extends Disposable implements IFileService {
 			throw new FileOperationError(localize('fileIsDirectoryError', "Expected file {0} is actually a directory", this.resourceForError(resource)), FileOperationResult.FILE_IS_DIRECTORY, options);
 		}
 
-		// Return early if file not modified since
-		if (options && options.etag === stat.etag) {
+		// Return early if file not modified since (unless disabled)
+		if (options && options.etag !== ETAG_DISABLED && options.etag === stat.etag) {
 			throw new FileOperationError(localize('fileNotModifiedError', "File not modified since"), FileOperationResult.FILE_NOT_MODIFIED_SINCE, options);
 		}
 
