@@ -283,6 +283,34 @@
 			"recommendations": [
 				"vscjava.vscode-maven"
 			]
+		},
+		"Microsoft Edge": {
+			"friendlyName": "Microsoft Edge",
+			"windowsPath": "%USERPROFILE%\\AppData\\Local\\Microsoft\\Edge\\Application\\msedge.exe",
+			"recommendations": [
+				"msjsdiag.debugger-for-edge"
+			]
+		},
+		"Microsoft Edge Dev": {
+			"friendlyName": "Microsoft Edge Dev",
+			"windowsPath": "%USERPROFILE%\\AppData\\Local\\Microsoft\\Edge Dev\\Application\\msedge.exe",
+			"recommendations": [
+				"msjsdiag.debugger-for-edge"
+			]
+		},
+		"Microsoft Edge Beta": {
+			"friendlyName": "Microsoft Edge Beta",
+			"windowsPath": "%USERPROFILE%\\AppData\\Local\\Microsoft\\Edge Beta\\Application\\msedge.exe",
+			"recommendations": [
+				"msjsdiag.debugger-for-edge"
+			]
+		},
+		"Microsoft Edge Canary": {
+			"friendlyName": "Microsoft Edge Canary",
+			"windowsPath": "%USERPROFILE%\\AppData\\Local\\Microsoft\\Edge SxS\\Application\\msedge.exe",
+			"recommendations": [
+				"msjsdiag.debugger-for-edge"
+			]
 		}
 	},
 	"extensionKeywords": {
@@ -670,7 +698,37 @@
 		"ms-vsliveshare.vsliveshare",
 		"GitHub.vscode-pull-request-github",
 		"GitHub.vscode-pull-request-github-insiders",
-		"Microsoft.vscode-nmake-tools"
+		"Microsoft.vscode-nmake-tools",
+		"ms-vscode.remote-containers",
+		"ms-vscode.remote-ssh",
+		"ms-vscode.remote-ssh-edit",
+		"ms-vscode.remote-ssh-explorer",
+		"ms-vscode.remote-wsl",
+		"ms-vscode.vscode-remote-extensionpack"
 	],
-	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json"
+	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
+	"uiExtensions": [
+		"atlassian.atlascode",
+		"CoenraadS.bracket-pair-colorizer",
+		"delphi-keybindings",
+		"dsznajder.es7-react-js-snippets",
+		"Equinusocio.vsc-material-theme",
+		"formulahendry.auto-close-tag",
+		"hiro-sun.vscode-emacs",
+		"johnpapa.Angular2",
+		"laurenttreguier.vscode-simple-icons",
+		"ms-vscode.atom-keybindings",
+		"ms-vscode.notepadplusplus-keybindings",
+		"ms-vscode.sublime-keybindings",
+		"msjsdiag.debugger-for-chrome",
+		"PKief.material-icon-theme",
+		"robertohuertasm.vscode-icons",
+		"Shan.code-settings-sync",
+		"sudox.vscode-jetbrains-keybindings",
+		"techer.open-in-browser",
+		"vincaslt.highlight-matching-tag",
+		"vscodevim.vim",
+		"WakaTime.vscode-wakatime",
+		"wayou.vscode-todo-highlight"
+	]
 }
