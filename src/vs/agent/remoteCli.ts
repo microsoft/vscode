@@ -23,6 +23,10 @@ const isSupportedForCmd = (id: string) => {
 	switch (id) {
 		case 'user-data-dir':
 		case 'extensions-dir':
+		case 'list-extensions':
+		case 'install-extension':
+		case 'uninstall-extension':
+		case 'show-versions':
 		case 'export-default-configuration':
 		case 'install-source':
 		case 'driver':
