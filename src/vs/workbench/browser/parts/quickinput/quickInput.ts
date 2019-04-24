@@ -757,7 +757,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.showMessageDecoration(Severity.Error);
 		} else {
 			this.ui.message.textContent = null;
-			this.showMessageDecoration(Severity.Info);
+			this.showMessageDecoration(Severity.Ignore);
 		}
 		this.ui.customButton.label = this.customLabel;
 		this.ui.customButton.element.title = this.customHover;
@@ -888,7 +888,7 @@ class InputBox extends QuickInput implements IInputBox {
 		}
 		if (!this.validationMessage && this.ui.message.textContent !== this.noValidationMessage) {
 			this.ui.message.textContent = this.noValidationMessage;
-			this.showMessageDecoration(Severity.Info);
+			this.showMessageDecoration(Severity.Ignore);
 		}
 		if (this.validationMessage && this.ui.message.textContent !== this.validationMessage) {
 			this.ui.message.textContent = this.validationMessage;
