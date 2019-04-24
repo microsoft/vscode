@@ -422,10 +422,10 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	protected _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {
-		if (potentialPaths.length === 0) {
+		let current: string;
+		if (potentialPaths.length === 0 || (current = potentialPaths.shift()!) === '') {
 			return Promise.resolve(null);
 		}
-		const current = potentialPaths.shift();
 		return this._fileService.exists(URI.file(current!)).then(exists => {
 			if (!exists) {
 				return this._validateShellPaths(label, potentialPaths);
