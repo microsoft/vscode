@@ -379,12 +379,12 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				if (element.description.extensionLocation.scheme !== 'file') {
 					const el = $('span');
-					el.innerHTML = renderOcticons(`$(rss) ${element.description.extensionLocation.authority}`);
+					el.innerHTML = renderOcticons(`$(remote) ${element.description.extensionLocation.authority}`);
 					data.msgContainer.appendChild(el);
 
 					const hostLabel = this._labelService.getHostLabel(REMOTE_HOST_SCHEME, this._environmentService.configuration.remoteAuthority);
 					if (hostLabel) {
-						el.innerHTML = renderOcticons(`$(rss) ${hostLabel}`);
+						el.innerHTML = renderOcticons(`$(remote) ${hostLabel}`);
 					}
 				}
 
