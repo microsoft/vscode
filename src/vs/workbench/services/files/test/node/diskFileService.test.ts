@@ -15,12 +15,13 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { timeout } from 'vs/base/common/async';
 
 function getByName(root: IFileStat, name: string): IFileStat | null {
 	if (root.children === undefined) {
@@ -1336,20 +1337,27 @@ suite('Disk File Service', () => {
 		assert.equal(readFileSync(resource.fsPath), newContent);
 	});
 
-	test('writeFile (error when writing to file that has been updated meanwhile)', async () => {
+	test('writeFile - error when writing to file that has been updated meanwhile', async () => {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
-		const stat = await service.resolve(resource);
+		const statBeforeWrite = await service.resolve(resource);
 
-		const content = readFileSync(resource.fsPath);
+		const content = readFileSync(resource.fsPath).toString();
 		assert.equal(content, 'Small File');
 
+		await timeout(101); // account for mtime precision
+
 		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
+		const statAfterWrite = await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: statBeforeWrite.etag, mtime: statBeforeWrite.mtime });
+
+		assert.notEqual(statAfterWrite.etag, statBeforeWrite.etag);
+		assert.notEqual(statAfterWrite.mtime, statBeforeWrite.mtime);
+
+		const newContentLeadingToError = newContent + newContent;
 
 		let error: FileOperationError | undefined = undefined;
 		try {
-			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: etag(0, 0), mtime: 0 });
+			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToError), { etag: statBeforeWrite.etag, mtime: statBeforeWrite.mtime });
 		} catch (err) {
 			error = err;
 		}
@@ -1357,6 +1365,34 @@ suite('Disk File Service', () => {
 		assert.ok(error);
 		assert.ok(error instanceof FileOperationError);
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
+	});
+
+	test('writeFile - no error when writing to file where size is the same', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const statBeforeWrite = await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath).toString();
+		assert.equal(content, 'Small File');
+
+		await timeout(101); // account for mtime precision
+
+		const newContent = content; // same content
+		const statAfterWrite = await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: statBeforeWrite.etag, mtime: statBeforeWrite.mtime });
+
+		assert.notEqual(statAfterWrite.etag, statBeforeWrite.etag);
+		assert.notEqual(statAfterWrite.mtime, statBeforeWrite.mtime);
+
+		const newContentLeadingToNoError = newContent; // writing the same content should be OK
+
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToNoError), { etag: statBeforeWrite.etag, mtime: statBeforeWrite.mtime });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(!error);
 	});
 
 	test('watch - file', done => {

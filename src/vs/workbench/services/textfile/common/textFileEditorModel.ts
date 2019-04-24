@@ -301,7 +301,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Decide on etag
 		let etag: string | undefined;
 		if (forceReadFromDisk) {
-			etag = undefined; // reset ETag if we enforce to read from disk
+			etag = ETAG_DISABLED; // disable ETag if we enforce to read from disk
 		} else if (this.lastResolvedDiskStat) {
 			etag = this.lastResolvedDiskStat.etag; // otherwise respect etag to support caching
 		}
