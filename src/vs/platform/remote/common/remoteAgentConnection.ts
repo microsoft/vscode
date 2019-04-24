@@ -359,12 +359,14 @@ abstract class PersistentConnection extends Disposable {
 					console.error(err);
 					this._permanentFailure = true;
 					this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+					this.protocol.acceptDisconnect();
 					break;
 				}
 				if (attempt > 30) {
 					console.error(`Giving up after 30 reconnection attempts!`);
 					this._permanentFailure = true;
 					this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+					this.protocol.acceptDisconnect();
 					break;
 				}
 				if (RemoteAuthorityResolverError.isTemporarilyNotAvailable(err)) {
@@ -375,6 +377,7 @@ abstract class PersistentConnection extends Disposable {
 				console.error(err);
 				this._permanentFailure = true;
 				this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+				this.protocol.acceptDisconnect();
 				break;
 			}
 		} while (!this._permanentFailure);
