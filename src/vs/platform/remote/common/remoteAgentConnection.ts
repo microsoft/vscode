@@ -347,7 +347,7 @@ abstract class PersistentConnection extends Disposable {
 				// connection was lost, let's try to re-establish it
 				this._onDidStateChange.fire(new ReconnectionRunningEvent());
 				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol);
-				await this._reconnect(simpleOptions);
+				await connectWithTimeLimit(this._reconnect(simpleOptions), 30 * 1000 /*30s*/);
 				this._onDidStateChange.fire(new ConnectionGainEvent());
 
 				break;
@@ -423,6 +423,24 @@ export class ExtensionHostPersistentConnection extends PersistentConnection {
 	protected async _reconnect(options: ISimpleConnectionOptions): Promise<void> {
 		await doConnectRemoteAgentExtensionHost(options, this._startArguments);
 	}
+}
+
+function connectWithTimeLimit(p: Promise<void>, timeLimit: number): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		let timeout = setTimeout(() => {
+			const err: any = new Error('Time limit reached');
+			err.code = 'ETIMEDOUT';
+			err.syscall = 'connect';
+			reject(err);
+		}, timeLimit);
+		p.then(() => {
+			clearTimeout(timeout);
+			resolve();
+		}, (err) => {
+			clearTimeout(timeout);
+			reject(err);
+		});
+	});
 }
 
 function getErrorFromMessage(msg: any): Error | null {
