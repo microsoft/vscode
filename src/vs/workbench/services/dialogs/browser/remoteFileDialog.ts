@@ -9,7 +9,7 @@ import * as objects from 'vs/base/common/objects';
 import { IFileService, IFileStat, FileKind } from 'vs/platform/files/common/files';
 import { IQuickInputService, IQuickPickItem, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -26,6 +26,7 @@ import { RemoteFileDialogContext } from 'vs/workbench/common/contextkeys';
 import { equalsIgnoreCase, format } from 'vs/base/common/strings';
 import { OpenLocalFileAction, OpenLocalFileFolderAction, OpenLocalFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -40,7 +41,8 @@ enum UpdateResult {
 }
 
 // Reference: https://en.wikipedia.org/wiki/Filename
-const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
+const WINDOWS_INVALID_FILE_CHARS = /[\\/:\*\?"<>\|]/g;
+const UNIX_INVALID_FILE_CHARS = /[\\/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
 
 export class RemoteFileDialog {
@@ -60,6 +62,7 @@ export class RemoteFileDialog {
 	private activeItem: FileQuickPickItem;
 	private userHome: URI;
 	private badPath: string | undefined;
+	private remoteAgentEnvironment: IRemoteAgentEnvironment | null;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -136,9 +139,16 @@ export class RemoteFileDialog {
 		return defaultUri ? defaultUri.scheme : (available ? available[0] : Schemas.file);
 	}
 
+	private async getRemoteAgentEnvironment(): Promise<IRemoteAgentEnvironment | null> {
+		if (this.remoteAgentEnvironment === undefined) {
+			this.remoteAgentEnvironment = await this.remoteAgentService.getEnvironment();
+		}
+		return this.remoteAgentEnvironment;
+	}
+
 	private async getUserHome(): Promise<URI> {
 		if (this.scheme !== Schemas.file) {
-			const env = await this.remoteAgentService.getEnvironment();
+			const env = await this.getRemoteAgentEnvironment();
 			if (env) {
 				return env.userHome;
 			}
@@ -585,7 +595,7 @@ export class RemoteFileDialog {
 				// Show a yes/no prompt
 				const message = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri));
 				return this.yesNoPrompt(uri, message);
-			} else if (!this.isValidBaseName(resources.basename(uri))) {
+			} else if (!(await this.isValidBaseName(resources.basename(uri)))) {
 				// Filename not allowed
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
 				return Promise.resolve(false);
@@ -664,17 +674,28 @@ export class RemoteFileDialog {
 		}
 	}
 
-	private isValidBaseName(name: string): boolean {
+	private async isWindowsOS(): Promise<boolean> {
+		let isWindowsOS = isWindows;
+		const env = await this.getRemoteAgentEnvironment();
+		if (env) {
+			isWindowsOS = env.os === OperatingSystem.Windows;
+		}
+		return isWindowsOS;
+	}
+
+	private async isValidBaseName(name: string): Promise<boolean> {
 		if (!name || name.length === 0 || /^\s+$/.test(name)) {
 			return false; // require a name that is not just whitespace
 		}
 
+		const isWindowsOS = await this.isWindowsOS();
+		const INVALID_FILE_CHARS = isWindowsOS ? WINDOWS_INVALID_FILE_CHARS : UNIX_INVALID_FILE_CHARS;
 		INVALID_FILE_CHARS.lastIndex = 0; // the holy grail of software development
 		if (INVALID_FILE_CHARS.test(name)) {
 			return false; // check for certain invalid file characters
 		}
 
-		if (isWindows && WINDOWS_FORBIDDEN_NAMES.test(name)) {
+		if (isWindowsOS && WINDOWS_FORBIDDEN_NAMES.test(name)) {
 			return false; // check for certain invalid file names
 		}
 
@@ -682,11 +703,11 @@ export class RemoteFileDialog {
 			return false; // check for reserved values
 		}
 
-		if (isWindows && name[name.length - 1] === '.') {
+		if (isWindowsOS && name[name.length - 1] === '.') {
 			return false; // Windows: file cannot end with a "."
 		}
 
-		if (isWindows && name.length !== name.trim().length) {
+		if (isWindowsOS && name.length !== name.trim().length) {
 			return false; // Windows: file cannot end with a whitespace
 		}
 
