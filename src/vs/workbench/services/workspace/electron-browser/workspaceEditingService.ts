@@ -244,7 +244,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	async createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> {
-		if (path && !this.isValidTargetWorkspacePath(path)) {
+		if (path && !await this.isValidTargetWorkspacePath(path)) {
 			return Promise.reject(null);
 		}
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
@@ -258,7 +258,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	async saveAndEnterWorkspace(path: URI): Promise<void> {
-		if (!this.isValidTargetWorkspacePath(path)) {
+		if (!await this.isValidTargetWorkspacePath(path)) {
 			return Promise.reject(null);
 		}
 		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
