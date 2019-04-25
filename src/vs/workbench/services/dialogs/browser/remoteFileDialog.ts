@@ -291,7 +291,7 @@ export class RemoteFileDialog {
 
 			this.filePickBox.show();
 			this.contextKey.set(true);
-			await this.updateItems(homedir, this.trailing);
+			await this.updateItems(homedir, false, this.trailing);
 			if (this.trailing) {
 				this.filePickBox.valueSelection = [this.filePickBox.value.length - this.trailing.length, this.filePickBox.value.length - ext.length];
 			} else {
@@ -361,7 +361,7 @@ export class RemoteFileDialog {
 			}
 		} else if (navigateValue) {
 			// Try to navigate into the folder.
-			await this.updateItems(navigateValue, this.trailing);
+			await this.updateItems(navigateValue, false, this.trailing);
 		} else {
 			// validation error. Path does not exist.
 		}
@@ -373,8 +373,12 @@ export class RemoteFileDialog {
 		if (this.filePickBox.busy) {
 			this.badPath = undefined;
 			return UpdateResult.Updating;
-		} else if (value[value.length - 1] === '~') {
-			await this.updateItems(this.userHome);
+		} else if ((value.length > 0) && ((value[value.length - 1] === '~') || (value[0] === '~'))) {
+			let newDir = this.userHome;
+			if ((value[0] === '~') && (value.length > 1)) {
+				newDir = resources.joinPath(newDir, value.substring(1));
+			}
+			await this.updateItems(newDir, true);
 			return UpdateResult.Updated;
 		} else if (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true))) {
 			let stat: IFileStat | undefined;
@@ -403,7 +407,7 @@ export class RemoteFileDialog {
 						// do nothing
 					}
 					if (statWithoutTrailing && statWithoutTrailing.isDirectory && (resources.basename(valueUri) !== '.')) {
-						await this.updateItems(inputUriDirname, resources.basename(valueUri));
+						await this.updateItems(inputUriDirname, false, resources.basename(valueUri));
 						this.badPath = undefined;
 						return UpdateResult.Updated;
 					}
@@ -608,7 +612,7 @@ export class RemoteFileDialog {
 		return Promise.resolve(true);
 	}
 
-	private async updateItems(newFolder: URI, trailing?: string) {
+	private async updateItems(newFolder: URI, force: boolean = false, trailing?: string) {
 		this.filePickBox.busy = true;
 		this.userEnteredPathSegment = trailing ? trailing : '';
 		this.autoCompletePathSegment = '';
@@ -626,7 +630,7 @@ export class RemoteFileDialog {
 				if (!equalsIgnoreCase(this.filePickBox.value.substring(0, newValue.length), newValue)) {
 					this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
 					this.insertText(newValue, newValue);
-				} else if (equalsIgnoreCase(this.pathFromUri(resources.dirname(oldFolder), true), newFolderPath)) {
+				} else if (force || equalsIgnoreCase(this.pathFromUri(resources.dirname(oldFolder), true), newFolderPath)) {
 					// This is the case where the user went up one dir. We need to make sure that we remove the final dir.
 					this.filePickBox.valueSelection = [newFolderPath.length, this.filePickBox.value.length];
 					this.insertText(newValue, '');
