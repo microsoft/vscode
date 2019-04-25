@@ -371,7 +371,7 @@ export class RemoteFileDialog {
 			}
 		} else if (navigateValue) {
 			// Try to navigate into the folder.
-			await this.updateItems(navigateValue, false, this.trailing);
+			await this.updateItems(navigateValue, true, this.trailing);
 		} else {
 			// validation error. Path does not exist.
 		}
@@ -641,12 +641,17 @@ export class RemoteFileDialog {
 					this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
 					this.insertText(newValue, newValue);
 				} else if (force || equalsIgnoreCase(this.pathFromUri(resources.dirname(oldFolder), true), newFolderPath)) {
-					// This is the case where the user went up one dir. We need to make sure that we remove the final dir.
+					// This is the case where the user went up one dir or is clicking on dirs. We need to make sure that we remove the final dir.
 					this.filePickBox.valueSelection = [newFolderPath.length, this.filePickBox.value.length];
 					this.insertText(newValue, '');
 				}
 			}
-			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
+			if (force && trailing) {
+				// Keep the cursor position in front of the save as name.
+				this.filePickBox.valueSelection = [this.filePickBox.value.length - trailing.length, this.filePickBox.value.length - trailing.length];
+			} else {
+				this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
+			}
 			this.filePickBox.busy = false;
 		});
 	}
