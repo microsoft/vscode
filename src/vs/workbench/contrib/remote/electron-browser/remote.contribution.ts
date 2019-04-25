@@ -47,6 +47,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 	private windowCommandMenu: IMenu;
 	private hasWindowActions: boolean = false;
 	private remoteAuthority: string | undefined;
+	private disconnected: boolean = false;
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -56,7 +57,8 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		@IMenuService private menuService: IMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super();
 
@@ -78,13 +80,36 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 			this._register(this.windowCommandMenu.onDidChange(e => this.updateWindowActions()));
 			this.updateWindowIndicator();
 		});
+
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			this._register(connection.onDidStateChange((e) => {
+				switch (e.type) {
+					case PersistenConnectionEventType.ConnectionLost:
+					case PersistenConnectionEventType.ReconnectionPermanentFailure:
+					case PersistenConnectionEventType.ReconnectionRunning:
+					case PersistenConnectionEventType.ReconnectionWait:
+						this.disconnected = true;
+						break;
+					case PersistenConnectionEventType.ConnectionGain:
+						this.disconnected = false;
+						break;
+				}
+
+				this.updateWindowIndicator();
+			}));
+		}
 	}
 
 	private updateWindowIndicator(): void {
 		const windowActionCommand = this.windowCommandMenu.getActions().length ? WINDOW_ACTIONS_COMMAND_ID : undefined;
 		if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.remoteAuthority) || this.remoteAuthority;
-			this.renderWindowIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel), windowActionCommand);
+			if (!this.disconnected) {
+				this.renderWindowIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel), windowActionCommand);
+			} else {
+				this.renderWindowIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from")} ${hostLabel}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel), windowActionCommand);
+			}
 		} else {
 			if (windowActionCommand) {
 				this.renderWindowIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a remote window"), windowActionCommand);
@@ -213,6 +238,29 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 	}
 }
 
+class ProgressReporter {
+	private _currentProgress: IProgress<IProgressStep> | null = null;
+	private lastReport: string | null = null;
+
+	constructor(currentProgress: IProgress<IProgressStep> | null) {
+		this._currentProgress = currentProgress;
+	}
+
+	set currentProgress(progress: IProgress<IProgressStep>) {
+		this._currentProgress = progress;
+	}
+
+	report(message?: string) {
+		if (message) {
+			this.lastReport = message;
+		}
+
+		if (this.lastReport && this._currentProgress) {
+			this._currentProgress.report({ message: this.lastReport });
+		}
+	}
+}
+
 class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -223,7 +271,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			let currentProgressPromiseResolve: (() => void) | null = null;
-			let currentProgress: IProgress<IProgressStep> | null = null;
+			let progressReporter: ProgressReporter | null = null;
 			let currentTimer: ReconnectionTimer | null = null;
 
 			connection.onDidStateChange((e) => {
@@ -234,21 +282,31 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				switch (e.type) {
 					case PersistenConnectionEventType.ConnectionLost:
 						if (!currentProgressPromiseResolve) {
-							const promise = new Promise<void>((resolve) => currentProgressPromiseResolve = resolve);
-							progressService!.withProgress({ location: ProgressLocation.Dialog }, (progress) => { currentProgress = progress; return promise; });
+							let promise = new Promise<void>((resolve) => currentProgressPromiseResolve = resolve);
+							progressService!.withProgress(
+								{ location: ProgressLocation.Dialog },
+								(progress: IProgress<IProgressStep> | null) => { progressReporter = new ProgressReporter(progress!); return promise; },
+								() => {
+									currentProgressPromiseResolve!();
+									promise = new Promise<void>((resolve) => currentProgressPromiseResolve = resolve);
+									progressService!.withProgress({ location: ProgressLocation.Notification }, (progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; });
+									progressReporter!.report();
+								}
+							);
 						}
-						currentProgress!.report({ message: nls.localize('connectionLost', "Connection Lost") });
+
+						progressReporter!.report(nls.localize('connectionLost', "Connection Lost"));
 						break;
 					case PersistenConnectionEventType.ReconnectionWait:
-						currentTimer = new ReconnectionTimer(currentProgress!, Date.now() + 1000 * e.durationSeconds);
+						currentTimer = new ReconnectionTimer(progressReporter!, Date.now() + 1000 * e.durationSeconds);
 						break;
 					case PersistenConnectionEventType.ReconnectionRunning:
-						currentProgress!.report({ message: nls.localize('reconnectionRunning', "Attempting to reconnect...") });
+						progressReporter!.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
 						break;
 					case PersistenConnectionEventType.ReconnectionPermanentFailure:
 						currentProgressPromiseResolve!();
 						currentProgressPromiseResolve = null;
-						currentProgress = null;
+						progressReporter = null;
 
 						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(choice => {
 							// Reload the window
@@ -260,7 +318,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 					case PersistenConnectionEventType.ConnectionGain:
 						currentProgressPromiseResolve!();
 						currentProgressPromiseResolve = null;
-						currentProgress = null;
+						progressReporter = null;
 						break;
 				}
 			});
@@ -269,12 +327,12 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 }
 
 class ReconnectionTimer implements IDisposable {
-	private readonly _currentProgress: IProgress<IProgressStep>;
+	private readonly _progressReporter: ProgressReporter;
 	private readonly _completionTime: number;
 	private readonly _token: NodeJS.Timeout;
 
-	constructor(currentProgress: IProgress<IProgressStep>, completionTime: number) {
-		this._currentProgress = currentProgress;
+	constructor(progressReporter: ProgressReporter, completionTime: number) {
+		this._progressReporter = progressReporter;
 		this._completionTime = completionTime;
 		this._token = setInterval(() => this._render(), 1000);
 		this._render();
@@ -291,9 +349,9 @@ class ReconnectionTimer implements IDisposable {
 		}
 		const remainingTime = Math.ceil(remainingTimeMs / 1000);
 		if (remainingTime === 1) {
-			this._currentProgress.report({ message: nls.localize('reconnectionWaitOne', "Attempting to reconnect in {0} second...", remainingTime) });
+			this._progressReporter.report(nls.localize('reconnectionWaitOne', "Attempting to reconnect in {0} second...", remainingTime));
 		} else {
-			this._currentProgress.report({ message: nls.localize('reconnectionWaitMany', "Attempting to reconnect in {0} seconds...", remainingTime) });
+			this._progressReporter.report(nls.localize('reconnectionWaitMany', "Attempting to reconnect in {0} seconds...", remainingTime));
 		}
 	}
 }
