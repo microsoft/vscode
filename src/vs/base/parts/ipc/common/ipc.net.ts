@@ -151,7 +151,7 @@ export const enum ProtocolConstants {
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	 */
-	ReconnectionGraceTime = 60 * 60 * 1000, // 1hr
+	ReconnectionGraceTime = 3 * 60 * 60 * 1000, // 3hrs
 }
 
 class ProtocolMessage {
@@ -685,6 +685,10 @@ export class PersistentProtocol {
 
 		this._sendKeepAliveCheck();
 		this._recvKeepAliveCheck();
+	}
+
+	public acceptDisconnect(): void {
+		this._onClose.fire();
 	}
 
 	private _receiveMessage(msg: ProtocolMessage): void {

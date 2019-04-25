@@ -15,13 +15,12 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
-import { timeout } from 'vs/base/common/async';
 
 function getByName(root: IFileStat, name: string): IFileStat | null {
 	if (root.children === undefined) {
@@ -825,8 +824,20 @@ suite('Disk File Service', () => {
 		return testReadFile(URI.file(join(testDir, 'small.txt')));
 	});
 
+	test('readFile - small file - buffered / readonly', () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
+
+		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	});
+
 	test('readFile - small file - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	});
+
+	test('readFile - small file - unbuffered / readonly', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly);
 
 		return testReadFile(URI.file(join(testDir, 'small.txt')));
 	});
@@ -1201,6 +1212,26 @@ suite('Disk File Service', () => {
 		assert.equal(readFileSync(resource.fsPath), newContent);
 	});
 
+	test('writeFile - buffered - readonly throws', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
+
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+
+		let error: Error;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent));
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error!);
+	});
+
 	test('writeFile - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
@@ -1227,6 +1258,26 @@ suite('Disk File Service', () => {
 		assert.equal(fileStat.name, 'lorem.txt');
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile - unbuffered - readonly throws', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly);
+
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+
+		let error: Error;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent));
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error!);
 	});
 
 	test('writeFile (large file) - multiple parallel writes queue up', async () => {
@@ -1340,24 +1391,22 @@ suite('Disk File Service', () => {
 	test('writeFile - error when writing to file that has been updated meanwhile', async () => {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
-		const statBeforeWrite = await service.resolve(resource);
+		const stat = await service.resolve(resource);
 
 		const content = readFileSync(resource.fsPath).toString();
 		assert.equal(content, 'Small File');
 
-		await timeout(101); // account for mtime precision
-
 		const newContent = 'Updates to the small file';
-		const statAfterWrite = await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: statBeforeWrite.etag, mtime: statBeforeWrite.mtime });
-
-		assert.notEqual(statAfterWrite.etag, statBeforeWrite.etag);
-		assert.notEqual(statAfterWrite.mtime, statBeforeWrite.mtime);
+		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
 
 		const newContentLeadingToError = newContent + newContent;
 
+		const fakeMtime = 1000;
+		const fakeSize = 1000;
+
 		let error: FileOperationError | undefined = undefined;
 		try {
-			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToError), { etag: statBeforeWrite.etag, mtime: statBeforeWrite.mtime });
+			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToError), { etag: etag({ mtime: fakeMtime, size: fakeSize }), mtime: fakeMtime });
 		} catch (err) {
 			error = err;
 		}
@@ -1370,24 +1419,22 @@ suite('Disk File Service', () => {
 	test('writeFile - no error when writing to file where size is the same', async () => {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
-		const statBeforeWrite = await service.resolve(resource);
+		const stat = await service.resolve(resource);
 
 		const content = readFileSync(resource.fsPath).toString();
 		assert.equal(content, 'Small File');
 
-		await timeout(101); // account for mtime precision
-
 		const newContent = content; // same content
-		const statAfterWrite = await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: statBeforeWrite.etag, mtime: statBeforeWrite.mtime });
-
-		assert.notEqual(statAfterWrite.etag, statBeforeWrite.etag);
-		assert.notEqual(statAfterWrite.mtime, statBeforeWrite.mtime);
+		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
 
 		const newContentLeadingToNoError = newContent; // writing the same content should be OK
 
+		const fakeMtime = 1000;
+		const actualSize = newContent.length;
+
 		let error: FileOperationError | undefined = undefined;
 		try {
-			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToNoError), { etag: statBeforeWrite.etag, mtime: statBeforeWrite.mtime });
+			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToNoError), { etag: etag({ mtime: fakeMtime, size: actualSize }), mtime: fakeMtime });
 		} catch (err) {
 			error = err;
 		}

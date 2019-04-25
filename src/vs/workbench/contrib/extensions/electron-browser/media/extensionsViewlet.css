@@ -127,6 +127,9 @@
 	line-height: 14px;
 	border-radius: 20px;
 	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header .extension-remote-badge > .octicon {

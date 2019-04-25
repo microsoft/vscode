@@ -14,7 +14,7 @@ function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 	switch (tag.name) {
 		case 'example':
 		case 'default':
-			// Convert to markdown code block if it not already one
+			// Convert to markdown code block if it is not already one
 			if (tag.text.match(/^\s*[~`]{3}/g)) {
 				return tag.text;
 			}
