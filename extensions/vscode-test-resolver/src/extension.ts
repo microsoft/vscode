@@ -29,13 +29,20 @@ export function activate(context: vscode.ExtensionContext) {
 						outputChannel.appendLine(message);
 						if (!isStarted) {
 							outputChannel.show();
-							const result = await vscode.window.showErrorMessage(message, { modal: true }, ...errorActions);
+							const result = await vscode.window.showErrorMessage(message, { modal: true }, retryAction, showLogAction);
 							if (result) {
 								await result.execute();
+							} else {
+								await defaultAction.execute();
 							}
 
-							rej(message);
+							rej(vscode.RemoteAuthorityResolverError.NotAvailable(message, result !== showLogAction));
 						}
+					}
+
+					if (_authority === 'test+error') {
+						processError('Unable to start the Test Resolver');
+						return;
 					}
 
 					const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
@@ -43,8 +50,13 @@ export function activate(context: vscode.ExtensionContext) {
 					const nodePath = path.join(vscodePath, '.build', 'node-remote', nodeExec);
 
 					if (!fs.existsSync(nodePath)) {
-						outputChannel.appendLine(`Installing node at ${nodePath}`);
-						cp.execSync(`node ${path.join(vscodePath, 'node_modules/gulp/bin/gulp.js')} node-remote`);
+						try {
+							outputChannel.appendLine(`Installing node at ${nodePath}`);
+							cp.execSync(`node ${path.join(vscodePath, 'node_modules/gulp/bin/gulp.js')} node-remote`);
+						} catch (e) {
+							processError(`Problem downloading node: ${e.message}`);
+
+						}
 					}
 					outputChannel.appendLine(`Using node at ${nodePath}`);
 
@@ -92,18 +104,33 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.commands.registerCommand('vscode-testresolver.newWindow', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+test' });
 	});
+	vscode.commands.registerCommand('vscode-testresolver.newWindowWithError', () => {
+		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+error' });
+	});
 	vscode.commands.registerCommand('vscode-testresolver.showLog', () => {
 		if (outputChannel) {
 			outputChannel.show();
 		}
 	});
 }
-const errorActions = [{
-	title: 'Reload Window',
+const retryAction = {
+	title: 'Retry',
 	execute: async () => {
 		await vscode.commands.executeCommand('workbench.action.reloadWindow');
 	}
-}];
+};
+const showLogAction = {
+	title: 'Show Log',
+	execute: async () => {
+		await vscode.commands.executeCommand('vscode-testresolver.showLog');
+	}
+};
+const defaultAction = {
+	title: 'Abort',
+	execute: async () => {
+		await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true });
+	}
+};
 
 
 export function deactivate() {
