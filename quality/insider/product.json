@@ -735,6 +735,8 @@
 		"hnw.vscode-auto-open-markdown-preview",
 		"emilast.logfilehighlighter",
 		"johnpapa.vscode-peacock",
-		"aaron-bond.better-comments"
+		"aaron-bond.better-comments",
+		"monokai.theme-monokai-pro-vscode",
+		"vscode-icons-team.vscode-icons"
 	]
 }
