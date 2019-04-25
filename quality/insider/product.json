@@ -697,6 +697,8 @@
 	"extensionAllowedProposedApi": [
 		"ms-vscode.references-view",
 		"ms-vsliveshare.vsliveshare",
+		"ms-vsliveshare.cloudenv",
+		"ms-vsliveshare.cloudenv-explorer",
 		"GitHub.vscode-pull-request-github",
 		"GitHub.vscode-pull-request-github-insiders",
 		"Microsoft.vscode-nmake-tools",
