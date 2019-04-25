@@ -16,7 +16,6 @@ interface ProductDescription {
 	version: string;
 	commit: string;
 	executableName: string;
-	remoteCodeCmd?: string;
 }
 
 const isSupportedForCmd = (id: string) => {
@@ -53,18 +52,22 @@ const isSupportedForPipe = (id: string) => {
 	}
 };
 
-const socketPath = process.env['VSCODE_IPC_HOOK_CLI'] as string;
+const cliPipe = process.env['VSCODE_IPC_HOOK_CLI'] as string;
+const cliCommand = process.env['VSCODE_CLIENT_COMMAND'] as string;
+const cliCommandCwd = process.env['VSCODE_CLIENT_COMMAND_CWD'] as string;
+const remoteAuthority = process.env['VSCODE_CLI_AUTHORITY'] as string;
+
 
 export function main(desc: ProductDescription, args: string[]): void {
-	if (!socketPath && !desc.remoteCodeCmd) {
+	if (!cliPipe && !cliCommand) {
 		console.log('Command is only available in WSL or inside a Visual Studio Code terminal.');
 		return;
 	}
 
 	const parsedArgs = parseArgs(args);
 
-	const isSupported = desc.remoteCodeCmd ? isSupportedForCmd : isSupportedForPipe;
-	const mapFileUri = desc.remoteCodeCmd ? mapFileToRemoteUri : (uri: string) => uri;
+	const isSupported = cliCommand ? isSupportedForCmd : isSupportedForPipe;
+	const mapFileUri = remoteAuthority ? mapFileToRemoteUri : (uri: string) => uri;
 
 	if (parsedArgs.help) {
 		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, o => isSupported(o.id), false));
@@ -111,10 +114,11 @@ export function main(desc: ProductDescription, args: string[]): void {
 		parsedArgs.extensionTestsPath = mapFileUri(pathToURI(parsedArgs['extensionTestsPath']).href);
 	}
 
-	if (desc.remoteCodeCmd) {
+	if (remoteAuthority) {
+		parsedArgs['remote'] = remoteAuthority;
+	}
 
-		parsedArgs['remote'] = 'wsl+default';
-
+	if (cliCommand) {
 		let newCommandline: string[] = [];
 		for (let key in parsedArgs) {
 			let val = parsedArgs[key];
@@ -131,20 +135,23 @@ export function main(desc: ProductDescription, args: string[]): void {
 			}
 		}
 
-		const ext = _path.extname(desc.remoteCodeCmd);
+		const ext = _path.extname(cliCommand);
 		if (ext === '.bat' || ext === '.cmd') {
+			const cwd = cliCommandCwd || process.cwd();
 			if (parsedArgs['verbose']) {
-				console.log(`Invoking: cmd.exe /C ${desc.remoteCodeCmd} ${newCommandline.join(' ')}`);
+				console.log(`Invoking: cmd.exe /C ${cliCommand} ${newCommandline.join(' ')} in ${cwd}`);
 			}
-			_cp.spawn('cmd.exe', ['/C', desc.remoteCodeCmd, ...newCommandline], {
-				stdio: 'inherit'
+			_cp.spawn('cmd.exe', ['/C', cliCommand, ...newCommandline], {
+				stdio: 'inherit',
+				cwd
 			});
 		} else {
 			if (parsedArgs['verbose']) {
-				console.log(`Invoking: ${desc.remoteCodeCmd} ${newCommandline.join(' ')}`);
+				console.log(`Invoking: ${cliCommand} ${newCommandline.join(' ')} in ${cwd}`);
 			}
-			_cp.spawn(desc.remoteCodeCmd, newCommandline, {
-				stdio: 'inherit'
+			_cp.spawn(cliCommand, newCommandline, {
+				stdio: 'inherit',
+				cwd
 			});
 		}
 	} else {
@@ -243,14 +250,14 @@ type Args = OpenCommandPipeArgs | StatusPipeArgs | RunCommandPipeArgs;
 function sendToPipe(args: Args): Promise<any> {
 	return new Promise<string>(resolve => {
 		const message = JSON.stringify(args);
-		if (!socketPath) {
+		if (!cliPipe) {
 			console.log('Message ' + message);
 			resolve('');
 			return;
 		}
 
 		const opts: _http.RequestOptions = {
-			socketPath,
+			socketPath: cliPipe,
 			path: '/',
 			method: 'POST'
 		};
@@ -307,8 +314,8 @@ function translatePath(input: string, mapFileUri: (input: string) => string, fol
 }
 
 function mapFileToRemoteUri(uri: string): string {
-	return uri.replace(/^file:\/\//, 'vscode-remote://wsl+default');
+	return uri.replace(/^file:\/\//, 'vscode-remote://' + remoteAuthority);
 }
 
-let [, , productName, version, commit, executableName, remoteCodeCmd, ...args] = process.argv;
-main({ productName, version, commit, executableName, remoteCodeCmd }, args);
+let [, , productName, version, commit, executableName, ...args] = process.argv;
+main({ productName, version, commit, executableName }, args);
