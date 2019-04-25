@@ -155,7 +155,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	}
 }
 
-function deleteFiles(serviceAccesor: ServicesAccessor, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
+function deleteFiles(textFileService: ITextFileService, dialogService: IDialogService, configurationService: IConfigurationService, fileService: IFileService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
 	let primaryButton: string;
 	if (useTrash) {
 		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
@@ -164,10 +164,6 @@ function deleteFiles(serviceAccesor: ServicesAccessor, elements: ExplorerItem[],
 	}
 
 	const distinctElements = resources.distinctParents(elements, e => e.resource);
-	const textFileService = serviceAccesor.get(ITextFileService);
-	const dialogService = serviceAccesor.get(IDialogService);
-	const configurationService = serviceAccesor.get(IConfigurationService);
-	const fileService = serviceAccesor.get(IFileService);
 
 	// Handle dirty
 	let confirmDirtyPromise: Promise<boolean> = Promise.resolve(true);
@@ -285,7 +281,7 @@ function deleteFiles(serviceAccesor: ServicesAccessor, elements: ExplorerItem[],
 
 								skipConfirm = true;
 
-								return deleteFiles(serviceAccesor, elements, useTrash, skipConfirm);
+								return deleteFiles(textFileService, dialogService, configurationService, fileService, elements, useTrash, skipConfirm);
 							}
 
 							return Promise.resolve();
@@ -1000,7 +996,7 @@ export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
 	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat!];
 
-	return deleteFiles(accessor, stats, true);
+	return deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, true);
 };
 
 export const deleteFileHandler = (accessor: ServicesAccessor) => {
@@ -1011,7 +1007,7 @@ export const deleteFileHandler = (accessor: ServicesAccessor) => {
 	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat!];
 
-	return deleteFiles(accessor, stats, false);
+	return deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, false);
 };
 
 let pasteShouldMove = false;
