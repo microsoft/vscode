@@ -501,17 +501,15 @@ export class RemoteFileDialog {
 			// Make sure that the suffix is added. If the user deleted it, we automatically add it here
 			let hasExt: boolean = false;
 			const currentExt = resources.extname(uri).substr(1);
-			if (currentExt !== '') {
-				for (let i = 0; i < this.options.filters.length; i++) {
-					for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
-						if ((this.options.filters[i].extensions[j] === '*') || (this.options.filters[i].extensions[j] === currentExt)) {
-							hasExt = true;
-							break;
-						}
-					}
-					if (hasExt) {
+			for (let i = 0; i < this.options.filters.length; i++) {
+				for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
+					if ((this.options.filters[i].extensions[j] === '*') || (this.options.filters[i].extensions[j] === currentExt)) {
+						hasExt = true;
 						break;
 					}
+				}
+				if (hasExt) {
+					break;
 				}
 			}
 			if (!hasExt) {
