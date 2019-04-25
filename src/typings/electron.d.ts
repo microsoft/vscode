@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.1.4
+// Type definitions for Electron 4.1.5
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -3495,7 +3495,14 @@ declare namespace Electron {
 		 * Creates a new NativeImage instance from the NSImage that maps to the given image
 		 * name. See NSImageName for a list of possible values. The hslShift is applied to
 		 * the image with the following rules This means that [-1, 0, 1] will make the
-		 * image completely white and [-1, 1, 0] will make the image completely black.
+     * image completely white and [-1, 1, 0] will make the image completely black. In
+     * some cases, the NSImageName doesn't match its string representation; one example
+     * of this is NSFolderImageName, whose string representation would actually be
+     * NSFolder. Therefore, you'll need to determine the correct string representation
+     * for your image before passing it in. This can be done with the following: echo
+     * -e '#import <Cocoa/Cocoa.h>\nint main() { NSLog(@"%@", SYSTEM_IMAGE_NAME); }' |
+     * clang -otest -x objective-c -framework Cocoa - && ./test where SYSTEM_IMAGE_NAME
+     * should be replaced with any value from this list.
 		 */
 		static createFromNamedImage(imageName: string, hslShift: number[]): NativeImage;
 		/**
