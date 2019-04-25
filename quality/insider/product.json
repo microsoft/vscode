@@ -711,7 +711,7 @@
 	"uiExtensions": [
 		"atlassian.atlascode",
 		"CoenraadS.bracket-pair-colorizer",
-		"delphi-keybindings",
+		"alefragnani.delphi-keybindings",
 		"dsznajder.es7-react-js-snippets",
 		"Equinusocio.vsc-material-theme",
 		"formulahendry.auto-close-tag",
@@ -725,7 +725,7 @@
 		"PKief.material-icon-theme",
 		"robertohuertasm.vscode-icons",
 		"Shan.code-settings-sync",
-		"sudox.vscode-jetbrains-keybindings",
+		"isudox.vscode-jetbrains-keybindings",
 		"techer.open-in-browser",
 		"vincaslt.highlight-matching-tag",
 		"vscodevim.vim",
@@ -734,6 +734,7 @@
 		"shalldie.background",
 		"hnw.vscode-auto-open-markdown-preview",
 		"emilast.logfilehighlighter",
-		"johnpapa.vscode-peacock"
+		"johnpapa.vscode-peacock",
+		"aaron-bond.better-comments"
 	]
 }
