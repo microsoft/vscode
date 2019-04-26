@@ -41,6 +41,7 @@ import { Schemas } from 'vs/base/common/network';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
+import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -675,6 +676,15 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			// monitor for breakage
 			const connection = this._remoteAgentService.getConnection();
 			if (connection) {
+				connection.onDidStateChange(async (e) => {
+					const remoteAuthority = this._environmentService.configuration.remoteAuthority;
+					if (!remoteAuthority) {
+						return;
+					}
+					if (e.type === PersistenConnectionEventType.ConnectionLost) {
+						this._remoteAuthorityResolverService.clearResolvedAuthority(remoteAuthority);
+					}
+				});
 				connection.onReconnecting(() => this._resolveAuthorityAgain());
 			}
 
