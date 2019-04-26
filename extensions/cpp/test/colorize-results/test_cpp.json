@@ -617,13 +617,13 @@
 	},
 	{
 		"c": "Rectangle",
-		"t": "source.cpp meta.scope-resolution.cpp entity.name.namespace.scope-resolution.cpp",
+		"t": "source.cpp meta.scope-resolution.cpp entity.name.type.namespace.scope-resolution.cpp",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "entity.name.type: #4EC9B0"
 		}
 	},
 	{
@@ -1057,7 +1057,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.cpp meta.block.cpp meta.block.parens.cpp punctuation.section.parens.begin.bracket.round.cpp",
+		"t": "source.cpp meta.block.cpp meta.parens.block.cpp punctuation.section.parens.begin.bracket.round.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1068,7 +1068,7 @@
 	},
 	{
 		"c": "3",
-		"t": "source.cpp meta.block.cpp meta.block.parens.cpp constant.numeric.decimal.cpp",
+		"t": "source.cpp meta.block.cpp meta.parens.block.cpp constant.numeric.decimal.cpp",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1079,7 +1079,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.block.cpp meta.block.parens.cpp comma.cpp punctuation.separator.delimiter.cpp",
+		"t": "source.cpp meta.block.cpp meta.parens.block.cpp comma.cpp punctuation.separator.delimiter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1090,7 +1090,7 @@
 	},
 	{
 		"c": "4",
-		"t": "source.cpp meta.block.cpp meta.block.parens.cpp constant.numeric.decimal.cpp",
+		"t": "source.cpp meta.block.cpp meta.parens.block.cpp constant.numeric.decimal.cpp",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1101,7 +1101,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.cpp meta.block.cpp meta.block.parens.cpp punctuation.section.parens.end.bracket.round.cpp",
+		"t": "source.cpp meta.block.cpp meta.parens.block.cpp punctuation.section.parens.end.bracket.round.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
