@@ -707,7 +707,8 @@
 		"ms-vscode.remote-ssh-edit",
 		"ms-vscode.remote-ssh-explorer",
 		"ms-vscode.remote-wsl",
-		"ms-vscode.vscode-remote-extensionpack"
+		"ms-vscode.vscode-remote-extensionpack",
+		"PeterJausovec.vscode-docker"
 	],
 	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
 	"uiExtensions": [
