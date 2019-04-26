@@ -366,6 +366,18 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	hc: Color.white
 }, nls.localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const HOST_BADGE_BACKGROUND = registerColor('hostBadge.background', {
+	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	light: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hc: ACTIVITY_BAR_BADGE_BACKGROUND
+}, nls.localize('hostBadgeBackground', "Background color for the host badge in the extensions view"));
+
+export const HOST_BADGE_FOREGROUND = registerColor('hostBadge.foreground', {
+	dark: ACTIVITY_BAR_BADGE_FOREGROUND,
+	light: ACTIVITY_BAR_BADGE_FOREGROUND,
+	hc: ACTIVITY_BAR_BADGE_FOREGROUND
+}, nls.localize('hostBadgeForeground', "Foreground color for the host badge in the extensions view"));
+
 
 // < --- Side Bar --- >
 
