@@ -39,7 +39,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions/windowActions';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteConnectedContext } from 'vs/workbench/common/contextkeys';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
 
@@ -106,7 +105,6 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 	private setDisconnected(isDisconnected: boolean): void {
 		if (this.disconnected !== isDisconnected) {
 			this.disconnected = isDisconnected;
-			RemoteConnectedContext.bindTo(this.contextKeyService).set(isDisconnected);
 			this.updateWindowIndicator();
 		}
 	}
