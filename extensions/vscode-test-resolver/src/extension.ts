@@ -135,7 +135,7 @@ function getActions(): ActionItem[] {
 		});
 	}
 	actions.push({
-		title: 'Continue',
+		title: 'Ignore',
 		isCloseAffordance: isDirty,
 		execute: async () => {
 			vscode.commands.executeCommand('vscode-testresolver.showLog'); // no need to wait
