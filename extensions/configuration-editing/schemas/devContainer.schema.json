@@ -17,7 +17,7 @@
 						"type": "string"
 					}
 				},
-				"postCreationCommand": {
+				"postCreateCommand": {
 					"type": ["string", "array"],
 					"description": "A command to run after creating the container. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
 					"items": {
