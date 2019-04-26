@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Client, PersistentProtocol, ISocket } from 'vs/base/parts/ipc/common/ipc.net';
+import { Client, PersistentProtocol, ISocket, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -335,11 +335,12 @@ abstract class PersistentConnection extends Disposable {
 			return;
 		}
 		this._onDidStateChange.fire(new ConnectionLostEvent());
-		const TIMES = [10, 30, 30, 30, 30, 30, 60, 60, 60, 300];
+		const TIMES = [5, 5, 10, 10, 10, 10, 10, 30];
+		const disconnectStartTime = Date.now();
 		let attempt = -1;
 		do {
 			attempt++;
-			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : 300);
+			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : TIMES[TIMES.length - 1]);
 			try {
 				this._onDidStateChange.fire(new ReconnectionWaitEvent(waitTime));
 				await sleep(waitTime);
@@ -360,8 +361,8 @@ abstract class PersistentConnection extends Disposable {
 					this.protocol.acceptDisconnect();
 					break;
 				}
-				if (attempt > 30) {
-					console.error(`Giving up after 30 reconnection attempts!`);
+				if (Date.now() - disconnectStartTime > ProtocolConstants.ReconnectionGraceTime) {
+					console.error(`Giving up after reconnection grace time has expired!`);
 					this._permanentFailure = true;
 					this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
 					this.protocol.acceptDisconnect();
