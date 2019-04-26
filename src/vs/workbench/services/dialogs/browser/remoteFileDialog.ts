@@ -274,22 +274,27 @@ export class RemoteFileDialog {
 			});
 
 			this.filePickBox.onDidChangeValue(async value => {
-				// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
-				if (this.isChangeFromUser()) {
-					// If the user has just entered more bad path, don't change anything
-					if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
-						this.filePickBox.validationMessage = undefined;
-						const valueUri = this.remoteUriFrom(this.trimTrailingSlash(this.filePickBox.value));
-						let updated: UpdateResult = UpdateResult.NotUpdated;
-						if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), valueUri, true)) {
-							updated = await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
+				try {
+					// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
+					if (this.isChangeFromUser()) {
+						// If the user has just entered more bad path, don't change anything
+						if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
+							this.filePickBox.validationMessage = undefined;
+							const valueUri = this.remoteUriFrom(this.trimTrailingSlash(this.filePickBox.value));
+							let updated: UpdateResult = UpdateResult.NotUpdated;
+							if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), valueUri, true)) {
+								updated = await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
+							}
+							if (updated === UpdateResult.NotUpdated) {
+								this.setActiveItems(value);
+							}
+						} else {
+							this.filePickBox.activeItems = [];
 						}
-						if (updated === UpdateResult.NotUpdated) {
-							this.setActiveItems(value);
-						}
-					} else {
-						this.filePickBox.activeItems = [];
 					}
+				} catch {
+					// Since any text can be entered in the input box, there is potential for error causing input. If this happens, navigate to the home dir.
+					this.updateItems(this.userHome, true, this.trailing);
 				}
 			});
 			this.filePickBox.onDidHide(() => {
