@@ -232,7 +232,7 @@ export class ExtensionEditor extends BaseEditor {
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name") }));
 
-		this.installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count") }));
+		this.installCount = append(subtitle, $('span.install', { title: localize('install count', "The total number of installs, including updates.") }));
 
 		this.rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating") }));
 
