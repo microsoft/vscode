@@ -15,7 +15,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -62,6 +62,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 	totalBytesRead: number = 0;
 
+	private invalidStatSize: boolean;
+
 	private _testCapabilities: FileSystemProviderCapabilities;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._testCapabilities) {
@@ -80,6 +82,20 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 	set capabilities(capabilities: FileSystemProviderCapabilities) {
 		this._testCapabilities = capabilities;
+	}
+
+	setInvalidStatSize(disabled: boolean): void {
+		this.invalidStatSize = disabled;
+	}
+
+	async stat(resource: URI): Promise<IStat> {
+		const res = await super.stat(resource);
+
+		if (this.invalidStatSize) {
+			res.size = String(res.size) as any; // for https://github.com/Microsoft/vscode/issues/72909
+		}
+
+		return res;
 	}
 
 	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
@@ -1047,6 +1063,24 @@ suite('Disk File Service', () => {
 		assert.ok(error);
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
 		assert.equal(fileProvider.totalBytesRead, 0);
+	});
+
+	test('readFile - FILE_NOT_MODIFIED_SINCE does not fire wrongly - https://github.com/Microsoft/vscode/issues/72909', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+		fileProvider.setInvalidStatSize(true);
+
+		const resource = URI.file(join(testDir, 'index.html'));
+
+		await service.readFile(resource);
+
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.readFile(resource, { etag: undefined });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(!error);
 	});
 
 	test('readFile - FILE_NOT_MODIFIED_SINCE - unbuffered', async () => {
