@@ -29,19 +29,18 @@ export function activate(context: vscode.ExtensionContext) {
 						outputChannel.appendLine(message);
 						if (!isStarted) {
 							outputChannel.show();
-							const result = await vscode.window.showErrorMessage(message, { modal: true }, retryAction, showLogAction);
+
+							const result = await vscode.window.showErrorMessage(message, { modal: true }, ...getActions());
 							if (result) {
 								await result.execute();
-							} else {
-								await defaultAction.execute();
 							}
 
-							rej(vscode.RemoteAuthorityResolverError.NotAvailable(message, result !== showLogAction));
+							rej(vscode.RemoteAuthorityResolverError.NotAvailable(message, true));
 						}
 					}
 
-					if (_authority === 'test+error') {
-						processError('Unable to start the Test Resolver');
+					if (_authority === 'test+error' || vscode.workspace.getConfiguration('testresolver').get('error') === true) {
+						processError('Unable to start the Test Resolver.');
 						return;
 					}
 
@@ -113,24 +112,36 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 }
-const retryAction = {
-	title: 'Retry',
-	execute: async () => {
-		await vscode.commands.executeCommand('workbench.action.reloadWindow');
+
+type ActionItem = (vscode.MessageItem & { execute: () => void; });
+
+function getActions(): ActionItem[] {
+	const actions: ActionItem[] = [];
+	const isDirty = vscode.workspace.textDocuments.some(d => d.isDirty) || vscode.workspace.workspaceFile && vscode.workspace.workspaceFile.scheme === 'untitled';
+
+	actions.push({
+		title: 'Retry',
+		execute: async () => {
+			await vscode.commands.executeCommand('workbench.action.reloadWindow');
+		}
+	});
+	if (!isDirty) {
+		actions.push({
+			title: 'Close Remote',
+			execute: async () => {
+				await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true });
+			}
+		});
 	}
-};
-const showLogAction = {
-	title: 'Show Log',
-	execute: async () => {
-		await vscode.commands.executeCommand('vscode-testresolver.showLog');
-	}
-};
-const defaultAction = {
-	title: 'Abort',
-	execute: async () => {
-		await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true });
-	}
-};
+	actions.push({
+		title: 'Ignore',
+		isCloseAffordance: true,
+		execute: async () => {
+			vscode.commands.executeCommand('vscode-testresolver.showLog'); // no need to wait
+		}
+	});
+	return actions;
+}
 
 
 export function deactivate() {

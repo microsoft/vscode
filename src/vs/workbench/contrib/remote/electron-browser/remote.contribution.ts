@@ -38,6 +38,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions/windowActions';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
 
@@ -58,7 +59,8 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService extensionService: IExtensionService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
 
@@ -76,6 +78,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		extensionService.whenInstalledExtensionsRegistered().then(_ => {
 			if (this.remoteAuthority) {
 				this._register(this.labelService.onDidChangeFormatters(e => this.updateWindowIndicator()));
+				remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority).then(() => this.setDisconnected(false), () => this.setDisconnected(true));
 			}
 			this._register(this.windowCommandMenu.onDidChange(e => this.updateWindowActions()));
 			this.updateWindowIndicator();
@@ -89,15 +92,20 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 					case PersistenConnectionEventType.ReconnectionPermanentFailure:
 					case PersistenConnectionEventType.ReconnectionRunning:
 					case PersistenConnectionEventType.ReconnectionWait:
-						this.disconnected = true;
+						this.setDisconnected(true);
 						break;
 					case PersistenConnectionEventType.ConnectionGain:
-						this.disconnected = false;
+						this.setDisconnected(false);
 						break;
 				}
-
-				this.updateWindowIndicator();
 			}));
+		}
+	}
+
+	private setDisconnected(isDisconnected: boolean): void {
+		if (this.disconnected !== isDisconnected) {
+			this.disconnected = isDisconnected;
+			this.updateWindowIndicator();
 		}
 	}
 
@@ -108,7 +116,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 			if (!this.disconnected) {
 				this.renderWindowIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel), windowActionCommand);
 			} else {
-				this.renderWindowIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from")} ${hostLabel}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel), windowActionCommand);
+				this.renderWindowIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from")} ${hostLabel}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel));
 			}
 		} else {
 			if (windowActionCommand) {
