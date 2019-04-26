@@ -29,19 +29,17 @@ export function activate(context: vscode.ExtensionContext) {
 						outputChannel.appendLine(message);
 						if (!isStarted) {
 							outputChannel.show();
-							const result = await vscode.window.showErrorMessage(message, { modal: true }, retryAction, showLogAction);
+							const result = await vscode.window.showErrorMessage(message, { modal: true }, continueAction, abortAction, retryAction);
 							if (result) {
 								await result.execute();
-							} else {
-								await defaultAction.execute();
 							}
 
-							rej(vscode.RemoteAuthorityResolverError.NotAvailable(message, result !== showLogAction));
+							rej(vscode.RemoteAuthorityResolverError.NotAvailable(message, true));
 						}
 					}
 
 					if (_authority === 'test+error') {
-						processError('Unable to start the Test Resolver');
+						processError('Unable to start the Test Resolver.');
 						return;
 					}
 
@@ -119,14 +117,15 @@ const retryAction = {
 		await vscode.commands.executeCommand('workbench.action.reloadWindow');
 	}
 };
-const showLogAction = {
-	title: 'Show Log',
+const continueAction = {
+	title: 'Continue',
 	execute: async () => {
-		await vscode.commands.executeCommand('vscode-testresolver.showLog');
+		vscode.commands.executeCommand('vscode-testresolver.showLog'); // no need to wait
 	}
 };
-const defaultAction = {
+const abortAction = {
 	title: 'Abort',
+	isCloseAffordance: true,
 	execute: async () => {
 		await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true });
 	}
