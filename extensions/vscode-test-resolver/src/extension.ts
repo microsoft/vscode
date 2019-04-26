@@ -128,7 +128,6 @@ function getActions(): ActionItem[] {
 	if (!isDirty) {
 		actions.push({
 			title: 'Close Remote',
-			isCloseAffordance: true,
 			execute: async () => {
 				await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true });
 			}
@@ -136,7 +135,7 @@ function getActions(): ActionItem[] {
 	}
 	actions.push({
 		title: 'Ignore',
-		isCloseAffordance: isDirty,
+		isCloseAffordance: true,
 		execute: async () => {
 			vscode.commands.executeCommand('vscode-testresolver.showLog'); // no need to wait
 		}
