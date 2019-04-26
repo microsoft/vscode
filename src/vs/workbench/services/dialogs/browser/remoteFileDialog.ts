@@ -274,22 +274,26 @@ export class RemoteFileDialog {
 			});
 
 			this.filePickBox.onDidChangeValue(async value => {
-				// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
-				if (this.isChangeFromUser()) {
-					// If the user has just entered more bad path, don't change anything
-					if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
-						this.filePickBox.validationMessage = undefined;
-						const valueUri = this.remoteUriFrom(this.trimTrailingSlash(this.filePickBox.value));
-						let updated: UpdateResult = UpdateResult.NotUpdated;
-						if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), valueUri, true)) {
-							updated = await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
+				try {
+					// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
+					if (this.isChangeFromUser()) {
+						// If the user has just entered more bad path, don't change anything
+						if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
+							this.filePickBox.validationMessage = undefined;
+							const valueUri = this.remoteUriFrom(this.trimTrailingSlash(this.filePickBox.value));
+							let updated: UpdateResult = UpdateResult.NotUpdated;
+							if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), valueUri, true)) {
+								updated = await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
+							}
+							if (updated === UpdateResult.NotUpdated) {
+								this.setActiveItems(value);
+							}
+						} else {
+							this.filePickBox.activeItems = [];
 						}
-						if (updated === UpdateResult.NotUpdated) {
-							this.setActiveItems(value);
-						}
-					} else {
-						this.filePickBox.activeItems = [];
 					}
+				} catch {
+					// Since any text can be entered in the input box, there is potential for error causing input. If this happens, do nothing.
 				}
 			});
 			this.filePickBox.onDidHide(() => {
@@ -331,12 +335,13 @@ export class RemoteFileDialog {
 		this.filePickBox.busy = true;
 		let resolveValue: URI | undefined;
 		let navigateValue: URI | undefined;
-		const trimmedPickBoxValue = ((this.filePickBox.value.length > 1) && this.endsWithSlash(this.filePickBox.value)) ? this.filePickBox.value.substr(0, this.filePickBox.value.length - 1) : this.filePickBox.value;
-		const inputUri = this.remoteUriFrom(trimmedPickBoxValue);
-		const inputUriDirname = resources.dirname(inputUri);
+		let inputUri: URI | undefined;
+		let inputUriDirname: URI | undefined;
 		let stat: IFileStat | undefined;
 		let statDirname: IFileStat | undefined;
 		try {
+			inputUri = resources.removeTrailingPathSeparator(this.remoteUriFrom(this.filePickBox.value));
+			inputUriDirname = resources.dirname(inputUri);
 			statDirname = await this.fileService.resolve(inputUriDirname);
 			stat = await this.fileService.resolve(inputUri);
 		} catch (e) {
@@ -363,17 +368,18 @@ export class RemoteFileDialog {
 			}
 		}
 
-		if (resolveValue) {
-			resolveValue = this.addPostfix(resolveValue);
+
+		if (navigateValue) {
+			// Try to navigate into the folder.
+			await this.updateItems(navigateValue, true, this.trailing);
+		} else {
+			if (resolveValue) {
+				resolveValue = this.addPostfix(resolveValue);
+			}
 			if (await this.validate(resolveValue)) {
 				this.filePickBox.busy = false;
 				return resolveValue;
 			}
-		} else if (navigateValue) {
-			// Try to navigate into the folder.
-			await this.updateItems(navigateValue, true, this.trailing);
-		} else {
-			// validation error. Path does not exist.
 		}
 		this.filePickBox.busy = false;
 		return undefined;
@@ -575,7 +581,12 @@ export class RemoteFileDialog {
 		});
 	}
 
-	private async validate(uri: URI): Promise<boolean> {
+	private async validate(uri: URI | undefined): Promise<boolean> {
+		if (uri === undefined) {
+			this.filePickBox.validationMessage = nls.localize('remoteFileDialog.invalidPath', 'Please enter a valid path.');
+			return Promise.resolve(false);
+		}
+
 		let stat: IFileStat | undefined;
 		let statDirname: IFileStat | undefined;
 		try {
