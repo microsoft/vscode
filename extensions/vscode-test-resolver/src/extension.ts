@@ -29,7 +29,8 @@ export function activate(context: vscode.ExtensionContext) {
 						outputChannel.appendLine(message);
 						if (!isStarted) {
 							outputChannel.show();
-							const result = await vscode.window.showErrorMessage(message, { modal: true }, continueAction, abortAction, retryAction);
+
+							const result = await vscode.window.showErrorMessage(message, { modal: true }, ...getActions());
 							if (result) {
 								await result.execute();
 							}
@@ -38,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
 						}
 					}
 
-					if (_authority === 'test+error') {
+					if (_authority === 'test+error' || vscode.workspace.getConfiguration('testresolver').get('error') === true) {
 						processError('Unable to start the Test Resolver.');
 						return;
 					}
@@ -111,25 +112,37 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 }
-const retryAction = {
-	title: 'Retry',
-	execute: async () => {
-		await vscode.commands.executeCommand('workbench.action.reloadWindow');
+
+type ActionItem = (vscode.MessageItem & { execute: () => void; });
+
+function getActions(): ActionItem[] {
+	const actions: ActionItem[] = [];
+	const isDirty = vscode.workspace.textDocuments.some(d => d.isDirty) || vscode.workspace.workspaceFile && vscode.workspace.workspaceFile.scheme === 'untitled';
+
+	actions.push({
+		title: 'Retry',
+		execute: async () => {
+			await vscode.commands.executeCommand('workbench.action.reloadWindow');
+		}
+	});
+	if (!isDirty) {
+		actions.push({
+			title: 'Close Remote',
+			isCloseAffordance: true,
+			execute: async () => {
+				await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true });
+			}
+		});
 	}
-};
-const continueAction = {
-	title: 'Continue',
-	execute: async () => {
-		vscode.commands.executeCommand('vscode-testresolver.showLog'); // no need to wait
-	}
-};
-const abortAction = {
-	title: 'Abort',
-	isCloseAffordance: true,
-	execute: async () => {
-		await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true });
-	}
-};
+	actions.push({
+		title: 'Continue',
+		isCloseAffordance: isDirty,
+		execute: async () => {
+			vscode.commands.executeCommand('vscode-testresolver.showLog'); // no need to wait
+		}
+	});
+	return actions;
+}
 
 
 export function deactivate() {
