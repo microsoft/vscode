@@ -11,6 +11,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import * as platform from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export const enum ConnectionType {
 	Management = 1,
@@ -375,7 +376,13 @@ abstract class PersistentConnection extends Disposable {
 					continue;
 				}
 				if ((err.code === 'ETIMEDOUT' || err.code === 'ENETUNREACH') && err.syscall === 'connect') {
-					console.warn(`A connect timeout error occured while trying to reconnect:`);
+					console.warn(`A connect error occured while trying to reconnect:`);
+					console.warn(err);
+					// try again!
+					continue;
+				}
+				if (isPromiseCanceledError(err)) {
+					console.warn(`A cancel error occured while trying to reconnect:`);
 					console.warn(err);
 					// try again!
 					continue;
