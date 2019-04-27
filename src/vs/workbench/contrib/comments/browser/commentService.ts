@@ -322,15 +322,17 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 		}
 
-		let commentControlResult: Promise<ICommentInfo>[] = [];
+		let commentControlResult: Promise<ICommentInfo | null>[] = [];
 
 		this._commentControls.forEach(control => {
-			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None));
+			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None)
+				.catch(e => {
+					console.log(e);
+					return null;
+				}));
 		});
 
-		let ret = [...await Promise.all(result), ...await Promise.all(commentControlResult)];
-
-		return ret;
+		return Promise.all([...result, ...commentControlResult]);
 	}
 
 	async getCommentingRanges(resource: URI): Promise<IRange[]> {
