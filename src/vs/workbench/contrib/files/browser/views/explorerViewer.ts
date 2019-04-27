@@ -218,12 +218,12 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		inputBox.focus();
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = once(async (success: boolean, fromDOMEvent: boolean) => {
+		const done = once(async (success: boolean, finishEditing: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
 			container.removeChild(label.element);
-			if (fromDOMEvent) {
+			if (finishEditing) {
 				// Timeout: once done rendering only then re-render #70902
 				setTimeout(() => editableData.onFinish(value, success), 0);
 			}
