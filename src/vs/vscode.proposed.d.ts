@@ -814,7 +814,7 @@ declare module 'vscode' {
 	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
 	 */
-	export interface Comment {
+	export class Comment {
 		/**
 		 * The id of the comment
 		 */
@@ -828,20 +828,20 @@ declare module 'vscode' {
 		readonly commentId: string;
 
 		/**
-		 * The text of the comment
+		 * The human-readable comment body
 		 */
 		readonly body: MarkdownString;
+
+		/**
+		 * The display name of the user who created the comment
+		 */
+		readonly userName: string;
 
 		/**
 		 * Optional label describing the [Comment](#Comment)
 		 * Label will be rendered next to userName if exists.
 		 */
 		readonly label?: string;
-
-		/**
-		 * The display name of the user who created the comment
-		 */
-		readonly userName: string;
 
 		/**
 		 * The icon path for the user who created the comment
@@ -903,6 +903,13 @@ declare module 'vscode' {
 		 * Proposed Comment Reaction
 		 */
 		commentReactions?: CommentReaction[];
+
+		/**
+		 * @param id The id of the comment
+		 * @param body The human-readable comment body
+		 * @param userName The display name of the user who created the comment
+		 */
+		constructor(id: string, body: MarkdownString, userName: string);
 	}
 
 	/**
