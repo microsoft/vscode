@@ -1040,7 +1040,7 @@ declare module 'vscode' {
 		/**
 		 * The human-readable label describing the [Comment Thread](#CommentThread)
 		 */
-		label?: string;
+		label: string;
 
 		/**
 		 * Optional accept input command
@@ -1057,6 +1057,12 @@ declare module 'vscode' {
 		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
 		 */
 		additionalCommands?: Command[];
+
+		/**
+		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
+		 * when the user collapses a comment thread that has no comments in it.
+		 */
+		deleteCommand?: Command;
 	}
 
 	export interface EmptyCommentThreadFactory {

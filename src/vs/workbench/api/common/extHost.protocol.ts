@@ -118,11 +118,19 @@ export interface MainThreadCommandsShape extends IDisposable {
 	$getCommands(): Promise<string[]>;
 }
 
+export interface CommentThreadTemplate {
+	label: string;
+	acceptInputCommand?: modes.Command;
+	additionalCommands?: modes.Command[];
+	deleteCommand?: modes.Command;
+}
+
 export interface CommentProviderFeatures {
 	startDraftLabel?: string;
 	deleteDraftLabel?: string;
 	finishDraftLabel?: string;
 	reactionGroup?: modes.CommentReaction[];
+	commentThreadTemplate?: CommentThreadTemplate;
 }
 
 export interface MainThreadCommentsShape extends IDisposable {
@@ -1207,7 +1215,7 @@ export interface ExtHostCommentsShape {
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined>;
 	$provideReactionGroup(commentControllerHandle: number): Promise<modes.CommentReaction[] | undefined>;
 	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
-	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): Promise<void>;
+	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): Promise<number | undefined>;
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Promise<modes.CommentThread | null>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Promise<void>;
 	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Promise<void>;

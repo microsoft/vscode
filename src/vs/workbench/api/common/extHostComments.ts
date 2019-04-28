@@ -157,15 +157,15 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
-	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): Promise<void> {
+	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): Promise<number | undefined> {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
 		if (!commentController) {
-			return Promise.resolve();
+			return Promise.resolve(undefined);
 		}
 
 		if (!(commentController as any).emptyCommentThreadFactory && !(commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread) && !(commentController.emptyCommentThreadFactory && commentController.emptyCommentThreadFactory.createEmptyCommentThread)) {
-			return Promise.resolve();
+			return Promise.resolve(undefined);
 		}
 
 		const document = this._documents.getDocument(URI.revive(uriComponents));
@@ -179,7 +179,12 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			}
 
 			return;
-		}).then(() => Promise.resolve());
+		}).then((commentThread: ExtHostCommentThread | undefined) => {
+			if (commentThread) {
+				return Promise.resolve(commentThread.handle);
+			}
+			return Promise.resolve(undefined);
+		});
 	}
 
 	registerWorkspaceCommentProvider(
@@ -463,6 +468,12 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	private _localDisposables: types.Disposable[];
 
+	private _isDiposed: boolean;
+
+	public get isDisposed(): boolean {
+		return this._isDiposed;
+	}
+
 	constructor(
 		private _proxy: MainThreadCommentsShape,
 		private readonly _commandsConverter: CommandsConverter,
@@ -481,6 +492,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		);
 
 		this._localDisposables = [];
+		this._isDiposed = false;
 
 		this._localDisposables.push(this.onDidUpdateCommentThread(() => {
 			this.eventuallyUpdateCommentThread();
@@ -531,6 +543,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this._commentController.handle,
 			this.handle
 		);
+		this._isDiposed = true;
 	}
 
 }
@@ -575,7 +588,16 @@ class ExtHostCommentController implements vscode.CommentController {
 	}
 
 	public inputBox: ExtHostCommentInputBox | undefined;
-	public activeCommentThread: ExtHostCommentThread | undefined;
+	private _activeCommentThread: ExtHostCommentThread | undefined;
+
+	public get activeCommentThread(): ExtHostCommentThread | undefined {
+		if (this._activeCommentThread && this._activeCommentThread.isDisposed) {
+			this._activeCommentThread = undefined;
+		}
+
+		return this._activeCommentThread;
+	}
+
 	public activeCommentingRange?: vscode.Range;
 
 	public get handle(): number {
@@ -585,7 +607,29 @@ class ExtHostCommentController implements vscode.CommentController {
 	private _threads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
 	commentingRangeProvider?: vscode.CommentingRangeProvider & { createEmptyCommentThread: (document: vscode.TextDocument, range: types.Range) => Promise<vscode.CommentThread>; };
 
-	emptyCommentThreadFactory?: vscode.EmptyCommentThreadFactory;
+	private _emptyCommentThreadFactory: vscode.EmptyCommentThreadFactory | undefined;
+	get emptyCommentThreadFactory(): vscode.EmptyCommentThreadFactory | undefined {
+		return this._emptyCommentThreadFactory;
+	}
+
+	set emptyCommentThreadFactory(newEmptyCommentThreadFactory: vscode.EmptyCommentThreadFactory | undefined) {
+		this._emptyCommentThreadFactory = newEmptyCommentThreadFactory;
+
+		if (this._emptyCommentThreadFactory && this._emptyCommentThreadFactory.template) {
+			let template = this._emptyCommentThreadFactory.template;
+			const acceptInputCommand = template.acceptInputCommand ? this._commandsConverter.toInternal(template.acceptInputCommand) : undefined;
+			const additionalCommands = template.additionalCommands ? template.additionalCommands.map(x => this._commandsConverter.toInternal(x)) : [];
+			const deleteCommand = template.deleteCommand ? this._commandsConverter.toInternal(template.deleteCommand) : undefined;
+			this._proxy.$updateCommentControllerFeatures(this.handle, {
+				commentThreadTemplate: {
+					label: template.label,
+					acceptInputCommand,
+					additionalCommands,
+					deleteCommand
+				}
+			});
+		}
+	}
 
 	private _commentReactionProvider?: vscode.CommentReactionProvider;
 
@@ -626,7 +670,7 @@ class ExtHostCommentController implements vscode.CommentController {
 	}
 
 	$onActiveCommentThreadChange(threadHandle: number) {
-		this.activeCommentThread = this.getCommentThread(threadHandle);
+		this._activeCommentThread = this.getCommentThread(threadHandle);
 	}
 
 	getCommentThread(handle: number) {
