@@ -562,7 +562,7 @@ class ExtHostCommentController implements vscode.CommentController {
 		return this._label;
 	}
 
-	public inputBox?: ExtHostCommentInputBox;
+	public inputBox: ExtHostCommentInputBox | undefined;
 	public activeCommentingRange?: vscode.Range;
 
 	public get handle(): number {
@@ -664,6 +664,7 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 	}
 
 	return {
+		id: comment.commentId,
 		commentId: comment.commentId,
 		body: extHostTypeConverter.MarkdownString.to(comment.body),
 		userName: comment.userName,

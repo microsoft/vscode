@@ -818,6 +818,13 @@ declare module 'vscode' {
 		/**
 		 * The id of the comment
 		 */
+		readonly id: string;
+
+		/**
+		 * The id of the comment
+		 *
+		 * @deprecated Use Id instead
+		 */
 		readonly commentId: string;
 
 		/**
@@ -925,6 +932,7 @@ declare module 'vscode' {
 
 	/**
 	 * Comment Reactions
+	 * Stay in proposed.
 	 */
 	interface CommentReaction {
 		readonly label?: string;
@@ -1006,6 +1014,9 @@ declare module 'vscode' {
 		value: string;
 	}
 
+	/**
+	 * Stay in proposed
+	 */
 	export interface CommentReactionProvider {
 		availableReactions: CommentReaction[];
 		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
@@ -1021,6 +1032,9 @@ declare module 'vscode' {
 		 * The method `createEmptyCommentThread` is called when users attempt to create new comment thread from the gutter or command palette.
 		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
 		 */
+		// REVIEW: dislike, not provider'ish.. Could this be something you set/provide when creating
+		// the `CommentsController` objects? E.g is this strictly coupled to the ability to limit the ranges
+		// in which you can comment?
 		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<void>;
 	}
 
@@ -1036,12 +1050,18 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The active (focused) [comment input box](#CommentInputBox).
+		 * The active [comment input box](#CommentInputBox) or `undefined`. The active `inputBox` is the input box of
+		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any CommentInputBox.
 		 */
-		readonly inputBox?: CommentInputBox;
+		readonly inputBox: CommentInputBox | undefined;
 
 		/**
-		 * Create a [CommentThread](#CommentThread)
+		 * Create a [CommentThread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
+		 * and Comments Panel.
+		 * @param id An `id` for the comment thread.
+		 * @param resource The uri of the document the thread has been created on.
+		 * @param range The range the comment thread is located within the document.
+		 * @param comments The ordered comments of the thread.
 		 */
 		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
 
@@ -1053,6 +1073,7 @@ declare module 'vscode' {
 
 		/**
 		 * Optional reaction provider
+		 * Stay in proposed.
 		 */
 		reactionProvider?: CommentReactionProvider;
 
