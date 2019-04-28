@@ -1034,15 +1034,44 @@ declare module 'vscode' {
 		 * Provide a list of ranges which allow new comment threads creation or null for a given document
 		 */
 		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
+	export interface CommentThreadTemplate {
+		/**
+		 * The human-readable label describing the [Comment Thread](#CommentThread)
+		 */
+		label?: string;
 
 		/**
-		 * The method `createEmptyCommentThread` is called when users attempt to create new comment thread from the gutter or command palette.
-		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
+		 * Optional accept input command
+		 *
+		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
+		 * This command will be invoked when users the user accepts the value in the comment editor.
+		 * This command will disabled when the comment editor is empty.
 		 */
-		// REVIEW: dislike, not provider'ish.. Could this be something you set/provide when creating
-		// the `CommentsController` objects? E.g is this strictly coupled to the ability to limit the ranges
-		// in which you can comment?
-		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<void>;
+		acceptInputCommand?: Command;
+
+		/**
+		 * Optional additonal commands.
+		 *
+		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
+		 */
+		additionalCommands?: Command[];
+	}
+
+	export interface EmptyCommentThreadFactory {
+		template: CommentThreadTemplate;
+		/**
+		 * When users attempt to create new comment thread from the gutter or command palette, `template` will be used first to create the Comment Thread Widget in the editor for users to start comment drafting.
+		 * Then `createEmptyCommentThread` is called after that. Extensions should still call [`createCommentThread`](CommentController.createCommentThread) to create a real [`CommentThread`](#CommentThread)
+		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
+		 *
+		 * @param document The document in which users attempt to create a new comment thread
+		 * @param range The range the comment threadill located within the document.
+		 *
+		 * @returns commentThread The [`CommentThread`](#CommentThread) created by extensions
+		 */
+		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<CommentThread>;
 	}
 
 	export interface CommentController {
@@ -1079,10 +1108,18 @@ declare module 'vscode' {
 		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
 
 		/**
-		 * Optional commenting range provider.
-		 * Provide a list [ranges](#Range) which support commenting to any given resource uri.
+		 * Optional commenting range provider. Provide a list [ranges](#Range) which support commenting to any given resource uri.
+		 *
+		 * If not provided and `emptyCommentThreadFactory` exits, users can leave comments in any document opened in the editor.
 		 */
 		commentingRangeProvider?: CommentingRangeProvider;
+
+		/**
+		 * Optional empty comment thread factory. It's necessary for supporting users to trigger Comment Thread creation from the editor or command palette.
+		 *
+		 * If not provided, users won't be able to trigger new comment thread creation from the editor gutter area or command palette.
+		 */
+		emptyCommentThreadFactory?: EmptyCommentThreadFactory;
 
 		/**
 		 * Optional reaction provider

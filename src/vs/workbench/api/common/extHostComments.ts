@@ -164,20 +164,21 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			return Promise.resolve();
 		}
 
-		if (!(commentController as any).emptyCommentThreadFactory && !(commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread)) {
+		if (!(commentController as any).emptyCommentThreadFactory && !(commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread) && !(commentController.emptyCommentThreadFactory && commentController.emptyCommentThreadFactory.createEmptyCommentThread)) {
 			return Promise.resolve();
 		}
 
 		const document = this._documents.getDocument(URI.revive(uriComponents));
 		return asPromise(() => {
-			// TODO, remove this once GH PR stable deprecates `emptyCommentThreadFactory`.
-			if ((commentController as any).emptyCommentThreadFactory) {
-				return (commentController as any).emptyCommentThreadFactory!.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
+			if (commentController.emptyCommentThreadFactory) {
+				return commentController.emptyCommentThreadFactory!.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
 			}
 
 			if (commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread) {
 				return commentController.commentingRangeProvider.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
 			}
+
+			return;
 		}).then(() => Promise.resolve());
 	}
 
@@ -582,7 +583,9 @@ class ExtHostCommentController implements vscode.CommentController {
 	}
 
 	private _threads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
-	commentingRangeProvider?: vscode.CommentingRangeProvider;
+	commentingRangeProvider?: vscode.CommentingRangeProvider & { createEmptyCommentThread: (document: vscode.TextDocument, range: types.Range) => Promise<vscode.CommentThread>; };
+
+	emptyCommentThreadFactory?: vscode.EmptyCommentThreadFactory;
 
 	private _commentReactionProvider?: vscode.CommentReactionProvider;
 
