@@ -702,7 +702,7 @@ function convertToModeComment(commentController: ExtHostCommentController, vscod
 	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
 
 	return {
-		commentId: vscodeComment.commentId,
+		commentId: vscodeComment.id || vscodeComment.commentId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 		userName: vscodeComment.userName,
 		userIconPath: iconPath,
