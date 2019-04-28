@@ -1063,6 +1063,12 @@ declare module 'vscode' {
 		readonly inputBox: CommentInputBox | undefined;
 
 		/**
+		 * The active [comment thread](#CommentThread) or `undefined`. The `activeCommentThread` is the comment thread of
+		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any comment thread widget.
+		 */
+		readonly activeCommentThread: CommentThread | undefined;
+
+		/**
 		 * Create a [CommentThread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
 		 * and Comments Panel.
 		 * @param id An `id` for the comment thread.

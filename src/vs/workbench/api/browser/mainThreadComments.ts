@@ -458,6 +458,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				this._proxy.$onCommentWidgetInputChange(controller.handle, this._input ? this._input.value : undefined);
 			}));
 
+			await this._proxy.$onActiveCommentThreadChange(controller.handle, controller.activeCommentThread.commentThreadHandle);
 			await this._proxy.$onCommentWidgetInputChange(controller.handle, this._input ? this._input.value : undefined);
 		}));
 	}

@@ -99,6 +99,17 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		return Promise.resolve(commentControllerHandle);
 	}
 
+	$onActiveCommentThreadChange(commentControllerHandle: number, threadHandle: number): Promise<number | undefined> {
+		const commentController = this._commentControllers.get(commentControllerHandle);
+
+		if (!commentController) {
+			return Promise.resolve(undefined);
+		}
+
+		commentController.$onActiveCommentThreadChange(threadHandle);
+		return Promise.resolve(threadHandle);
+	}
+
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined> {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
@@ -563,6 +574,7 @@ class ExtHostCommentController implements vscode.CommentController {
 	}
 
 	public inputBox: ExtHostCommentInputBox | undefined;
+	public activeCommentThread: ExtHostCommentThread | undefined;
 	public activeCommentingRange?: vscode.Range;
 
 	public get handle(): number {
@@ -608,6 +620,10 @@ class ExtHostCommentController implements vscode.CommentController {
 		} else {
 			this.inputBox.setInput(input);
 		}
+	}
+
+	$onActiveCommentThreadChange(threadHandle: number) {
+		this.activeCommentThread = this.getCommentThread(threadHandle);
 	}
 
 	getCommentThread(handle: number) {
