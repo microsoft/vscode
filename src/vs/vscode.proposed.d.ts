@@ -814,27 +814,34 @@ declare module 'vscode' {
 	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
 	 */
-	export interface Comment {
+	export class Comment {
 		/**
 		 * The id of the comment
+		 */
+		readonly id: string;
+
+		/**
+		 * The id of the comment
+		 *
+		 * @deprecated Use Id instead
 		 */
 		readonly commentId: string;
 
 		/**
-		 * The text of the comment
+		 * The human-readable comment body
 		 */
 		readonly body: MarkdownString;
+
+		/**
+		 * The display name of the user who created the comment
+		 */
+		readonly userName: string;
 
 		/**
 		 * Optional label describing the [Comment](#Comment)
 		 * Label will be rendered next to userName if exists.
 		 */
 		readonly label?: string;
-
-		/**
-		 * The display name of the user who created the comment
-		 */
-		readonly userName: string;
 
 		/**
 		 * The icon path for the user who created the comment
@@ -896,6 +903,13 @@ declare module 'vscode' {
 		 * Proposed Comment Reaction
 		 */
 		commentReactions?: CommentReaction[];
+
+		/**
+		 * @param id The id of the comment
+		 * @param body The human-readable comment body
+		 * @param userName The display name of the user who created the comment
+		 */
+		constructor(id: string, body: MarkdownString, userName: string);
 	}
 
 	/**
@@ -925,6 +939,7 @@ declare module 'vscode' {
 
 	/**
 	 * Comment Reactions
+	 * Stay in proposed.
 	 */
 	interface CommentReaction {
 		readonly label?: string;
@@ -1006,6 +1021,9 @@ declare module 'vscode' {
 		value: string;
 	}
 
+	/**
+	 * Stay in proposed
+	 */
 	export interface CommentReactionProvider {
 		availableReactions: CommentReaction[];
 		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
@@ -1016,12 +1034,50 @@ declare module 'vscode' {
 		 * Provide a list of ranges which allow new comment threads creation or null for a given document
 		 */
 		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
+	export interface CommentThreadTemplate {
+		/**
+		 * The human-readable label describing the [Comment Thread](#CommentThread)
+		 */
+		label: string;
 
 		/**
-		 * The method `createEmptyCommentThread` is called when users attempt to create new comment thread from the gutter or command palette.
-		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
+		 * Optional accept input command
+		 *
+		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
+		 * This command will be invoked when users the user accepts the value in the comment editor.
+		 * This command will disabled when the comment editor is empty.
 		 */
-		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<void>;
+		acceptInputCommand?: Command;
+
+		/**
+		 * Optional additonal commands.
+		 *
+		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
+		 */
+		additionalCommands?: Command[];
+
+		/**
+		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
+		 * when the user collapses a comment thread that has no comments in it.
+		 */
+		deleteCommand?: Command;
+	}
+
+	export interface EmptyCommentThreadFactory {
+		template: CommentThreadTemplate;
+		/**
+		 * When users attempt to create new comment thread from the gutter or command palette, `template` will be used first to create the Comment Thread Widget in the editor for users to start comment drafting.
+		 * Then `createEmptyCommentThread` is called after that. Extensions should still call [`createCommentThread`](CommentController.createCommentThread) to create a real [`CommentThread`](#CommentThread)
+		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
+		 *
+		 * @param document The document in which users attempt to create a new comment thread
+		 * @param range The range the comment threadill located within the document.
+		 *
+		 * @returns commentThread The [`CommentThread`](#CommentThread) created by extensions
+		 */
+		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<CommentThread>;
 	}
 
 	export interface CommentController {
@@ -1036,23 +1092,44 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The active (focused) [comment input box](#CommentInputBox).
+		 * The active [comment input box](#CommentInputBox) or `undefined`. The active `inputBox` is the input box of
+		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any CommentInputBox.
 		 */
-		readonly inputBox?: CommentInputBox;
+		readonly inputBox: CommentInputBox | undefined;
 
 		/**
-		 * Create a [CommentThread](#CommentThread)
+		 * The active [comment thread](#CommentThread) or `undefined`. The `activeCommentThread` is the comment thread of
+		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any comment thread widget.
+		 */
+		readonly activeCommentThread: CommentThread | undefined;
+
+		/**
+		 * Create a [CommentThread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
+		 * and Comments Panel.
+		 * @param id An `id` for the comment thread.
+		 * @param resource The uri of the document the thread has been created on.
+		 * @param range The range the comment thread is located within the document.
+		 * @param comments The ordered comments of the thread.
 		 */
 		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
 
 		/**
-		 * Optional commenting range provider.
-		 * Provide a list [ranges](#Range) which support commenting to any given resource uri.
+		 * Optional commenting range provider. Provide a list [ranges](#Range) which support commenting to any given resource uri.
+		 *
+		 * If not provided and `emptyCommentThreadFactory` exits, users can leave comments in any document opened in the editor.
 		 */
 		commentingRangeProvider?: CommentingRangeProvider;
 
 		/**
+		 * Optional empty comment thread factory. It's necessary for supporting users to trigger Comment Thread creation from the editor or command palette.
+		 *
+		 * If not provided, users won't be able to trigger new comment thread creation from the editor gutter area or command palette.
+		 */
+		emptyCommentThreadFactory?: EmptyCommentThreadFactory;
+
+		/**
 		 * Optional reaction provider
+		 * Stay in proposed.
 		 */
 		reactionProvider?: CommentReactionProvider;
 
