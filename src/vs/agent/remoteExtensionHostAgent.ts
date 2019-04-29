@@ -43,16 +43,6 @@ args['extensions-dir'] = EXTENSIONS_PATH;
 });
 console.log(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 
-console.log(`
-
-*
-* Reminder: You may only use this software with Visual Studio family products,
-* as described in the license (https://go.microsoft.com/fwlink/?linkid=2077057)
-*
-
-`);
-
-
 const environmentService = new EnvironmentService(args, process.execPath);
 
 function eventuallyExit(code: number): void {
@@ -67,6 +57,16 @@ if (RemoteExtensionManagementCli.shouldSpawnCli(args)) {
 			eventuallyExit(1);
 		});
 } else {
+	console.log(`
+
+*
+* Visual Studio Code Server
+*
+* Reminder: You may only use this software with Visual Studio family products,
+* as described in the license https://aka.ms/vscode-remote/license
+*
+
+`);
 	const server = new RemoteExtensionHostAgentServer(environmentService);
 	server.start(PORT);
 	process.on('exit', () => {
