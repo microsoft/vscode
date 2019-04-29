@@ -136,7 +136,7 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.getWorkspaceFileBackups();
 	}
 
-	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory | undefined> {
+	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory> {
 		return this.impl.resolveBackupContent(backup);
 	}
 
@@ -306,13 +306,13 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return Promise.resolve();
 	}
 
-	resolveBackupContent(backupResource: Uri): Promise<ITextBufferFactory | undefined> {
+	resolveBackupContent(backupResource: Uri): Promise<ITextBufferFactory> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
 			return Promise.resolve(createTextBufferFactoryFromSnapshot(snapshot));
 		}
 
-		return Promise.resolve(undefined);
+		return Promise.reject('Unexpected backup resource to resolve');
 	}
 
 	getWorkspaceFileBackups(): Promise<Uri[]> {

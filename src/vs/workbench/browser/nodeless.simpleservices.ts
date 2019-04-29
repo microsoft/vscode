@@ -93,13 +93,13 @@ export class SimpleBackupFileService implements IBackupFileService {
 		return Promise.resolve();
 	}
 
-	resolveBackupContent(backupResource: URI): Promise<ITextBufferFactory | undefined> {
+	resolveBackupContent(backupResource: URI): Promise<ITextBufferFactory> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
 			return Promise.resolve(createTextBufferFactoryFromSnapshot(snapshot));
 		}
 
-		return Promise.resolve(undefined);
+		return Promise.reject('Unexpected backup resource to resolve');
 	}
 
 	getWorkspaceFileBackups(): Promise<URI[]> {

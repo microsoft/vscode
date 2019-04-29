@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
-import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -24,7 +24,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { hash } from 'vs/base/common/hash';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isLinux } from 'vs/base/common/platform';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -63,8 +62,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private versionId: number;
 	private bufferSavedVersionId: number;
 	private blockModelContentChange: boolean;
-
-	private createTextEditorModelPromise: Promise<TextFileEditorModel> | null;
 
 	private lastResolvedDiskStat: IFileStatWithMetadata;
 
@@ -245,7 +242,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	load(options?: ILoadOptions): Promise<ITextFileEditorModel> {
+	async load(options?: ILoadOptions): Promise<ITextFileEditorModel> {
 		this.logService.trace('load() - enter', this.resource);
 
 		// It is very important to not reload the model when the model is dirty.
@@ -254,44 +251,51 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (this.dirty || this.saveSequentializer.hasPendingSave()) {
 			this.logService.trace('load() - exit - without loading because model is dirty or being saved', this.resource);
 
-			return Promise.resolve(this);
+			return this;
 		}
 
 		// Only for new models we support to load from backup
-		if (!this.textEditorModel && !this.createTextEditorModelPromise) {
-			return this.loadFromBackup(options);
+		if (!this.textEditorModel) {
+			const backup = await this.backupFileService.loadBackupResource(this.resource);
+
+			if (this.textEditorModel) {
+				return this; // Make sure meanwhile someone else did not suceed in loading
+			}
+
+			if (backup) {
+				try {
+					await this.loadFromBackup(backup, options);
+
+					return this;
+				} catch (error) {
+					// ignore error and continue to load as file below
+				}
+			}
 		}
 
 		// Otherwise load from file resource
 		return this.loadFromFile(options);
 	}
 
-	private async loadFromBackup(options?: ILoadOptions): Promise<TextFileEditorModel> {
-		const backup = await this.backupFileService.loadBackupResource(this.resource);
+	private async loadFromBackup(backup: URI, options?: ILoadOptions): Promise<TextFileEditorModel> {
 
-		// Make sure meanwhile someone else did not suceed or start loading
-		if (this.createTextEditorModelPromise || this.textEditorModel) {
-			return this.createTextEditorModelPromise || this;
+		// Resolve actual backup contents
+		const backupContent = await this.backupFileService.resolveBackupContent(backup);
+
+		if (this.textEditorModel) {
+			return this; // Make sure meanwhile someone else did not suceed in loading
 		}
 
-		// If we have a backup, continue loading with it
-		if (!!backup) {
-			const content: ITextFileStreamContent = {
-				resource: this.resource,
-				name: basename(this.resource),
-				mtime: Date.now(),
-				size: 0,
-				etag: ETAG_DISABLED, // always allow to save content restored from a backup (see https://github.com/Microsoft/vscode/issues/72343)
-				value: createTextBufferFactory(''), // will be filled later from backup
-				encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding,
-				isReadonly: false
-			};
-
-			return this.loadWithContent(content, options, backup);
-		}
-
-		// Otherwise load from file
-		return this.loadFromFile(options);
+		return this.loadFromContent({
+			resource: this.resource,
+			name: basename(this.resource),
+			mtime: Date.now(),
+			size: 0,
+			etag: ETAG_DISABLED, // always allow to save content restored from a backup (see https://github.com/Microsoft/vscode/issues/72343)
+			value: backupContent,
+			encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding,
+			isReadonly: false
+		}, options, true /* from backup */);
 	}
 
 	private async loadFromFile(options?: ILoadOptions): Promise<TextFileEditorModel> {
@@ -321,12 +325,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Clear orphaned state when loading was successful
 			this.setOrphaned(false);
 
-			// Guard against the model having changed in the meantime
-			if (currentVersionId === this.versionId) {
-				return this.loadWithContent(content, options);
+			if (currentVersionId !== this.versionId) {
+				return this; // Make sure meanwhile someone else did not suceed loading
 			}
 
-			return this;
+			return this.loadFromContent(content, options);
 		} catch (error) {
 			const result = error.fileOperationResult;
 
@@ -356,33 +359,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private async loadWithContent(content: ITextFileStreamContent, options?: ILoadOptions, backup?: URI): Promise<TextFileEditorModel> {
-		const model = await this.doLoadWithContent(content, backup);
-
-		// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
-		const settingsType = this.getTypeIfSettings();
-		if (settingsType) {
-			/* __GDPR__
-				"settingsRead" : {
-					"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
-		} else {
-			/* __GDPR__
-				"fileGet" : {
-					"${include}": [
-						"${FileTelemetryData}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
-		}
-
-		return model;
-	}
-
-	private doLoadWithContent(content: ITextFileStreamContent, backup?: URI): Promise<TextFileEditorModel> {
+	private loadFromContent(content: ITextFileStreamContent, options?: ILoadOptions, fromBackup?: boolean): TextFileEditorModel {
 		this.logService.trace('load() - resolved content', this.resource);
 
 		// Update our resolved disk stat model
@@ -411,19 +388,59 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Update Existing Model
 		if (this.textEditorModel) {
 			this.doUpdateTextModel(content.value);
-
-			return Promise.resolve(this);
-		}
-
-		// Join an existing request to create the editor model to avoid race conditions
-		else if (this.createTextEditorModelPromise) {
-			this.logService.trace('load() - join existing text editor model promise', this.resource);
-
-			return this.createTextEditorModelPromise;
 		}
 
 		// Create New Model
-		return this.doCreateTextModel(content.resource, content.value, backup);
+		else {
+			this.doCreateTextModel(content.resource, content.value, !!fromBackup);
+		}
+
+		// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
+		const settingsType = this.getTypeIfSettings();
+		if (settingsType) {
+			/* __GDPR__
+				"settingsRead" : {
+					"settingsType": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
+		} else {
+			/* __GDPR__
+				"fileGet" : {
+					"${include}": [
+						"${FileTelemetryData}"
+					]
+				}
+			*/
+			this.telemetryService.publicLog('fileGet', this.getTelemetryData(options && options.reason ? options.reason : LoadReason.OTHER));
+		}
+
+		return this;
+	}
+
+	private doCreateTextModel(resource: URI, value: ITextBufferFactory, fromBackup: boolean): void {
+		this.logService.trace('load() - created text editor model', this.resource);
+
+		// Create model
+		this.createTextEditorModel(value, resource);
+
+		// We restored a backup so we have to set the model as being dirty
+		// We also want to trigger auto save if it is enabled to simulate the exact same behaviour
+		// you would get if manually making the model dirty (fixes https://github.com/Microsoft/vscode/issues/16977)
+		if (fromBackup) {
+			this.makeDirty();
+			if (this.autoSaveAfterMilliesEnabled) {
+				this.doAutoSave(this.versionId);
+			}
+		}
+
+		// Ensure we are not tracking a stale state
+		else {
+			this.setDirty(false);
+		}
+
+		// Model Listeners
+		this.installModelListeners();
 	}
 
 	private doUpdateTextModel(value: ITextBufferFactory): void {
@@ -444,44 +461,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.updateSavedVersionId();
 	}
 
-	private doCreateTextModel(resource: URI, value: ITextBufferFactory, backup: URI | undefined): Promise<TextFileEditorModel> {
-		this.logService.trace('load() - created text editor model', this.resource);
-
-		this.createTextEditorModelPromise = this.doLoadBackup(backup).then(backupContent => {
-			this.createTextEditorModelPromise = null;
-
-			// Create model
-			const hasBackupContent = !!backupContent;
-			this.createTextEditorModel(backupContent ? backupContent : value, resource);
-
-			// We restored a backup so we have to set the model as being dirty
-			// We also want to trigger auto save if it is enabled to simulate the exact same behaviour
-			// you would get if manually making the model dirty (fixes https://github.com/Microsoft/vscode/issues/16977)
-			if (hasBackupContent) {
-				this.makeDirty();
-				if (this.autoSaveAfterMilliesEnabled) {
-					this.doAutoSave(this.versionId);
-				}
-			}
-
-			// Ensure we are not tracking a stale state
-			else {
-				this.setDirty(false);
-			}
-
-			// Model Listeners
-			this.installModelListeners();
-
-			return this;
-		}, error => {
-			this.createTextEditorModelPromise = null;
-
-			return Promise.reject<TextFileEditorModel>(error);
-		});
-
-		return this.createTextEditorModelPromise;
-	}
-
 	private installModelListeners(): void {
 
 		// See https://github.com/Microsoft/vscode/issues/30189
@@ -491,18 +470,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Content Change
 		if (this.textEditorModel) {
 			this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
-		}
-	}
-
-	private async doLoadBackup(backup: URI | undefined): Promise<ITextBufferFactory | null> {
-		if (!backup) {
-			return null;
-		}
-
-		try {
-			return withUndefinedAsNull(await this.backupFileService.resolveBackupContent(backup));
-		} catch (error) {
-			return null; // ignore errors
 		}
 	}
 
@@ -1045,8 +1012,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.inConflictMode = false;
 		this.inOrphanMode = false;
 		this.inErrorMode = false;
-
-		this.createTextEditorModelPromise = null;
 
 		this.cancelPendingAutoSave();
 

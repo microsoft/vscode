@@ -137,12 +137,12 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	load(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
 
 		// Check for backups first
-		return this.backupFileService.loadBackupResource(this.resource).then((backupResource) => {
+		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
 			if (backupResource) {
 				return this.backupFileService.resolveBackupContent(backupResource);
 			}
 
-			return undefined;
+			return Promise.resolve(undefined);
 		}).then(backupTextBufferFactory => {
 			const hasBackup = !!backupTextBufferFactory;
 

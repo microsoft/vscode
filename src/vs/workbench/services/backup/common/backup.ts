@@ -58,7 +58,7 @@ export interface IBackupFileService {
 	 * @param value The contents from a backup resource as stream.
 	 * @return The backup file's backed up content as text buffer factory.
 	 */
-	resolveBackupContent(backup: URI): Promise<ITextBufferFactory | undefined>;
+	resolveBackupContent(backup: URI): Promise<ITextBufferFactory>;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..
