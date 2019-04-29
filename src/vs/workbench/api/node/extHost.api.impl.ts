@@ -771,6 +771,7 @@ export function createApiFactory(
 			ColorInformation: extHostTypes.ColorInformation,
 			ColorPresentation: extHostTypes.ColorPresentation,
 			Comment: extHostTypes.Comment,
+			CommentThread: extHostTypes.CommentThread,
 			CommentLegacy: extHostTypes.Comment,
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
 			CompletionItem: extHostTypes.CompletionItem,

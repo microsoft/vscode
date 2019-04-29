@@ -904,6 +904,20 @@ declare module 'vscode' {
 		reactionProvider?: CommentReactionProvider;
 	}
 
+	export interface CommentController {
+		/**
+		 * Create a [CommentThread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
+		 * and Comments Panel.
+		 * @param id An `id` for the comment thread.
+		 * @param resource The uri of the document the thread has been created on.
+		 * @param range The range the comment thread is located within the document.
+		 * @param comments The ordered comments of the thread.
+		 *
+		 * @deprecated
+		 */
+		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
+	}
+
 	namespace workspace {
 		/**
 		 * DEPRECATED

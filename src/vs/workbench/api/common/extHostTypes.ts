@@ -2342,6 +2342,27 @@ export class Comment {
 	}
 }
 
+export class CommentThread {
+	id: string;
+	resource: URI;
+	range: Range;
+	label?: string;
+	comments: Comment[];
+	acceptInputCommand?: vscode.Command;
+	additionalCommands?: vscode.Command[];
+	collapsibleState?: CommentThreadCollapsibleState;
+	deleteCommand?: vscode.Command;
+
+	constructor(id: string, resource: URI, range: Range, comments: Comment[]) {
+		this.id = id;
+		this.resource = resource;
+		this.range = range;
+		this.comments = comments;
+	}
+
+	dispose() { }
+}
+
 export enum CommentThreadCollapsibleState {
 	/**
 	 * Determines an item is collapsed

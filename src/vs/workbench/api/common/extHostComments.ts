@@ -157,34 +157,27 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		});
 	}
 
-	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): Promise<number | undefined> {
+	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): Promise<void> {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
 		if (!commentController) {
-			return Promise.resolve(undefined);
+			return Promise.resolve();
 		}
 
-		if (!(commentController as any).emptyCommentThreadFactory && !(commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread) && !(commentController.emptyCommentThreadFactory && commentController.emptyCommentThreadFactory.createEmptyCommentThread)) {
-			return Promise.resolve(undefined);
+		if (!(commentController as any).emptyCommentThreadFactory && !(commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread)) {
+			return Promise.resolve();
 		}
 
 		const document = this._documents.getDocument(URI.revive(uriComponents));
 		return asPromise(() => {
-			if (commentController.emptyCommentThreadFactory) {
-				return commentController.emptyCommentThreadFactory!.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
+			if ((commentController as any).emptyCommentThreadFactory) {
+				return (commentController as any).emptyCommentThreadFactory!.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
 			}
 
 			if (commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread) {
 				return commentController.commentingRangeProvider.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
 			}
-
-			return;
-		}).then((commentThread: ExtHostCommentThread | undefined) => {
-			if (commentThread) {
-				return Promise.resolve(commentThread.handle);
-			}
-			return Promise.resolve(undefined);
-		});
+		}).then(() => Promise.resolve());
 	}
 
 	registerWorkspaceCommentProvider(
@@ -608,25 +601,25 @@ class ExtHostCommentController implements vscode.CommentController {
 		return this._handle;
 	}
 
-	private _threads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
+	private _extHostThreads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
 	commentingRangeProvider?: vscode.CommentingRangeProvider & { createEmptyCommentThread: (document: vscode.TextDocument, range: types.Range) => Promise<vscode.CommentThread>; };
 
-	private _emptyCommentThreadFactory: vscode.EmptyCommentThreadFactory | undefined;
-	get emptyCommentThreadFactory(): vscode.EmptyCommentThreadFactory | undefined {
-		return this._emptyCommentThreadFactory;
+	private _template: vscode.CommentThreadTemplate | undefined;
+
+	get template(): vscode.CommentThreadTemplate | undefined {
+		return this._template;
 	}
 
-	set emptyCommentThreadFactory(newEmptyCommentThreadFactory: vscode.EmptyCommentThreadFactory | undefined) {
-		this._emptyCommentThreadFactory = newEmptyCommentThreadFactory;
+	set template(newTemplate: vscode.CommentThreadTemplate | undefined) {
+		this._template = newTemplate;
 
-		if (this._emptyCommentThreadFactory && this._emptyCommentThreadFactory.template) {
-			let template = this._emptyCommentThreadFactory.template;
-			const acceptInputCommand = template.acceptInputCommand ? this._commandsConverter.toInternal(template.acceptInputCommand) : undefined;
-			const additionalCommands = template.additionalCommands ? template.additionalCommands.map(x => this._commandsConverter.toInternal(x)) : [];
-			const deleteCommand = template.deleteCommand ? this._commandsConverter.toInternal(template.deleteCommand) : undefined;
+		if (newTemplate) {
+			const acceptInputCommand = newTemplate.acceptInputCommand ? this._commandsConverter.toInternal(newTemplate.acceptInputCommand) : undefined;
+			const additionalCommands = newTemplate.additionalCommands ? newTemplate.additionalCommands.map(x => this._commandsConverter.toInternal(x)) : [];
+			const deleteCommand = newTemplate.deleteCommand ? this._commandsConverter.toInternal(newTemplate.deleteCommand) : undefined;
 			this._proxy.$updateCommentControllerFeatures(this.handle, {
 				commentThreadTemplate: {
-					label: template.label,
+					label: newTemplate.label,
 					acceptInputCommand,
 					additionalCommands,
 					deleteCommand
@@ -661,7 +654,7 @@ class ExtHostCommentController implements vscode.CommentController {
 
 	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range, comments: (vscode.Comment & vscode.CommentLegacy)[]): vscode.CommentThread {
 		const commentThread = new ExtHostCommentThread(this._proxy, this._commandsConverter, this, id, resource, range, comments);
-		this._threads.set(commentThread.handle, commentThread);
+		this._extHostThreads.set(commentThread.handle, commentThread);
 		return commentThread;
 	}
 
@@ -678,11 +671,11 @@ class ExtHostCommentController implements vscode.CommentController {
 	}
 
 	getCommentThread(handle: number) {
-		return this._threads.get(handle);
+		return this._extHostThreads.get(handle);
 	}
 
 	dispose(): void {
-		this._threads.forEach(value => {
+		this._extHostThreads.forEach(value => {
 			value.dispose();
 		});
 

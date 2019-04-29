@@ -8961,7 +8961,7 @@ declare module 'vscode' {
 	/**
 	 * A collection of comments representing a conversation at a particular range in a document.
 	 */
-	export interface CommentThread {
+	export class CommentThread {
 		/**
 		 * A unique identifier of the comment thread.
 		 */
@@ -9015,6 +9015,15 @@ declare module 'vscode' {
 		 * when the user collapses a comment thread that has no comments in it.
 		 */
 		deleteCommand?: Command;
+
+		/**
+		 * Create a [CommentThread](#CommentThread).
+		 * @param id An `id` for the comment thread.
+		 * @param resource The uri of the document the thread has been created on.
+		 * @param range The range the comment thread is located within the document.
+		 * @param comments The ordered comments of the thread.
+		 */
+		constructor(id: string, resource: Uri, range: Range, comments: Comment[]);
 
 		/**
 		 * Dispose this comment thread.
@@ -9122,21 +9131,6 @@ declare module 'vscode' {
 		deleteCommand?: Command;
 	}
 
-	export interface EmptyCommentThreadFactory {
-		readonly template: CommentThreadTemplate;
-		/**
-		 * When users attempt to create new comment thread from the gutter or command palette, `template` will be used first to create the Comment Thread Widget in the editor for users to start comment drafting.
-		 * Then `createEmptyCommentThread` is called after that. Extensions should still call [`createCommentThread`](CommentController.createCommentThread) to create a real [`CommentThread`](#CommentThread)
-		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
-		 *
-		 * @param document The document in which users attempt to create a new comment thread
-		 * @param range The range the comment threadill located within the document.
-		 *
-		 * @returns commentThread The [`CommentThread`](#CommentThread) created by extensions
-		 */
-		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<CommentThread>;
-	}
-
 	/**
 	 * A comment controller is able to provide [comments](#CommentThread) support to the editor and
 	 * provide users various ways to interact with comments.
@@ -9164,15 +9158,7 @@ declare module 'vscode' {
 		 */
 		readonly activeCommentThread: CommentThread | undefined;
 
-		/**
-		 * Create a [CommentThread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
-		 * and Comments Panel.
-		 * @param id An `id` for the comment thread.
-		 * @param resource The uri of the document the thread has been created on.
-		 * @param range The range the comment thread is located within the document.
-		 * @param comments The ordered comments of the thread.
-		 */
-		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
+		template?: CommentThreadTemplate;
 
 		/**
 		 * Optional commenting range provider. Provide a list [ranges](#Range) which support commenting to any given resource uri.
@@ -9180,13 +9166,6 @@ declare module 'vscode' {
 		 * If not provided and `emptyCommentThreadFactory` exits, users can leave comments in any document opened in the editor.
 		 */
 		commentingRangeProvider?: CommentingRangeProvider;
-
-		/**
-		 * Optional empty comment thread factory. It's necessary for supporting users to trigger Comment Thread creation from the editor or command palette.
-		 *
-		 * If not provided, users won't be able to trigger new comment thread creation from the editor gutter area or command palette.
-		 */
-		emptyCommentThreadFactory?: EmptyCommentThreadFactory;
 
 		/**
 		 * Dispose this comment controller.
