@@ -50,6 +50,7 @@
 		"statusBar.background": "#414339",
 		"statusBar.noFolderBackground": "#414339",
 		"statusBar.debuggingBackground": "#75715E",
+		"statusBarItem.hostBackground": "#AC6218",
 		"activityBar.background": "#272822",
 		"activityBar.foreground": "#f8f8f2",
 		"activityBar.dropBackground": "#414339",
