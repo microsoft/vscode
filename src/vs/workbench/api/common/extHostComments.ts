@@ -416,11 +416,11 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._onDidUpdateCommentThread.fire();
 	}
 
-	get comments(): vscode.Comment[] {
+	get comments(): (vscode.Comment & vscode.CommentLegacy)[] {
 		return this._comments;
 	}
 
-	set comments(newComments: vscode.Comment[]) {
+	set comments(newComments: (vscode.Comment & vscode.CommentLegacy)[]) {
 		this._comments = newComments;
 		this._onDidUpdateCommentThread.fire();
 	}
@@ -481,7 +481,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		private _threadId: string,
 		private _resource: vscode.Uri,
 		private _range: vscode.Range,
-		private _comments: vscode.Comment[]
+		private _comments: (vscode.Comment & vscode.CommentLegacy)[]
 	) {
 		this._proxy.$createCommentThread(
 			this._commentController.handle,
@@ -655,7 +655,7 @@ class ExtHostCommentController implements vscode.CommentController {
 		this._proxy.$registerCommentController(this.handle, _id, _label);
 	}
 
-	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range, comments: vscode.Comment[]): vscode.CommentThread {
+	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range, comments: (vscode.Comment & vscode.CommentLegacy)[]): vscode.CommentThread {
 		const commentThread = new ExtHostCommentThread(this._proxy, this._commandsConverter, this, id, resource, range, comments);
 		this._threads.set(commentThread.handle, commentThread);
 		return commentThread;
@@ -701,7 +701,7 @@ function convertToCommentThread(extensionId: ExtensionIdentifier, provider: vsco
 		threadId: vscodeCommentThread.threadId,
 		resource: vscodeCommentThread.resource.toString(),
 		range: extHostTypeConverter.Range.from(vscodeCommentThread.range),
-		comments: vscodeCommentThread.comments.map(comment => convertToComment(provider, comment, commandsConverter)),
+		comments: vscodeCommentThread.comments.map(comment => convertToComment(provider, comment as vscode.Comment & vscode.CommentLegacy, commandsConverter)),
 		collapsibleState: vscodeCommentThread.collapsibleState
 	};
 }
@@ -716,7 +716,7 @@ function convertFromCommentThread(commentThread: modes.CommentThread): vscode.Co
 	};
 }
 
-function convertFromComment(comment: modes.Comment): vscode.Comment {
+function convertFromComment(comment: modes.Comment): vscode.Comment & vscode.CommentLegacy {
 	let userIconPath: URI | undefined;
 	if (comment.userIconPath) {
 		try {
@@ -745,7 +745,7 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 	};
 }
 
-function convertToModeComment(commentController: ExtHostCommentController, vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
+function convertToModeComment(commentController: ExtHostCommentController, vscodeComment: vscode.Comment & vscode.CommentLegacy, commandsConverter: CommandsConverter): modes.Comment {
 	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
 
 	return {
@@ -762,7 +762,7 @@ function convertToModeComment(commentController: ExtHostCommentController, vscod
 	};
 }
 
-function convertToComment(provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
+function convertToComment(provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, vscodeComment: vscode.Comment & vscode.CommentLegacy, commandsConverter: CommandsConverter): modes.Comment {
 	const canEdit = !!(provider as vscode.DocumentCommentProvider).editComment && vscodeComment.canEdit;
 	const canDelete = !!(provider as vscode.DocumentCommentProvider).deleteComment && vscodeComment.canDelete;
 	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
