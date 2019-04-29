@@ -384,7 +384,11 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	private static _handlePool: number = 0;
 	readonly handle = ExtHostCommentThread._handlePool++;
 	get threadId(): string {
-		return this._threadId;
+		return this._id;
+	}
+
+	get id(): string {
+		return this._id;
 	}
 
 	get resource(): vscode.Uri {
@@ -478,7 +482,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		private _proxy: MainThreadCommentsShape,
 		private readonly _commandsConverter: CommandsConverter,
 		private _commentController: ExtHostCommentController,
-		private _threadId: string,
+		private _id: string,
 		private _resource: vscode.Uri,
 		private _range: vscode.Range,
 		private _comments: (vscode.Comment & vscode.CommentLegacy)[]
@@ -486,7 +490,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._proxy.$createCommentThread(
 			this._commentController.handle,
 			this.handle,
-			this._threadId,
+			this._id,
 			this._resource,
 			extHostTypeConverter.Range.from(this._range)
 		);
@@ -515,7 +519,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._proxy.$updateCommentThread(
 			this._commentController.handle,
 			this.handle,
-			this._threadId,
+			this._id,
 			this._resource,
 			commentThreadRange,
 			label,
@@ -698,7 +702,7 @@ function convertCommentInfo(owner: number, extensionId: ExtensionIdentifier, pro
 function convertToCommentThread(extensionId: ExtensionIdentifier, provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, vscodeCommentThread: vscode.CommentThread, commandsConverter: CommandsConverter): modes.CommentThread {
 	return {
 		extensionId: extensionId.value,
-		threadId: vscodeCommentThread.threadId,
+		threadId: vscodeCommentThread.id,
 		resource: vscodeCommentThread.resource.toString(),
 		range: extHostTypeConverter.Range.from(vscodeCommentThread.range),
 		comments: vscodeCommentThread.comments.map(comment => convertToComment(provider, comment as vscode.Comment & vscode.CommentLegacy, commandsConverter)),
@@ -708,12 +712,14 @@ function convertToCommentThread(extensionId: ExtensionIdentifier, provider: vsco
 
 function convertFromCommentThread(commentThread: modes.CommentThread): vscode.CommentThread {
 	return {
+		id: commentThread.threadId!,
 		threadId: commentThread.threadId!,
 		resource: URI.parse(commentThread.resource!),
 		range: extHostTypeConverter.Range.to(commentThread.range),
 		comments: commentThread.comments ? commentThread.comments.map(convertFromComment) : [],
-		collapsibleState: commentThread.collapsibleState
-	};
+		collapsibleState: commentThread.collapsibleState,
+		dispose: () => { }
+	} as vscode.CommentThread;
 }
 
 function convertFromComment(comment: modes.Comment): vscode.Comment & vscode.CommentLegacy {

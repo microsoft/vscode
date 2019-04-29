@@ -8942,6 +8942,11 @@ declare module 'vscode' {
 	}
 
 	//#region Comments
+
+	/**
+	 *
+	 * Collapsible state of the comment thread
+	 */
 	export enum CommentThreadCollapsibleState {
 		/**
 		 * Determines an item is collapsed
@@ -8960,7 +8965,7 @@ declare module 'vscode' {
 		/**
 		 * A unique identifier of the comment thread.
 		 */
-		threadId: string;
+		id: string;
 
 		/**
 		 * The uri of the document the thread has been created on.
