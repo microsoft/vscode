@@ -289,11 +289,8 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 					reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout));
 				}, timeout)),
 			this.applyOnSaveActions(model, codeActionsOnSave, tokenSource.token)
-		]).then(() => {
+		]).finally(() => {
 			tokenSource.cancel();
-		}, (e) => {
-			tokenSource.cancel();
-			return Promise.reject(e);
 		});
 	}
 
