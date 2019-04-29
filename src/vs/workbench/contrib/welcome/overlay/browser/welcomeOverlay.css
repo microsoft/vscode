@@ -16,7 +16,7 @@
 }
 
 #workbench\.parts\.editor {
-	transition: filter .25s, opacity .2s;
+	transition: filter .25s, opacity .2s, left .2s;
 }
 
 .monaco-workbench.blur-background #workbench\.parts\.panel,
