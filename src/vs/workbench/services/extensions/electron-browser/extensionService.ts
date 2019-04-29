@@ -466,7 +466,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, null, initialActivationEvents);
-		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
+		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal, true));
 		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
 		this._extensionHostProcessManagers.push(extHostProcessManager);
 
@@ -474,48 +474,50 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		if (remoteAgentConnection) {
 			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority));
 			const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
-			remoteExtHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
+			remoteExtHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal, false));
 			remoteExtHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
 			this._extensionHostProcessManagers.push(remoteExtHostProcessManager);
 		}
 	}
 
-	private _onExtensionHostCrashed(code: number, signal: string | null): void {
+	private _onExtensionHostCrashed(code: number, signal: string | null, showNotification: boolean): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		this._stopExtensionHostProcess();
 
-		if (code === 55) {
-			this._notificationService.prompt(
-				Severity.Error,
-				nls.localize('extensionService.versionMismatchCrash', "Extension host cannot start: version mismatch."),
+		if (showNotification) {
+			if (code === 55) {
+				this._notificationService.prompt(
+					Severity.Error,
+					nls.localize('extensionService.versionMismatchCrash', "Extension host cannot start: version mismatch."),
+					[{
+						label: nls.localize('relaunch', "Relaunch VS Code"),
+						run: () => {
+							this._instantiationService.invokeFunction((accessor) => {
+								const windowsService = accessor.get(IWindowsService);
+								windowsService.relaunch({});
+							});
+						}
+					}]
+				);
+				return;
+			}
+
+			let message = nls.localize('extensionService.crash', "Extension host terminated unexpectedly.");
+			if (code === 87) {
+				message = nls.localize('extensionService.unresponsiveCrash', "Extension host terminated because it was not responsive.");
+			}
+
+			this._notificationService.prompt(Severity.Error, message,
 				[{
-					label: nls.localize('relaunch', "Relaunch VS Code"),
-					run: () => {
-						this._instantiationService.invokeFunction((accessor) => {
-							const windowsService = accessor.get(IWindowsService);
-							windowsService.relaunch({});
-						});
-					}
+					label: nls.localize('devTools', "Open Developer Tools"),
+					run: () => this._windowService.openDevTools()
+				},
+				{
+					label: nls.localize('restart', "Restart Extension Host"),
+					run: () => this._startExtensionHostProcess(false, Object.keys(this._allRequestedActivateEvents))
 				}]
 			);
-			return;
 		}
-
-		let message = nls.localize('extensionService.crash', "Extension host terminated unexpectedly.");
-		if (code === 87) {
-			message = nls.localize('extensionService.unresponsiveCrash', "Extension host terminated because it was not responsive.");
-		}
-
-		this._notificationService.prompt(Severity.Error, message,
-			[{
-				label: nls.localize('devTools', "Open Developer Tools"),
-				run: () => this._windowService.openDevTools()
-			},
-			{
-				label: nls.localize('restart', "Restart Extension Host"),
-				run: () => this._startExtensionHostProcess(false, Object.keys(this._allRequestedActivateEvents))
-			}]
-		);
 	}
 
 	// ---- begin IExtensionService
