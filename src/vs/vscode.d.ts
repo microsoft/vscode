@@ -9015,7 +9015,7 @@ declare module 'vscode' {
 		 * Dispose this comment thread.
 		 * Once disposed, the comment thread will be removed from visible text editors and Comments Panel.
 		 */
-		dispose?(): void;
+		dispose(): void;
 	}
 
 	/**
@@ -9132,6 +9132,10 @@ declare module 'vscode' {
 		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<CommentThread>;
 	}
 
+	/**
+	 * A comment controller is able to provide [comments](#CommentThread) support to the editor and
+	 * provide users various ways to interact with comments.
+	 */
 	export interface CommentController {
 		/**
 		 * The id of this comment controller.
@@ -9186,6 +9190,13 @@ declare module 'vscode' {
 	}
 
 	namespace comment {
+		/**
+		 * Creates a new [comment controller](#CommentController) instance.
+		 *
+		 * @param id An `id` for the comment controller.
+		 * @param label A human-readable string for the comment controller.
+		 * @return An instance of [comment controller](#CommentController).
+		 */
 		export function createCommentController(id: string, label: string): CommentController;
 	}
 
