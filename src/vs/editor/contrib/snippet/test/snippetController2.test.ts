@@ -401,4 +401,13 @@ suite('SnippetController2', function () {
 		assertContextKeys(contextKeys, false, false, false);
 		assertSelections(editor, new Selection(1, 22, 1, 22));
 	});
+
+	test('User defined snippet tab stops ignored #72862', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('export default $1');
+		assertContextKeys(contextKeys, true, false, true);
+	});
 });
