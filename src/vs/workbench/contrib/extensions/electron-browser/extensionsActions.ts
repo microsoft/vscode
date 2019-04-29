@@ -1745,7 +1745,9 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super(id, label, 'extension-action');
 		this.recommendations = recommendations;
@@ -1762,16 +1764,29 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 					let installPromises: Promise<any>[] = [];
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
-						installPromises.push(model.resolve(i, CancellationToken.None).then(e => {
-							return this.extensionWorkbenchService.install(e).then(undefined, err => {
-								console.error(err);
-								return promptDownloadManually(e.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", e.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
-							});
-						}));
+						installPromises.push(model.resolve(i, CancellationToken.None).then(e => this.installExtension(e)));
 					}
 					return Promise.all(installPromises);
 				});
 			});
+	}
+
+	private async installExtension(extension: IExtension): Promise<void> {
+		try {
+			if (extension.local && extension.gallery) {
+				if (isUIExtension(extension.local.manifest, this.configurationService)) {
+					await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(extension.gallery);
+					return;
+				} else if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+					await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(extension.gallery);
+					return;
+				}
+			}
+			await this.extensionWorkbenchService.install(extension);
+		} catch (err) {
+			console.error(err);
+			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+		}
 	}
 }
 

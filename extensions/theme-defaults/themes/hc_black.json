@@ -4,7 +4,8 @@
 	"include": "./hc_black_defaults.json",
 	"colors": {
 		"selection.background": "#008000",
-		"editor.selectionBackground": "#FFFFFF"
+		"editor.selectionBackground": "#FFFFFF",
+		"statusBarItem.hostBackground": "#00000000"
 	},
 	"tokenColors": [
 		{
