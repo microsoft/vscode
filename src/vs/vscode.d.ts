@@ -9123,7 +9123,7 @@ declare module 'vscode' {
 	}
 
 	export interface EmptyCommentThreadFactory {
-		template: CommentThreadTemplate;
+		readonly template: CommentThreadTemplate;
 		/**
 		 * When users attempt to create new comment thread from the gutter or command palette, `template` will be used first to create the Comment Thread Widget in the editor for users to start comment drafting.
 		 * Then `createEmptyCommentThread` is called after that. Extensions should still call [`createCommentThread`](CommentController.createCommentThread) to create a real [`CommentThread`](#CommentThread)
