@@ -28,7 +28,7 @@ const File = require('vinyl');
 const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
-const buildfile = require('../src/buildfile');
+// const buildfile = require('../src/buildfile');
 
 const REPO_ROOT = path.dirname(__dirname);
 const commit = util.getVersion(REPO_ROOT);
@@ -65,11 +65,11 @@ const vscodeResources = [
 	'out-build/vs/workbench/services/files/**/*.md',
 
 	// Workbench
-	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
-	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
-	'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
-	'out-build/vs/code/browser/workbench/**',
-	'out-build/vs/**/markdown.css',
+	// 'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
+	// 'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
+	// 'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
+	// 'out-build/vs/code/browser/workbench/**',
+	// 'out-build/vs/**/markdown.css',
 
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',
@@ -107,9 +107,9 @@ const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
 			},
 
 			// // Workbench
-			buildfile.entrypoint('vs/workbench/workbench.nodeless.main'),
-			buildfile.base,
-			buildfile.workbenchNodeless
+			// buildfile.entrypoint('vs/workbench/workbench.nodeless.main'),
+			// buildfile.base,
+			// buildfile.workbenchNodeless
 		]),
 		otherSources: [],
 		resources: vscodeResources,
