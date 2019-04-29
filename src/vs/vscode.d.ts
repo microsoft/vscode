@@ -8945,7 +8945,7 @@ declare module 'vscode' {
 
 	/**
 	 *
-	 * Collapsible state of the comment thread
+	 * Collapsible state of a [comment thread](#CommentThread)
 	 */
 	export enum CommentThreadCollapsibleState {
 		/**
@@ -8959,7 +8959,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A collection of comments representing a conversation at a particular range in a document.
+	 * A collection of [comments](#Comment) representing a conversation at a particular range in a document.
 	 */
 	export class CommentThread {
 		/**
@@ -9027,7 +9027,6 @@ declare module 'vscode' {
 
 		/**
 		 * Dispose this comment thread.
-		 * Once disposed, the comment thread will be removed from visible text editors and Comments Panel.
 		 */
 		dispose(): void;
 	}
@@ -9095,6 +9094,9 @@ declare module 'vscode' {
 		value: string;
 	}
 
+	/**
+	 * Commenting range provider for a [comment controller](#CommentController).
+	 */
 	export interface CommentingRangeProvider {
 		/**
 		 * Provide a list of ranges which allow new comment threads creation or null for a given document
@@ -9102,6 +9104,9 @@ declare module 'vscode' {
 		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
 	}
 
+	/**
+	 * Comment thread template for new comment thread creation.
+	 */
 	export interface CommentThreadTemplate {
 		/**
 		 * The human-readable label describing the [Comment Thread](#CommentThread)
@@ -9158,6 +9163,17 @@ declare module 'vscode' {
 		 */
 		readonly activeCommentThread: CommentThread | undefined;
 
+		/**
+		 * Optional comment thread template information.
+		 *
+		 * The comment controller will use this information to create the comment widget when users attempt to create new comment thread
+		 * from the gutter or command palette.
+		 *
+		 * When users run `CommentThreadTemplate.acceptInputCommand` or `CommentThreadTemplate.additionalCommands`, extensions should create
+		 * the approriate [CommentThread](#CommentThread).
+		 *
+		 * If not provided, users won't be able to create new comment threads in the editor.
+		 */
 		template?: CommentThreadTemplate;
 
 		/**
@@ -9169,6 +9185,9 @@ declare module 'vscode' {
 
 		/**
 		 * Dispose this comment controller.
+		 *
+		 * Once disposed, all [comment threads](#CommentThread) created by this comment controller will also be removed from the editor
+		 * and Comments Panel.
 		 */
 		dispose(): void;
 	}
