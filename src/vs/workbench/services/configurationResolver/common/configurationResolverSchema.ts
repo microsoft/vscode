@@ -102,7 +102,7 @@ export const inputsSchema: IJSONSchema = {
 								description: nls.localize('JsonSchema.input.command.command', "The command to execute for this input variable.")
 							},
 							args: {
-								type: 'object',
+								type: 'array',
 								description: nls.localize('JsonSchema.input.command.args', "Optional arguments passed to the command.")
 							}
 						}

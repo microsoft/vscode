@@ -57,7 +57,7 @@ export interface CommandInputInfo {
 	id: string;
 	type: 'command';
 	command: string;
-	args?: any;
+	args?: any[];
 }
 
 export type ConfiguredInput = PromptStringInputInfo | PickStringInputInfo | CommandInputInfo;
