@@ -469,7 +469,7 @@ export class RemoteFileDialog {
 			this.autoCompletePathSegment = '';
 			return false;
 		}
-		const itemBasename = quickPickItem.label;
+		const itemBasename = this.trimTrailingSlash(quickPickItem.label);
 		// Either force the autocomplete, or the old value should be one smaller than the new value and match the new value.
 		if (itemBasename === '..') {
 			// Don't match on the up directory item ever.
