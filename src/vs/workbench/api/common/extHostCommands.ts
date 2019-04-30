@@ -48,8 +48,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadCommands);
 		this._onDidExecuteCommand = new Emitter<ICommandEvent>({
-			onFirstListenerDidAdd: this._proxy.$onDidExecuteCommand,
-			onLastListenerRemove: this._proxy.$disposeListener,
+			onFirstListenerDidAdd: () => this._proxy.$registerCommandListener(),
+			onLastListenerRemove: () => this._proxy.$unregisterCommandListener(),
 		});
 		this.onDidExecuteCommandEmitter = this._onDidExecuteCommand.event;
 		this._logService = logService;

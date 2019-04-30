@@ -79,11 +79,11 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		return this._commandService.executeCommand<T>(id, ...args);
 	}
 
-	$onDidExecuteCommand() {
+	$registerCommandListener() {
 		this._onDidExecuteCommandListener = this._commandService.onDidExecuteCommand((command) => this.handleExecuteCommand(command));
 	}
 
-	$disposeListener() {
+	$unregisterCommandListener() {
 		return this._onDidExecuteCommandListener.dispose();
 	}
 
