@@ -611,7 +611,7 @@ class ExtHostCommentController implements vscode.CommentController {
 		return this._handle;
 	}
 
-	private _extHostThreads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
+	private _threads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
 	commentingRangeProvider?: vscode.CommentingRangeProvider & { createEmptyCommentThread: (document: vscode.TextDocument, range: types.Range) => Promise<vscode.CommentThread>; };
 
 	private _template: vscode.CommentThreadTemplate | undefined;
@@ -664,7 +664,7 @@ class ExtHostCommentController implements vscode.CommentController {
 
 	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range, comments: (vscode.Comment & vscode.CommentLegacy)[]): vscode.CommentThread {
 		const commentThread = new ExtHostCommentThread(this._proxy, this._commandsConverter, this, id, resource, range, comments);
-		this._extHostThreads.set(commentThread.handle, commentThread);
+		this._threads.set(commentThread.handle, commentThread);
 		return commentThread;
 	}
 
@@ -681,11 +681,11 @@ class ExtHostCommentController implements vscode.CommentController {
 	}
 
 	getCommentThread(handle: number) {
-		return this._extHostThreads.get(handle);
+		return this._threads.get(handle);
 	}
 
 	dispose(): void {
-		this._extHostThreads.forEach(value => {
+		this._threads.forEach(value => {
 			value.dispose();
 		});
 
