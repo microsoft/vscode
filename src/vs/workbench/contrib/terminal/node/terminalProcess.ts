@@ -11,13 +11,13 @@ import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _exitCode: number;
 	private _closeTimeout: any;
-	private _ptyProcess: pty.IPty;
+	private _ptyProcess: pty.IPty | undefined;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void>;
 	private _isDisposed: boolean = false;
@@ -69,9 +69,9 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			experimentalUseConpty: useConpty
 		};
 
-		try {
-			const filePath = path.basename(shellLaunchConfig.executable!);
-			if (fs.existsSync(filePath)) {
+		const filePath = path.basename(shellLaunchConfig.executable!);
+		fs.stat(filePath, (err, stats) => {
+			if (err === null) {
 				this._ptyProcess = pty.spawn(shellLaunchConfig.executable!, shellLaunchConfig.args || [], options);
 				this._processStartupComplete = new Promise<void>(c => {
 					this.onProcessIdReady((pid) => {
@@ -79,28 +79,22 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 					});
 				});
 			}
-			else {
-				// file path does not exist , handle it with negative exit code
-				this._exitCode = -1;
+			else if (err.code === 'ENOENT') {
+				this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
 				this._queueProcessExit();
 				this._processStartupComplete = Promise.resolve(undefined);
 				return;
 			}
-		} catch (error) {
-			// The only time this is expected to happen is when the file specified to launch with does not exist.
-			this._exitCode = 2;
-			this._queueProcessExit();
-			this._processStartupComplete = Promise.resolve(undefined);
-			return;
-		}
-		this._ptyProcess.on('data', (data) => {
+		});
+
+		this._ptyProcess!.on('data', (data) => {
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
 		});
-		this._ptyProcess.on('exit', (code) => {
+		this._ptyProcess!.on('exit', (code) => {
 			this._exitCode = code;
 			this._queueProcessExit();
 		});
@@ -131,7 +125,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		}, 0);
 		// Setup polling
 		this._titleInterval = setInterval(() => {
-			if (this._currentTitle !== this._ptyProcess.process) {
+			if (this._currentTitle !== this._ptyProcess!.process) {
 				this._sendProcessTitle();
 			}
 		}, 200);
@@ -156,7 +150,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			// Attempt to kill the pty, it may have already been killed at this
 			// point but we want to make sure
 			try {
-				this._ptyProcess.kill();
+				this._ptyProcess!.kill();
 			} catch (ex) {
 				// Swallow, the pty has already been killed
 			}
@@ -166,14 +160,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	}
 
 	private _sendProcessId() {
-		this._onProcessIdReady.fire(this._ptyProcess.pid);
+		this._onProcessIdReady.fire(this._ptyProcess!.pid);
 	}
 
 	private _sendProcessTitle(): void {
 		if (this._isDisposed) {
 			return;
 		}
-		this._currentTitle = this._ptyProcess.process;
+		this._currentTitle = this._ptyProcess!.process;
 		this._onProcessTitleChanged.fire(this._currentTitle);
 	}
 
@@ -189,7 +183,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		if (this._isDisposed) {
 			return;
 		}
-		this._ptyProcess.write(data);
+		this._ptyProcess!.write(data);
 	}
 
 	public resize(cols: number, rows: number): void {
@@ -198,7 +192,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		}
 		// Ensure that cols and rows are always >= 1, this prevents a native
 		// exception in winpty.
-		this._ptyProcess.resize(Math.max(cols, 1), Math.max(rows, 1));
+		this._ptyProcess!.resize(Math.max(cols, 1), Math.max(rows, 1));
 	}
 
 	public getInitialCwd(): Promise<string> {
@@ -208,7 +202,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	public getCwd(): Promise<string> {
 		if (platform.isMacintosh) {
 			return new Promise<string>(resolve => {
-				exec('lsof -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+				exec('lsof -p ' + this._ptyProcess!.pid + ' | grep cwd', (error, stdout, stderr) => {
 					if (stdout !== '') {
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 					}
@@ -218,7 +212,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 
 		if (platform.isLinux) {
 			return new Promise<string>(resolve => {
-				fs.readlink('/proc/' + this._ptyProcess.pid + '/cwd', (err, linkedstr) => {
+				fs.readlink('/proc/' + this._ptyProcess!.pid + '/cwd', (err, linkedstr) => {
 					if (err) {
 						resolve(this._initialCwd);
 					}
