@@ -9169,9 +9169,18 @@ declare module 'vscode' {
 
 		/**
 		 * The active [comment thread](#CommentThread) or `undefined`. The `activeCommentThread` is the comment thread of
-		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any comment thread widget.
+		 * the comment widget that currently has focus. It's `undefined` when the focus is not in any comment thread widget, or
+		 * the comment widget created from [comment thread template](#CommentThreadTemplate).
 		 */
 		readonly activeCommentThread: CommentThread | undefined;
+
+		/**
+		 * The collection of [comment threads](#CommentThread) of this comment controller. They will be displayed in both visible editors and
+		 * Comments Panel when appropriate.
+		 *
+		 * Extensions set this property to update the comment threads for this comment controller.
+		 */
+		commentThreads: CommentThread[];
 
 		/**
 		 * Optional comment thread template information.
