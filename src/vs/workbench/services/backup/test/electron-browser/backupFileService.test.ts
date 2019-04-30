@@ -70,15 +70,14 @@ class TestBackupFileService extends BackupFileService {
 suite('BackupFileService', () => {
 	let service: TestBackupFileService;
 
-	setup(() => {
+	setup(async () => {
 		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 
 		// Delete any existing backups completely and then re-create it.
-		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE).then(() => {
-			return pfs.mkdirp(backupHome).then(() => {
-				return pfs.writeFile(workspacesJsonPath, '');
-			});
-		});
+		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.mkdirp(backupHome);
+
+		return pfs.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(() => {
@@ -131,183 +130,155 @@ suite('BackupFileService', () => {
 	});
 
 	suite('loadBackupResource', () => {
-		test('should return whether a backup resource exists', () => {
-			return pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
-				fs.writeFileSync(fooBackupPath, 'foo');
-				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
-				return service.loadBackupResource(fooFile).then(resource => {
-					assert.ok(resource);
-					assert.equal(path.basename(resource!.fsPath), path.basename(fooBackupPath));
-					return service.hasBackups().then(hasBackups => {
-						assert.ok(hasBackups);
-					});
-				});
-			});
+		test('should return whether a backup resource exists', async () => {
+			await pfs.mkdirp(path.dirname(fooBackupPath));
+			fs.writeFileSync(fooBackupPath, 'foo');
+			service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+			const resource = await service.loadBackupResource(fooFile);
+			assert.ok(resource);
+			assert.equal(path.basename(resource!.fsPath), path.basename(fooBackupPath));
+			const hasBackups = await service.hasBackups();
+			assert.ok(hasBackups);
 		});
 	});
 
 	suite('backupResource', () => {
-		test('text file', function () {
-			return service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-				assert.equal(fs.existsSync(fooBackupPath), true);
-				assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
-			});
+		test('text file', async () => {
+			await service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.equal(fs.existsSync(fooBackupPath), true);
+			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
 		});
 
-		test('untitled file', function () {
-			return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-				assert.equal(fs.existsSync(untitledBackupPath), true);
-				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
-			});
+		test('untitled file', async () => {
+			await service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+			assert.equal(fs.existsSync(untitledBackupPath), true);
+			assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
 		});
 
-		test('text file (ITextSnapshot)', function () {
+		test('text file (ITextSnapshot)', async () => {
 			const model = TextModel.createFromString('test');
 
-			return service.backupResource(fooFile, model.createSnapshot()).then(() => {
-				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-				assert.equal(fs.existsSync(fooBackupPath), true);
-				assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
-				model.dispose();
-			});
+			await service.backupResource(fooFile, model.createSnapshot());
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.equal(fs.existsSync(fooBackupPath), true);
+			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
+			model.dispose();
 		});
 
-		test('untitled file (ITextSnapshot)', function () {
+		test('untitled file (ITextSnapshot)', async () => {
 			const model = TextModel.createFromString('test');
 
-			return service.backupResource(untitledFile, model.createSnapshot()).then(() => {
-				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-				assert.equal(fs.existsSync(untitledBackupPath), true);
-				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
-				model.dispose();
-			});
+			await service.backupResource(untitledFile, model.createSnapshot());
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+			assert.equal(fs.existsSync(untitledBackupPath), true);
+			assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
+			model.dispose();
 		});
 
-		test('text file (large file, ITextSnapshot)', function () {
+		test('text file (large file, ITextSnapshot)', async () => {
 			const largeString = (new Array(10 * 1024)).join('Large String\n');
 			const model = TextModel.createFromString(largeString);
 
-			return service.backupResource(fooFile, model.createSnapshot()).then(() => {
-				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-				assert.equal(fs.existsSync(fooBackupPath), true);
-				assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\n${largeString}`);
-				model.dispose();
-			});
+			await service.backupResource(fooFile, model.createSnapshot());
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.equal(fs.existsSync(fooBackupPath), true);
+			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\n${largeString}`);
+			model.dispose();
 		});
 
-		test('untitled file (large file, ITextSnapshot)', function () {
+		test('untitled file (large file, ITextSnapshot)', async () => {
 			const largeString = (new Array(10 * 1024)).join('Large String\n');
 			const model = TextModel.createFromString(largeString);
 
-			return service.backupResource(untitledFile, model.createSnapshot()).then(() => {
-				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-				assert.equal(fs.existsSync(untitledBackupPath), true);
-				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\n${largeString}`);
-				model.dispose();
-			});
+			await service.backupResource(untitledFile, model.createSnapshot());
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+			assert.equal(fs.existsSync(untitledBackupPath), true);
+			assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\n${largeString}`);
+			model.dispose();
 		});
 	});
 
 	suite('discardResourceBackup', () => {
-		test('text file', function () {
-			return service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-				return service.discardResourceBackup(fooFile).then(() => {
-					assert.equal(fs.existsSync(fooBackupPath), false);
-					assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 0);
-				});
-			});
+		test('text file', async () => {
+			await service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			await service.discardResourceBackup(fooFile);
+			assert.equal(fs.existsSync(fooBackupPath), false);
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 0);
 		});
 
-		test('untitled file', function () {
-			return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-				return service.discardResourceBackup(untitledFile).then(() => {
-					assert.equal(fs.existsSync(untitledBackupPath), false);
-					assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 0);
-				});
-			});
+		test('untitled file', async () => {
+			await service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+			await service.discardResourceBackup(untitledFile);
+			assert.equal(fs.existsSync(untitledBackupPath), false);
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 0);
 		});
 	});
 
 	suite('discardAllWorkspaceBackups', () => {
-		test('text file', function () {
-			return service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-				return service.backupResource(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-					assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 2);
-					return service.discardAllWorkspaceBackups().then(() => {
-						assert.equal(fs.existsSync(fooBackupPath), false);
-						assert.equal(fs.existsSync(barBackupPath), false);
-						assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'file')), false);
-					});
-				});
-			});
+		test('text file', async () => {
+			await service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			await service.backupResource(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 2);
+			await service.discardAllWorkspaceBackups();
+			assert.equal(fs.existsSync(fooBackupPath), false);
+			assert.equal(fs.existsSync(barBackupPath), false);
+			assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'file')), false);
 		});
 
-		test('untitled file', function () {
-			return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-				return service.discardAllWorkspaceBackups().then(() => {
-					assert.equal(fs.existsSync(untitledBackupPath), false);
-					assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'untitled')), false);
-				});
-			});
+		test('untitled file', async () => {
+			await service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+			await service.discardAllWorkspaceBackups();
+			assert.equal(fs.existsSync(untitledBackupPath), false);
+			assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'untitled')), false);
 		});
 
-		test('should disable further backups', function () {
-			return service.discardAllWorkspaceBackups().then(() => {
-				return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-					assert.equal(fs.existsSync(workspaceBackupPath), false);
-				});
-			});
+		test('should disable further backups', async () => {
+			await service.discardAllWorkspaceBackups();
+			await service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			assert.equal(fs.existsSync(workspaceBackupPath), false);
 		});
 	});
 
 	suite('getWorkspaceFileBackups', () => {
-		test('("file") - text file', () => {
-			return service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				return service.getWorkspaceFileBackups().then(textFiles => {
-					assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath]);
-					return service.backupResource(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-						return service.getWorkspaceFileBackups().then(textFiles => {
-							assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath, barFile.fsPath]);
-						});
-					});
-				});
-			});
+		test('("file") - text file', async () => {
+			await service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			const textFiles = await service.getWorkspaceFileBackups();
+			assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath]);
+			await service.backupResource(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			const textFiles_1 = await service.getWorkspaceFileBackups();
+			assert.deepEqual(textFiles_1.map(f => f.fsPath), [fooFile.fsPath, barFile.fsPath]);
 		});
 
-		test('("file") - untitled file', () => {
-			return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				return service.getWorkspaceFileBackups().then(textFiles => {
-					assert.deepEqual(textFiles.map(f => f.fsPath), [untitledFile.fsPath]);
-				});
-			});
+		test('("file") - untitled file', async () => {
+			await service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			const textFiles = await service.getWorkspaceFileBackups();
+			assert.deepEqual(textFiles.map(f => f.fsPath), [untitledFile.fsPath]);
 		});
 
-		test('("untitled") - untitled file', () => {
-			return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				return service.getWorkspaceFileBackups().then(textFiles => {
-					assert.deepEqual(textFiles.map(f => f.fsPath), ['Untitled-1']);
-				});
-			});
+		test('("untitled") - untitled file', async () => {
+			await service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false));
+			const textFiles = await service.getWorkspaceFileBackups();
+			assert.deepEqual(textFiles.map(f => f.fsPath), ['Untitled-1']);
 		});
 	});
 
 	test('resolveBackupContent', () => {
-		test('should restore the original contents (untitled file)', () => {
+		test('should restore the original contents (untitled file)', async () => {
 			const contents = 'test\nand more stuff';
-			service.backupResource(untitledFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				service.resolveBackupContent(service.toBackupResource(untitledFile)).then(factory => {
-					assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
-				});
-			});
+
+			await service.backupResource(untitledFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false));
+
+			const factory = await service.resolveBackupContent(service.toBackupResource(untitledFile));
+			assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
 		});
 
-		test('should restore the original contents (text file)', () => {
+		test('should restore the original contents (text file)', async () => {
 			const contents = [
 				'Lorem ipsum ',
 				'dolor öäü sit amet ',
@@ -315,11 +286,10 @@ suite('BackupFileService', () => {
 				'adipiscing ßß elit',
 			].join('');
 
-			service.backupResource(fooFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				service.resolveBackupContent(service.toBackupResource(untitledFile)).then(factory => {
-					assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
-				});
-			});
+			await service.backupResource(fooFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false));
+
+			const factory = await service.resolveBackupContent(service.toBackupResource(untitledFile));
+			assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
 		});
 	});
 });
@@ -372,16 +342,13 @@ suite('BackupFilesModel', () => {
 		assert.equal(model.has(resource4), true);
 	});
 
-	test('resolve', () => {
-		return pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
-			fs.writeFileSync(fooBackupPath, 'foo');
+	test('resolve', async () => {
+		await pfs.mkdirp(path.dirname(fooBackupPath));
+		fs.writeFileSync(fooBackupPath, 'foo');
+		const model = new BackupFilesModel();
 
-			const model = new BackupFilesModel();
-
-			return model.resolve(workspaceBackupPath).then(model => {
-				assert.equal(model.has(Uri.file(fooBackupPath)), true);
-			});
-		});
+		const resolvedModel = await model.resolve(workspaceBackupPath);
+		assert.equal(resolvedModel.has(Uri.file(fooBackupPath)), true);
 	});
 
 	test('get', () => {

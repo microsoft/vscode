@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import * as crypto from 'crypto';
-import * as pfs from 'vs/base/node/pfs';
-import { URI as Uri } from 'vs/base/common/uri';
+import { join } from 'vs/base/common/path';
+import { createHash } from 'crypto';
+import { readdir, readDirsInDir, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { URI } from 'vs/base/common/uri';
+import { coalesce } from 'vs/base/common/arrays';
 import { ResourceQueue } from 'vs/base/common/async';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IFileService } from 'vs/platform/files/common/files';
 import { readToMatchingString } from 'vs/base/node/stream';
 import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { keys } from 'vs/base/common/map';
+import { keys, ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -23,47 +24,47 @@ import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/text
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): Promise<IBackupFilesModel>;
 
-	add(resource: Uri, versionId?: number): void;
-	has(resource: Uri, versionId?: number): boolean;
-	get(): Uri[];
-	remove(resource: Uri): void;
+	add(resource: URI, versionId?: number): void;
+	has(resource: URI, versionId?: number): boolean;
+	get(): URI[];
+	remove(resource: URI): void;
 	count(): number;
 	clear(): void;
 }
 
 export class BackupFilesModel implements IBackupFilesModel {
-	private cache: { [resource: string]: number /* version ID */ } = Object.create(null);
+	private cache: ResourceMap<number /* version id */> = new ResourceMap();
 
-	resolve(backupRoot: string): Promise<IBackupFilesModel> {
-		return pfs.readDirsInDir(backupRoot).then(backupSchemas => {
+	async resolve(backupRoot: string): Promise<IBackupFilesModel> {
+		try {
+			const backupSchemas = await readDirsInDir(backupRoot);
 
-			// For all supported schemas
-			return Promise.all(backupSchemas.map(backupSchema => {
+			await Promise.all(backupSchemas.map(async backupSchema => {
 
 				// Read backup directory for backups
-				const backupSchemaPath = path.join(backupRoot, backupSchema);
-				return pfs.readdir(backupSchemaPath).then(backupHashes => {
+				const backupSchemaPath = join(backupRoot, backupSchema);
+				const backupHashes = await readdir(backupSchemaPath);
 
-					// Remember known backups in our caches
-					backupHashes.forEach(backupHash => {
-						const backupResource = Uri.file(path.join(backupSchemaPath, backupHash));
-						this.add(backupResource);
-					});
-				});
+				// Remember known backups in our caches
+				backupHashes.forEach(backupHash => this.add(URI.file(join(backupSchemaPath, backupHash))));
 			}));
-		}).then(() => this, error => this);
+		} catch (error) {
+			// ignore any errors
+		}
+
+		return this;
 	}
 
-	add(resource: Uri, versionId = 0): void {
-		this.cache[resource.toString()] = versionId;
+	add(resource: URI, versionId = 0): void {
+		this.cache.set(resource, versionId);
 	}
 
 	count(): number {
-		return Object.keys(this.cache).length;
+		return this.cache.size;
 	}
 
-	has(resource: Uri, versionId?: number): boolean {
-		const cachedVersionId = this.cache[resource.toString()];
+	has(resource: URI, versionId?: number): boolean {
+		const cachedVersionId = this.cache.get(resource);
 		if (typeof cachedVersionId !== 'number') {
 			return false; // unknown resource
 		}
@@ -75,16 +76,16 @@ export class BackupFilesModel implements IBackupFilesModel {
 		return true;
 	}
 
-	get(): Uri[] {
-		return Object.keys(this.cache).map(k => Uri.parse(k));
+	get(): URI[] {
+		return this.cache.keys();
 	}
 
-	remove(resource: Uri): void {
-		delete this.cache[resource.toString()];
+	remove(resource: URI): void {
+		this.cache.delete(resource);
 	}
 
 	clear(): void {
-		this.cache = Object.create(null);
+		this.cache.clear();
 	}
 }
 
@@ -116,15 +117,15 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.hasBackups();
 	}
 
-	loadBackupResource(resource: Uri): Promise<Uri | undefined> {
+	loadBackupResource(resource: URI): Promise<URI | undefined> {
 		return this.impl.loadBackupResource(resource);
 	}
 
-	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Promise<void> {
+	backupResource(resource: URI, content: ITextSnapshot, versionId?: number): Promise<void> {
 		return this.impl.backupResource(resource, content, versionId);
 	}
 
-	discardResourceBackup(resource: Uri): Promise<void> {
+	discardResourceBackup(resource: URI): Promise<void> {
 		return this.impl.discardResourceBackup(resource);
 	}
 
@@ -132,15 +133,15 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.discardAllWorkspaceBackups();
 	}
 
-	getWorkspaceFileBackups(): Promise<Uri[]> {
+	getWorkspaceFileBackups(): Promise<URI[]> {
 		return this.impl.getWorkspaceFileBackups();
 	}
 
-	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory> {
+	resolveBackupContent(backup: URI): Promise<ITextBufferFactory> {
 		return this.impl.resolveBackupContent(backup);
 	}
 
-	toBackupResource(resource: Uri): Uri {
+	toBackupResource(resource: URI): URI {
 		return this.impl.toBackupResource(resource);
 	}
 }
@@ -179,104 +180,110 @@ class BackupFileServiceImpl implements IBackupFileService {
 		return model.resolve(this.backupWorkspacePath);
 	}
 
-	hasBackups(): Promise<boolean> {
-		return this.ready.then(model => {
-			return model.count() > 0;
-		});
+	async hasBackups(): Promise<boolean> {
+		const model = await this.ready;
+
+		return model.count() > 0;
 	}
 
-	loadBackupResource(resource: Uri): Promise<Uri | undefined> {
-		return this.ready.then(model => {
+	async loadBackupResource(resource: URI): Promise<URI | undefined> {
+		const model = await this.ready;
 
-			// Return directly if we have a known backup with that resource
-			const backupResource = this.toBackupResource(resource);
-			if (model.has(backupResource)) {
-				return backupResource;
-			}
+		// Return directly if we have a known backup with that resource
+		const backupResource = this.toBackupResource(resource);
+		if (model.has(backupResource)) {
+			return backupResource;
+		}
 
-			return undefined;
-		});
+		return undefined;
 	}
 
-	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Promise<void> {
+	async backupResource(resource: URI, content: ITextSnapshot, versionId?: number): Promise<void> {
 		if (this.isShuttingDown) {
 			return Promise.resolve();
 		}
 
-		return this.ready.then(model => {
-			const backupResource = this.toBackupResource(resource);
-			if (model.has(backupResource, versionId)) {
-				return undefined; // return early if backup version id matches requested one
-			}
+		const model = await this.ready;
 
-			return this.ioOperationQueues.queueFor(backupResource).queue(() => {
-				const preamble = `${resource.toString()}${BackupFileServiceImpl.META_MARKER}`;
+		const backupResource = this.toBackupResource(resource);
+		if (model.has(backupResource, versionId)) {
+			return undefined; // return early if backup version id matches requested one
+		}
 
-				// Update content with value
-				return this.fileService.writeFile(backupResource, new TextSnapshotReadable(content, preamble)).then(() => model.add(backupResource, versionId));
-			});
+		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+			const preamble = `${resource.toString()}${BackupFileServiceImpl.META_MARKER}`;
+
+			// Update content with value
+			await this.fileService.writeFile(backupResource, new TextSnapshotReadable(content, preamble));
+
+			// Update model
+			model.add(backupResource, versionId);
 		});
 	}
 
-	discardResourceBackup(resource: Uri): Promise<void> {
-		return this.ready.then(model => {
-			const backupResource = this.toBackupResource(resource);
+	async discardResourceBackup(resource: URI): Promise<void> {
+		const model = await this.ready;
+		const backupResource = this.toBackupResource(resource);
 
-			return this.ioOperationQueues.queueFor(backupResource).queue(() => {
-				return pfs.rimraf(backupResource.fsPath, pfs.RimRafMode.MOVE).then(() => model.remove(backupResource));
-			});
+		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+			await rimraf(backupResource.fsPath, RimRafMode.MOVE);
+
+			model.remove(backupResource);
 		});
 	}
 
-	discardAllWorkspaceBackups(): Promise<void> {
+	async discardAllWorkspaceBackups(): Promise<void> {
 		this.isShuttingDown = true;
 
-		return this.ready.then(model => {
-			return pfs.rimraf(this.backupWorkspacePath, pfs.RimRafMode.MOVE).then(() => model.clear());
-		});
+		const model = await this.ready;
+
+		await rimraf(this.backupWorkspacePath, RimRafMode.MOVE);
+
+		model.clear();
 	}
 
-	getWorkspaceFileBackups(): Promise<Uri[]> {
-		return this.ready.then(model => {
-			const readPromises: Promise<Uri>[] = [];
+	async getWorkspaceFileBackups(): Promise<URI[]> {
+		const model = await this.ready;
 
-			model.get().forEach(fileBackup => {
-				readPromises.push(
-					readToMatchingString(fileBackup.fsPath, BackupFileServiceImpl.META_MARKER, 2000, 10000).then(Uri.parse)
-				);
-			});
+		const backups = await Promise.all(model.get().map(async fileBackup => {
+			const backup = await readToMatchingString(fileBackup.fsPath, BackupFileServiceImpl.META_MARKER, 2000, 10000);
+			if (!backup) {
+				return undefined;
+			}
 
-			return Promise.all(readPromises);
-		});
+			return URI.parse(backup);
+		}));
+
+		return coalesce(backups);
 	}
 
-	resolveBackupContent(backup: Uri): Promise<ITextBufferFactory> {
-		return this.fileService.readFileStream(backup).then(content => {
+	async resolveBackupContent(backup: URI): Promise<ITextBufferFactory> {
+		const content = await this.fileService.readFileStream(backup);
 
-			// Add a filter method to filter out everything until the meta marker
-			let metaFound = false;
-			const metaPreambleFilter = (chunk: VSBuffer) => {
-				const chunkString = chunk.toString();
+		// Add a filter method to filter out everything until the meta marker
+		let metaFound = false;
+		const metaPreambleFilter = (chunk: VSBuffer) => {
+			const chunkString = chunk.toString();
 
-				if (!metaFound && chunk) {
-					const metaIndex = chunkString.indexOf(BackupFileServiceImpl.META_MARKER);
-					if (metaIndex === -1) {
-						return VSBuffer.fromString(''); // meta not yet found, return empty string
-					}
-
-					metaFound = true;
-					return VSBuffer.fromString(chunkString.substr(metaIndex + 1)); // meta found, return everything after
+			if (!metaFound && chunk) {
+				const metaIndex = chunkString.indexOf(BackupFileServiceImpl.META_MARKER);
+				if (metaIndex === -1) {
+					return VSBuffer.fromString(''); // meta not yet found, return empty string
 				}
 
-				return chunk;
-			};
+				metaFound = true;
 
-			return createTextBufferFactoryFromStream(content.value, metaPreambleFilter);
-		});
+				return VSBuffer.fromString(chunkString.substr(metaIndex + 1)); // meta found, return everything after
+			}
+
+			return chunk;
+		};
+
+		return createTextBufferFactoryFromStream(content.value, metaPreambleFilter);
 	}
 
-	toBackupResource(resource: Uri): Uri {
-		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, hashPath(resource)));
+	toBackupResource(resource: URI): URI {
+		return URI.file(join(this.backupWorkspacePath, resource.scheme, hashPath(resource)));
 	}
 }
 
@@ -290,7 +297,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return Promise.resolve(this.backups.size > 0);
 	}
 
-	loadBackupResource(resource: Uri): Promise<Uri | undefined> {
+	loadBackupResource(resource: URI): Promise<URI | undefined> {
 		const backupResource = this.toBackupResource(resource);
 		if (this.backups.has(backupResource.toString())) {
 			return Promise.resolve(backupResource);
@@ -299,14 +306,14 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return Promise.resolve(undefined);
 	}
 
-	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): Promise<void> {
+	backupResource(resource: URI, content: ITextSnapshot, versionId?: number): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
 		this.backups.set(backupResource.toString(), content);
 
 		return Promise.resolve();
 	}
 
-	resolveBackupContent(backupResource: Uri): Promise<ITextBufferFactory> {
+	resolveBackupContent(backupResource: URI): Promise<ITextBufferFactory> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
 			return Promise.resolve(createTextBufferFactoryFromSnapshot(snapshot));
@@ -315,11 +322,11 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return Promise.reject('Unexpected backup resource to resolve');
 	}
 
-	getWorkspaceFileBackups(): Promise<Uri[]> {
-		return Promise.resolve(keys(this.backups).map(key => Uri.parse(key)));
+	getWorkspaceFileBackups(): Promise<URI[]> {
+		return Promise.resolve(keys(this.backups).map(key => URI.parse(key)));
 	}
 
-	discardResourceBackup(resource: Uri): Promise<void> {
+	discardResourceBackup(resource: URI): Promise<void> {
 		this.backups.delete(this.toBackupResource(resource).toString());
 
 		return Promise.resolve();
@@ -331,17 +338,17 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return Promise.resolve();
 	}
 
-	toBackupResource(resource: Uri): Uri {
-		return Uri.file(path.join(resource.scheme, hashPath(resource)));
+	toBackupResource(resource: URI): URI {
+		return URI.file(join(resource.scheme, hashPath(resource)));
 	}
 }
 
 /*
  * Exported only for testing
  */
-export function hashPath(resource: Uri): string {
+export function hashPath(resource: URI): string {
 	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
-	return crypto.createHash('md5').update(str).digest('hex');
+	return createHash('md5').update(str).digest('hex');
 }
 
 registerSingleton(IBackupFileService, BackupFileService);
