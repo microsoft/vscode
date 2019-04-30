@@ -30,7 +30,7 @@ import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/com
 import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -64,7 +64,7 @@ class CommentingRangeDecoration {
 		return this._decorationId;
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, private _reply: modes.Command | undefined, commentingOptions: ModelDecorationOptions, private commentingRangesInfo?: modes.CommentingRanges) {
+	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, private _reply: modes.Command | undefined, commentingOptions: ModelDecorationOptions, private _template: modes.CommentThreadTemplate | undefined, private commentingRangesInfo?: modes.CommentingRanges) {
 		const startLineNumber = _range.startLineNumber;
 		const endLineNumber = _range.endLineNumber;
 		let commentingRangeDecorations = [{
@@ -81,13 +81,14 @@ class CommentingRangeDecoration {
 		}
 	}
 
-	public getCommentAction(): { replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined } {
+	public getCommentAction(): { replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined, template: modes.CommentThreadTemplate | undefined } {
 		return {
 			extensionId: this._extensionId,
 			label: this._label,
 			replyCommand: this._reply,
 			ownerId: this._ownerId,
-			commentingRangesInfo: this.commentingRangesInfo
+			commentingRangesInfo: this.commentingRangesInfo,
+			template: this._template
 		};
 	}
 
@@ -124,11 +125,11 @@ class CommentingRangeDecorator {
 		for (const info of commentInfos) {
 			if (Array.isArray(info.commentingRanges)) {
 				info.commentingRanges.forEach(range => {
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, info.reply, this.decorationOptions));
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, info.reply, this.decorationOptions, info.template));
 				});
 			} else {
 				(info.commentingRanges ? info.commentingRanges.ranges : []).forEach(range => {
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, (info.commentingRanges as modes.CommentingRanges).newCommentThreadCommand, this.decorationOptions, info.commentingRanges as modes.CommentingRanges));
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, undefined, this.decorationOptions, info.template, info.commentingRanges as modes.CommentingRanges));
 				});
 			}
 		}
@@ -178,7 +179,6 @@ export class ReviewController implements IEditorContribution {
 	constructor(
 		editor: ICodeEditor,
 		@ICommentService private readonly commentService: ICommentService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
@@ -441,6 +441,11 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
+				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
+				if (matchedZones.length) {
+					return;
+				}
+
 				const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId];
 				this.displayCommentThread(e.owner, thread, pendingCommentText, draftMode);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -455,6 +460,30 @@ export class ReviewController implements IEditorContribution {
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment, draftMode);
 		zoneWidget.display(thread.range.startLineNumber);
 		this._commentWidgets.push(zoneWidget);
+	}
+
+	private addCommentThreadFromTemplate(lineNumber: number, ownerId: string, extensionId: string | undefined, template: modes.CommentThreadTemplate): ReviewZoneWidget {
+		let templateReviewZoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, ownerId, {
+			commentThreadHandle: -1,
+			label: template!.label,
+			acceptInputCommand: template.acceptInputCommand,
+			additionalCommands: template.additionalCommands,
+			deleteCommand: template.deleteCommand,
+			extensionId: extensionId,
+			threadId: null,
+			resource: null,
+			comments: [],
+			range: {
+				startLineNumber: lineNumber,
+				startColumn: 0,
+				endLineNumber: lineNumber,
+				endColumn: 0
+			},
+			collapsibleState: modes.CommentThreadCollapsibleState.Expanded,
+		},
+			'', modes.DraftMode.NotSupported);
+
+		return templateReviewZoneWidget;
 	}
 
 	private addComment(lineNumber: number, replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, draftMode: modes.DraftMode | undefined, pendingComment: string | null) {
@@ -612,16 +641,16 @@ export class ReviewController implements IEditorContribution {
 					const commentInfos = newCommentInfos.filter(info => info.ownerId === pick.id);
 
 					if (commentInfos.length) {
-						const { replyCommand, ownerId, extensionId, commentingRangesInfo } = commentInfos[0];
-						this.addCommentAtLine2(lineNumber, replyCommand, ownerId, extensionId, commentingRangesInfo);
+						const { replyCommand, ownerId, extensionId, commentingRangesInfo, template } = commentInfos[0];
+						this.addCommentAtLine2(lineNumber, replyCommand, ownerId, extensionId, commentingRangesInfo, template);
 					}
 				}).then(() => {
 					this._addInProgress = false;
 				});
 			}
 		} else {
-			const { replyCommand, ownerId, extensionId, commentingRangesInfo } = newCommentInfos[0]!;
-			this.addCommentAtLine2(lineNumber, replyCommand, ownerId, extensionId, commentingRangesInfo);
+			const { replyCommand, ownerId, extensionId, commentingRangesInfo, template } = newCommentInfos[0]!;
+			this.addCommentAtLine2(lineNumber, replyCommand, ownerId, extensionId, commentingRangesInfo, template);
 		}
 
 		return Promise.resolve();
@@ -640,11 +669,11 @@ export class ReviewController implements IEditorContribution {
 		return picks;
 	}
 
-	private getContextMenuActions(commentInfos: { replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined }[], lineNumber: number): (IAction | ContextSubMenu)[] {
+	private getContextMenuActions(commentInfos: { replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined, template: modes.CommentThreadTemplate | undefined }[], lineNumber: number): (IAction | ContextSubMenu)[] {
 		const actions: (IAction | ContextSubMenu)[] = [];
 
 		commentInfos.forEach(commentInfo => {
-			const { replyCommand, ownerId, extensionId, label, commentingRangesInfo } = commentInfo;
+			const { replyCommand, ownerId, extensionId, label, commentingRangesInfo, template } = commentInfo;
 
 			actions.push(new Action(
 				'addCommentThread',
@@ -652,7 +681,7 @@ export class ReviewController implements IEditorContribution {
 				undefined,
 				true,
 				() => {
-					this.addCommentAtLine2(lineNumber, replyCommand, ownerId, extensionId, commentingRangesInfo);
+					this.addCommentAtLine2(lineNumber, replyCommand, ownerId, extensionId, commentingRangesInfo, template);
 					return Promise.resolve();
 				}
 			));
@@ -660,17 +689,25 @@ export class ReviewController implements IEditorContribution {
 		return actions;
 	}
 
-	public addCommentAtLine2(lineNumber: number, replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined) {
+	public addCommentAtLine2(lineNumber: number, replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined, template: modes.CommentThreadTemplate | undefined) {
 		if (commentingRangesInfo) {
 			let range = new Range(lineNumber, 1, lineNumber, 1);
-			if (commentingRangesInfo.newCommentThreadCommand) {
-				if (replyCommand) {
-					const commandId = replyCommand.id;
-					const args = replyCommand.arguments || [];
+			if (commentingRangesInfo.newCommentThreadCallback && template) {
+				// create comment widget through template
+				let commentThreadWidget = this.addCommentThreadFromTemplate(lineNumber, ownerId, extensionId, template);
+				commentThreadWidget.display(lineNumber, true);
 
-					this._commandService.executeCommand(commandId, ...args);
-					this._addInProgress = false;
-				}
+				return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel()!.uri, range)
+					.then(commentThread => {
+						commentThreadWidget.update(commentThread!, true);
+						this._commentWidgets.push(commentThreadWidget);
+						this.processNextThreadToAdd();
+					})
+					.catch(e => {
+						this.notificationService.error(nls.localize('commentThreadAddFailure', "Adding a new comment thread failed: {0}.", e.message));
+						commentThreadWidget.dispose();
+						this.processNextThreadToAdd();
+					});
 			} else if (commentingRangesInfo.newCommentThreadCallback) {
 				return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel()!.uri, range)
 					.then(_ => {

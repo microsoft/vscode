@@ -298,12 +298,18 @@ export class MainThreadCommentController {
 		);
 
 		this._threads.set(commentThreadHandle, thread);
-		this._commentService.updateComments(this._uniqueId, {
-			added: [thread],
-			removed: [],
-			changed: [],
-			draftMode: modes.DraftMode.NotSupported
-		});
+
+		// As we create comment thread from template and then restore from the newly created maint thread comment thread,
+		// we postpone the update event to avoid duplication.
+		// This can be actually removed once we are on the new API.
+		setTimeout(() => {
+			this._commentService.updateComments(this._uniqueId, {
+				added: [thread],
+				removed: [],
+				changed: [],
+				draftMode: modes.DraftMode.NotSupported
+			});
+		}, 0);
 
 		return thread;
 	}
@@ -379,10 +385,17 @@ export class MainThreadCommentController {
 			commentingRanges: commentingRanges ?
 				{
 					resource: resource, ranges: commentingRanges, newCommentThreadCallback: async (uri: UriComponents, range: IRange) => {
-						await this._proxy.$createNewCommentWidgetCallback(this.handle, uri, range, token);
+						let threadHandle = await this._proxy.$createNewCommentWidgetCallback(this.handle, uri, range, token);
+
+						if (threadHandle !== undefined) {
+							return this.getKnownThread(threadHandle);
+						}
+
+						return;
 					}
 				} : [],
-			draftMode: modes.DraftMode.NotSupported
+			draftMode: modes.DraftMode.NotSupported,
+			template: this._features.commentThreadTemplate
 		};
 	}
 
@@ -458,6 +471,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				this._proxy.$onCommentWidgetInputChange(controller.handle, this._input ? this._input.value : undefined);
 			}));
 
+			await this._proxy.$onActiveCommentThreadChange(controller.handle, controller.activeCommentThread.commentThreadHandle);
 			await this._proxy.$onCommentWidgetInputChange(controller.handle, this._input ? this._input.value : undefined);
 		}));
 	}
@@ -509,8 +523,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		if (!provider) {
 			return undefined;
 		}
-
-		console.log('createCommentThread', commentThreadHandle);
 
 		return provider.createCommentThread(commentThreadHandle, threadId, resource, range);
 	}
