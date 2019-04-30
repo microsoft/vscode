@@ -72,6 +72,7 @@
 				"scripts/test-integration.sh",
 				"scripts/test-remote-integration.bat",
 				"scripts/test-remote-integration.sh",
+				"test/smoke/src/vscode/code.ts",
 				"test/smoke/README.md",
 			]
 		},
