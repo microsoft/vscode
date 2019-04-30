@@ -60,7 +60,7 @@ function code-wsl()
 	# in a wsl shell
 	local WIN_CODE_CLI_CMD=$(wslpath -w "$ROOT/scripts/code-cli.bat")
 	if ! [ -z "$WIN_CODE_CLI_CMD" ]; then
-		local WSL_EXT_ID="ms-vscode.remote-wsl"
+		local WSL_EXT_ID="ms-vscode-remote.remote-wsl"
 		local WSL_EXT_WLOC=$(cmd.exe /c "$WIN_CODE_CLI_CMD" --locate-extension $WSL_EXT_ID)
 		if ! [ -z "$WSL_EXT_WLOC" ]; then
 			# replace \r\n with \n in WSL_EXT_WLOC
