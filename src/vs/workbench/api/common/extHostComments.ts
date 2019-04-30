@@ -88,14 +88,14 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		return commentController;
 	}
 
-	$onCommentWidgetInputChange(commentControllerHandle: number, input: string): Promise<number | undefined> {
+	$onCommentWidgetInputChange(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, input: string): Promise<number | undefined> {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
 		if (!commentController) {
 			return Promise.resolve(undefined);
 		}
 
-		commentController.$onCommentWidgetInputChange(input);
+		commentController.$onCommentWidgetInputChange(uriComponents, range, input);
 		return Promise.resolve(commentControllerHandle);
 	}
 
@@ -546,12 +546,14 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 }
 
 export class ExtHostCommentInputBox implements vscode.CommentInputBox {
-	private _onDidChangeValue = new Emitter<string>();
-
-	get onDidChangeValue(): Event<string> {
-		return this._onDidChangeValue.event;
+	get resource(): vscode.Uri {
+		return this._resource;
 	}
-	private _value: string = '';
+
+	get range(): vscode.Range {
+		return this._range;
+	}
+
 	get value(): string {
 		return this._value;
 	}
@@ -562,16 +564,24 @@ export class ExtHostCommentInputBox implements vscode.CommentInputBox {
 		this._proxy.$setInputValue(this.commentControllerHandle, newInput);
 	}
 
-	constructor(
-		private _proxy: MainThreadCommentsShape,
+	private _onDidChangeValue = new Emitter<string>();
 
-		public commentControllerHandle: number,
-		input: string
-	) {
-		this._value = input;
+	get onDidChangeValue(): Event<string> {
+		return this._onDidChangeValue.event;
 	}
 
-	setInput(input: string) {
+	constructor(
+		private _proxy: MainThreadCommentsShape,
+		public commentControllerHandle: number,
+		private _resource: vscode.Uri,
+		private _range: vscode.Range,
+		private _value: string
+	) {
+	}
+
+	setInput(resource: vscode.Uri, range: vscode.Range, input: string) {
+		this._resource = resource;
+		this._range = range;
 		this._value = input;
 	}
 }
@@ -658,11 +668,11 @@ class ExtHostCommentController implements vscode.CommentController {
 		return commentThread;
 	}
 
-	$onCommentWidgetInputChange(input: string) {
+	$onCommentWidgetInputChange(uriComponents: UriComponents, range: IRange, input: string) {
 		if (!this.inputBox) {
-			this.inputBox = new ExtHostCommentInputBox(this._proxy, this.handle, input);
+			this.inputBox = new ExtHostCommentInputBox(this._proxy, this.handle, URI.revive(uriComponents), extHostTypeConverter.Range.to(range), input);
 		} else {
-			this.inputBox.setInput(input);
+			this.inputBox.setInput(URI.revive(uriComponents), extHostTypeConverter.Range.to(range), input);
 		}
 	}
 

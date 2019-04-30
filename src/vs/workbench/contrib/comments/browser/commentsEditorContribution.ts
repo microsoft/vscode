@@ -469,26 +469,22 @@ export class ReviewController implements IEditorContribution {
 		this._commentWidgets.push(zoneWidget);
 	}
 
-	private addCommentThreadFromTemplate(lineNumber: number, ownerId: string, extensionId: string | undefined, template: modes.CommentThreadTemplate): ReviewZoneWidget {
-		let templateReviewZoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, ownerId, {
-			commentThreadHandle: -1,
-			label: template!.label,
-			acceptInputCommand: template.acceptInputCommand,
-			additionalCommands: template.additionalCommands,
-			deleteCommand: template.deleteCommand,
-			extensionId: extensionId,
-			threadId: null,
-			resource: null,
-			comments: [],
-			range: {
-				startLineNumber: lineNumber,
-				startColumn: 1,
-				endLineNumber: lineNumber,
-				endColumn: 1
-			},
-			collapsibleState: modes.CommentThreadCollapsibleState.Expanded,
-		},
-			'', modes.DraftMode.NotSupported);
+	private addCommentThreadFromTemplate(lineNumber: number, ownerId: string, template: modes.CommentThreadTemplate): ReviewZoneWidget {
+		let templateCommentThread = this.commentService.getCommentThreadFromTemplate(ownerId, this.editor.getModel()!.uri, {
+			startLineNumber: lineNumber,
+			startColumn: 1,
+			endLineNumber: lineNumber,
+			endColumn: 1
+		})!;
+
+		templateCommentThread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
+		templateCommentThread.acceptInputCommand = template.acceptInputCommand;
+		templateCommentThread.additionalCommands = template.additionalCommands;
+		templateCommentThread.deleteCommand = template.deleteCommand;
+		templateCommentThread.label = template.label;
+		templateCommentThread.comments = [];
+
+		let templateReviewZoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, ownerId, templateCommentThread, '', modes.DraftMode.NotSupported);
 
 		return templateReviewZoneWidget;
 	}
@@ -699,22 +695,12 @@ export class ReviewController implements IEditorContribution {
 	public addCommentAtLine2(lineNumber: number, replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined, template: modes.CommentThreadTemplate | undefined) {
 		if (commentingRangesInfo) {
 			let range = new Range(lineNumber, 1, lineNumber, 1);
-			if (commentingRangesInfo.newCommentThreadCallback && template) {
+			if (template) {
 				// create comment widget through template
-				let commentThreadWidget = this.addCommentThreadFromTemplate(lineNumber, ownerId, extensionId, template);
+				let commentThreadWidget = this.addCommentThreadFromTemplate(lineNumber, ownerId, template);
 				commentThreadWidget.display(lineNumber, true);
 				this._commentWidgets.push(commentThreadWidget);
-
-				return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel()!.uri, range)
-					.then(() => {
-						// commentThreadWidget.update(commentThread!, true);
-						this.processNextThreadToAdd();
-					})
-					.catch(e => {
-						this.notificationService.error(nls.localize('commentThreadAddFailure', "Adding a new comment thread failed: {0}.", e.message));
-						commentThreadWidget.dispose();
-						this.processNextThreadToAdd();
-					});
+				this.processNextThreadToAdd();
 			} else if (commentingRangesInfo.newCommentThreadCallback) {
 				return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel()!.uri, range)
 					.then(_ => {

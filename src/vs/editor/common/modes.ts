@@ -1215,6 +1215,7 @@ export interface Command {
  * @internal
  */
 export interface CommentThreadTemplate {
+	controllerHandle: number;
 	label: string;
 	acceptInputCommand?: Command;
 	additionalCommands?: Command[];
@@ -1281,6 +1282,7 @@ export interface CommentInput {
  */
 export interface CommentThread2 {
 	commentThreadHandle: number;
+	controllerHandle: number;
 	extensionId?: string;
 	threadId: string | null;
 	resource: string | null;

@@ -9089,9 +9089,19 @@ declare module 'vscode' {
 	 */
 	export interface CommentInputBox {
 		/**
-		 * Setter and getter for the contents of the comment input box.
+		 * Setter and getter for the contents of the comment input box
 		 */
 		value: string;
+
+		/**
+		 * The uri of the document comment input box has been created on
+		 */
+		resource: Uri;
+
+		/**
+		 * The range the comment input box is located within the document
+		 */
+		range: Range;
 	}
 
 	/**
