@@ -5,7 +5,7 @@
 	"colors": {
 		"selection.background": "#008000",
 		"editor.selectionBackground": "#FFFFFF",
-		"statusBarItem.hostBackground": "#00000000"
+		"statusBarItem.remoteBackground": "#00000000"
 	},
 	"tokenColors": [
 		{

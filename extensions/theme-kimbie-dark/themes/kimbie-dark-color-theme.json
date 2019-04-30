@@ -27,7 +27,7 @@
 		"statusBar.background": "#423523",
 		"statusBar.debuggingBackground": "#423523",
 		"statusBar.noFolderBackground": "#423523",
-		"statusBarItem.hostBackground": "#6e583b",
+		"statusBarItem.remoteBackground": "#6e583b",
 		"activityBar.background": "#221a0f",
 		"activityBar.foreground": "#d3af86",
 		"sideBar.background": "#362712",
