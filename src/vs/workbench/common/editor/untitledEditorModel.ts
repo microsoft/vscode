@@ -134,6 +134,15 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
+	backup(): Promise<void> {
+		const snapshot = this.createSnapshot();
+		if (!snapshot) {
+			return Promise.resolve(); // should not happen
+		}
+
+		return this.backupFileService.backupResource(this.resource, snapshot, this.versionId);
+	}
+
 	load(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
 
 		// Check for backups first
@@ -143,15 +152,15 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			}
 
 			return Promise.resolve(undefined);
-		}).then(backupTextBufferFactory => {
-			const hasBackup = !!backupTextBufferFactory;
+		}).then(backup => {
+			const hasBackup = !!backup;
 
 			// untitled associated to file path are dirty right away as well as untitled with content
 			this.setDirty(this._hasAssociatedFilePath || hasBackup);
 
 			let untitledContents: ITextBufferFactory;
-			if (backupTextBufferFactory) {
-				untitledContents = backupTextBufferFactory;
+			if (backup) {
+				untitledContents = backup.value;
 			} else {
 				untitledContents = createTextBufferFactory(this.initialValue || '');
 			}

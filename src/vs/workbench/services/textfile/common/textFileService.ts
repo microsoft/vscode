@@ -238,26 +238,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private async doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): Promise<void> {
 
 		// Handle file resources first
-		await Promise.all(dirtyFileModels.map(async model => {
-			const snapshot = model.createSnapshot();
-			if (snapshot) {
-				await this.backupFileService.backupResource(model.getResource(), snapshot, model.getVersionId());
-			}
-		}));
+		await Promise.all(dirtyFileModels.map(async model => await model.backup()));
 
 		// Handle untitled resources
-		const untitledModelPromises = untitledResources
+		await Promise.all(untitledResources
 			.filter(untitled => this.untitledEditorService.exists(untitled))
-			.map(untitled => this.untitledEditorService.loadOrCreate({ resource: untitled }));
-
-		const untitledModels = await Promise.all(untitledModelPromises);
-
-		await Promise.all(untitledModels.map(async model => {
-			const snapshot = model.createSnapshot();
-			if (snapshot) {
-				await this.backupFileService.backupResource(model.getResource(), snapshot, model.getVersionId());
-			}
-		}));
+			.map(async untitled => (await this.untitledEditorService.loadOrCreate({ resource: untitled })).backup()));
 	}
 
 	private confirmBeforeShutdown(): boolean | Promise<boolean> {
@@ -503,10 +489,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				dirtyTargetModelUris.push(targetModelResource);
 
 				// Backup dirty source model to the target resource it will become later
-				const snapshot = sourceModel.createSnapshot();
-				if (snapshot) {
-					await this.backupFileService.backupResource(targetModelResource, snapshot, sourceModel.getVersionId());
-				}
+				await sourceModel.backup(targetModelResource);
 			}));
 		}
 

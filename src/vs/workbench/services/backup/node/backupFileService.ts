@@ -5,14 +5,14 @@
 
 import { join } from 'vs/base/common/path';
 import { createHash } from 'crypto';
-import { readdir, readDirsInDir, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { coalesce } from 'vs/base/common/arrays';
+import { equals, deepClone } from 'vs/base/common/objects';
 import { ResourceQueue } from 'vs/base/common/async';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { IFileService } from 'vs/platform/files/common/files';
 import { readToMatchingString } from 'vs/base/node/stream';
-import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
+import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -20,34 +20,46 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/textfiles';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): Promise<IBackupFilesModel>;
 
-	add(resource: URI, versionId?: number): void;
-	has(resource: URI, versionId?: number): boolean;
+	add(resource: URI, versionId?: number, meta?: object): void;
+	has(resource: URI, versionId?: number, meta?: object): boolean;
 	get(): URI[];
 	remove(resource: URI): void;
 	count(): number;
 	clear(): void;
 }
 
+interface IBackupCacheEntry {
+	versionId?: number;
+	meta?: object;
+}
+
 export class BackupFilesModel implements IBackupFilesModel {
-	private cache: ResourceMap<number /* version id */> = new ResourceMap();
+	private cache: ResourceMap<IBackupCacheEntry> = new ResourceMap();
+
+	constructor(private fileService: IFileService) { }
 
 	async resolve(backupRoot: string): Promise<IBackupFilesModel> {
 		try {
-			const backupSchemas = await readDirsInDir(backupRoot);
+			const backupRootStat = await this.fileService.resolve(URI.file(backupRoot));
+			if (backupRootStat.children) {
+				await Promise.all(backupRootStat.children
+					.filter(child => child.isDirectory).
+					map(async backupSchema => {
 
-			await Promise.all(backupSchemas.map(async backupSchema => {
+						// Read backup directory for backups
+						const backupSchemaStat = await this.fileService.resolve(backupSchema.resource);
 
-				// Read backup directory for backups
-				const backupSchemaPath = join(backupRoot, backupSchema);
-				const backupHashes = await readdir(backupSchemaPath);
-
-				// Remember known backups in our caches
-				backupHashes.forEach(backupHash => this.add(URI.file(join(backupSchemaPath, backupHash))));
-			}));
+						// Remember known backups in our caches
+						if (backupSchemaStat.children) {
+							backupSchemaStat.children.forEach(backupHash => this.add(backupHash.resource));
+						}
+					}));
+			}
 		} catch (error) {
 			// ignore any errors
 		}
@@ -55,22 +67,26 @@ export class BackupFilesModel implements IBackupFilesModel {
 		return this;
 	}
 
-	add(resource: URI, versionId = 0): void {
-		this.cache.set(resource, versionId);
+	add(resource: URI, versionId = 0, meta?: object): void {
+		this.cache.set(resource, { versionId, meta: deepClone(meta) }); // make sure to not store original meta in our cache...
 	}
 
 	count(): number {
 		return this.cache.size;
 	}
 
-	has(resource: URI, versionId?: number): boolean {
-		const cachedVersionId = this.cache.get(resource);
-		if (typeof cachedVersionId !== 'number') {
+	has(resource: URI, versionId?: number, meta?: object): boolean {
+		const entry = this.cache.get(resource);
+		if (!entry) {
 			return false; // unknown resource
 		}
 
-		if (typeof versionId === 'number') {
-			return versionId === cachedVersionId; // if we are asked with a specific version ID, make sure to test for it
+		if (typeof versionId === 'number' && typeof entry.versionId === 'number' && entry.versionId !== versionId) {
+			return false; // different versionId
+		}
+
+		if (meta && entry.meta && !equals(meta, entry.meta)) {
+			return false; // different metadata
 		}
 
 		return true;
@@ -91,7 +107,7 @@ export class BackupFilesModel implements IBackupFilesModel {
 
 export class BackupFileService implements IBackupFileService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IBackupFileService>;
 
 	private impl: IBackupFileService;
 
@@ -121,8 +137,8 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.loadBackupResource(resource);
 	}
 
-	backupResource(resource: URI, content: ITextSnapshot, versionId?: number): Promise<void> {
-		return this.impl.backupResource(resource, content, versionId);
+	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+		return this.impl.backupResource(resource, content, versionId, meta);
 	}
 
 	discardResourceBackup(resource: URI): Promise<void> {
@@ -137,7 +153,7 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.getWorkspaceFileBackups();
 	}
 
-	resolveBackupContent(backup: URI): Promise<ITextBufferFactory> {
+	resolveBackupContent<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
 		return this.impl.resolveBackupContent(backup);
 	}
 
@@ -148,7 +164,9 @@ export class BackupFileService implements IBackupFileService {
 
 class BackupFileServiceImpl implements IBackupFileService {
 
-	private static readonly META_MARKER = '\n';
+	private static readonly PREAMBLE_END_MARKER = '\n';
+	private static readonly PREAMBLE_META_START_MARKER = ' ';
+	private static readonly PREAMBLE_MAX_LENGTH = 10000;
 
 	_serviceBrand: any;
 
@@ -175,7 +193,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 	}
 
 	private init(): Promise<IBackupFilesModel> {
-		const model = new BackupFilesModel();
+		const model = new BackupFilesModel(this.fileService);
 
 		return model.resolve(this.backupWorkspacePath);
 	}
@@ -198,26 +216,39 @@ class BackupFileServiceImpl implements IBackupFileService {
 		return undefined;
 	}
 
-	async backupResource(resource: URI, content: ITextSnapshot, versionId?: number): Promise<void> {
+	async backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		if (this.isShuttingDown) {
-			return Promise.resolve();
+			return;
 		}
 
 		const model = await this.ready;
 
 		const backupResource = this.toBackupResource(resource);
-		if (model.has(backupResource, versionId)) {
-			return undefined; // return early if backup version id matches requested one
+		if (model.has(backupResource, versionId, meta)) {
+			return; // return early if backup version id matches requested one
 		}
 
 		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
-			const preamble = `${resource.toString()}${BackupFileServiceImpl.META_MARKER}`;
+			let preamble: string | undefined = undefined;
+
+			// With Metadata: URI + META-START + Meta + END
+			if (meta) {
+				const preambleWithMeta = `${resource.toString()}${BackupFileServiceImpl.PREAMBLE_META_START_MARKER}${JSON.stringify(meta)}${BackupFileServiceImpl.PREAMBLE_END_MARKER}`;
+				if (preambleWithMeta.length < BackupFileServiceImpl.PREAMBLE_MAX_LENGTH) {
+					preamble = preambleWithMeta;
+				}
+			}
+
+			// Without Metadata: URI + END
+			if (!preamble) {
+				preamble = `${resource.toString()}${BackupFileServiceImpl.PREAMBLE_END_MARKER}`;
+			}
 
 			// Update content with value
 			await this.fileService.writeFile(backupResource, new TextSnapshotReadable(content, preamble));
 
 			// Update model
-			model.add(backupResource, versionId);
+			model.add(backupResource, versionId, meta);
 		});
 	}
 
@@ -226,7 +257,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		const backupResource = this.toBackupResource(resource);
 
 		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
-			await rimraf(backupResource.fsPath, RimRafMode.MOVE);
+			await this.fileService.del(backupResource, { recursive: true });
 
 			model.remove(backupResource);
 		});
@@ -237,7 +268,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 		const model = await this.ready;
 
-		await rimraf(this.backupWorkspacePath, RimRafMode.MOVE);
+		await this.fileService.del(URI.file(this.backupWorkspacePath), { recursive: true });
 
 		model.clear();
 	}
@@ -246,40 +277,71 @@ class BackupFileServiceImpl implements IBackupFileService {
 		const model = await this.ready;
 
 		const backups = await Promise.all(model.get().map(async fileBackup => {
-			const backup = await readToMatchingString(fileBackup.fsPath, BackupFileServiceImpl.META_MARKER, 2000, 10000);
-			if (!backup) {
+			const backupPreamble = await readToMatchingString(fileBackup.fsPath, BackupFileServiceImpl.PREAMBLE_END_MARKER, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH / 5, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH);
+			if (!backupPreamble) {
 				return undefined;
 			}
 
-			return URI.parse(backup);
+			// Preamble with metadata: URI + META-START + Meta + END
+			const metaStartIndex = backupPreamble.indexOf(BackupFileServiceImpl.PREAMBLE_META_START_MARKER);
+			if (metaStartIndex > 0) {
+				return URI.parse(backupPreamble.substring(0, metaStartIndex));
+			}
+
+			// Preamble without metadata: URI + END
+			else {
+				return URI.parse(backupPreamble);
+			}
 		}));
 
 		return coalesce(backups);
 	}
 
-	async resolveBackupContent(backup: URI): Promise<ITextBufferFactory> {
-		const content = await this.fileService.readFileStream(backup);
+	async resolveBackupContent<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
 
-		// Add a filter method to filter out everything until the meta marker
-		let metaFound = false;
+		// Metadata extraction
+		let metaRaw: string = '';
+		let metaEndFound = false;
+
+		// Add a filter method to filter out everything until the meta end marker
 		const metaPreambleFilter = (chunk: VSBuffer) => {
 			const chunkString = chunk.toString();
 
-			if (!metaFound && chunk) {
-				const metaIndex = chunkString.indexOf(BackupFileServiceImpl.META_MARKER);
-				if (metaIndex === -1) {
+			if (!metaEndFound) {
+				const metaEndIndex = chunkString.indexOf(BackupFileServiceImpl.PREAMBLE_END_MARKER);
+				if (metaEndIndex === -1) {
+					metaRaw += chunkString;
+
 					return VSBuffer.fromString(''); // meta not yet found, return empty string
 				}
 
-				metaFound = true;
+				metaEndFound = true;
+				metaRaw += chunkString.substring(0, metaEndIndex); // ensure to get last chunk from metadata
 
-				return VSBuffer.fromString(chunkString.substr(metaIndex + 1)); // meta found, return everything after
+				return VSBuffer.fromString(chunkString.substr(metaEndIndex + 1)); // meta found, return everything after
 			}
 
 			return chunk;
 		};
 
-		return createTextBufferFactoryFromStream(content.value, metaPreambleFilter);
+		// Read backup into factory
+		const content = await this.fileService.readFileStream(backup);
+		const factory = await createTextBufferFactoryFromStream(content.value, metaPreambleFilter);
+
+		// Trigger read for meta data extraction from the filter above
+		factory.getFirstLineText(1);
+
+		let meta: T | undefined;
+		const metaStartIndex = metaRaw.indexOf(BackupFileServiceImpl.PREAMBLE_META_START_MARKER);
+		if (metaStartIndex !== -1) {
+			try {
+				meta = JSON.parse(metaRaw.substr(metaStartIndex));
+			} catch (error) {
+				// ignore JSON parse errors
+			}
+		}
+
+		return { value: factory, meta };
 	}
 
 	toBackupResource(resource: URI): URI {
@@ -306,17 +368,17 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return Promise.resolve(undefined);
 	}
 
-	backupResource(resource: URI, content: ITextSnapshot, versionId?: number): Promise<void> {
+	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
 		this.backups.set(backupResource.toString(), content);
 
 		return Promise.resolve();
 	}
 
-	resolveBackupContent(backupResource: URI): Promise<ITextBufferFactory> {
+	resolveBackupContent<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
-			return Promise.resolve(createTextBufferFactoryFromSnapshot(snapshot));
+			return Promise.resolve({ value: createTextBufferFactoryFromSnapshot(snapshot) });
 		}
 
 		return Promise.reject('Unexpected backup resource to resolve');

@@ -23,6 +23,7 @@ import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFil
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');
@@ -31,7 +32,9 @@ const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 const workspaceResource = Uri.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
 const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
 const fooFile = Uri.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
+const customFile = Uri.parse('customScheme://some/path');
 const barFile = Uri.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
+const fooBarFile = Uri.file(platform.isWindows ? 'c:\\Foo Bar' : '/Foo Bar');
 const untitledFile = Uri.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 const fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
 const barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
@@ -54,15 +57,20 @@ class TestBackupEnvironmentService extends WorkbenchEnvironmentService {
 }
 
 class TestBackupFileService extends BackupFileService {
+
+	readonly fileService: IFileService;
+
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
 		const fileService = new FileService(new NullLogService());
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
 
 		super(environmentService, fileService);
+
+		this.fileService = fileService;
 	}
 
-	public toBackupResource(resource: Uri): Uri {
+	toBackupResource(resource: Uri): Uri {
 		return super.toBackupResource(resource);
 	}
 }
@@ -148,6 +156,13 @@ suite('BackupFileService', () => {
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
 			assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
+		});
+
+		test('text file (with meta)', async () => {
+			await service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false), undefined, { etag: '678', orphaned: true });
+			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+			assert.equal(fs.existsSync(fooBackupPath), true);
+			assert.equal(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()} {"etag":"678","orphaned":true}\ntest`);
 		});
 
 		test('untitled file', async () => {
@@ -268,14 +283,32 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('resolveBackupContent', () => {
+	suite('resolveBackupContent', () => {
+
+		interface IBackupTestMetaData {
+			mtime?: number;
+			size?: number;
+			etag?: string;
+			orphaned?: boolean;
+		}
+
 		test('should restore the original contents (untitled file)', async () => {
 			const contents = 'test\nand more stuff';
 
-			await service.backupResource(untitledFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false));
+			await testResolveBackup(untitledFile, contents);
+		});
 
-			const factory = await service.resolveBackupContent(service.toBackupResource(untitledFile));
-			assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+		test('should restore the original contents (untitled file with metadata)', async () => {
+			const contents = 'test\nand more stuff';
+
+			const meta = {
+				etag: 'the Etag',
+				size: 666,
+				mtime: Date.now(),
+				orphaned: true
+			};
+
+			await testResolveBackup(untitledFile, contents, meta);
 		});
 
 		test('should restore the original contents (text file)', async () => {
@@ -283,20 +316,172 @@ suite('BackupFileService', () => {
 				'Lorem ipsum ',
 				'dolor öäü sit amet ',
 				'consectetur ',
-				'adipiscing ßß elit',
+				'adipiscing ßß elit'
 			].join('');
 
-			await service.backupResource(fooFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false));
-
-			const factory = await service.resolveBackupContent(service.toBackupResource(untitledFile));
-			assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+			await testResolveBackup(fooFile, contents);
 		});
+
+		test('should restore the original contents (text file - custom scheme)', async () => {
+			const contents = [
+				'Lorem ipsum ',
+				'dolor öäü sit amet ',
+				'consectetur ',
+				'adipiscing ßß elit'
+			].join('');
+
+			await testResolveBackup(customFile, contents);
+		});
+
+		test('should restore the original contents (text file with metadata)', async () => {
+			const contents = [
+				'Lorem ipsum ',
+				'dolor öäü sit amet ',
+				'adipiscing ßß elit',
+				'consectetur '
+			].join('');
+
+			const meta = {
+				etag: 'theEtag',
+				size: 888,
+				mtime: Date.now(),
+				orphaned: false
+			};
+
+			await testResolveBackup(fooFile, contents, meta);
+		});
+
+		test('should restore the original contents (text file with metadata changed once)', async () => {
+			const contents = [
+				'Lorem ipsum ',
+				'dolor öäü sit amet ',
+				'adipiscing ßß elit',
+				'consectetur '
+			].join('');
+
+			const meta = {
+				etag: 'theEtag',
+				size: 888,
+				mtime: Date.now(),
+				orphaned: false
+			};
+
+			await testResolveBackup(fooFile, contents, meta);
+
+			// Change meta and test again
+			meta.size = 999;
+			await testResolveBackup(fooFile, contents, meta);
+		});
+
+		test('should restore the original contents (text file with broken metadata)', async () => {
+			const contents = [
+				'Lorem ipsum ',
+				'dolor öäü sit amet ',
+				'adipiscing ßß elit',
+				'consectetur '
+			].join('');
+
+			const meta = {
+				etag: 'theEtag',
+				size: 888,
+				mtime: Date.now(),
+				orphaned: false
+			};
+
+			await service.backupResource(fooFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1, meta);
+
+			const fileContents = fs.readFileSync(fooBackupPath).toString();
+			assert.equal(fileContents.indexOf(fooFile.toString()), 0);
+
+			const metaIndex = fileContents.indexOf('{');
+			const newFileContents = fileContents.substring(0, metaIndex) + '{{' + fileContents.substr(metaIndex);
+			fs.writeFileSync(fooBackupPath, newFileContents);
+
+			const backup = await service.resolveBackupContent(service.toBackupResource(fooFile));
+			assert.equal(contents, snapshotToString(backup.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+			assert.ok(!backup.meta);
+		});
+
+		test('should restore the original contents (text file with space in name with metadata)', async () => {
+			const contents = [
+				'Lorem ipsum ',
+				'dolor öäü sit amet ',
+				'adipiscing ßß elit',
+				'consectetur '
+			].join('');
+
+			const meta = {
+				etag: 'theEtag',
+				size: 888,
+				mtime: Date.now(),
+				orphaned: false
+			};
+
+			await testResolveBackup(fooBarFile, contents, meta);
+		});
+
+		test('should restore the original contents (text file with too large metadata to persist)', async () => {
+			const contents = [
+				'Lorem ipsum ',
+				'dolor öäü sit amet ',
+				'adipiscing ßß elit',
+				'consectetur '
+			].join('');
+
+			const meta = {
+				etag: (new Array(100 * 1024)).join('Large String'),
+				size: 888,
+				mtime: Date.now(),
+				orphaned: false
+			};
+
+			await testResolveBackup(fooBarFile, contents, meta, null);
+		});
+
+		async function testResolveBackup(resource: Uri, contents: string, meta?: IBackupTestMetaData, expectedMeta?: IBackupTestMetaData | null) {
+			if (typeof expectedMeta === 'undefined') {
+				expectedMeta = meta;
+			}
+
+			await service.backupResource(resource, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1, meta);
+
+			assert.ok(service.loadBackupResource(resource));
+
+			const backup = await service.resolveBackupContent<IBackupTestMetaData>(service.toBackupResource(resource));
+			assert.equal(contents, snapshotToString(backup.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+
+			if (expectedMeta) {
+				assert.equal(backup.meta!.etag, expectedMeta.etag);
+				assert.equal(backup.meta!.size, expectedMeta.size);
+				assert.equal(backup.meta!.mtime, expectedMeta.mtime);
+				assert.equal(backup.meta!.orphaned, expectedMeta.orphaned);
+			} else {
+				assert.ok(!backup.meta);
+			}
+		}
 	});
 });
 
 suite('BackupFilesModel', () => {
+
+	let service: TestBackupFileService;
+
+	setup(async () => {
+		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+
+		// Delete any existing backups completely and then re-create it.
+		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+		await pfs.mkdirp(backupHome);
+
+		return pfs.writeFile(workspacesJsonPath, '');
+	});
+
+	teardown(() => {
+		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+	});
+
 	test('simple', () => {
-		const model = new BackupFilesModel();
+		const model = new BackupFilesModel(service.fileService);
 
 		const resource1 = Uri.file('test.html');
 
@@ -307,6 +492,7 @@ suite('BackupFilesModel', () => {
 		assert.equal(model.has(resource1), true);
 		assert.equal(model.has(resource1, 0), true);
 		assert.equal(model.has(resource1, 1), false);
+		assert.equal(model.has(resource1, 1, { foo: 'bar' }), false);
 
 		model.remove(resource1);
 
@@ -334,25 +520,28 @@ suite('BackupFilesModel', () => {
 
 		model.add(resource2);
 		model.add(resource3);
-		model.add(resource4);
+		model.add(resource4, undefined, { foo: 'bar' });
 
 		assert.equal(model.has(resource1), true);
 		assert.equal(model.has(resource2), true);
 		assert.equal(model.has(resource3), true);
+
 		assert.equal(model.has(resource4), true);
+		assert.equal(model.has(resource4, undefined, { foo: 'bar' }), true);
+		assert.equal(model.has(resource4, undefined, { bar: 'foo' }), false);
 	});
 
 	test('resolve', async () => {
 		await pfs.mkdirp(path.dirname(fooBackupPath));
 		fs.writeFileSync(fooBackupPath, 'foo');
-		const model = new BackupFilesModel();
+		const model = new BackupFilesModel(service.fileService);
 
 		const resolvedModel = await model.resolve(workspaceBackupPath);
 		assert.equal(resolvedModel.has(Uri.file(fooBackupPath)), true);
 	});
 
 	test('get', () => {
-		const model = new BackupFilesModel();
+		const model = new BackupFilesModel(service.fileService);
 
 		assert.deepEqual(model.get(), []);
 

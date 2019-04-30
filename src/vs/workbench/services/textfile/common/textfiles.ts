@@ -464,6 +464,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(soft?: boolean): Promise<void>;
 
+	backup(target?: URI): Promise<void>;
+
 	createSnapshot(): ITextSnapshot | null;
 
 	isDirty(): boolean;
