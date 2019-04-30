@@ -8983,6 +8983,12 @@ declare module 'vscode' {
 		comments: Comment[];
 
 		/**
+		 * Whether the thread should be collapsed or expanded when opening the document.
+		 * Defaults to Collapsed.
+		 */
+		collapsibleState: CommentThreadCollapsibleState;
+
+		/**
 		 * The optional human-readable label describing the [Comment Thread](#CommentThread)
 		 */
 		label?: string;
@@ -9004,12 +9010,6 @@ declare module 'vscode' {
 		additionalCommands?: Command[];
 
 		/**
-		 * Whether the thread should be collapsed or expanded when opening the document.
-		 * Defaults to Collapsed.
-		 */
-		collapsibleState?: CommentThreadCollapsibleState;
-
-		/**
 		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
 		 * when the user collapses a comment thread that has no comments in it.
 		 */
@@ -9017,6 +9017,8 @@ declare module 'vscode' {
 
 		/**
 		 * Dispose this comment thread.
+		 *
+		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when approriate.
 		 */
 		dispose(): void;
 	}
@@ -9111,7 +9113,7 @@ declare module 'vscode' {
 		/**
 		 * The human-readable label describing the [Comment Thread](#CommentThread)
 		 */
-		label: string;
+		readonly label: string;
 
 		/**
 		 * Optional accept input command
@@ -9120,20 +9122,20 @@ declare module 'vscode' {
 		 * This command will be invoked when users the user accepts the value in the comment editor.
 		 * This command will disabled when the comment editor is empty.
 		 */
-		acceptInputCommand?: Command;
+		readonly acceptInputCommand?: Command;
 
 		/**
 		 * Optional additonal commands.
 		 *
 		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
 		 */
-		additionalCommands?: Command[];
+		readonly additionalCommands?: Command[];
 
 		/**
 		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
 		 * when the user collapses a comment thread that has no comments in it.
 		 */
-		deleteCommand?: Command;
+		readonly deleteCommand?: Command;
 	}
 
 	/**
@@ -9178,14 +9180,13 @@ declare module 'vscode' {
 		commentingRangeProvider?: CommentingRangeProvider;
 
 		/**
-		 * Create a [CommentThread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
-		 * and Comments Panel.
+		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
+		 * and Comments Panel once created.
+		 *
 		 * @param id An `id` for the comment thread.
 		 * @param resource The uri of the document the thread has been created on.
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
-		 *
-		 * @deprecated
 		 */
 		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
 
