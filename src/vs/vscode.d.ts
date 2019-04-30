@@ -8944,7 +8944,6 @@ declare module 'vscode' {
 	//#region Comments
 
 	/**
-	 *
 	 * Collapsible state of a [comment thread](#CommentThread)
 	 */
 	export enum CommentThreadCollapsibleState {
