@@ -437,6 +437,15 @@ export class MainThreadCommentController {
 			range
 		);
 
+		let template = this._features.commentThreadTemplate;
+
+		if (template) {
+			thread.acceptInputCommand = template.acceptInputCommand;
+			thread.additionalCommands = template.additionalCommands;
+			thread.deleteCommand = template.deleteCommand;
+			thread.label = template.label;
+		}
+
 		return thread;
 	}
 

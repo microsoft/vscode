@@ -469,7 +469,7 @@ export class ReviewController implements IEditorContribution {
 		this._commentWidgets.push(zoneWidget);
 	}
 
-	private addCommentThreadFromTemplate(lineNumber: number, ownerId: string, template: modes.CommentThreadTemplate): ReviewZoneWidget {
+	private addCommentThreadFromTemplate(lineNumber: number, ownerId: string): ReviewZoneWidget {
 		let templateCommentThread = this.commentService.getCommentThreadFromTemplate(ownerId, this.editor.getModel()!.uri, {
 			startLineNumber: lineNumber,
 			startColumn: 1,
@@ -478,10 +478,6 @@ export class ReviewController implements IEditorContribution {
 		})!;
 
 		templateCommentThread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
-		templateCommentThread.acceptInputCommand = template.acceptInputCommand;
-		templateCommentThread.additionalCommands = template.additionalCommands;
-		templateCommentThread.deleteCommand = template.deleteCommand;
-		templateCommentThread.label = template.label;
 		templateCommentThread.comments = [];
 
 		let templateReviewZoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, ownerId, templateCommentThread, '', modes.DraftMode.NotSupported);
@@ -697,7 +693,7 @@ export class ReviewController implements IEditorContribution {
 			let range = new Range(lineNumber, 1, lineNumber, 1);
 			if (template) {
 				// create comment widget through template
-				let commentThreadWidget = this.addCommentThreadFromTemplate(lineNumber, ownerId, template);
+				let commentThreadWidget = this.addCommentThreadFromTemplate(lineNumber, ownerId);
 				commentThreadWidget.display(lineNumber, true);
 				this._commentWidgets.push(commentThreadWidget);
 				this.processNextThreadToAdd();
