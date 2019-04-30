@@ -696,6 +696,13 @@ export class ReviewController implements IEditorContribution {
 				let commentThreadWidget = this.addCommentThreadFromTemplate(lineNumber, ownerId);
 				commentThreadWidget.display(lineNumber, true);
 				this._commentWidgets.push(commentThreadWidget);
+				commentThreadWidget.onDidClose(() => {
+					this._commentWidgets = this._commentWidgets.filter(zoneWidget => !(
+						zoneWidget.owner === commentThreadWidget.owner &&
+						(zoneWidget.commentThread as any).commentThreadHandle === -1 &&
+						Range.equalsRange(zoneWidget.commentThread.range, commentThreadWidget.commentThread.range)
+					));
+				});
 				this.processNextThreadToAdd();
 			} else if (commentingRangesInfo.newCommentThreadCallback) {
 				return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel()!.uri, range)

@@ -216,6 +216,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				if (deleteCommand) {
 					this.commentService.setActiveCommentThread(this._commentThread);
 					return this.commandService.executeCommand(deleteCommand.id, ...(deleteCommand.arguments || []));
+				} else if (this._commentEditor.getValue() === '') {
+					this.dispose();
+					return Promise.resolve();
 				}
 			}
 		}
