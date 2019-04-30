@@ -15,10 +15,9 @@ export function setup() {
 				return;
 			}
 
-			const extensionName = 'vscode-smoketest-check';
 			await app.workbench.extensions.openExtensionsViewlet();
 
-			await app.workbench.extensions.installExtension(extensionName);
+			await app.workbench.extensions.installExtension('michelkaporin.vscode-smoketest-check', 'vscode-smoketest-check');
 
 			await app.workbench.extensions.waitForExtensionsViewlet();
 			await app.workbench.quickopen.runCommand('Smoke Test Check');
