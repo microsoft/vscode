@@ -81,7 +81,7 @@ function unzipVSCodeServer(vscodeArchivePath: string, extractDir: string) {
 		} else {
 			cp.spawnSync('unzip', [vscodeArchivePath, '-d', `${tempDir}`]);
 		}
-		fs.renameSync(path.join(tempDir, 'vscode-server-win32-x64'), extractDir);
+		fs.renameSync(path.join(tempDir, process.platform === 'win32' ? 'vscode-server-win32-x64' : 'vscode-server-darwin'), extractDir);
 	} else {
 		// tar does not create extractDir by default
 		if (!fs.existsSync(extractDir)) {

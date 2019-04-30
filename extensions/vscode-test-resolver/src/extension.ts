@@ -100,7 +100,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const env = getNewEnv();
 				env['PATH'] = path.join(serverLocation, 'bin') + path.delimiter + env['PATH']; // code command for the terminal
 
-				extHostProcess = cp.spawn(path.join(serverLocation, 'server.sh'), commandArgs, { env });
+				extHostProcess = cp.spawn(path.join(serverLocation, 'server.sh'), commandArgs, { env, cwd: serverLocation });
 			}
 			extHostProcess.stdout.on('data', (data: Buffer) => processOutput(data.toString()));
 			extHostProcess.stderr.on('data', (data: Buffer) => processOutput(data.toString()));
