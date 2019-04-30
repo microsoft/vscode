@@ -156,7 +156,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 		}
 	} else {
 		if (args.length === 0) {
-			console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, o => isSupported(o.id)));
+			console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, o => isSupported(o.id), false));
 			return;
 		}
 		if (parsedArgs.status) {
