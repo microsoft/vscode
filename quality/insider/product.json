@@ -740,6 +740,7 @@
 		"vscode-icons-team.vscode-icons",
 		"vscodevim.vim",
 		"WakaTime.vscode-wakatime",
-		"wayou.vscode-todo-highlight"
+		"wayou.vscode-todo-highlight",
+		"peterjausovec.vscode-docker"
 	]
 }
