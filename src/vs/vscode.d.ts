@@ -9168,13 +9168,6 @@ declare module 'vscode' {
 		readonly inputBox: CommentInputBox | undefined;
 
 		/**
-		 * The active [comment thread](#CommentThread) or `undefined`. The `activeCommentThread` is the comment thread of
-		 * the comment widget that currently has focus. It's `undefined` when the focus is not in any comment thread widget, or
-		 * the comment widget created from [comment thread template](#CommentThreadTemplate).
-		 */
-		readonly activeCommentThread: CommentThread | undefined;
-
-		/**
 		 * Optional comment thread template information.
 		 *
 		 * The comment controller will use this information to create the comment widget when users attempt to create new comment thread
@@ -9193,6 +9186,18 @@ declare module 'vscode' {
 		 * If not provided and `emptyCommentThreadFactory` exits, users can leave comments in any document opened in the editor.
 		 */
 		commentingRangeProvider?: CommentingRangeProvider;
+
+		/**
+		 * Create a [CommentThread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
+		 * and Comments Panel.
+		 * @param id An `id` for the comment thread.
+		 * @param resource The uri of the document the thread has been created on.
+		 * @param range The range the comment thread is located within the document.
+		 * @param comments The ordered comments of the thread.
+		 *
+		 * @deprecated
+		 */
+		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
 
 		/**
 		 * Dispose this comment controller.

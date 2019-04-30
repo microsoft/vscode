@@ -906,16 +906,11 @@ declare module 'vscode' {
 
 	export interface CommentController {
 		/**
-		 * Create a [CommentThread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
-		 * and Comments Panel.
-		 * @param id An `id` for the comment thread.
-		 * @param resource The uri of the document the thread has been created on.
-		 * @param range The range the comment thread is located within the document.
-		 * @param comments The ordered comments of the thread.
-		 *
-		 * @deprecated
+		 * The active [comment thread](#CommentThread) or `undefined`. The `activeCommentThread` is the comment thread of
+		 * the comment widget that currently has focus. It's `undefined` when the focus is not in any comment thread widget, or
+		 * the comment widget created from [comment thread template](#CommentThreadTemplate).
 		 */
-		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
+		readonly activeCommentThread: CommentThread | undefined;
 	}
 
 	namespace workspace {
