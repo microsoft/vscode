@@ -114,7 +114,7 @@ export interface MainThreadClipboardShape extends IDisposable {
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$onDidExecuteCommand(): void;
-	$disposeListeners(): void;
+	$disposeListener(): void;
 	$unregisterCommand(id: string): void;
 	$executeCommand<T>(id: string, args: any[]): Promise<T | undefined>;
 	$getCommands(): Promise<string[]>;

@@ -228,7 +228,6 @@ export class StandaloneCommandService implements ICommandService {
 	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
 	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
-	public readonly disposeListeners: () => void;
 
 	constructor(instantiationService: IInstantiationService) {
 		this._instantiationService = instantiationService;

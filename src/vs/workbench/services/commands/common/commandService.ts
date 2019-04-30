@@ -24,7 +24,6 @@ export class CommandService extends Disposable implements ICommandService {
 
 	private readonly _onDidExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
 	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
-	public readonly disposeListeners: () => void = () => this._onDidExecuteCommand.dispose();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

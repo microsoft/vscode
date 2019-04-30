@@ -25,7 +25,6 @@ const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
 	onWillExecuteCommand: () => ({ dispose: () => { } }),
 	onDidExecuteCommand: () => ({ dispose: () => { } }),
-	disposeListeners: () => { },
 	executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
 		return Promise.resolve(undefined);
 	}

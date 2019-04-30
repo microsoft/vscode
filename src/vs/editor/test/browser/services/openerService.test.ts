@@ -18,7 +18,6 @@ suite('OpenerService', function () {
 		_serviceBrand: any;
 		onWillExecuteCommand = () => ({ dispose: () => { } });
 		onDidExecuteCommand = () => ({ dispose: () => { } });
-		disposeListeners = () => { };
 		executeCommand(id: string, ...args: any[]): Promise<any> {
 			lastCommand = { id, args };
 			return Promise.resolve(undefined);

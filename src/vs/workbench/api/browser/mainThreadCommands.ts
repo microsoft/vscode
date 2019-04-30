@@ -15,6 +15,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	private readonly _disposables = new Map<string, IDisposable>();
 	private readonly _generateCommandsDocumentationRegistration: IDisposable;
 	private readonly _proxy: ExtHostCommandsShape;
+	private _onDidExecuteCommandListener: IDisposable;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -79,11 +80,11 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	$onDidExecuteCommand() {
-		return this._commandService.onDidExecuteCommand((command) => this.handleExecuteCommand(command));
+		this._onDidExecuteCommandListener = this._commandService.onDidExecuteCommand((command) => this.handleExecuteCommand(command));
 	}
 
-	$disposeListeners() {
-		return this._commandService.disposeListeners();
+	$disposeListener() {
+		return this._onDidExecuteCommandListener.dispose();
 	}
 
 	$getCommands(): Promise<string[]> {
