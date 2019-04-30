@@ -8951,6 +8951,7 @@ declare module 'vscode' {
 		 * Determines an item is collapsed
 		 */
 		Collapsed = 0,
+
 		/**
 		 * Determines an item is expanded
 		 */
