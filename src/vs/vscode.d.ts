@@ -9175,14 +9175,6 @@ declare module 'vscode' {
 		readonly activeCommentThread: CommentThread | undefined;
 
 		/**
-		 * The collection of [comment threads](#CommentThread) of this comment controller. They will be displayed in both visible editors and
-		 * Comments Panel when appropriate.
-		 *
-		 * Extensions set this property to update the comment threads for this comment controller.
-		 */
-		commentThreads: CommentThread[];
-
-		/**
 		 * Optional comment thread template information.
 		 *
 		 * The comment controller will use this information to create the comment widget when users attempt to create new comment thread

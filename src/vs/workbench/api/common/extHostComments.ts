@@ -611,8 +611,6 @@ class ExtHostCommentController implements vscode.CommentController {
 		return this._handle;
 	}
 
-	public commentThreads: vscode.CommentThread[];
-
 	private _extHostThreads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
 	commentingRangeProvider?: vscode.CommentingRangeProvider & { createEmptyCommentThread: (document: vscode.TextDocument, range: types.Range) => Promise<vscode.CommentThread>; };
 
