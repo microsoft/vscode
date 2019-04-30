@@ -65,6 +65,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _commentGlyph?: CommentGlyphWidget;
 	private _submitActionsDisposables: IDisposable[];
 	private _globalToDispose: IDisposable[];
+	private _commentThreadDisposables: IDisposable[] = [];
 	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
 	private _formActions: HTMLElement | null;
@@ -103,6 +104,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._resizeObserver = null;
 		this._isExpanded = _commentThread.collapsibleState ? _commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded : undefined;
 		this._globalToDispose = [];
+		this._commentThreadDisposables = [];
 		this._submitActionsDisposables = [];
 		this._formActions = null;
 		this.create();
@@ -214,6 +216,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				if (deleteCommand) {
 					this.commentService.setActiveCommentThread(this._commentThread);
 					return this.commandService.executeCommand(deleteCommand.id, ...(deleteCommand.arguments || []));
+				} else if (this._commentEditor.getValue() === '') {
+					this.dispose();
+					return Promise.resolve();
 				}
 			}
 		}
@@ -290,6 +295,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
 		this.createThreadLabel(replaceTemplate);
+
+		if (replaceTemplate) {
+			// since we are replacing the old comment thread, we need to rebind the listeners.
+			this._commentThreadDisposables.forEach(global => global.dispose());
+			this._commentThreadDisposables = [];
+		}
 
 		if (replaceTemplate) {
 			this.createTextModelListener();
@@ -395,7 +406,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentEditor.setModel(model);
 		this._disposables.push(this._commentEditor);
 		this._disposables.push(this._commentEditor.getModel()!.onDidChangeContent(() => this.setCommentEditorDecorations()));
-		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined && !fromTemplate) {
+		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
 			this.createTextModelListener();
 		}
 
@@ -445,7 +456,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private createTextModelListener() {
-		this._disposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
+		this._commentThreadDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 			let commentThread = this._commentThread as modes.CommentThread2;
 			commentThread.input = {
 				uri: this._commentEditor.getModel()!.uri,
@@ -454,7 +465,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this.commentService.setActiveCommentThread(this._commentThread);
 		}));
 
-		this._disposables.push(this._commentEditor.getModel()!.onDidChangeContent(() => {
+		this._commentThreadDisposables.push(this._commentEditor.getModel()!.onDidChangeContent(() => {
 			let modelContent = this._commentEditor.getValue();
 			let thread = (this._commentThread as modes.CommentThread2);
 			if (thread.input && thread.input.uri === this._commentEditor.getModel()!.uri && thread.input.value !== modelContent) {
@@ -464,7 +475,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}));
 
-		this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeInput(input => {
+		this._commentThreadDisposables.push((this._commentThread as modes.CommentThread2).onDidChangeInput(input => {
 			let thread = (this._commentThread as modes.CommentThread2);
 
 			if (thread.input && thread.input.uri !== this._commentEditor.getModel()!.uri) {
@@ -489,31 +500,31 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}));
 
-		this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeComments(async _ => {
+		this._commentThreadDisposables.push((this._commentThread as modes.CommentThread2).onDidChangeComments(async _ => {
 			await this.update(this._commentThread);
 		}));
 
-		this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeLabel(_ => {
+		this._commentThreadDisposables.push((this._commentThread as modes.CommentThread2).onDidChangeLabel(_ => {
 			this.createThreadLabel();
 		}));
 	}
 
 	private createCommentWidgetActionsListener(container: HTMLElement, model: ITextModel) {
-		this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeAcceptInputCommand(_ => {
+		this._commentThreadDisposables.push((this._commentThread as modes.CommentThread2).onDidChangeAcceptInputCommand(_ => {
 			if (container) {
 				dom.clearNode(container);
 				this.createCommentWidgetActions2(container, model);
 			}
 		}));
 
-		this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeAdditionalCommands(_ => {
+		this._commentThreadDisposables.push((this._commentThread as modes.CommentThread2).onDidChangeAdditionalCommands(_ => {
 			if (container) {
 				dom.clearNode(container);
 				this.createCommentWidgetActions2(container, model);
 			}
 		}));
 
-		this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeRange(range => {
+		this._commentThreadDisposables.push((this._commentThread as modes.CommentThread2).onDidChangeRange(range => {
 			// Move comment glyph widget and show position if the line has changed.
 			const lineNumber = this._commentThread.range.startLineNumber;
 			let shouldMoveWidget = false;
@@ -529,7 +540,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}));
 
-		this._disposables.push((this._commentThread as modes.CommentThread2).onDidChangeCollasibleState(state => {
+		this._commentThreadDisposables.push((this._commentThread as modes.CommentThread2).onDidChangeCollasibleState(state => {
 			if (state === modes.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
 				const lineNumber = this._commentThread.range.startLineNumber;
 
@@ -1062,6 +1073,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		this._globalToDispose.forEach(global => global.dispose());
+		this._commentThreadDisposables.forEach(global => global.dispose());
 		this._submitActionsDisposables.forEach(local => local.dispose());
 		this._onDidClose.fire(undefined);
 	}
