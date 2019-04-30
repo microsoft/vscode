@@ -8961,32 +8961,32 @@ declare module 'vscode' {
 	/**
 	 * A collection of [comments](#Comment) representing a conversation at a particular range in a document.
 	 */
-	export class CommentThread {
+	export interface CommentThread {
 		/**
 		 * A unique identifier of the comment thread.
 		 */
-		id: string;
+		readonly id: string;
 
 		/**
 		 * The uri of the document the thread has been created on.
 		 */
-		resource: Uri;
+		readonly resource: Uri;
 
 		/**
 		 * The range the comment thread is located within the document. The thread icon will be shown
 		 * at the first line of the range.
 		 */
-		range: Range;
-
-		/**
-		 * The human-readable label describing the [Comment Thread](#CommentThread)
-		 */
-		label?: string;
+		readonly range: Range;
 
 		/**
 		 * The ordered comments of the thread.
 		 */
 		comments: Comment[];
+
+		/**
+		 * The optional human-readable label describing the [Comment Thread](#CommentThread)
+		 */
+		label?: string;
 
 		/**
 		 * Optional accept input command
@@ -9015,15 +9015,6 @@ declare module 'vscode' {
 		 * when the user collapses a comment thread that has no comments in it.
 		 */
 		deleteCommand?: Command;
-
-		/**
-		 * Create a [CommentThread](#CommentThread).
-		 * @param id An `id` for the comment thread.
-		 * @param resource The uri of the document the thread has been created on.
-		 * @param range The range the comment thread is located within the document.
-		 * @param comments The ordered comments of the thread.
-		 */
-		constructor(id: string, resource: Uri, range: Range, comments: Comment[]);
 
 		/**
 		 * Dispose this comment thread.
