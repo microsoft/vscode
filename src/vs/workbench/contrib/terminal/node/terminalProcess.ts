@@ -69,8 +69,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			experimentalUseConpty: useConpty
 		};
 
-		const filePath = path.basename(shellLaunchConfig.executable!);
-		fs.stat(filePath, (err, stats) => {
+		fs.stat(shellLaunchConfig.executable!, (err) => {
 			if (err && err.code === 'ENOENT') {
 				this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
 				this._queueProcessExit();
@@ -82,29 +81,26 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	}
 
 	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {
-		this._ptyProcess = pty.spawn(shellLaunchConfig.executable!, shellLaunchConfig.args || [], options);
+		const ptyProcess = pty.spawn(shellLaunchConfig.executable!, shellLaunchConfig.args || [], options);
+		this._ptyProcess = ptyProcess;
 		this._processStartupComplete = new Promise<void>(c => {
-			this.onProcessIdReady((pid) => {
-				c();
-			});
+			this.onProcessIdReady(() => c());
 		});
-		if (this._ptyProcess) {
-			this._ptyProcess.on('data', (data) => {
-				this._onProcessData.fire(data);
-				if (this._closeTimeout) {
-					clearTimeout(this._closeTimeout);
-					this._queueProcessExit();
-				}
-			});
-			this._ptyProcess.on('exit', (code) => {
-				this._exitCode = code;
+		ptyProcess.on('data', (data) => {
+			this._onProcessData.fire(data);
+			if (this._closeTimeout) {
+				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
-			});
-			this._setupTitlePolling(this._ptyProcess);
-		}
+			}
+		});
+		ptyProcess.on('exit', (code) => {
+			this._exitCode = code;
+			this._queueProcessExit();
+		});
+		this._setupTitlePolling(ptyProcess);
 		// TODO: We should no longer need to delay this since pty.spawn is sync
 		setTimeout(() => {
-			this._sendProcessId();
+			this._sendProcessId(ptyProcess);
 		}, 500);
 	}
 
@@ -123,12 +119,12 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _setupTitlePolling(ptyProcess: pty.IPty) {
 		// Send initial timeout async to give event listeners a chance to init
 		setTimeout(() => {
-			this._sendProcessTitle();
+			this._sendProcessTitle(ptyProcess);
 		}, 0);
 		// Setup polling
 		this._titleInterval = setInterval(() => {
 			if (this._currentTitle !== ptyProcess.process) {
-				this._sendProcessTitle();
+				this._sendProcessTitle(ptyProcess);
 			}
 		}, 200);
 	}
@@ -163,20 +159,16 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		});
 	}
 
-	private _sendProcessId() {
-		if (this._ptyProcess) {
-			this._onProcessIdReady.fire(this._ptyProcess.pid);
-		}
+	private _sendProcessId(ptyProcess: pty.IPty) {
+		this._onProcessIdReady.fire(ptyProcess.pid);
 	}
 
-	private _sendProcessTitle(): void {
+	private _sendProcessTitle(ptyProcess: pty.IPty): void {
 		if (this._isDisposed) {
 			return;
 		}
-		if (this._ptyProcess) {
-			this._currentTitle = this._ptyProcess.process;
-			this._onProcessTitleChanged.fire(this._currentTitle);
-		}
+		this._currentTitle = ptyProcess.process;
+		this._onProcessTitleChanged.fire(this._currentTitle);
 	}
 
 	public shutdown(immediate: boolean): void {
@@ -188,12 +180,10 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	}
 
 	public input(data: string): void {
-		if (this._isDisposed) {
+		if (this._isDisposed || !this._ptyProcess) {
 			return;
 		}
-		if (this._ptyProcess) {
-			this._ptyProcess.write(data);
-		}
+		this._ptyProcess.write(data);
 	}
 
 	public resize(cols: number, rows: number): void {
@@ -214,26 +204,30 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	public getCwd(): Promise<string> {
 		if (platform.isMacintosh) {
 			return new Promise<string>(resolve => {
-				if (this._ptyProcess) {
-					exec('lsof -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
-						if (stdout !== '') {
-							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
-						}
-					});
+				if (!this._ptyProcess) {
+					resolve(this._initialCwd);
+					return;
 				}
+				exec('lsof -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+					if (stdout !== '') {
+						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+					}
+				});
 			});
 		}
 
 		if (platform.isLinux) {
 			return new Promise<string>(resolve => {
-				if (this._ptyProcess) {
-					fs.readlink('/proc/' + this._ptyProcess.pid + '/cwd', (err, linkedstr) => {
-						if (err) {
-							resolve(this._initialCwd);
-						}
-						resolve(linkedstr);
-					});
+				if (!this._ptyProcess) {
+					resolve(this._initialCwd);
+					return;
 				}
+				fs.readlink('/proc/' + this._ptyProcess.pid + '/cwd', (err, linkedstr) => {
+					if (err) {
+						resolve(this._initialCwd);
+					}
+					resolve(linkedstr);
+				});
 			});
 		}
 
