@@ -10,9 +10,6 @@ steps:
 - script: |
     set -e
     export npm_config_arch="$(VSCODE_ARCH)"
-    if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
-      export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
-    fi
 
     cat << EOF > ~/.netrc
     machine monacotools.visualstudio.com

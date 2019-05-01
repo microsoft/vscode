@@ -5,8 +5,6 @@ ROOT="$REPO/.."
 
 # Publish tarball
 PLATFORM_LINUX="linux-$VSCODE_ARCH"
-[[ "$VSCODE_ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
-[[ "$VSCODE_ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
 BUILDNAME="VSCode-$PLATFORM_LINUX"
 BUILD="$ROOT/$BUILDNAME"
 BUILD_VERSION="$(date +%s)"
@@ -26,7 +24,7 @@ node build/azure-pipelines/common/symbols.js "$VSCODE_MIXIN_PASSWORD" "$VSCODE_H
 # Publish DEB
 yarn gulp "vscode-linux-$VSCODE_ARCH-build-deb"
 PLATFORM_DEB="linux-deb-$VSCODE_ARCH"
-[[ "$VSCODE_ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
+DEB_ARCH="amd64"
 DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
 DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
 
@@ -35,7 +33,7 @@ node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_DEB" p
 # Publish RPM
 yarn gulp "vscode-linux-$VSCODE_ARCH-build-rpm"
 PLATFORM_RPM="linux-rpm-$VSCODE_ARCH"
-[[ "$VSCODE_ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
+RPM_ARCH="x86_64"
 RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
 RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
 

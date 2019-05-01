@@ -2,8 +2,6 @@ resources:
   containers:
   - container: vscode-x64
     image: joaomoreno/vscode-linux-build-agent:x64
-  - container: vscode-ia32
-    image: joaomoreno/vscode-linux-build-agent:ia32
   - container: snapcraft
     image: snapcore/snapcraft
 
