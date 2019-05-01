@@ -166,7 +166,7 @@ export class BackupFileService implements IBackupFileService {
 class BackupFileServiceImpl implements IBackupFileService {
 
 	private static readonly PREAMBLE_END_MARKER = '\n';
-	private static readonly PREAMBLE_META_START_MARKER = '#'; // using a character that is know to be escaped in a URI as separator
+	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
 	private static readonly PREAMBLE_MAX_LENGTH = 10000;
 
 	_serviceBrand: any;
@@ -234,7 +234,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 			// With Metadata: URI + META-START + Meta + END
 			if (meta) {
-				const preambleWithMeta = `${resource.toString()}${BackupFileServiceImpl.PREAMBLE_META_START_MARKER}${JSON.stringify(meta)}${BackupFileServiceImpl.PREAMBLE_END_MARKER}`;
+				const preambleWithMeta = `${resource.toString()}${BackupFileServiceImpl.PREAMBLE_META_SEPARATOR}${JSON.stringify(meta)}${BackupFileServiceImpl.PREAMBLE_END_MARKER}`;
 				if (preambleWithMeta.length < BackupFileServiceImpl.PREAMBLE_MAX_LENGTH) {
 					preamble = preambleWithMeta;
 				}
@@ -284,7 +284,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 			}
 
 			// Preamble with metadata: URI + META-START + Meta + END
-			const metaStartIndex = backupPreamble.indexOf(BackupFileServiceImpl.PREAMBLE_META_START_MARKER);
+			const metaStartIndex = backupPreamble.indexOf(BackupFileServiceImpl.PREAMBLE_META_SEPARATOR);
 			if (metaStartIndex > 0) {
 				return URI.parse(backupPreamble.substring(0, metaStartIndex));
 			}
@@ -333,7 +333,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		factory.getFirstLineText(1);
 
 		let meta: T | undefined;
-		const metaStartIndex = metaRaw.indexOf(BackupFileServiceImpl.PREAMBLE_META_START_MARKER);
+		const metaStartIndex = metaRaw.indexOf(BackupFileServiceImpl.PREAMBLE_META_SEPARATOR);
 		if (metaStartIndex !== -1) {
 			try {
 				meta = JSON.parse(metaRaw.substr(metaStartIndex + 1));

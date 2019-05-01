@@ -33,6 +33,7 @@ const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/work
 const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
 const fooFile = URI.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
 const customFile = URI.parse('customScheme://some/path');
+const customFileWithFragment = URI.parse('customScheme2://some/path#fragment');
 const barFile = URI.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
 const fooBarFile = URI.file(platform.isWindows ? 'c:\\Foo Bar' : '/Foo Bar');
 const untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
@@ -162,7 +163,7 @@ suite('BackupFileService', () => {
 			await service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false), undefined, { etag: '678', orphaned: true });
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
-			assert.equal(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()}#{"etag":"678","orphaned":true}\ntest`);
+			assert.equal(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()} {"etag":"678","orphaned":true}\ntest`);
 		});
 
 		test('untitled file', async () => {
@@ -390,6 +391,8 @@ suite('BackupFileService', () => {
 
 			await service.backupResource(fooFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1, meta);
 
+			assert.ok(await service.loadBackupResource(fooFile));
+
 			const fileContents = fs.readFileSync(fooBackupPath).toString();
 			assert.equal(fileContents.indexOf(fooFile.toString()), 0);
 
@@ -400,6 +403,24 @@ suite('BackupFileService', () => {
 			const backup = await service.resolveBackupContent(service.toBackupResource(fooFile));
 			assert.equal(contents, snapshotToString(backup.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
 			assert.ok(!backup.meta);
+		});
+
+		test('should restore the original contents (text file with metadata and fragment URI)', async () => {
+			const contents = [
+				'Lorem ipsum ',
+				'dolor öäü sit amet ',
+				'adipiscing ßß elit',
+				'consectetur '
+			].join('');
+
+			const meta = {
+				etag: 'theEtag',
+				size: 888,
+				mtime: Date.now(),
+				orphaned: false
+			};
+
+			await testResolveBackup(customFileWithFragment, contents, meta);
 		});
 
 		test('should restore the original contents (text file with space in name with metadata)', async () => {
@@ -445,7 +466,7 @@ suite('BackupFileService', () => {
 
 			await service.backupResource(resource, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false), 1, meta);
 
-			assert.ok(service.loadBackupResource(resource));
+			assert.ok(await service.loadBackupResource(resource));
 
 			const backup = await service.resolveBackupContent<IBackupTestMetaData>(service.toBackupResource(resource));
 			assert.equal(contents, snapshotToString(backup.value.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
