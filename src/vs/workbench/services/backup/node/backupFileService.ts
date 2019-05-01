@@ -82,11 +82,11 @@ export class BackupFilesModel implements IBackupFilesModel {
 			return false; // unknown resource
 		}
 
-		if (typeof versionId === 'number' && typeof entry.versionId === 'number' && entry.versionId !== versionId) {
+		if (typeof versionId === 'number' && versionId !== entry.versionId) {
 			return false; // different versionId
 		}
 
-		if (meta && entry.meta && !equals(meta, entry.meta)) {
+		if (meta && !equals(meta, entry.meta)) {
 			return false; // different metadata
 		}
 
@@ -166,7 +166,7 @@ export class BackupFileService implements IBackupFileService {
 class BackupFileServiceImpl implements IBackupFileService {
 
 	private static readonly PREAMBLE_END_MARKER = '\n';
-	private static readonly PREAMBLE_META_START_MARKER = ' ';
+	private static readonly PREAMBLE_META_START_MARKER = '#'; // using a character that is know to be escaped in a URI as separator
 	private static readonly PREAMBLE_MAX_LENGTH = 10000;
 
 	_serviceBrand: any;
@@ -336,7 +336,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		const metaStartIndex = metaRaw.indexOf(BackupFileServiceImpl.PREAMBLE_META_START_MARKER);
 		if (metaStartIndex !== -1) {
 			try {
-				meta = JSON.parse(metaRaw.substr(metaStartIndex));
+				meta = JSON.parse(metaRaw.substr(metaStartIndex + 1));
 			} catch (error) {
 				// ignore JSON parse errors
 			}

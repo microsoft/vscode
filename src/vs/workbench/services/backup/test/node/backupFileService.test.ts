@@ -162,7 +162,7 @@ suite('BackupFileService', () => {
 			await service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false), undefined, { etag: '678', orphaned: true });
 			assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 			assert.equal(fs.existsSync(fooBackupPath), true);
-			assert.equal(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()} {"etag":"678","orphaned":true}\ntest`);
+			assert.equal(fs.readFileSync(fooBackupPath).toString(), `${fooFile.toString()}#{"etag":"678","orphaned":true}\ntest`);
 		});
 
 		test('untitled file', async () => {
