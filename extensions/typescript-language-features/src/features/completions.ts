@@ -400,7 +400,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 						"type" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"count" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"${include}": [
-							"${TypeScriptCommonProperties}",
+							"${TypeScriptCommonProperties}"
 						]
 					}
 				*/
