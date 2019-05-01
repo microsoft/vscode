@@ -1005,7 +1005,7 @@ export class TerminalInstance implements ITerminalInstance {
 				if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
 					let args = '';
 					if (typeof this._shellLaunchConfig.args === 'string') {
-						args = this._shellLaunchConfig.args;
+						args = ` ${this._shellLaunchConfig.args}`;
 					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
 						args = ' ' + this._shellLaunchConfig.args.map(a => {
 							if (typeof a === 'string' && a.indexOf(' ') !== -1) {
