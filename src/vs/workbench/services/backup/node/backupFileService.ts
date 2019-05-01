@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join } from 'vs/base/common/path';
+import { joinPath } from 'vs/base/common/resources';
 import { createHash } from 'crypto';
 import { URI } from 'vs/base/common/uri';
 import { coalesce } from 'vs/base/common/arrays';
@@ -23,7 +24,7 @@ import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/text
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IBackupFilesModel {
-	resolve(backupRoot: string): Promise<IBackupFilesModel>;
+	resolve(backupRoot: URI): Promise<IBackupFilesModel>;
 
 	add(resource: URI, versionId?: number, meta?: object): void;
 	has(resource: URI, versionId?: number, meta?: object): boolean;
@@ -43,13 +44,13 @@ export class BackupFilesModel implements IBackupFilesModel {
 
 	constructor(private fileService: IFileService) { }
 
-	async resolve(backupRoot: string): Promise<IBackupFilesModel> {
+	async resolve(backupRoot: URI): Promise<IBackupFilesModel> {
 		try {
-			const backupRootStat = await this.fileService.resolve(URI.file(backupRoot));
+			const backupRootStat = await this.fileService.resolve(backupRoot);
 			if (backupRootStat.children) {
 				await Promise.all(backupRootStat.children
-					.filter(child => child.isDirectory).
-					map(async backupSchema => {
+					.filter(child => child.isDirectory)
+					.map(async backupSchema => {
 
 						// Read backup directory for backups
 						const backupSchemaStat = await this.fileService.resolve(backupSchema.resource);
@@ -170,7 +171,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 	_serviceBrand: any;
 
-	private backupWorkspacePath: string;
+	private backupWorkspacePath: URI;
 
 	private isShuttingDown: boolean;
 	private ready: Promise<IBackupFilesModel>;
@@ -187,7 +188,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 	}
 
 	initialize(backupWorkspacePath: string): void {
-		this.backupWorkspacePath = backupWorkspacePath;
+		this.backupWorkspacePath = URI.file(backupWorkspacePath);
 
 		this.ready = this.init();
 	}
@@ -268,7 +269,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 		const model = await this.ready;
 
-		await this.fileService.del(URI.file(this.backupWorkspacePath), { recursive: true });
+		await this.fileService.del(this.backupWorkspacePath, { recursive: true });
 
 		model.clear();
 	}
@@ -300,7 +301,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 	async resolveBackupContent<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
 
 		// Metadata extraction
-		let metaRaw: string = '';
+		let metaRaw = '';
 		let metaEndFound = false;
 
 		// Add a filter method to filter out everything until the meta end marker
@@ -345,7 +346,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 	}
 
 	toBackupResource(resource: URI): URI {
-		return URI.file(join(this.backupWorkspacePath, resource.scheme, hashPath(resource)));
+		return joinPath(this.backupWorkspacePath, resource.scheme, hashPath(resource));
 	}
 }
 

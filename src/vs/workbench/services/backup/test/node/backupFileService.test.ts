@@ -10,7 +10,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
-import { URI as Uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel, hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -29,13 +29,13 @@ const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice'
 const backupHome = path.join(parentDir, 'Backups');
 const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
-const workspaceResource = Uri.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
+const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
 const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
-const fooFile = Uri.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
-const customFile = Uri.parse('customScheme://some/path');
-const barFile = Uri.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
-const fooBarFile = Uri.file(platform.isWindows ? 'c:\\Foo Bar' : '/Foo Bar');
-const untitledFile = Uri.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+const fooFile = URI.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
+const customFile = URI.parse('customScheme://some/path');
+const barFile = URI.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
+const fooBarFile = URI.file(platform.isWindows ? 'c:\\Foo Bar' : '/Foo Bar');
+const untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 const fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
 const barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
 const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
@@ -60,7 +60,7 @@ class TestBackupFileService extends BackupFileService {
 
 	readonly fileService: IFileService;
 
-	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
+	constructor(workspace: URI, backupHome: string, workspacesJsonPath: string) {
 		const fileService = new FileService(new NullLogService());
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
@@ -70,7 +70,7 @@ class TestBackupFileService extends BackupFileService {
 		this.fileService = fileService;
 	}
 
-	toBackupResource(resource: Uri): Uri {
+	toBackupResource(resource: URI): URI {
 		return super.toBackupResource(resource);
 	}
 }
@@ -94,7 +94,7 @@ suite('BackupFileService', () => {
 
 	suite('hashPath', () => {
 		test('should correctly hash the path for untitled scheme URIs', () => {
-			const uri = Uri.from({
+			const uri = URI.from({
 				scheme: 'untitled',
 				path: 'Untitled-1'
 			});
@@ -105,7 +105,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('should correctly hash the path for file scheme URIs', () => {
-			const uri = Uri.file('/foo');
+			const uri = URI.file('/foo');
 			const actual = hashPath(uri);
 			// If these hashes change people will lose their backed up files!
 			if (platform.isWindows) {
@@ -123,16 +123,16 @@ suite('BackupFileService', () => {
 			const backupResource = fooFile;
 			const workspaceHash = hashPath(workspaceResource);
 			const filePathHash = hashPath(backupResource);
-			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
+			const expectedPath = URI.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
 			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
 
 		test('should get the correct backup path for untitled files', () => {
 			// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePath>
-			const backupResource = Uri.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
+			const backupResource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 			const workspaceHash = hashPath(workspaceResource);
 			const filePathHash = hashPath(backupResource);
-			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
+			const expectedPath = URI.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
 	});
@@ -438,7 +438,7 @@ suite('BackupFileService', () => {
 			await testResolveBackup(fooBarFile, contents, meta, null);
 		});
 
-		async function testResolveBackup(resource: Uri, contents: string, meta?: IBackupTestMetaData, expectedMeta?: IBackupTestMetaData | null) {
+		async function testResolveBackup(resource: URI, contents: string, meta?: IBackupTestMetaData, expectedMeta?: IBackupTestMetaData | null) {
 			if (typeof expectedMeta === 'undefined') {
 				expectedMeta = meta;
 			}
@@ -483,7 +483,7 @@ suite('BackupFilesModel', () => {
 	test('simple', () => {
 		const model = new BackupFilesModel(service.fileService);
 
-		const resource1 = Uri.file('test.html');
+		const resource1 = URI.file('test.html');
 
 		assert.equal(model.has(resource1), false);
 
@@ -514,9 +514,9 @@ suite('BackupFilesModel', () => {
 		assert.equal(model.has(resource1, 0), false);
 		assert.equal(model.has(resource1, 1), true);
 
-		const resource2 = Uri.file('test1.html');
-		const resource3 = Uri.file('test2.html');
-		const resource4 = Uri.file('test3.html');
+		const resource2 = URI.file('test1.html');
+		const resource3 = URI.file('test2.html');
+		const resource4 = URI.file('test3.html');
 
 		model.add(resource2);
 		model.add(resource3);
@@ -536,8 +536,8 @@ suite('BackupFilesModel', () => {
 		fs.writeFileSync(fooBackupPath, 'foo');
 		const model = new BackupFilesModel(service.fileService);
 
-		const resolvedModel = await model.resolve(workspaceBackupPath);
-		assert.equal(resolvedModel.has(Uri.file(fooBackupPath)), true);
+		const resolvedModel = await model.resolve(URI.file(workspaceBackupPath));
+		assert.equal(resolvedModel.has(URI.file(fooBackupPath)), true);
 	});
 
 	test('get', () => {
@@ -545,9 +545,9 @@ suite('BackupFilesModel', () => {
 
 		assert.deepEqual(model.get(), []);
 
-		const file1 = Uri.file('/root/file/foo.html');
-		const file2 = Uri.file('/root/file/bar.html');
-		const untitled = Uri.file('/root/untitled/bar.html');
+		const file1 = URI.file('/root/file/foo.html');
+		const file2 = URI.file('/root/file/bar.html');
+		const untitled = URI.file('/root/untitled/bar.html');
 
 		model.add(file1);
 		model.add(file2);

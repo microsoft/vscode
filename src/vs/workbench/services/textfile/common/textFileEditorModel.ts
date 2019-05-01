@@ -33,10 +33,10 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 
 export interface IBackupMetaData {
-	mtime?: number;
-	size?: number;
-	etag?: string;
-	orphaned?: boolean;
+	mtime: number;
+	size: number;
+	etag: string;
+	orphaned: boolean;
 }
 
 /**
@@ -291,9 +291,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			if (backup) {
 				try {
-					await this.loadFromBackup(backup, options);
-
-					return this;
+					return await this.loadFromBackup(backup, options);
 				} catch (error) {
 					// ignore error and continue to load as file below
 				}
@@ -313,28 +311,20 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return this; // Make sure meanwhile someone else did not suceed in loading
 		}
 
-		// Resolve backup metadata from before
-		const backupMetadata: Required<IBackupMetaData> = {
-			mtime: resolvedBackup.meta && typeof resolvedBackup.meta.mtime === 'number' ? resolvedBackup.meta.mtime : Date.now(),
-			size: resolvedBackup.meta && typeof resolvedBackup.meta.size === 'number' ? resolvedBackup.meta.size : 0,
-			etag: resolvedBackup.meta && typeof resolvedBackup.meta.etag === 'string' ? resolvedBackup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
-			orphaned: resolvedBackup.meta && resolvedBackup.meta.orphaned ? true : false
-		};
-
 		// Load with backup
 		this.loadFromContent({
 			resource: this.resource,
 			name: basename(this.resource),
-			mtime: backupMetadata.mtime,
-			size: backupMetadata.size,
-			etag: backupMetadata.etag,
+			mtime: resolvedBackup.meta ? resolvedBackup.meta.mtime : Date.now(),
+			size: resolvedBackup.meta ? resolvedBackup.meta.size : 0,
+			etag: resolvedBackup.meta ? resolvedBackup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: resolvedBackup.value,
 			encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding,
 			isReadonly: false
 		}, options, true /* from backup */);
 
 		// Restore orphaned flag based on state
-		if (backupMetadata.orphaned) {
+		if (resolvedBackup.meta && resolvedBackup.meta.orphaned) {
 			this.setOrphaned(true);
 		}
 

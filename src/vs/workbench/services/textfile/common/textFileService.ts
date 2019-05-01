@@ -238,7 +238,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private async doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): Promise<void> {
 
 		// Handle file resources first
-		await Promise.all(dirtyFileModels.map(async model => await model.backup()));
+		await Promise.all(dirtyFileModels.map(model => model.backup()));
 
 		// Handle untitled resources
 		await Promise.all(untitledResources
