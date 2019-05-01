@@ -2291,8 +2291,10 @@ export enum FoldingRangeKind {
 export class Comment {
 	id: string;
 	body: MarkdownString;
+	authorName: string;
 	userName: string;
 	label?: string;
+	authorIconPath?: URI;
 	userIconPath?: URI;
 	selectCommand?: vscode.Command;
 	editCommand?: vscode.Command;
@@ -2335,10 +2337,11 @@ export class Comment {
 	 */
 	commentReactions?: vscode.CommentReaction[];
 
-	constructor(id: string, body: MarkdownString, userName: string) {
+	constructor(id: string, body: MarkdownString, authorName: string) {
 		this.id = id;
 		this.body = body;
-		this.userName = userName;
+		this.authorName = authorName;
+		this.userName = authorName;
 	}
 }
 

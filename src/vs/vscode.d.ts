@@ -9039,20 +9039,20 @@ declare module 'vscode' {
 		readonly body: MarkdownString;
 
 		/**
-		 * The display name of the user who created the comment
+		 * The display name of the author of the comment
 		 */
-		readonly userName: string;
+		readonly authorName: string;
 
 		/**
 		 * Optional label describing the [Comment](#Comment)
-		 * Label will be rendered next to userName if exists.
+		 * Label will be rendered next to authorName if exists.
 		 */
 		readonly label?: string;
 
 		/**
-		 * The icon path for the user who created the comment
+		 * The icon path for the author of the comment
 		 */
-		readonly userIconPath?: Uri;
+		readonly authorIconPath?: Uri;
 
 		/**
 		 * The command to be executed if the comment is selected in the Comments Panel
@@ -9072,9 +9072,9 @@ declare module 'vscode' {
 		/**
 		 * @param id The id of the comment
 		 * @param body The human-readable comment body
-		 * @param userName The display name of the user who created the comment
+		 * @param authorName The display name of the user who created the comment
 		 */
-		constructor(id: string, body: MarkdownString, userName: string);
+		constructor(id: string, body: MarkdownString, authorName: string);
 	}
 
 	/**

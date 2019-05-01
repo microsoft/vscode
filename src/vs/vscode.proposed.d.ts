@@ -740,6 +740,16 @@ declare module 'vscode' {
 	 */
 	export class CommentLegacy extends Comment {
 		/**
+		 * The display name of the user who created the comment
+		 */
+		readonly userName: string;
+
+		/**
+		 * The icon path for the user who created the comment
+		 */
+		readonly userIconPath?: Uri;
+
+		/**
 		 * The id of the comment
 		 *
 		 * @deprecated Use Id instead
