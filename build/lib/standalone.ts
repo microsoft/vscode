@@ -99,6 +99,8 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 
 	delete tsConfig.compilerOptions.moduleResolution;
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
+	const tsConfigBase = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.base.json')).toString());
+	writeOutputFile('tsconfig.base.json', JSON.stringify(tsConfigBase, null, '\t'));
 
 	[
 		'vs/css.build.js',
