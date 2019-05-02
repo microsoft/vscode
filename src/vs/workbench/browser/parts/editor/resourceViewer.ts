@@ -522,6 +522,10 @@ class InlineImageView {
 			updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
 		}));
 
+		disposables.push(DOM.addDisposableListener(container, DOM.EventType.BLUR, () => {
+			updateScale('fit');
+		}));
+
 		disposables.push(DOM.addDisposableListener(container, DOM.EventType.SCROLL, () => {
 			if (!image || !image.parentElement || scale === 'fit') {
 				return;
