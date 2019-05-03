@@ -350,54 +350,34 @@ export class RemoteFileDialog {
 	}
 
 	private async onDidAccept(): Promise<URI | undefined> {
+		let updateString: string;
+		let updateUri: URI;
+		if (this.filePickBox.activeItems.length === 1) {
+			updateUri = this.filePickBox.selectedItems[0].uri;
+			updateString = this.pathFromUri(updateUri);
+		} else {
+			updateString = this.filePickBox.value;
+			updateUri = this.filePickBoxValue();
+		}
+		// If the items have updated, don't try to resolve
+		if ((await this.tryUpdateItems(updateString, updateUri)) !== UpdateResult.NotUpdated) {
+			return;
+		}
+
 		this.filePickBox.busy = true;
 		let resolveValue: URI | undefined;
-		let navigateValue: URI | undefined;
-		let inputUri: URI | undefined;
-		let inputUriDirname: URI | undefined;
-		let stat: IFileStat | undefined;
-		let statDirname: IFileStat | undefined;
-		try {
-			inputUri = resources.removeTrailingPathSeparator(this.filePickBoxValue());
-			inputUriDirname = resources.dirname(inputUri);
-			statDirname = await this.fileService.resolve(inputUriDirname);
-			stat = await this.fileService.resolve(inputUri);
-		} catch (e) {
-			// do nothing
-		}
-
 		// Find resolve value
 		if (this.filePickBox.activeItems.length === 0) {
-			if (!this.requiresTrailing && resources.isEqual(this.currentFolder, inputUri, true)) {
-				resolveValue = inputUri;
-			} else if (statDirname && statDirname.isDirectory) {
-				resolveValue = inputUri;
-			} else if (stat && stat.isDirectory) {
-				navigateValue = inputUri;
-			}
+			resolveValue = this.filePickBoxValue();
 		} else if (this.filePickBox.activeItems.length === 1) {
-			const item = this.filePickBox.selectedItems[0];
-			if (item) {
-				if (!item.isFolder) {
-					resolveValue = item.uri;
-				} else {
-					navigateValue = item.uri;
-				}
-			}
+			resolveValue = this.filePickBox.selectedItems[0].uri;
 		}
-
-
-		if (navigateValue) {
-			// Try to navigate into the folder.
-			await this.updateItems(navigateValue, true, this.trailing);
-		} else {
-			if (resolveValue) {
-				resolveValue = this.addPostfix(resolveValue);
-			}
-			if (await this.validate(resolveValue)) {
-				this.filePickBox.busy = false;
-				return resolveValue;
-			}
+		if (resolveValue) {
+			resolveValue = this.addPostfix(resolveValue);
+		}
+		if (await this.validate(resolveValue)) {
+			this.filePickBox.busy = false;
+			return resolveValue;
 		}
 		this.filePickBox.busy = false;
 		return undefined;
@@ -771,7 +751,7 @@ export class RemoteFileDialog {
 	private createBackItem(currFolder: URI): FileQuickPickItem | null {
 		const parentFolder = resources.dirname(currFolder)!;
 		if (!resources.isEqual(currFolder, parentFolder, true)) {
-			return { label: '..', uri: resources.dirname(currFolder), isFolder: true };
+			return { label: '..', uri: this.ensureTrailingSeparator(parentFolder), isFolder: true };
 		}
 		return null;
 	}
@@ -829,6 +809,7 @@ export class RemoteFileDialog {
 			const stat = await this.fileService.resolve(fullPath);
 			if (stat.isDirectory) {
 				filename = this.basenameWithTrailingSlash(fullPath);
+				fullPath = this.ensureTrailingSeparator(fullPath);
 				return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
 			} else if (!stat.isDirectory && this.allowFileSelection && this.filterFile(fullPath)) {
 				return { label: filename, uri: fullPath, isFolder: false, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined) };
