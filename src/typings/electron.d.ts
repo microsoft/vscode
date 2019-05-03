@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.1.5
+// Type definitions for Electron 4.2.0
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -86,7 +86,7 @@ declare namespace Electron {
 		webviewTag: WebviewTag;
 	}
 
-  interface AllElectron extends MainInterface, RendererInterface {}
+	interface AllElectron extends MainInterface, RendererInterface { }
 
 	const app: App;
 	const autoUpdater: AutoUpdater;
@@ -1062,6 +1062,14 @@ declare namespace Electron {
 		 * production environments.
 		 */
 		isPackaged?: boolean;
+		/**
+		 * A String which is the user agent string Electron will use as a global fallback.
+		 * This is the user agent that will be used when no user agent is set at the
+		 * webContents or session level.  Useful for ensuring your entire app has the same
+		 * user agent.  Set to a custom value as early as possible in your apps
+		 * initialization to ensure that your overridden value is used.
+		 */
+		userAgentFallback?: string;
 	}
 
 	interface AutoUpdater extends EventEmitter {
@@ -6922,11 +6930,6 @@ declare namespace Electron {
 		 */
 		addEventListener(event: 'crashed', listener: (event: Event) => void, useCapture?: boolean): this;
 		removeEventListener(event: 'crashed', listener: (event: Event) => void): this;
-		/**
-		 * Fired when the gpu process is crashed.
-		 */
-		addEventListener(event: 'gpu-crashed', listener: (event: Event) => void, useCapture?: boolean): this;
-		removeEventListener(event: 'gpu-crashed', listener: (event: Event) => void): this;
 		/**
 		 * Fired when a plugin process is crashed.
 		 */
