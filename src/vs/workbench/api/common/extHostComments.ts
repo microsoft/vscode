@@ -392,7 +392,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	readonly onDidUpdateCommentThread = this._onDidUpdateCommentThread.event;
 
 	set range(range: vscode.Range) {
-		if (range.isEqual(this._range)) {
+		if (!range.isEqual(this._range)) {
 			this._range = range;
 			this._onDidUpdateCommentThread.fire();
 		}
