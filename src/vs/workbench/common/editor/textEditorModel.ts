@@ -125,10 +125,11 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		this.modelService.updateModel(this.textEditorModel, newValue);
 	}
 
+	createSnapshot(this: IResolvedTextEditorModel): ITextSnapshot;
+	createSnapshot(this: ITextEditorModel): ITextSnapshot | null;
 	createSnapshot(): ITextSnapshot | null {
-		const model = this.textEditorModel;
-		if (model) {
-			return model.createSnapshot(true /* Preserve BOM */);
+		if (this.isResolved()) {
+			return this.textEditorModel.createSnapshot(true /* preserve BOM */);
 		}
 
 		return null;

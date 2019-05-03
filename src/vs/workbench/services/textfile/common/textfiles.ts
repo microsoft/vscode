@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
@@ -448,13 +448,9 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	readonly onDidContentChange: Event<StateChange>;
 	readonly onDidStateChange: Event<StateChange>;
 
-	getVersionId(): number;
-
 	getResource(): URI;
 
 	hasState(state: ModelState): boolean;
-
-	getETag(): string | null;
 
 	updatePreferredEncoding(encoding: string): void;
 
@@ -466,19 +462,24 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	backup(target?: URI): Promise<void>;
 
-	createSnapshot(): ITextSnapshot | null;
-
 	isDirty(): boolean;
 
-	isResolved(): boolean;
+	isResolved(): this is IResolvedTextFileEditorModel;
 
 	isDisposed(): boolean;
 }
 
 export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
+
 	readonly textEditorModel: ITextModel;
 
 	createSnapshot(): ITextSnapshot;
+}
+
+export function isResolvedTextEditorModel(model: ITextEditorModel): model is IResolvedTextEditorModel;
+export function isResolvedTextEditorModel(model: ITextFileEditorModel): model is IResolvedTextFileEditorModel;
+export function isResolvedTextEditorModel(model: ITextEditorModel | ITextFileEditorModel): model is IResolvedTextEditorModel | IResolvedTextFileEditorModel {
+	return !!model.textEditorModel;
 }
 
 export interface IWillMoveEvent {

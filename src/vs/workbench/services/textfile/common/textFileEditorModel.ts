@@ -203,7 +203,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private onFilesAssociationChange(): void {
-		if (!this.textEditorModel) {
+		if (!this.isResolved()) {
 			return;
 		}
 
@@ -213,28 +213,24 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.modelService.setMode(this.textEditorModel, languageSelection);
 	}
 
-	getVersionId(): number {
-		return this.versionId;
-	}
-
 	async backup(target = this.resource): Promise<void> {
-		const snapshot = this.createSnapshot();
-		if (!snapshot) {
-			return Promise.resolve(); // should not happen
+		if (this.isResolved()) {
+
+			// Only fill in model metadata if resource matches
+			let meta: IBackupMetaData | undefined = undefined;
+			if (isEqual(target, this.resource) && this.lastResolvedDiskStat) {
+				meta = {
+					mtime: this.lastResolvedDiskStat.mtime,
+					size: this.lastResolvedDiskStat.size,
+					etag: this.lastResolvedDiskStat.etag,
+					orphaned: this.inOrphanMode
+				};
+			}
+
+			return this.backupFileService.backupResource<IBackupMetaData>(target, this.createSnapshot(), this.versionId, meta);
 		}
 
-		// Only fill in model metadata if resource matches
-		let meta: IBackupMetaData | undefined = undefined;
-		if (isEqual(target, this.resource) && this.lastResolvedDiskStat) {
-			meta = {
-				mtime: this.lastResolvedDiskStat.mtime,
-				size: this.lastResolvedDiskStat.size,
-				etag: this.lastResolvedDiskStat.etag,
-				orphaned: this.inOrphanMode
-			};
-		}
-
-		return this.backupFileService.backupResource<IBackupMetaData>(target, snapshot, this.versionId, meta);
+		return Promise.resolve();
 	}
 
 	async revert(soft?: boolean): Promise<void> {
@@ -282,10 +278,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Only for new models we support to load from backup
-		if (!this.textEditorModel) {
+		if (!this.isResolved()) {
 			const backup = await this.backupFileService.loadBackupResource(this.resource);
 
-			if (this.textEditorModel) {
+			if (this.isResolved()) {
 				return this; // Make sure meanwhile someone else did not suceed in loading
 			}
 
@@ -307,7 +303,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Resolve actual backup contents
 		const resolvedBackup = await this.backupFileService.resolveBackupContent<IBackupMetaData>(backup);
 
-		if (this.textEditorModel) {
+		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not suceed in loading
 		}
 
@@ -419,7 +415,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Update Existing Model
-		if (this.textEditorModel) {
+		if (this.isResolved()) {
 			this.doUpdateTextModel(content.value);
 		}
 
@@ -501,7 +497,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// where `value` was captured in the content change listener closure scope.
 
 		// Content Change
-		if (this.textEditorModel) {
+		if (this.isResolved()) {
 			this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 		}
 	}
@@ -526,7 +522,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
 		// Note: we currently only do this check when auto-save is turned off because there you see
 		// a dirty indicator that you want to get rid of when undoing to the saved version.
-		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
+		if (!this.autoSaveAfterMilliesEnabled && this.isResolved() && this.textEditorModel.getAlternativeVersionId() === this.bufferSavedVersionId) {
 			this.logService.trace('onModelContentChanged() - model content changed back to last saved version', this.resource);
 
 			// Clear flags
@@ -657,7 +653,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Push all edit operations to the undo stack so that the user has a chance to
 		// Ctrl+Z back to the saved version. We only do this when auto-save is turned off
-		if (!this.autoSaveAfterMilliesEnabled && this.textEditorModel) {
+		if (!this.autoSaveAfterMilliesEnabled && this.isResolved()) {
 			this.textEditorModel.pushStackElement();
 		}
 
@@ -687,7 +683,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// saving contents to disk that are stale (see https://github.com/Microsoft/vscode/issues/50942).
 			// To fix this issue, we will not store the contents to disk when we got disposed.
 			if (this.disposed) {
-				return undefined;
+				return;
+			}
+
+			// We require a resolved model from this point on, since we are about to write data to disk.
+			if (!this.isResolved()) {
+				return;
 			}
 
 			// Under certain conditions we do a short-cut of flushing contents to disk when we can assume that
@@ -713,11 +714,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save to Disk
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
 			this.logService.trace(`doSave(${versionId}) - before write()`, this.resource);
-			const snapshot = this.createSnapshot();
-			if (!snapshot) {
-				throw new Error('Invalid snapshot');
-			}
-			return this.saveSequentializer.setPending(newVersionId, this.textFileService.write(this.lastResolvedDiskStat.resource, snapshot, {
+			return this.saveSequentializer.setPending(newVersionId, this.textFileService.write(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
 				overwriteReadonly: options.overwriteReadonly,
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: this.lastResolvedDiskStat.mtime,
@@ -850,12 +847,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private doTouch(versionId: number): Promise<void> {
-		const snapshot = this.createSnapshot();
-		if (!snapshot) {
-			throw new Error('invalid snapshot');
+		if (!this.isResolved()) {
+			return Promise.resolve();
 		}
 
-		return this.saveSequentializer.setPending(versionId, this.textFileService.write(this.lastResolvedDiskStat.resource, snapshot, {
+		return this.saveSequentializer.setPending(versionId, this.textFileService.write(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
 			mtime: this.lastResolvedDiskStat.mtime,
 			encoding: this.getEncoding(),
 			etag: this.lastResolvedDiskStat.etag
@@ -896,7 +892,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// in order to find out if the model changed back to a saved version (e.g.
 		// when undoing long enough to reach to a version that is saved and then to
 		// clear the dirty flag)
-		if (this.textEditorModel) {
+		if (this.isResolved()) {
 			this.bufferSavedVersionId = this.textEditorModel.getAlternativeVersionId();
 		}
 	}
@@ -933,10 +929,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	getLastSaveAttemptTime(): number {
 		return this.lastSaveAttemptTime;
-	}
-
-	getETag(): string | null {
-		return this.lastResolvedDiskStat ? this.lastResolvedDiskStat.etag || null : null;
 	}
 
 	hasState(state: ModelState): boolean {
@@ -1020,8 +1012,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return true;
 	}
 
-	isResolved(): boolean {
-		return !isUndefinedOrNull(this.lastResolvedDiskStat);
+	isResolved(): this is IResolvedTextFileEditorModel {
+		return !!this.textEditorModel;
 	}
 
 	isReadonly(): boolean {

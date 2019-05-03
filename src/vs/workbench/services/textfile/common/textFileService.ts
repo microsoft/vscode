@@ -11,7 +11,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, isResolvedTextEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -855,17 +855,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 			// take over encoding, mode and model value from source model
 			targetModel.updatePreferredEncoding(sourceModel.getEncoding());
-			if (targetModel.textEditorModel) {
-				const snapshot = sourceModel.createSnapshot();
-				if (snapshot) {
-					this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(snapshot));
-				}
+			if (isResolvedTextEditorModel(sourceModel) && isResolvedTextEditorModel(targetModel)) {
+				this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
 
-				if (sourceModel.textEditorModel) {
-					const language = sourceModel.textEditorModel.getLanguageIdentifier();
-					if (language.id > 1) {
-						targetModel.textEditorModel.setMode(language); // only use if more specific than plain/text
-					}
+				const language = sourceModel.textEditorModel.getLanguageIdentifier();
+				if (language.id > 1) {
+					targetModel.textEditorModel.setMode(language); // only use if more specific than plain/text
 				}
 			}
 

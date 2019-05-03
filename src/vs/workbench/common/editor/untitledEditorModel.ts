@@ -135,12 +135,11 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	}
 
 	backup(): Promise<void> {
-		const snapshot = this.createSnapshot();
-		if (!snapshot) {
-			return Promise.resolve(); // should not happen
+		if (this.isResolved()) {
+			return this.backupFileService.backupResource(this.resource, this.createSnapshot(), this.versionId);
 		}
 
-		return this.backupFileService.backupResource(this.resource, snapshot, this.versionId);
+		return Promise.resolve();
 	}
 
 	load(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
