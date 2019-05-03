@@ -6,7 +6,7 @@
 		"editor.foreground": "#FFFFFF",
 		"editorIndentGuide.background": "#FFFFFF",
 		"editorIndentGuide.activeBackground": "#FFFFFF",
-		"statusBarItem.hostBackground": "#00000000",
+		"statusBarItem.remoteBackground": "#00000000",
 		"sideBarTitle.foreground": "#FFFFFF"
 	},
 	"settings": [

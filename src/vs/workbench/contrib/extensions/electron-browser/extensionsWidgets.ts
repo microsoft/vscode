@@ -168,7 +168,7 @@ export class TooltipWidget extends ExtensionWidget {
 		this.parent.removeAttribute('aria-label');
 		this.parent.title = this.getTooltip();
 		if (this.extension) {
-			this.parent.setAttribute('aria-label', localize('extension-arialabel', "{0}. {1} Press enter for extension details.", this.extension.displayName));
+			this.parent.setAttribute('aria-label', localize('extension-arialabel', "{0}. Press enter for extension details.", this.extension.displayName));
 		}
 	}
 

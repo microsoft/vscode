@@ -25,7 +25,7 @@ if grep -qi Microsoft /proc/version; then
 		WIN_CODE_CMD=$(wslpath -w "$(dirname "$(realpath "$0")")/$APP_NAME.cmd")
 		# make sure the cwd is in the windows fs, otherwise there will be a warning from cmd
 		pushd "$(dirname "$0")" > /dev/null
-		WSL_EXT_ID="ms-vscode.remote-wsl"
+		WSL_EXT_ID="ms-vscode-remote.remote-wsl"
 		WSL_EXT_WLOC=$(cmd.exe /c "$WIN_CODE_CMD" --locate-extension $WSL_EXT_ID)
 		popd > /dev/null
 		if ! [ -z "$WSL_EXT_WLOC" ]; then
