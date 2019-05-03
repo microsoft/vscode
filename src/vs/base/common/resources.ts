@@ -179,7 +179,7 @@ export function isAbsolutePath(resource: URI): boolean {
 export function hasTrailingPathSeparator(resource: URI): boolean {
 	if (resource.scheme === Schemas.file) {
 		const fsp = originalFSPath(resource);
-		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === paths.sep;
+		return fsp.length >= extpath.getRoot(fsp).length && fsp[fsp.length - 1] === paths.sep;
 	} else {
 		const p = resource.path;
 		return p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash; // ignore the slash at offset 0
