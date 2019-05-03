@@ -632,6 +632,13 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 				'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
 				'included': isWindows || isLinux
 			},
+			'window.disableMenuBarAltBehavior': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': nls.localize('disableMenuBarAltBehavior', "If enabled, disables Alt key interaction with menu bar.  \nNote that this setting does not affect native system mnemonics (when `#window.titleBarStyle#` is set to `native`). Use `#window.enableMenuBarMnemonics#` for it."),
+				'included': isWindows || isLinux
+			},
 			'window.autoDetectHighContrast': {
 				'type': 'boolean',
 				'default': true,

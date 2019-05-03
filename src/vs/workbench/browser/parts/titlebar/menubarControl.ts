@@ -45,6 +45,7 @@ export class MenubarControl extends Disposable {
 		'workbench.statusBar.visible',
 		'workbench.activityBar.visible',
 		'window.enableMenuBarMnemonics',
+		'window.disableMenuBarAltBehavior',
 		'window.nativeTabs'
 	];
 
@@ -154,6 +155,15 @@ export class MenubarControl extends Disposable {
 		}
 
 		return enableMenuBarMnemonics;
+	}
+
+	private get currentDisableMenuBarAltBehavior(): boolean {
+		let disableMenuBarAltBehavior = this.configurationService.getValue<boolean>('window.disableMenuBarAltBehavior');
+		if (typeof disableMenuBarAltBehavior !== 'boolean') {
+			disableMenuBarAltBehavior = false;
+		}
+
+		return disableMenuBarAltBehavior;
 	}
 
 	private get currentSidebarPosition(): string {
@@ -490,6 +500,7 @@ export class MenubarControl extends Disposable {
 			this.menubar = this._register(new MenuBar(
 				this.container, {
 					enableMnemonics: this.currentEnableMenuBarMnemonics,
+					disableAltBehavior: this.currentDisableMenuBarAltBehavior,
 					visibility: this.currentMenubarVisibility,
 					getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 				}
@@ -497,7 +508,7 @@ export class MenubarControl extends Disposable {
 
 			this.accessibilityService.alwaysUnderlineAccessKeys().then(val => {
 				this.alwaysOnMnemonics = val;
-				this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
+				this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, disableAltBehavior: this.currentDisableMenuBarAltBehavior, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
 			});
 
 			this._register(this.menubar.onFocusStateChange(e => this._onFocusStateChange.fire(e)));
@@ -505,7 +516,7 @@ export class MenubarControl extends Disposable {
 
 			this._register(attachMenuStyler(this.menubar, this.themeService));
 		} else {
-			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
+			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, disableAltBehavior: this.currentDisableMenuBarAltBehavior, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
 		}
 
 		// Update the menu actions
@@ -677,7 +688,7 @@ export class MenubarControl extends Disposable {
 		}
 
 		if (this.menubar) {
-			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
+			this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, disableAltBehavior: this.currentDisableMenuBarAltBehavior, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
 		}
 	}
 

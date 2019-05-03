@@ -23,6 +23,7 @@ const $ = DOM.$;
 
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
+	disableAltBehavior?: boolean;
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
@@ -166,6 +167,10 @@ export class MenuBar extends Disposable {
 
 		this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (!this.options.enableMnemonics || !e.altKey || e.ctrlKey || e.defaultPrevented) {
+				return;
+			}
+
+			if (e.altKey && this.options.disableAltBehavior) {
 				return;
 			}
 
@@ -773,6 +778,10 @@ export class MenuBar extends Disposable {
 		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
 
 		if (this.options.visibility === 'hidden') {
+			return;
+		}
+
+		if (modifierKeyStatus.lastKeyPressed === 'alt' && this.options.disableAltBehavior) {
 			return;
 		}
 
