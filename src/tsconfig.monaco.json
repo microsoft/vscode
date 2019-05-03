@@ -10,7 +10,6 @@
 		"preserveConstEnums": true,
 		"target": "es5",
 		"sourceMap": false,
-		"noImplicitAny": false,
 		"declaration": true
 	},
 	"include": [
