@@ -341,7 +341,8 @@ export class RemoteFileDialog {
 		}
 		const currentDisplayUri = this.remoteUriFrom(currentPath);
 		const relativePath = resources.relativePath(currentDisplayUri, directUri);
-		if (relativePath) {
+		const isSameRoot = (this.filePickBox.value.length > 1 && currentPath.length > 1) ? equalsIgnoreCase(this.filePickBox.value.substr(0, 2), currentPath.substr(0, 2)) : false;
+		if (relativePath && isSameRoot) {
 			return resources.joinPath(this.currentFolder, relativePath);
 		} else {
 			return directUri;
