@@ -739,10 +739,12 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 		id: comment.commentId,
 		commentId: comment.commentId,
 		body: extHostTypeConverter.MarkdownString.to(comment.body),
-		authorName: comment.userName,
+		author: {
+			name: comment.userName,
+			iconPath: userIconPath
+		},
 		userName: comment.userName,
 		userIconPath: userIconPath,
-		authorIconPath: userIconPath,
 		canEdit: comment.canEdit,
 		canDelete: comment.canDelete,
 		isDraft: comment.isDraft,
@@ -757,13 +759,13 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 }
 
 function convertToModeComment(commentController: ExtHostCommentController, vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
-	const iconPath = vscodeComment.authorIconPath ? vscodeComment.authorIconPath.toString() :
+	const iconPath = vscodeComment.author && vscodeComment.author.iconPath ? vscodeComment.author.iconPath.toString() :
 		(vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar);
 
 	return {
 		commentId: vscodeComment.id || vscodeComment.commentId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
-		userName: vscodeComment.authorName || vscodeComment.userName,
+		userName: vscodeComment.author ? vscodeComment.author.name : vscodeComment.userName,
 		userIconPath: iconPath,
 		isDraft: vscodeComment.isDraft,
 		selectCommand: vscodeComment.selectCommand ? commandsConverter.toInternal(vscodeComment.selectCommand) : undefined,

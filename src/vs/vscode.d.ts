@@ -9025,6 +9025,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Author information of a [comment](#Comment)
+	 */
+
+	export interface CommentAuthorInformation {
+		/**
+		 * The display name of the author of the comment
+		 */
+		name: string;
+
+		/**
+		 * The optional icon path for the author
+		 */
+		iconPath?: Uri;
+	}
+
+	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
 	 */
 	export interface Comment {
@@ -9039,20 +9055,15 @@ declare module 'vscode' {
 		body: MarkdownString;
 
 		/**
-		 * The display name of the author of the comment
+		 * The author information of the comment
 		 */
-		authorName: string;
+		author: CommentAuthorInformation;
 
 		/**
 		 * Optional label describing the [Comment](#Comment)
 		 * Label will be rendered next to authorName if exists.
 		 */
 		label?: string;
-
-		/**
-		 * The icon path for the author of the comment
-		 */
-		authorIconPath?: Uri;
 
 		/**
 		 * The command to be executed if the comment is selected in the Comments Panel
