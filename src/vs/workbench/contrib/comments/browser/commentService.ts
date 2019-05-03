@@ -17,21 +17,33 @@ import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThread
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
+/*
+ * IResourceCommentThreadEvent 
+ */
 export interface IResourceCommentThreadEvent {
 	resource: URI;
 	commentInfos: ICommentInfo[];
 }
 
+/*
+ * ICommentInfo 
+ */
 export interface ICommentInfo extends CommentInfo {
 	owner: string;
 	label?: string;
 }
 
+/*
+ * IWorkspaceCommentThreadsEvent 
+ */
 export interface IWorkspaceCommentThreadsEvent {
 	ownerId: string;
 	commentThreads: CommentThread[];
 }
 
+/*
+ * ICommentService 
+ */
 export interface ICommentService {
 	_serviceBrand: any;
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
@@ -71,6 +83,9 @@ export interface ICommentService {
 	setInput(input: string): void;
 }
 
+/*
+ * CommentService 
+ */					
 export class CommentService extends Disposable implements ICommentService {
 	_serviceBrand: any;
 
