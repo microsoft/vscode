@@ -2287,64 +2287,6 @@ export enum FoldingRangeKind {
 //#endregion
 
 //#region Comment
-@es5ClassCompat
-export class Comment {
-	id: string;
-	body: MarkdownString;
-	authorName: string;
-	userName: string;
-	label?: string;
-	authorIconPath?: URI;
-	userIconPath?: URI;
-	selectCommand?: vscode.Command;
-	editCommand?: vscode.Command;
-	deleteCommand?: vscode.Command;
-
-	/**
-	 * The id of the comment
-	 *
-	 * @deprecated Use Id instead
-	 */
-	commentId: string;
-
-	/**
-	 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
-	 */
-	gravatar?: string;
-
-	/**
-	 * @deprecated, use editCommand
-	 */
-	canEdit?: boolean;
-
-	/**
-	 * @deprecated, use deleteCommand
-	 */
-	canDelete?: boolean;
-
-	/**
-	 * @deprecated
-	 */
-	command?: vscode.Command;
-
-	/**
-	 * @deprecated
-	 */
-	isDraft?: boolean;
-
-	/**
-	 * Proposed Comment Reaction
-	 */
-	commentReactions?: vscode.CommentReaction[];
-
-	constructor(id: string, body: MarkdownString, authorName: string) {
-		this.id = id;
-		this.body = body;
-		this.authorName = authorName;
-		this.userName = authorName;
-	}
-}
-
 export enum CommentThreadCollapsibleState {
 	/**
 	 * Determines an item is collapsed

@@ -9027,54 +9027,47 @@ declare module 'vscode' {
 	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
 	 */
-	export class Comment {
+	export interface Comment {
 		/**
 		 * The id of the comment
 		 */
-		readonly id: string;
+		id: string;
 
 		/**
 		 * The human-readable comment body
 		 */
-		readonly body: MarkdownString;
+		body: MarkdownString;
 
 		/**
 		 * The display name of the author of the comment
 		 */
-		readonly authorName: string;
+		authorName: string;
 
 		/**
 		 * Optional label describing the [Comment](#Comment)
 		 * Label will be rendered next to authorName if exists.
 		 */
-		readonly label?: string;
+		label?: string;
 
 		/**
 		 * The icon path for the author of the comment
 		 */
-		readonly authorIconPath?: Uri;
+		authorIconPath?: Uri;
 
 		/**
 		 * The command to be executed if the comment is selected in the Comments Panel
 		 */
-		readonly selectCommand?: Command;
+		selectCommand?: Command;
 
 		/**
 		 * The command to be executed when users try to save the edits to the comment
 		 */
-		readonly editCommand?: Command;
+		editCommand?: Command;
 
 		/**
 		 * The command to be executed when users try to delete the comment
 		 */
-		readonly deleteCommand?: Command;
-
-		/**
-		 * @param id The id of the comment
-		 * @param body The human-readable comment body
-		 * @param authorName The display name of the user who created the comment
-		 */
-		constructor(id: string, body: MarkdownString, authorName: string);
+		deleteCommand?: Command;
 	}
 
 	/**

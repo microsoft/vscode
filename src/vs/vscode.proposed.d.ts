@@ -738,7 +738,7 @@ declare module 'vscode' {
 	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
 	 */
-	export class CommentLegacy extends Comment {
+	export interface Comment {
 		/**
 		 * The display name of the user who created the comment
 		 */
