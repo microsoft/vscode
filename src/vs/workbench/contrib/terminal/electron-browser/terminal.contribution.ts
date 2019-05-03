@@ -22,19 +22,19 @@ configurationRegistry.registerConfiguration({
 	type: 'object',
 	properties: {
 		'terminal.integrated.shell.linux': {
-			markdownDescription: nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: 'string',
-			default: getDefaultShell(platform.Platform.Linux)
+			markdownDescription: nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getDefaultShell(platform.Platform.Linux)),
+			type: ['string', 'null'],
+			default: null
 		},
 		'terminal.integrated.shell.osx': {
-			markdownDescription: nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: 'string',
-			default: getDefaultShell(platform.Platform.Mac)
+			markdownDescription: nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getDefaultShell(platform.Platform.Mac)),
+			type: ['string', 'null'],
+			default: null
 		},
 		'terminal.integrated.shell.windows': {
-			markdownDescription: nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: 'string',
-			default: getDefaultShell(platform.Platform.Windows)
+			markdownDescription: nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getDefaultShell(platform.Platform.Windows)),
+			type: ['string', 'null'],
+			default: null
 		}
 	}
 });
