@@ -21,6 +21,8 @@
 	border-style: solid;
 	border-width: 1px;
 	box-sizing: border-box;
+	overflow: auto;
+	min-height: 40px;
 }
 
 .monaco-editor.hc-black .suggest-widget > .message,
@@ -63,6 +65,7 @@
 	-ms-user-select: none;
 	-o-user-select: none;
 	user-select: none;
+	width: 1500px;
 }
 
 /** Styles for each row in the list element **/
