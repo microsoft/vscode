@@ -859,6 +859,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Updated resolved stat with updated stat since touching it might have changed mtime
 			this.updateLastResolvedDiskStat(stat);
+
+			// Emit File Saved Event
+			this._onDidStateChange.fire(StateChange.SAVED);
+
 		}, error => onUnexpectedError(error) /* just log any error but do not notify the user since the file was not dirty */));
 	}
 

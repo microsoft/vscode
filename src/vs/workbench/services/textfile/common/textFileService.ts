@@ -246,37 +246,36 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			.map(async untitled => (await this.untitledEditorService.loadOrCreate({ resource: untitled })).backup()));
 	}
 
-	private confirmBeforeShutdown(): boolean | Promise<boolean> {
-		return this.confirmSave().then(confirm => {
+	private async confirmBeforeShutdown(): Promise<boolean> {
+		const confirm = await this.confirmSave();
 
-			// Save
-			if (confirm === ConfirmResult.SAVE) {
-				return this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true }).then(result => {
-					if (result.results.some(r => !r.success)) {
-						return true; // veto if some saves failed
-					}
+		// Save
+		if (confirm === ConfirmResult.SAVE) {
+			const result = await this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true });
 
-					return this.noVeto({ cleanUpBackups: true });
-				});
+			if (result.results.some(r => !r.success)) {
+				return true; // veto if some saves failed
 			}
 
-			// Don't Save
-			else if (confirm === ConfirmResult.DONT_SAVE) {
+			return this.noVeto({ cleanUpBackups: true });
+		}
 
-				// Make sure to revert untitled so that they do not restore
-				// see https://github.com/Microsoft/vscode/issues/29572
-				this.untitledEditorService.revertAll();
+		// Don't Save
+		else if (confirm === ConfirmResult.DONT_SAVE) {
 
-				return this.noVeto({ cleanUpBackups: true });
-			}
+			// Make sure to revert untitled so that they do not restore
+			// see https://github.com/Microsoft/vscode/issues/29572
+			this.untitledEditorService.revertAll();
 
-			// Cancel
-			else if (confirm === ConfirmResult.CANCEL) {
-				return true; // veto
-			}
+			return this.noVeto({ cleanUpBackups: true });
+		}
 
-			return false;
-		});
+		// Cancel
+		else if (confirm === ConfirmResult.CANCEL) {
+			return true; // veto
+		}
+
+		return false;
 	}
 
 	private noVeto(options: { cleanUpBackups: boolean }): boolean | Promise<boolean> {
