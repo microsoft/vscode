@@ -13,7 +13,6 @@ import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
 import { Disposable } from '../utils/dispose';
-import { normalizePath } from '../utils/normalizePath';
 
 
 const localize = nls.loadMessageBundle();
@@ -97,6 +96,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				const uri = editor.document.uri;
 				return [{
 					path: uri.fsPath,
+					posixPath: uri.path,
 					workspaceFolder: vscode.workspace.getWorkspaceFolder(uri)
 				}];
 			}
@@ -122,6 +122,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 			const folder = vscode.workspace.getWorkspaceFolder(uri);
 			return [{
 				path: normalizedConfigPath,
+				posixPath: uri.path,
 				workspaceFolder: folder
 			}];
 		}
@@ -232,13 +233,10 @@ class TscTaskProvider implements vscode.TaskProvider {
 	}
 
 	private getLabelForTasks(project: TSConfig): string {
-		let projectPath: string | undefined = undefined;
 		if (project.workspaceFolder) {
-			projectPath = path.relative(project.workspaceFolder.uri.fsPath, project.path);
-		} else {
-			projectPath = project.path;
+			return path.posix.relative(project.workspaceFolder.uri.path, project.posixPath);
 		}
-		return normalizePath(projectPath);
+		return project.posixPath;
 	}
 
 	private onConfigurationChanged(): void {
