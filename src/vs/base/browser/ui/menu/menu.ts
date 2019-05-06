@@ -105,6 +105,15 @@ export class Menu extends ActionBar {
 
 		this.menuDisposables = [];
 
+		addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+			const event = new StandardKeyboardEvent(e);
+
+			// Stop tab navigation of menus
+			if (event.equals(KeyCode.Tab)) {
+				EventHelper.stop(e, true);
+			}
+		});
+
 		if (options.enableMnemonics) {
 			this.menuDisposables.push(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 				const key = e.key.toLocaleLowerCase();
