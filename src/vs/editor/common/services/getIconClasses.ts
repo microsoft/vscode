@@ -19,14 +19,11 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 
 		// Get the path and name of the resource. For data-URIs, we need to parse specially
 		let name: string | undefined;
-		let path: string | undefined;
 		if (resource.scheme === Schemas.data) {
 			const metadata = DataUri.parseMetaData(resource);
 			name = metadata.get(DataUri.META_DATA_LABEL);
-			path = name;
 		} else {
 			name = cssEscape(basenameOrAuthority(resource).toLowerCase());
-			path = resource.path.toLowerCase();
 		}
 
 		// Folders
@@ -47,19 +44,18 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 			}
 
-			// Configured Language
-			let configuredLangId: string | null = getConfiguredLangId(modelService, modeService, resource);
-			configuredLangId = configuredLangId || (path ? modeService.getModeIdByFilepathOrFirstLine(path) : null);
-			if (configuredLangId) {
-				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
+			// Detected Language
+			const detectedLangId: string | null = detectLangId(modelService, modeService, resource);
+			if (detectedLangId) {
+				classes.push(`${cssEscape(detectedLangId)}-lang-file-icon`);
 			}
 		}
 	}
 	return classes;
 }
 
-export function getConfiguredLangId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
-	let configuredLangId: string | null = null;
+export function detectLangId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
+	let detectedLangId: string | null = null;
 	if (resource) {
 		let modeId: string | null = null;
 
@@ -73,20 +69,22 @@ export function getConfiguredLangId(modelService: IModelService, modeService: IM
 			}
 		}
 
-		// Any other URI: check for model if existing
+		// Any other URI: check for model if existing and fallback to path based detection
 		else {
 			const model = modelService.getModel(resource);
 			if (model) {
 				modeId = model.getLanguageIdentifier().language;
+			} else {
+				modeId = modeService.getModeIdByFilepathOrFirstLine(resource.path.toLowerCase());
 			}
 		}
 
 		if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-			configuredLangId = modeId; // only take if the mode is specific (aka no just plain text)
+			detectedLangId = modeId; // only take if the mode is specific (aka no just plain text)
 		}
 	}
 
-	return configuredLangId;
+	return detectedLangId;
 }
 
 export function cssEscape(val: string): string {
