@@ -7,6 +7,6 @@ case "$1" in
 	--inspect*) INSPECT="$1"; shift;;
 esac
 
-ROOT="$(dirname "$(realpath "$0")")"
+ROOT="$(dirname "$0")"
 
 "$ROOT/node" ${INSPECT:-} "$ROOT/out/remoteExtensionHostAgent.js" "$@"
