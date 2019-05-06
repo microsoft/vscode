@@ -139,9 +139,11 @@ export function isUNC(path: string): boolean {
 }
 
 // Reference: https://en.wikipedia.org/wiki/Filename
-const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
-export function isValidBasename(name: string | null | undefined): boolean {
+export function isValidBasename(name: string | null | undefined, isWindowsOS?: boolean): boolean {
+	const useWindowsRules = ((isWindowsOS === undefined) ? isWindows : isWindowsOS);
+	const INVALID_FILE_CHARS = useWindowsRules ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
+
 	if (!name || name.length === 0 || /^\s+$/.test(name)) {
 		return false; // require a name that is not just whitespace
 	}
@@ -151,7 +153,7 @@ export function isValidBasename(name: string | null | undefined): boolean {
 		return false; // check for certain invalid file characters
 	}
 
-	if (isWindows && WINDOWS_FORBIDDEN_NAMES.test(name)) {
+	if (useWindowsRules && WINDOWS_FORBIDDEN_NAMES.test(name)) {
 		return false; // check for certain invalid file names
 	}
 
@@ -159,11 +161,11 @@ export function isValidBasename(name: string | null | undefined): boolean {
 		return false; // check for reserved values
 	}
 
-	if (isWindows && name[name.length - 1] === '.') {
+	if (useWindowsRules && name[name.length - 1] === '.') {
 		return false; // Windows: file cannot end with a "."
 	}
 
-	if (isWindows && name.length !== name.trim().length) {
+	if (useWindowsRules && name.length !== name.trim().length) {
 		return false; // Windows: file cannot end with a whitespace
 	}
 

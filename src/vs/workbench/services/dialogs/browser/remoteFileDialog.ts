@@ -27,6 +27,7 @@ import { equalsIgnoreCase, format } from 'vs/base/common/strings';
 import { OpenLocalFileAction, OpenLocalFileFolderAction, OpenLocalFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { isValidBasename } from 'vs/base/common/extpath';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -39,11 +40,6 @@ enum UpdateResult {
 	NotUpdated,
 	InvalidPath
 }
-
-// Reference: https://en.wikipedia.org/wiki/Filename
-const WINDOWS_INVALID_FILE_CHARS = /[\\/:\*\?"<>\|]/g;
-const UNIX_INVALID_FILE_CHARS = /[\\/]/g;
-const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
 
 export class RemoteFileDialog {
 	private options: IOpenDialogOptions;
@@ -606,7 +602,7 @@ export class RemoteFileDialog {
 				// Show a yes/no prompt
 				const message = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri));
 				return this.yesNoPrompt(uri, message);
-			} else if (!(await this.isValidBaseName(resources.basename(uri)))) {
+			} else if (!(isValidBasename(resources.basename(uri), await this.isWindowsOS()))) {
 				// Filename not allowed
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
 				return Promise.resolve(false);
@@ -697,37 +693,6 @@ export class RemoteFileDialog {
 			isWindowsOS = env.os === OperatingSystem.Windows;
 		}
 		return isWindowsOS;
-	}
-
-	private async isValidBaseName(name: string): Promise<boolean> {
-		if (!name || name.length === 0 || /^\s+$/.test(name)) {
-			return false; // require a name that is not just whitespace
-		}
-
-		const isWindowsOS = await this.isWindowsOS();
-		const INVALID_FILE_CHARS = isWindowsOS ? WINDOWS_INVALID_FILE_CHARS : UNIX_INVALID_FILE_CHARS;
-		INVALID_FILE_CHARS.lastIndex = 0; // the holy grail of software development
-		if (INVALID_FILE_CHARS.test(name)) {
-			return false; // check for certain invalid file characters
-		}
-
-		if (isWindowsOS && WINDOWS_FORBIDDEN_NAMES.test(name)) {
-			return false; // check for certain invalid file names
-		}
-
-		if (name === '.' || name === '..') {
-			return false; // check for reserved values
-		}
-
-		if (isWindowsOS && name[name.length - 1] === '.') {
-			return false; // Windows: file cannot end with a "."
-		}
-
-		if (isWindowsOS && name.length !== name.trim().length) {
-			return false; // Windows: file cannot end with a whitespace
-		}
-
-		return true;
 	}
 
 	private endsWithSlash(s: string) {
