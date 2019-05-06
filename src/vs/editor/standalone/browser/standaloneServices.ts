@@ -48,6 +48,7 @@ import { ISuggestMemoryService, SuggestMemoryService } from 'vs/editor/contrib/s
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { ICodeLensCache, CodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -159,6 +160,7 @@ export module StaticServices {
 
 	export const suggestMemoryService = define(ISuggestMemoryService, (o) => new SuggestMemoryService(storageService.get(o), configurationService.get(o)));
 
+	export const codeLensCacheService = define(ICodeLensCache, (o) => new CodeLensCache(storageService.get(o)));
 }
 
 export class DynamicStandaloneServices extends Disposable {

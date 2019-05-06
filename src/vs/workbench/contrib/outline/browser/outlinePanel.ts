@@ -456,7 +456,7 @@ export class OutlinePanel extends ViewletPanel {
 		}
 
 		if (!editor || !editor.hasModel() || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
-			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
+			return this._showMessage(localize('no-editor', "The active editor cannot provide outline information."));
 		}
 
 		let textModel = editor.getModel();

@@ -306,6 +306,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.BranchAlreadyExists;
 	} else if (/'.+' is not a valid branch name/.test(stderr)) {
 		return GitErrorCodes.InvalidBranchName;
+	} else if (/Please,? commit your changes or stash them/.test(stderr)) {
+		return GitErrorCodes.DirtyWorkTree;
 	}
 
 	return undefined;
