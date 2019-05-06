@@ -9029,6 +9029,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Author information of a [comment](#Comment)
+	 */
+
+	export interface CommentAuthorInformation {
+		/**
+		 * The display name of the author of the comment
+		 */
+		name: string;
+
+		/**
+		 * The optional icon path for the author
+		 */
+		iconPath?: Uri;
+	}
+
+	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
 	 */
 	export interface Comment {
