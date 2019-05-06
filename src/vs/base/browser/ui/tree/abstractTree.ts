@@ -789,12 +789,18 @@ class Trait<T> {
 			return;
 		}
 
+		this._set(nodes, false, browserEvent);
+	}
+
+	private _set(nodes: ITreeNode<T, any>[], silent: boolean, browserEvent?: UIEvent): void {
 		this.nodes = [...nodes];
 		this.elements = undefined;
 		this._nodeSet = undefined;
 
-		const that = this;
-		this._onDidChange.fire({ get elements() { return that.get(); }, browserEvent });
+		if (!silent) {
+			const that = this;
+			this._onDidChange.fire({ get elements() { return that.get(); }, browserEvent });
+		}
 	}
 
 	get(): T[] {
@@ -827,6 +833,7 @@ class Trait<T> {
 		insertedNodes.forEach(node => dfs(node, insertedNodesVisitor));
 
 		const nodes: ITreeNode<T, any>[] = [];
+		let silent = true;
 
 		for (const node of this.nodes) {
 			const id = this.identityProvider.getId(node.element).toString();
@@ -839,11 +846,13 @@ class Trait<T> {
 
 				if (insertedNode) {
 					nodes.push(insertedNode);
+				} else {
+					silent = false;
 				}
 			}
 		}
 
-		this.set(nodes);
+		this._set(nodes, silent);
 	}
 
 	private createNodeSet(): Set<ITreeNode<T, any>> {
