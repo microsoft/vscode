@@ -80,7 +80,7 @@ The original copyright notices and the licenses under which Microsoft received s
 73.	dtolnay/isatty version 0.1.6 (https://github.com/dtolnay/isatty)
 74.	eachr version 3.2.0 (https://github.com/bevry/eachr)
 75.	editions version 1.3.4 (https://github.com/bevry/editions)
-76.	electron version 3.1.6 (https://github.com/electron/electron)
+76.	electron version 3.1.8 (https://github.com/electron/electron)
 77.	end-of-stream version 1.4.0 (https://github.com/mafintosh/end-of-stream)
 78.	entities version 1.1.1 (https://github.com/fb55/entities)
 79.	es6-promise version 4.1.1 (https://github.com/stefanpenner/es6-promise)
@@ -145,7 +145,7 @@ The original copyright notices and the licenses under which Microsoft received s
 138.	isarray version 1.0.0 (https://github.com/juliangruber/isarray)
 139.	isexe version 2.0.0 (https://github.com/isaacs/isexe)
 140.	isobject version 2.1.0 (https://github.com/jonschlinkert/isobject)
-141.	jeff-hykin/cpp-textmate-grammar version 1.4.5 (https://github.com/jeff-hykin/cpp-textmate-grammar)
+141.	jeff-hykin/cpp-textmate-grammar version 1.8.8 (https://github.com/jeff-hykin/cpp-textmate-grammar)
 142.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
 143.	jschardet version 1.6.0 (https://github.com/aadsm/jschardet)
 144.	jsonc-parser version 1.0.0 (https://github.com/Microsoft/node-jsonc-parser)
@@ -169,7 +169,7 @@ The original copyright notices and the licenses under which Microsoft received s
 162.	markdown-it version 8.4.0 (https://github.com/markdown-it/markdown-it)
 163.	markdown-it version 8.4.2 (https://github.com/markdown-it/markdown-it)
 164.	markdown-it-front-matter version 0.1.2 (https://github.com/craigdmckenna/markdown-it-front-matter)
-165.	marked version 0.5.0 (https://github.com/markedjs/marked)
+165.	marked version 0.6.2 (https://github.com/markedjs/marked)
 166.	mdn-data version 1.1.12 (https://github.com/mdn/data)
 167.	mdurl version 1.0.1 (https://github.com/markdown-it/mdurl)
 168.	micromatch version 2.3.11 (https://github.com/micromatch/micromatch)
@@ -205,7 +205,7 @@ The original copyright notices and the licenses under which Microsoft received s
 198.	object-assign version 4.1.1 (https://github.com/sindresorhus/object-assign)
 199.	object.omit version 2.0.0 (https://github.com/jonschlinkert/object.omit)
 200.	octicons version 8.3.0 (https://github.com/primer/octicons)
-201.	octref/language-css (https://github.com/octref/language-css)
+201.	octref/language-css version 0.42.11 (https://github.com/octref/language-css)
 202.	once version 1.4.0 (https://github.com/isaacs/once)
 203.	oniguruma version 7.0.2 (https://github.com/atom/node-oniguruma)
 204.	os-homedir version 1.0.2 (https://github.com/sindresorhus/os-homedir)
@@ -227,76 +227,76 @@ The original copyright notices and the licenses under which Microsoft received s
 220.	readable-stream version 2.3.6 (https://github.com/nodejs/readable-stream)
 221.	readdirp version 2.1.0 (https://github.com/paulmillr/readdirp)
 222.	redox-os/syscall version 0.1.37 (https://github.com/redox-os/syscall)
-223.	redox-os/termios version 0.1.1 (https://github.com/redox-os/termios)
-224.	reem/rust-unreachable version 1.0.0 (https://github.com/reem/rust-unreachable)
-225.	reem/rust-void version 1.0.2 (https://github.com/reem/rust-void)
-226.	regex-cache version 0.4.3 (https://github.com/jonschlinkert/regex-cache)
-227.	remove-trailing-separator version 1.1.0 (https://github.com/darsain/remove-trailing-separator)
-228.	repeat-element version 1.1.2 (https://github.com/jonschlinkert/repeat-element)
-229.	repeat-string version 1.5.4 (https://github.com/jonschlinkert/repeat-string)
-230.	request-light version 0.2.4 (https://github.com/Microsoft/node-request-light)
-231.	retep998/winapi-rs version 0.1.1 (https://github.com/retep998/winapi-rs)
-232.	retep998/winapi-rs version 0.2.2 (https://github.com/retep998/winapi-rs)
-233.	retep998/winapi-rs version 0.2.8 (https://github.com/retep998/winapi-rs)
-234.	retep998/winapi-rs version 0.3.4 (https://github.com/retep998/winapi-rs)
-235.	retep998/winapi-rs version 0.4.0 (https://github.com/retep998/winapi-rs)
-236.	ripgrep version 0.10.0 (https://github.com/BurntSushi/ripgrep)
-237.	rust-lang-nursery/lazy-static.rs version 1.0.0 (https://github.com/rust-lang-nursery/lazy-static.rs)
-238.	rust-lang/libc version 0.2.36 (https://github.com/rust-lang/libc)
-239.	rust-lang/time version 0.1.39 (https://github.com/rust-lang-deprecated/time)
-240.	rust-num/num version 0.1.41 (https://github.com/rust-num/num)
-241.	rust-num/num-integer version 0.1.35 (https://github.com/rust-num/num-integer)
-242.	rust-num/num-iter version 0.1.34 (https://github.com/rust-num/num-iter)
-243.	rust-num/num-traits version 0.1.42 (https://github.com/rust-num/num-traits)
-244.	safe-buffer version 5.1.1 (https://github.com/feross/safe-buffer)
-245.	safer-buffer version 2.1.2 (https://github.com/ChALkeR/safer-buffer)
-246.	semver version 5.4.1 (https://github.com/npm/node-semver)
-247.	semver version 5.5.0 (https://github.com/npm/node-semver)
-248.	semver version 5.5.1 (https://github.com/npm/node-semver)
-249.	set-blocking version 2.0.0 (https://github.com/yargs/set-blocking)
-250.	set-immediate-shim version 1.0.1 (https://github.com/sindresorhus/set-immediate-shim)
-251.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
-252.	Sgeo/take_mut version 0.2.0 (https://github.com/Sgeo/take_mut)
-253.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
-254.	signal-exit version 3.0.2 (https://github.com/tapjs/signal-exit)
-255.	simple-concat version 1.0.0 (https://github.com/feross/simple-concat)
-256.	simple-get version 2.8.1 (https://github.com/feross/simple-get)
-257.	simple-swizzle version 0.2.2 (https://github.com/qix-/node-simple-swizzle)
-258.	slog-rs/async version 2.2.0 (https://github.com/slog-rs/async)
-259.	slog-rs/slog version 2.1.1 (https://github.com/slog-rs/slog)
-260.	slog-rs/term version 2.3.0 (https://github.com/slog-rs/term)
-261.	smart-buffer version 4.0.1 (https://github.com/JoshGlazebrook/smart-buffer)
-262.	socks version 2.2.1 (https://github.com/JoshGlazebrook/socks)
-263.	socks-proxy-agent version 4.0.1 (https://github.com/TooTallNate/node-socks-proxy-agent)
-264.	source-map version 0.6.1 (https://github.com/mozilla/source-map)
-265.	spdlog version 0.8.1 (https://github.com/Microsoft/node-spdlog)
-266.	spdlog original version 0.14.0 (https://github.com/gabime/spdlog)
-267.	sprintf-js version 1.0.3 (https://github.com/alexei/sprintf.js)
-268.	Stebalien/term version 0.4.6 (https://github.com/Stebalien/term)
-269.	string-width version 1.0.2 (https://github.com/sindresorhus/string-width)
-270.	string-width version 2.1.1 (https://github.com/sindresorhus/string-width)
-271.	string_decoder version 1.0.3 (https://github.com/nodejs/string_decoder)
-272.	string_decoder version 1.1.1 (https://github.com/nodejs/string_decoder)
-273.	strip-ansi version 3.0.1 (https://github.com/chalk/strip-ansi)
-274.	strip-ansi version 4.0.0 (https://github.com/chalk/strip-ansi)
-275.	strip-json-comments version 2.0.1 (https://github.com/sindresorhus/strip-json-comments)
-276.	sudo-prompt version 8.2.0 (https://github.com/jorangreef/sudo-prompt)
-277.	tar-fs version 1.16.2 (https://github.com/mafintosh/tar-fs)
-278.	tar-stream version 1.6.1 (https://github.com/mafintosh/tar-stream)
-279.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-280.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-281.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-282.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-283.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-284.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-285.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-286.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-287.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
-288.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
-289.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-290.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-291.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-292.	ticki/termion version 1.5.1 (https://github.com/redox-os/termion)
+223.	redox-os/termion version 1.5.1 (https://github.com/redox-os/termion)
+224.	redox-os/termios version 0.1.1 (https://github.com/redox-os/termios)
+225.	reem/rust-unreachable version 1.0.0 (https://github.com/reem/rust-unreachable)
+226.	reem/rust-void version 1.0.2 (https://github.com/reem/rust-void)
+227.	regex-cache version 0.4.3 (https://github.com/jonschlinkert/regex-cache)
+228.	remove-trailing-separator version 1.1.0 (https://github.com/darsain/remove-trailing-separator)
+229.	repeat-element version 1.1.2 (https://github.com/jonschlinkert/repeat-element)
+230.	repeat-string version 1.5.4 (https://github.com/jonschlinkert/repeat-string)
+231.	request-light version 0.2.4 (https://github.com/Microsoft/node-request-light)
+232.	retep998/winapi-rs version 0.1.1 (https://github.com/retep998/winapi-rs)
+233.	retep998/winapi-rs version 0.2.2 (https://github.com/retep998/winapi-rs)
+234.	retep998/winapi-rs version 0.2.8 (https://github.com/retep998/winapi-rs)
+235.	retep998/winapi-rs version 0.3.4 (https://github.com/retep998/winapi-rs)
+236.	retep998/winapi-rs version 0.4.0 (https://github.com/retep998/winapi-rs)
+237.	ripgrep version 0.10.0 (https://github.com/BurntSushi/ripgrep)
+238.	rust-lang-nursery/lazy-static.rs version 1.0.0 (https://github.com/rust-lang-nursery/lazy-static.rs)
+239.	rust-lang/libc version 0.2.36 (https://github.com/rust-lang/libc)
+240.	rust-lang/time version 0.1.39 (https://github.com/rust-lang-deprecated/time)
+241.	rust-num/num version 0.1.41 (https://github.com/rust-num/num)
+242.	rust-num/num-integer version 0.1.35 (https://github.com/rust-num/num-integer)
+243.	rust-num/num-iter version 0.1.34 (https://github.com/rust-num/num-iter)
+244.	rust-num/num-traits version 0.1.42 (https://github.com/rust-num/num-traits)
+245.	safe-buffer version 5.1.1 (https://github.com/feross/safe-buffer)
+246.	safer-buffer version 2.1.2 (https://github.com/ChALkeR/safer-buffer)
+247.	semver version 5.4.1 (https://github.com/npm/node-semver)
+248.	semver version 5.5.0 (https://github.com/npm/node-semver)
+249.	semver version 5.5.1 (https://github.com/npm/node-semver)
+250.	set-blocking version 2.0.0 (https://github.com/yargs/set-blocking)
+251.	set-immediate-shim version 1.0.1 (https://github.com/sindresorhus/set-immediate-shim)
+252.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
+253.	Sgeo/take_mut version 0.2.0 (https://github.com/Sgeo/take_mut)
+254.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
+255.	signal-exit version 3.0.2 (https://github.com/tapjs/signal-exit)
+256.	simple-concat version 1.0.0 (https://github.com/feross/simple-concat)
+257.	simple-get version 2.8.1 (https://github.com/feross/simple-get)
+258.	simple-swizzle version 0.2.2 (https://github.com/qix-/node-simple-swizzle)
+259.	slog-rs/async version 2.2.0 (https://github.com/slog-rs/async)
+260.	slog-rs/slog version 2.1.1 (https://github.com/slog-rs/slog)
+261.	slog-rs/term version 2.3.0 (https://github.com/slog-rs/term)
+262.	smart-buffer version 4.0.1 (https://github.com/JoshGlazebrook/smart-buffer)
+263.	socks version 2.2.1 (https://github.com/JoshGlazebrook/socks)
+264.	socks-proxy-agent version 4.0.1 (https://github.com/TooTallNate/node-socks-proxy-agent)
+265.	source-map version 0.6.1 (https://github.com/mozilla/source-map)
+266.	spdlog version 0.8.1 (https://github.com/Microsoft/node-spdlog)
+267.	spdlog original version 0.14.0 (https://github.com/gabime/spdlog)
+268.	sprintf-js version 1.0.3 (https://github.com/alexei/sprintf.js)
+269.	Stebalien/term version 0.4.6 (https://github.com/Stebalien/term)
+270.	string-width version 1.0.2 (https://github.com/sindresorhus/string-width)
+271.	string-width version 2.1.1 (https://github.com/sindresorhus/string-width)
+272.	string_decoder version 1.0.3 (https://github.com/nodejs/string_decoder)
+273.	string_decoder version 1.1.1 (https://github.com/nodejs/string_decoder)
+274.	strip-ansi version 3.0.1 (https://github.com/chalk/strip-ansi)
+275.	strip-ansi version 4.0.0 (https://github.com/chalk/strip-ansi)
+276.	strip-json-comments version 2.0.1 (https://github.com/sindresorhus/strip-json-comments)
+277.	sudo-prompt version 8.2.0 (https://github.com/jorangreef/sudo-prompt)
+278.	tar-fs version 1.16.2 (https://github.com/mafintosh/tar-fs)
+279.	tar-stream version 1.6.1 (https://github.com/mafintosh/tar-stream)
+280.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+281.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+282.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+283.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+284.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+285.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+286.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+287.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+288.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+289.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
+290.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
+291.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
+292.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
 293.	to-buffer version 1.1.1 (https://github.com/mafintosh/to-buffer)
 294.	tunnel-agent version 0.6.0 (https://github.com/request/tunnel-agent)
 295.	typechecker version 4.5.0 (https://github.com/bevry/typechecker)
@@ -314,7 +314,7 @@ The original copyright notices and the licenses under which Microsoft received s
 307.	vscode-anymatch version 1.3.3 (https://github.com/micromatch/anymatch)
 308.	vscode-chokidar version 1.6.5 (https://github.com/paulmillr/chokidar)
 309.	vscode-chrome-debug-core version 6.7.46 (https://github.com/Microsoft/vscode-chrome-debug-core)
-310.	vscode-css-languageservice version 4.0.2-next.1 (https://github.com/Microsoft/vscode-css-languageservice)
+310.	vscode-css-languageservice version 4.0.2-next.3 (https://github.com/Microsoft/vscode-css-languageservice)
 311.	vscode-debugadapter version 1.33.0-pre.2 (https://github.com/Microsoft/vscode-debugadapter-node)
 312.	vscode-debugadapter version 1.34.0 (https://github.com/Microsoft/vscode-debugadapter-node)
 313.	vscode-debugprotocol version 1.32.0 (https://github.com/Microsoft/vscode-debugadapter-node)
@@ -322,8 +322,8 @@ The original copyright notices and the licenses under which Microsoft received s
 315.	vscode-emmet-helper version 1.2.15 (https://github.com/Microsoft/vscode-emmet-helper)
 316.	vscode-extension-telemetry version 0.1.1 (https://github.com/Microsoft/vscode-extension-telemetry)
 317.	vscode-fsevents version 0.3.10 (https://github.com/fsevents/fsevents)
-318.	vscode-html-languageservice version 3.0.0-next.5 (https://github.com/Microsoft/vscode-html-languageservice)
-319.	vscode-json-languageservice version 3.3.0-next.6 (https://github.com/Microsoft/vscode-json-languageservice)
+318.	vscode-html-languageservice version 3.0.0-next.7 (https://github.com/Microsoft/vscode-html-languageservice)
+319.	vscode-json-languageservice version 3.3.0-next.7 (https://github.com/Microsoft/vscode-json-languageservice)
 320.	vscode-jsonrpc version 4.0.0 (https://github.com/Microsoft/vscode-languageserver-node)
 321.	vscode-languageclient version 5.2.1 (https://github.com/Microsoft/vscode-languageserver-node)
 322.	vscode-languageserver version 5.3.0-next.2 (https://github.com/Microsoft/vscode-languageserver-node)
@@ -334,7 +334,7 @@ The original copyright notices and the licenses under which Microsoft received s
 327.	vscode-logfile-highlighter version 2.4.1 (https://github.com/emilast/vscode-logfile-highlighter)
 328.	vscode-nls version 4.0.0 (https://github.com/Microsoft/vscode-nls)
 329.	vscode-nsfw version 1.1.1 (https://github.com/Axosoft/nsfw)
-330.	vscode-octicons-font version 1.0.0 (https://github.com/Microsoft/vscode-octicons-font)
+330.	vscode-octicons-font version 1.1.0 (https://github.com/Microsoft/vscode-octicons-font)
 331.	vscode-proxy-agent version 0.4.0 (https://github.com/Microsoft/vscode-proxy-agent)
 332.	vscode-ripgrep version 1.2.5 (https://github.com/roblourens/vscode-ripgrep)
 333.	vscode-sqlite3 version 4.0.7 (https://github.com/mapbox/node-sqlite3)
@@ -343,7 +343,7 @@ The original copyright notices and the licenses under which Microsoft received s
 336.	vscode-uri version 1.0.6 (https://github.com/Microsoft/vscode-uri)
 337.	vscode-windows-ca-certs version 0.1.0 (https://github.com/Microsoft/vscode-windows-ca-certs)
 338.	vscode-windows-registry version 1.0.1 (https://github.com/Microsoft/vscode-windows-registry)
-339.	vscode-xterm version 3.13.0-beta2 (https://github.com/xtermjs/xterm.js)
+339.	vscode-xterm version 3.13.0-beta3 (https://github.com/xtermjs/xterm.js)
 340.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
 341.	which version 1.3.0 (https://github.com/npm/node-which)
 342.	which-pm-runs version 1.0.0 (https://github.com/zkochan/which-pm-runs)
@@ -1418,7 +1418,7 @@ END OF chownr NOTICES AND INFORMATION
 =========================================
 The MIT License (MIT)
 
-Copyright (c) 2017 Andrea Cardaci <cyrus.and@gmail.com>
+Copyright (c) 2019 Andrea Cardaci <cyrus.and@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -5836,7 +5836,7 @@ END OF mdurl NOTICES AND INFORMATION
 =========================================
 The MIT License (MIT)
 
-Copyright (c) 2014-2018, Jon Schlinkert.
+Copyright (c) 2014-present, Jon Schlinkert.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -6369,6 +6369,29 @@ The externally maintained libraries used by Node.js are:
     THE SOFTWARE.
   """
 
+- Acorn plugins, located at deps/acorn-plugins, is licensed as follows:
+  """
+    Copyright (C) 2017-2018 by Adrian Heine
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    THE SOFTWARE.
+  """
+
 - c-ares, located at deps/cares, is licensed as follows:
   """
     Copyright (c) 2007 - 2018, Daniel Stenberg with many contributors, see AUTHORS
@@ -6413,8 +6436,8 @@ The externally maintained libraries used by Node.js are:
   """
     COPYRIGHT AND PERMISSION NOTICE (ICU 58 and later)
 
-    Copyright © 1991-2018 Unicode, Inc. All rights reserved.
-    Distributed under the Terms of Use in http://www.unicode.org/copyright.html.
+    Copyright © 1991-2019 Unicode, Inc. All rights reserved.
+    Distributed under the Terms of Use in https://www.unicode.org/copyright.html.
 
     Permission is hereby granted, free of charge, to any person obtaining
     a copy of the Unicode data files and any associated documentation
@@ -7398,7 +7421,7 @@ The externally maintained libraries used by Node.js are:
     // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   """
 
-- jinja2, located at tools/jinja2, is licensed as follows:
+- jinja2, located at tools/inspector_protocol/jinja2, is licensed as follows:
   """
     Copyright (c) 2009 by the Jinja Team, see AUTHORS for more details.
 
@@ -7433,7 +7456,7 @@ The externally maintained libraries used by Node.js are:
     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   """
 
-- markupsafe, located at tools/markupsafe, is licensed as follows:
+- markupsafe, located at tools/inspector_protocol/markupsafe, is licensed as follows:
   """
     Copyright (c) 2010 by Armin Ronacher and contributors.  See AUTHORS
     for more details.
@@ -7550,7 +7573,7 @@ The externally maintained libraries used by Node.js are:
     WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   """
 
-- gtest, located at deps/gtest, is licensed as follows:
+- gtest, located at test/cctest/gtest, is licensed as follows:
   """
     Copyright 2008, Google Inc.
     All rights reserved.
@@ -8452,26 +8475,27 @@ END OF readable-stream NOTICES AND INFORMATION
 
 %% readdirp NOTICES AND INFORMATION BEGIN HERE
 =========================================
-This software is released under the MIT license:
+MIT License
 
-Copyright (c) 2012-2015 Thorsten Lorenz
+Copyright (c) 2012-2019 Thorsten Lorenz, Paul Miller (https://paulmillr.com)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 =========================================
 END OF readdirp NOTICES AND INFORMATION
 
@@ -8501,6 +8525,32 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 =========================================
 END OF redox-os/syscall NOTICES AND INFORMATION
+
+%% redox-os/termion NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright (c) 2016 Ticki
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+=========================================
+END OF redox-os/termion NOTICES AND INFORMATION
 
 %% redox-os/termios NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -9992,32 +10042,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 =========================================
 END OF textmate/yaml.tmbundle NOTICES AND INFORMATION
 
-%% ticki/termion NOTICES AND INFORMATION BEGIN HERE
-=========================================
-The MIT License (MIT)
-
-Copyright (c) 2016 Ticki
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-=========================================
-END OF ticki/termion NOTICES AND INFORMATION
-
 %% to-buffer NOTICES AND INFORMATION BEGIN HERE
 =========================================
 The MIT License (MIT)
@@ -10489,7 +10513,7 @@ END OF vscode-anymatch NOTICES AND INFORMATION
 =========================================
 The MIT License (MIT)
 
-Copyright (c) 2012-2019 Paul Miller (https://paulmillr.com) & Elan Shanker
+Copyright (c) 2012-2019 Paul Miller (https://paulmillr.com), Elan Shanker
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -10658,7 +10682,7 @@ END OF vscode-extension-telemetry NOTICES AND INFORMATION
 MIT License
 -----------
 
-Copyright (C) 2010-2018 by Philipp Dunkel, Ben Noordhuis, Elan Shankar
+Copyright (C) 2010-2019 by Philipp Dunkel, Ben Noordhuis, Elan Shankar
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
