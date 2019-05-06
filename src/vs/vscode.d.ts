@@ -8970,7 +8970,7 @@ declare module 'vscode' {
 		/**
 		 * The uri of the document the thread has been created on.
 		 */
-		readonly resource: Uri;
+		readonly uri: Uri;
 
 		/**
 		 * The range the comment thread is located within the document. The thread icon will be shown
@@ -9003,18 +9003,6 @@ declare module 'vscode' {
 		 */
 		acceptInputCommand?: Command;
 
-		/**
-		 * Optional additonal commands.
-		 *
-		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
-		 */
-		additionalCommands?: Command[];
-
-		/**
-		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
-		 * when the user collapses a comment thread that has no comments in it.
-		 */
-		deleteCommand?: Command;
 
 		/**
 		 * Dispose this comment thread.
@@ -9022,6 +9010,22 @@ declare module 'vscode' {
 		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when approriate.
 		 */
 		dispose(): void;
+	}
+
+	/**
+	 * Author information of a [comment](#Comment)
+	 */
+
+	export interface CommentAuthorInformation {
+		/**
+		 * The display name of the author of the comment
+		 */
+		name: string;
+
+		/**
+		 * The optional icon path for the author
+		 */
+		iconPath?: Uri;
 	}
 
 	/**
@@ -9074,11 +9078,6 @@ declare module 'vscode' {
 		 * The command to be executed when users try to save the edits to the comment
 		 */
 		editCommand?: Command;
-
-		/**
-		 * The command to be executed when users try to delete the comment
-		 */
-		deleteCommand?: Command;
 	}
 
 	/**
@@ -9193,7 +9192,7 @@ declare module 'vscode' {
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
 		 */
-		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
+		createCommentThread(id: string, uri: Uri, range: Range, comments: Comment[]): CommentThread;
 
 		/**
 		 * Dispose this comment controller.
