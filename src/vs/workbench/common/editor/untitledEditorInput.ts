@@ -9,19 +9,18 @@ import { memoize } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { basename } from 'vs/base/common/path';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
+import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledEditorInput extends EditorInput implements IEncodingSupport, IModeSupport {
+export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
@@ -57,6 +56,14 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	getResource(): URI {
 		return this.resource;
+	}
+
+	getModeId(): string | null {
+		if (this.cachedModel) {
+			return this.cachedModel.getModeId();
+		}
+
+		return this.modeId;
 	}
 
 	getName(): string {
@@ -185,20 +192,6 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		if (this.cachedModel) {
 			this.cachedModel.setEncoding(encoding);
 		}
-	}
-
-	setMode(mode: ILanguageSelection): void {
-		if (this.cachedModel) {
-			this.cachedModel.setMode(mode);
-		}
-	}
-
-	getModeId(): string | null {
-		if (this.cachedModel) {
-			return this.cachedModel.getModeId();
-		}
-
-		return this.modeId;
 	}
 
 	resolve(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {

@@ -29,7 +29,6 @@ import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 
 export class TestEditorControl extends BaseEditor {
 
@@ -57,7 +56,6 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setEncoding(encoding: string) { }
 	getEncoding(): string { return null!; }
 	setPreferredEncoding(encoding: string) { }
-	setMode(mode: ILanguageSelection) { }
 	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
 	setFailToOpen(): void {

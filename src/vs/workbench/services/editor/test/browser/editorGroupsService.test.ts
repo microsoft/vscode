@@ -19,7 +19,6 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 
 export class TestEditorControl extends BaseEditor {
 
@@ -46,7 +45,6 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setEncoding(encoding: string) { }
 	getEncoding(): string { return null!; }
 	setPreferredEncoding(encoding: string) { }
-	setMode(mode: ILanguageSelection) { }
 	getResource(): URI { return this.resource; }
 	setForceOpenAsBinary(): void { }
 }

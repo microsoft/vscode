@@ -18,7 +18,6 @@ import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -95,13 +94,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		const textModel = this.textFileService.models.get(this.resource);
 		if (textModel) {
 			textModel.setEncoding(encoding, mode);
-		}
-	}
-
-	setMode(mode: ILanguageSelection): void {
-		const textModel = this.textFileService.models.get(this.resource);
-		if (textModel) {
-			textModel.setMode(mode);
 		}
 	}
 

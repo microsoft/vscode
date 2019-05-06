@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, ITextEditorModel, IModeSupport } from 'vs/workbench/common/editor';
+import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 
 /**
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
  * code editor model.
  */
-export class ResourceEditorInput extends EditorInput implements IModeSupport {
+export class ResourceEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
@@ -63,18 +62,6 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 		}
 	}
 
-	setMode(mode: ILanguageSelection): void {
-		if (!this.modelReference) {
-			return;
-		}
-
-		this.modelReference.then(ref => {
-			if (ref.object instanceof ResourceEditorModel) {
-				ref.object.setMode(mode);
-			}
-		});
-	}
-
 	resolve(): Promise<ITextEditorModel> {
 		if (!this.modelReference) {
 			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
@@ -100,7 +87,7 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 		}
 
 		if (otherInput instanceof ResourceEditorInput) {
-			const otherResourceEditorInput = <ResourceEditorInput>otherInput;
+			let otherResourceEditorInput = <ResourceEditorInput>otherInput;
 
 			// Compare by properties
 			return otherResourceEditorInput.resource.toString() === this.resource.toString();
