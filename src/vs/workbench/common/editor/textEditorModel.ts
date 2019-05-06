@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITextModel, ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
-import { EditorModel } from 'vs/workbench/common/editor';
+import { EditorModel, IModeSupport } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
@@ -14,7 +14,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
+export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
 
 	protected createdEditorModel: boolean;
 
@@ -63,6 +63,14 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	}
 
 	abstract isReadonly(): boolean;
+
+	setMode(languageSelection: ILanguageSelection): void {
+		if (!this.isResolved()) {
+			return;
+		}
+
+		this.modelService.setMode(this.textEditorModel, languageSelection);
+	}
 
 	/**
 	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
@@ -118,7 +126,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
 	protected updateTextEditorModel(newValue: ITextBufferFactory): void {
-		if (!this.textEditorModel) {
+		if (!this.isResolved()) {
 			return;
 		}
 

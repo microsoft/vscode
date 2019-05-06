@@ -66,6 +66,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private contentEncoding: string; 			// encoding as reported from disk
 	private preferredEncoding: string;			// encoding as chosen by the user
 
+	private preferredMode: ILanguageSelection;	// mode as chosen by the user
+
 	private versionId: number;
 	private bufferSavedVersionId: number;
 	private blockModelContentChange: boolean;
@@ -207,10 +209,20 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return;
 		}
 
+		if (this.preferredMode) {
+			return; // do not override user choice
+		}
+
 		const firstLineText = this.getFirstLineText(this.textEditorModel);
 		const languageSelection = this.getOrCreateMode(this.modeService, undefined, firstLineText);
 
 		this.modelService.setMode(this.textEditorModel, languageSelection);
+	}
+
+	setMode(languageSelection: ILanguageSelection): void {
+		super.setMode(languageSelection);
+
+		this.preferredMode = languageSelection;
 	}
 
 	async backup(target = this.resource): Promise<void> {

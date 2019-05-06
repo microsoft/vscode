@@ -9,6 +9,7 @@ import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
+import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -505,12 +506,23 @@ export interface IEncodingSupport {
 	setEncoding(encoding: string, mode: EncodingMode): void;
 }
 
+export interface IModeSupport {
+
+	/**
+	 * Sets the language mode of the input.
+	 */
+	setMode(languageSelection: ILanguageSelection): void;
+}
+
 /**
  * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
  * to register this kind of input to the platform.
  */
-export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
+export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeSupport {
 
+	/**
+	 * Gets the resource this editor is about.
+	 */
 	getResource(): URI;
 
 	/**
