@@ -25,6 +25,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { SupportsWorkspacesContext } from 'vs/workbench/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ActiveEditorDirtyContext } from 'vs/workbench/common/editor';
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "File");
@@ -550,7 +551,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save")
+		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+		precondition: ActiveEditorDirtyContext
 	},
 	order: 1
 });

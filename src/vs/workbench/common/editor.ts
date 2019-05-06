@@ -22,6 +22,7 @@ import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
 
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
+export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorDirty', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();

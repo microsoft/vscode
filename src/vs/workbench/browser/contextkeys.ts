@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
-import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, ActiveEditorDirtyContext } from 'vs/workbench/common/editor';
 import { IsMacContext, IsLinuxContext, IsWindowsContext, HasMacNativeTabsContext, IsDevelopmentContext, SupportsWorkspacesContext, WorkbenchStateContext, WorkspaceFolderCountContext, RemoteAuthorityContext } from 'vs/workbench/common/contextkeys';
 import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -24,6 +24,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
 
 	private activeEditorContext: IContextKey<string | null>;
+	private activeEditorDirtyContext: IContextKey<boolean>;
 	private editorsVisibleContext: IContextKey<boolean>;
 	private textCompareEditorVisibleContext: IContextKey<boolean>;
 	private textCompareEditorActiveContext: IContextKey<boolean>;
@@ -101,6 +102,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// Editors
 		this.activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);
+		this.activeEditorDirtyContext = ActiveEditorDirtyContext.bindTo(this.contextKeyService);
 		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 		this.textCompareEditorVisibleContext = TextCompareEditorVisibleContext.bindTo(this.contextKeyService);
 		this.textCompareEditorActiveContext = TextCompareEditorActiveContext.bindTo(this.contextKeyService);
@@ -144,8 +146,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		if (!this.editorService.activeEditor) {
 			this.activeEditorGroupEmpty.set(true);
+			this.activeEditorDirtyContext.reset();
 		} else {
 			this.activeEditorGroupEmpty.reset();
+			this.activeEditorDirtyContext.set(this.editorService.activeEditor.isDirty());
 		}
 
 		if (this.editorGroupService.count > 1) {
