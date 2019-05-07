@@ -793,6 +793,11 @@ declare module 'vscode' {
 		isDraft?: boolean;
 
 		/**
+		 * The command to be executed when users try to delete the comment
+		 */
+		deleteCommand?: Command;
+
+		/**
 		 * Proposed Comment Reaction
 		 */
 		commentReactions?: CommentReaction[];
@@ -903,6 +908,26 @@ declare module 'vscode' {
 	export interface CommentReactionProvider {
 		availableReactions: CommentReaction[];
 		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
+	}
+
+	export interface CommentThread {
+		/**
+		 * The uri of the document the thread has been created on.
+		 */
+		readonly resource: Uri;
+
+		/**
+		 * Optional additonal commands.
+		 *
+		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
+		 */
+		additionalCommands?: Command[];
+
+		/**
+		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
+		 * when the user collapses a comment thread that has no comments in it.
+		 */
+		deleteCommand?: Command;
 	}
 
 

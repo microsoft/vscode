@@ -173,7 +173,7 @@ class OpenExtensionAction extends Action {
 	}
 }
 
-export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, any> {
+export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExtensionData> {
 
 	constructor(
 		input: IExtensionData,
@@ -212,7 +212,9 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, any> 
 		this.setInput(input);
 
 		this.disposables.push(this.onDidChangeSelection(event => {
-			extensionsWorkdbenchService.open(event.elements[0], event.browserEvent instanceof MouseEvent && (event.browserEvent.ctrlKey || event.browserEvent.metaKey || event.browserEvent.altKey));
+			if (event.browserEvent && event.browserEvent instanceof KeyboardEvent) {
+				extensionsWorkdbenchService.open(event.elements[0].extension, false);
+			}
 		}));
 	}
 }

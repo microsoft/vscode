@@ -385,7 +385,11 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	}
 
 	get resource(): vscode.Uri {
-		return this._resource;
+		return this._uri;
+	}
+
+	get uri(): vscode.Uri {
+		return this._uri;
 	}
 
 	private _onDidUpdateCommentThread = new Emitter<void>();
@@ -476,7 +480,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		private readonly _commandsConverter: CommandsConverter,
 		private _commentController: ExtHostCommentController,
 		private _id: string,
-		private _resource: vscode.Uri,
+		private _uri: vscode.Uri,
 		private _range: vscode.Range,
 		private _comments: vscode.Comment[]
 	) {
@@ -484,7 +488,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this._commentController.handle,
 			this.handle,
 			this._id,
-			this._resource,
+			this._uri,
 			extHostTypeConverter.Range.from(this._range)
 		);
 
@@ -513,7 +517,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this._commentController.handle,
 			this.handle,
 			this._id,
-			this._resource,
+			this._uri,
 			commentThreadRange,
 			label,
 			comments,
@@ -717,6 +721,7 @@ function convertFromCommentThread(commentThread: modes.CommentThread): vscode.Co
 	return {
 		id: commentThread.threadId!,
 		threadId: commentThread.threadId!,
+		uri: URI.parse(commentThread.resource!),
 		resource: URI.parse(commentThread.resource!),
 		range: extHostTypeConverter.Range.to(commentThread.range),
 		comments: commentThread.comments ? commentThread.comments.map(convertFromComment) : [],

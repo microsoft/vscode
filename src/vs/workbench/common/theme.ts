@@ -309,19 +309,6 @@ export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusB
 	hc: Color.black.transparent(0.3),
 }, nls.localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.remoteBackground', {
-	dark: '#16825D',
-	light: '#16825D',
-	hc: '#FFFFFF00'
-}, nls.localize('statusBarItemHostBackground', "Background color for the remote indicator on the status bar."));
-
-export const STATUS_BAR_HOST_NAME_FOREGROUND = registerColor('statusBarItem.remoteForeground', {
-	dark: '#FFFFFF',
-	light: '#FFFFFF',
-	hc: '#FFFFFF'
-}, nls.localize('statusBarItemHostForeground', "Foreground color for the remote indicator on the status bar."));
-
-
 // < --- Activity Bar --- >
 
 export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBar.background', {
@@ -365,6 +352,21 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	light: Color.white,
 	hc: Color.white
 }, nls.localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+
+// < --- Remote --- >
+
+export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.remoteBackground', {
+	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	light: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hc: ACTIVITY_BAR_BADGE_BACKGROUND
+}, nls.localize('statusBarItemHostBackground', "Background color for the remote indicator on the status bar."));
+
+export const STATUS_BAR_HOST_NAME_FOREGROUND = registerColor('statusBarItem.remoteForeground', {
+	dark: ACTIVITY_BAR_BADGE_FOREGROUND,
+	light: ACTIVITY_BAR_BADGE_FOREGROUND,
+	hc: ACTIVITY_BAR_BADGE_FOREGROUND
+}, nls.localize('statusBarItemHostForeground', "Foreground color for the remote indicator on the status bar."));
 
 export const EXTENSION_BADGE_REMOTE_BACKGROUND = registerColor('extensionBadge.remoteBackground', {
 	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
