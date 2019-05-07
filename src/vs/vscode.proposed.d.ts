@@ -939,15 +939,6 @@ declare module 'vscode' {
 		reactionProvider?: CommentReactionProvider;
 	}
 
-	export interface CommentController {
-		/**
-		 * The active [comment thread](#CommentThread) or `undefined`. The `activeCommentThread` is the comment thread of
-		 * the comment widget that currently has focus. It's `undefined` when the focus is not in any comment thread widget, or
-		 * the comment widget created from [comment thread template](#CommentThreadTemplate).
-		 */
-		readonly activeCommentThread: CommentThread | undefined;
-	}
-
 	namespace workspace {
 		/**
 		 * DEPRECATED

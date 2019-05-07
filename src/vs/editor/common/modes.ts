@@ -1292,6 +1292,7 @@ export interface CommentThread2 {
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	input?: CommentInput;
+	activeComment?: Comment;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	acceptInputCommand?: Command;
 	additionalCommands?: Command[];

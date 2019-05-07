@@ -95,6 +95,20 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	private _onDidChangeInput = new Emitter<modes.CommentInput | undefined>();
 	get onDidChangeInput(): Event<modes.CommentInput | undefined> { return this._onDidChangeInput.event; }
 
+	private _activeComment?: modes.Comment;
+
+	get activeComment(): modes.Comment | undefined {
+		return this._activeComment;
+	}
+
+	set activeComment(comment: modes.Comment | undefined) {
+		this._activeComment = comment;
+		this._onDidChangeActiveComment.fire(this._activeComment);
+	}
+
+	private _onDidChangeActiveComment = new Emitter<modes.Comment | undefined>();
+	get onDidChangeActiveComment(): Event<modes.Comment | undefined> { return this._onDidChangeActiveComment.event; }
+
 	private _label: string;
 
 	get label(): string {
@@ -225,6 +239,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		this._onDidChangeCollasibleState.dispose();
 		this._onDidChangeComments.dispose();
 		this._onDidChangeInput.dispose();
+		this._onDidChangeActiveComment.dispose();
 		this._onDidChangeLabel.dispose();
 		this._onDidChangeRange.dispose();
 	}
@@ -495,12 +510,16 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			this._activeCommentThread = thread as MainThreadCommentThread;
 			controller.activeCommentThread = this._activeCommentThread;
 
-			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
+			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeInput(input => {
 				this._input = input;
 				this._proxy.$onCommentWidgetInputChange(handle, URI.parse(this._activeCommentThread!.resource), this._activeCommentThread!.range, this._input ? this._input.value : undefined);
 			}));
 
-			await this._proxy.$onActiveCommentThreadChange(controller.handle, controller.activeCommentThread.commentThreadHandle);
+			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeActiveComment(comment => {
+				this._proxy.$onActiveCommentThreadChange(handle, this._activeCommentThread!.commentThreadHandle, comment);
+			}));
+
+			await this._proxy.$onActiveCommentThreadChange(controller.handle, controller.activeCommentThread.commentThreadHandle, undefined);
 			await this._proxy.$onCommentWidgetInputChange(controller.handle, URI.parse(this._activeCommentThread!.resource), this._activeCommentThread.range, this._input ? this._input.value : undefined);
 		}));
 	}

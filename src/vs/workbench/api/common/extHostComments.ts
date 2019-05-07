@@ -99,14 +99,14 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		return Promise.resolve(commentControllerHandle);
 	}
 
-	$onActiveCommentThreadChange(commentControllerHandle: number, threadHandle: number): Promise<number | undefined> {
+	$onActiveCommentThreadChange(commentControllerHandle: number, threadHandle: number | undefined, comment: modes.Comment | undefined): Promise<number | undefined> {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
 		if (!commentController) {
 			return Promise.resolve(undefined);
 		}
 
-		commentController.$onActiveCommentThreadChange(threadHandle);
+		commentController.$onTargetChange(threadHandle, comment);
 		return Promise.resolve(threadHandle);
 	}
 
@@ -164,12 +164,16 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			return Promise.resolve();
 		}
 
-		if (!(commentController as any).emptyCommentThreadFactory && !(commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread)) {
+		if (!(commentController as any).emptyCommentThreadFactory && !(commentController.commentingRangeProvider && commentController.commentingRangeProvider.createEmptyCommentThread) && !(commentController.template && commentController.template.handleCommentThreadCreationRequest)) {
 			return Promise.resolve();
 		}
 
 		const document = this._documents.getDocument(URI.revive(uriComponents));
 		return asPromise(() => {
+			if (commentController.template && commentController.template.handleCommentThreadCreationRequest) {
+				return commentController.template.handleCommentThreadCreationRequest(document, extHostTypeConverter.Range.to(range));
+			}
+
 			if ((commentController as any).emptyCommentThreadFactory) {
 				return (commentController as any).emptyCommentThreadFactory!.createEmptyCommentThread(document, extHostTypeConverter.Range.to(range));
 			}
@@ -574,6 +578,8 @@ export class ExtHostCommentInputBox implements vscode.CommentInputBox {
 		return this._onDidChangeValue.event;
 	}
 
+	public target: vscode.CommentThread | vscode.Comment | vscode.CommentThreadTemplate | undefined;
+
 	constructor(
 		private _proxy: MainThreadCommentsShape,
 		public commentControllerHandle: number,
@@ -629,8 +635,8 @@ class ExtHostCommentController implements vscode.CommentController {
 
 		if (newTemplate) {
 			const acceptInputCommand = newTemplate.acceptInputCommand ? this._commandsConverter.toInternal(newTemplate.acceptInputCommand) : undefined;
-			const additionalCommands = newTemplate.additionalCommands ? newTemplate.additionalCommands.map(x => this._commandsConverter.toInternal(x)) : [];
-			const deleteCommand = newTemplate.deleteCommand ? this._commandsConverter.toInternal(newTemplate.deleteCommand) : undefined;
+			const additionalCommands: modes.Command[] = [];
+			const deleteCommand = undefined;
 			this._proxy.$updateCommentControllerFeatures(this.handle, {
 				commentThreadTemplate: {
 					label: newTemplate.label,
@@ -677,8 +683,33 @@ class ExtHostCommentController implements vscode.CommentController {
 		this.inputBox.setInput(URI.revive(uriComponents), extHostTypeConverter.Range.to(range), input);
 	}
 
-	$onActiveCommentThreadChange(threadHandle: number) {
-		this._activeCommentThread = this.getCommentThread(threadHandle);
+	$onTargetChange(threadHandle: number | undefined, comment: modes.Comment | undefined) {
+		if (threadHandle === undefined) {
+			this._activeCommentThread = undefined;
+			this.inputBox.target = this._activeCommentThread;
+			return;
+		}
+
+		if (threadHandle === -1 /** CommentThreadTemplate */) {
+			this._activeCommentThread = undefined;
+			this.inputBox.target = this.template;
+			return;
+		}
+
+		this._activeCommentThread = this.getCommentThread(threadHandle!);
+
+		if (comment === undefined || this._activeCommentThread === undefined) {
+			this.inputBox.target = this._activeCommentThread;
+			return;
+		}
+
+		let vscodeComment = this._activeCommentThread!.comments.filter(vscodeComment => vscodeComment.id === comment.commentId);
+
+		if (vscodeComment.length > 0) {
+			this.inputBox.target = vscodeComment[0];
+		} else {
+			this.inputBox.target = this._activeCommentThread;
+		}
 	}
 
 	getCommentThread(handle: number) {

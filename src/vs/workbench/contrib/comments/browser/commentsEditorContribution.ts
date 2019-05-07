@@ -695,6 +695,7 @@ export class ReviewController implements IEditorContribution {
 				// create comment widget through template
 				let commentThreadWidget = this.addCommentThreadFromTemplate(lineNumber, ownerId);
 				commentThreadWidget.display(lineNumber, true);
+				commentingRangesInfo.newCommentThreadCallback!(this.editor.getModel()!.uri, range);
 				this._commentWidgets.push(commentThreadWidget);
 				commentThreadWidget.onDidClose(() => {
 					this._commentWidgets = this._commentWidgets.filter(zoneWidget => !(

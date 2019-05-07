@@ -9088,6 +9088,15 @@ declare module 'vscode' {
 		 * Setter and getter for the contents of the comment input box
 		 */
 		value: string;
+
+		/**
+		 * The target object the comment input box is created for. It's
+		 * 1. `CommentThread` when users are replying to a comment thread
+		 * 2. `Comment` when users are editing a comment
+		 * 3. `CommentThreadTemplate` when users are creating a new comment thread
+		 * 4. `undefined` when there is no visible comment input box yet.
+		 */
+		target: CommentThread | Comment | CommentThreadTemplate | undefined;
 	}
 
 	/**
@@ -9119,17 +9128,10 @@ declare module 'vscode' {
 		readonly acceptInputCommand?: Command;
 
 		/**
-		 * Optional additonal commands.
-		 *
-		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
+		 * When users attempt to create a new comment thread from the gutter or command palette, this callback will be invoked and
+		 * extensions should create a new comment thread by running `CommentController.createCommentThread` for the given document and range.
 		 */
-		readonly additionalCommands?: Command[];
-
-		/**
-		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
-		 * when the user collapses a comment thread that has no comments in it.
-		 */
-		readonly deleteCommand?: Command;
+		handleCommentThreadCreationRequest(document: TextDocument, range: Range): void;
 	}
 
 	/**
@@ -9148,8 +9150,8 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The active [comment input box](#CommentInputBox). The active `inputBox` is the input box ofthe comment thread widget
-		 *  that currently has focus. `CommentInputBox.value` is empty string when the focus is not in any CommentInputBox.
+		 * The active [comment input box](#CommentInputBox). The active `inputBox` is the input box of the comment thread widget
+		 * that currently has focus. `CommentInputBox.value` is empty string when the focus is not in any CommentInputBox.
 		 */
 		readonly inputBox: CommentInputBox;
 
@@ -9158,9 +9160,6 @@ declare module 'vscode' {
 		 *
 		 * The comment controller will use this information to create the comment widget when users attempt to create new comment thread
 		 * from the gutter or command palette.
-		 *
-		 * When users run `CommentThreadTemplate.acceptInputCommand` or `CommentThreadTemplate.additionalCommands`, extensions should create
-		 * the approriate [CommentThread](#CommentThread).
 		 *
 		 * If not provided, users won't be able to create new comment threads in the editor.
 		 */

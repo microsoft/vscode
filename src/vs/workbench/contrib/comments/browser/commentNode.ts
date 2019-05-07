@@ -392,6 +392,7 @@ export class CommentNode extends Disposable {
 				value: this.comment.body.value
 			};
 			this.commentService.setActiveCommentThread(commentThread);
+			commentThread.activeComment = this.comment;
 
 			this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 				commentThread.input = {
@@ -421,6 +422,11 @@ export class CommentNode extends Disposable {
 		this.isEditing = false;
 		this._editAction.enabled = true;
 		this._body.classList.remove('hidden');
+
+		let commentThread = this.commentThread as modes.CommentThread2;
+		if (commentThread.commentThreadHandle !== undefined) {
+			commentThread.activeComment = undefined;
+		}
 
 		this._commentEditorModel.dispose();
 		this._commentEditorDisposables.forEach(dispose => dispose.dispose());
