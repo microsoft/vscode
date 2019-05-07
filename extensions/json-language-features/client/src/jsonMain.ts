@@ -60,8 +60,8 @@ interface JSONSchemaSettings {
 }
 
 interface JSONSchemaEntry {
-        fileMatch: string;
-        url: string;
+	fileMatch: string;
+	url: string;
 }
 
 let telemetryReporter: TelemetryReporter | undefined;
@@ -96,8 +96,8 @@ export function activate(context: ExtensionContext) {
 
 	let fileSchemaErrors = new Map<string, string>();
 
-        let dynamicSchemaEntries: JSONSchemaEntry[] = [];
-        let clientReady: boolean = false;
+	let dynamicSchemaEntries: JSONSchemaEntry[] = [];
+	let clientReady: boolean = false;
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -142,7 +142,7 @@ export function activate(context: ExtensionContext) {
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
-                clientReady = true;
+		clientReady = true;
 
 		disposable = client.onTelemetry(e => {
 			if (telemetryReporter) {
@@ -255,24 +255,24 @@ export function activate(context: ExtensionContext) {
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
 
-        const addJSONSchema = (fileMatch: string, url: string) => {
-                dynamicSchemaEntries.push({ fileMatch, url });
-                if (clientReady) {
-                        client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context, dynamicSchemaEntries));
-                }
-        };
+	const addJSONSchema = (fileMatch: string, url: string) => {
+		dynamicSchemaEntries.push({ fileMatch, url });
+		if (clientReady) {
+			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context, dynamicSchemaEntries));
+		}
+	};
 
-        const removeJSONSchema = (fileMatch: string, url: string) => {
-                dynamicSchemaEntries = dynamicSchemaEntries.filter(entry => entry.fileMatch !== fileMatch || entry.url !== url);
-                if (clientReady) {
-                        client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context, dynamicSchemaEntries));
-                }
-        };
+	const removeJSONSchema = (fileMatch: string, url: string) => {
+		dynamicSchemaEntries = dynamicSchemaEntries.filter(entry => entry.fileMatch !== fileMatch || entry.url !== url);
+		if (clientReady) {
+			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context, dynamicSchemaEntries));
+		}
+	};
 
-        return {
-                addJSONSchema,
-                removeJSONSchema,
-        };
+	return {
+		addJSONSchema,
+		removeJSONSchema,
+	};
 }
 
 export function deactivate(): Promise<any> {
@@ -311,14 +311,14 @@ function getSchemaAssociation(_context: ExtensionContext, dynamicSchemas: JSONSc
 		}
 	});
 
-        dynamicSchemas.forEach(({ fileMatch, url }) => {
-                let association = associations[fileMatch];
-                if (!association) {
-                        association = [];
-                        associations[fileMatch] = association;
-                }
-                association.push(url);
-        });
+	dynamicSchemas.forEach(({ fileMatch, url }) => {
+		let association = associations[fileMatch];
+		if (!association) {
+			association = [];
+			associations[fileMatch] = association;
+		}
+		association.push(url);
+	});
 
 	return associations;
 }
