@@ -85,7 +85,7 @@ import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
-	return instantiationService.createInstance(FileEditorInput, resource, undefined);
+	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
 }
 
 export const TestEnvironmentService = new WorkbenchEnvironmentService(parseArgs(process.argv) as IWindowConfiguration, process.execPath);

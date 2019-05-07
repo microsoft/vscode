@@ -18,7 +18,7 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
@@ -63,8 +63,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private resource: URI;
 
-	private contentEncoding: string; 			// encoding as reported from disk
-	private preferredEncoding: string;			// encoding as chosen by the user
+	private contentEncoding: string; 	// encoding as reported from disk
+	private preferredEncoding: string;	// encoding as chosen by the user
+
+	private preferredMode: string;		// mode as chosen by the user
 
 	private versionId: number;
 	private bufferSavedVersionId: number;
@@ -92,6 +94,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	constructor(
 		resource: URI,
 		preferredEncoding: string,
+		preferredMode: string,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
@@ -108,6 +111,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.resource = resource;
 		this.preferredEncoding = preferredEncoding;
+		this.preferredMode = preferredMode;
 		this.inOrphanMode = false;
 		this.dirty = false;
 		this.versionId = 0;
@@ -208,9 +212,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		const firstLineText = this.getFirstLineText(this.textEditorModel);
-		const languageSelection = this.getOrCreateMode(this.modeService, undefined, firstLineText);
+		const languageSelection = this.getOrCreateMode(this.resource, this.modeService, this.preferredMode, firstLineText);
 
 		this.modelService.setMode(this.textEditorModel, languageSelection);
+	}
+
+	setMode(mode: string): void {
+		super.setMode(mode);
+
+		this.preferredMode = mode;
 	}
 
 	async backup(target = this.resource): Promise<void> {
@@ -451,7 +461,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.logService.trace('load() - created text editor model', this.resource);
 
 		// Create model
-		this.createTextEditorModel(value, resource);
+		this.createTextEditorModel(value, resource, this.preferredMode);
 
 		// We restored a backup so we have to set the model as being dirty
 		// We also want to trigger auto save if it is enabled to simulate the exact same behaviour
@@ -481,7 +491,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Update model value in a block that ignores model content change events
 		this.blockModelContentChange = true;
 		try {
-			this.updateTextEditorModel(value);
+			this.updateTextEditorModel(value, this.preferredMode);
 		} finally {
 			this.blockModelContentChange = false;
 		}
@@ -500,10 +510,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (this.isResolved()) {
 			this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 		}
-	}
-
-	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string | undefined, firstLineText?: string): ILanguageSelection {
-		return modeService.createByFilepathOrFirstLine(this.resource.fsPath, firstLineText);
 	}
 
 	private onModelContentChanged(): void {
