@@ -550,11 +550,11 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 }
 
 export class ExtHostCommentInputBox implements vscode.CommentInputBox {
-	get resource(): vscode.Uri {
+	get resource(): vscode.Uri | undefined {
 		return this._resource;
 	}
 
-	get range(): vscode.Range {
+	get range(): vscode.Range | undefined {
 		return this._range;
 	}
 
@@ -577,13 +577,13 @@ export class ExtHostCommentInputBox implements vscode.CommentInputBox {
 	constructor(
 		private _proxy: MainThreadCommentsShape,
 		public commentControllerHandle: number,
-		private _resource: vscode.Uri,
-		private _range: vscode.Range,
+		private _resource: vscode.Uri | undefined,
+		private _range: vscode.Range | undefined,
 		private _value: string
 	) {
 	}
 
-	setInput(resource: vscode.Uri, range: vscode.Range, input: string) {
+	setInput(resource: vscode.Uri | undefined, range: vscode.Range | undefined, input: string) {
 		this._resource = resource;
 		this._range = range;
 		this._value = input;
@@ -598,7 +598,7 @@ class ExtHostCommentController implements vscode.CommentController {
 		return this._label;
 	}
 
-	public inputBox: ExtHostCommentInputBox | undefined;
+	public inputBox: ExtHostCommentInputBox;
 	private _activeCommentThread: ExtHostCommentThread | undefined;
 
 	public get activeCommentThread(): ExtHostCommentThread | undefined {
@@ -664,6 +664,7 @@ class ExtHostCommentController implements vscode.CommentController {
 		private _label: string
 	) {
 		this._proxy.$registerCommentController(this.handle, _id, _label);
+		this.inputBox = new ExtHostCommentInputBox(this._proxy, this.handle, undefined, undefined, '');
 	}
 
 	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range, comments: vscode.Comment[]): vscode.CommentThread {
@@ -673,11 +674,7 @@ class ExtHostCommentController implements vscode.CommentController {
 	}
 
 	$onCommentWidgetInputChange(uriComponents: UriComponents, range: IRange, input: string) {
-		if (!this.inputBox) {
-			this.inputBox = new ExtHostCommentInputBox(this._proxy, this.handle, URI.revive(uriComponents), extHostTypeConverter.Range.to(range), input);
-		} else {
-			this.inputBox.setInput(URI.revive(uriComponents), extHostTypeConverter.Range.to(range), input);
-		}
+		this.inputBox.setInput(URI.revive(uriComponents), extHostTypeConverter.Range.to(range), input);
 	}
 
 	$onActiveCommentThreadChange(threadHandle: number) {

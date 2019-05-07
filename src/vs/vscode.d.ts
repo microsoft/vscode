@@ -9088,16 +9088,6 @@ declare module 'vscode' {
 		 * Setter and getter for the contents of the comment input box
 		 */
 		value: string;
-
-		/**
-		 * The uri of the document comment input box has been created on
-		 */
-		resource: Uri;
-
-		/**
-		 * The range the comment input box is located within the document
-		 */
-		range: Range;
 	}
 
 	/**
@@ -9158,10 +9148,10 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The active [comment input box](#CommentInputBox) or `undefined`. The active `inputBox` is the input box of
-		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any CommentInputBox.
+		 * The active [comment input box](#CommentInputBox). The active `inputBox` is the input box ofthe comment thread widget
+		 *  that currently has focus. `CommentInputBox.value` is empty string when the focus is not in any CommentInputBox.
 		 */
-		readonly inputBox: CommentInputBox | undefined;
+		readonly inputBox: CommentInputBox;
 
 		/**
 		 * Optional comment thread template information.
