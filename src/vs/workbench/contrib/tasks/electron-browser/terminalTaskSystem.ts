@@ -523,8 +523,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 							if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 								(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
 								let reveal = task.command.presentation!.reveal;
-								let revealProblem = task.command.presentation!.revealProblem;
-								if (revealProblem === RevealProblemKind.OnProblem) {
+								let revealProblems = task.command.presentation!.revealProblems;
+								if (revealProblems === RevealProblemKind.OnProblem) {
 									this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 								} else if (reveal === RevealKind.Silent) {
 									this.terminalService.setActiveInstance(terminal!);
@@ -653,8 +653,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 						}
 					}
 					let reveal = task.command.presentation!.reveal;
-					let revealProblem = task.command.presentation!.revealProblem;
-					let revealProblemPanel = terminal && (revealProblem === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0);
+					let revealProblems = task.command.presentation!.revealProblems;
+					let revealProblemPanel = terminal && (revealProblems === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0);
 					if (revealProblemPanel) {
 						this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 					} else if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
@@ -688,7 +688,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminal) {
 			return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
 		}
-		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblem === RevealProblemKind.Always);
+		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblems === RevealProblemKind.Always);
 		if (showProblemPanel) {
 			this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 		} else if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
