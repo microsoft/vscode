@@ -40,6 +40,7 @@ import { trim } from 'vs/base/common/strings';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -857,9 +858,9 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			if (isResolvedTextEditorModel(sourceModel) && isResolvedTextEditorModel(targetModel)) {
 				this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
 
-				const language = sourceModel.textEditorModel.getLanguageIdentifier();
-				if (language.id > 1) {
-					targetModel.textEditorModel.setMode(language); // only use if more specific than plain/text
+				const mode = sourceModel.textEditorModel.getLanguageIdentifier();
+				if (mode.language !== PLAINTEXT_MODE_ID) {
+					targetModel.textEditorModel.setMode(mode); // only use if more specific than plain/text
 				}
 			}
 
