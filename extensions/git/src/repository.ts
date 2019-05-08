@@ -299,6 +299,7 @@ export const enum Operation {
 	GetObjectDetails = 'GetObjectDetails',
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
+	RebaseAbort = 'RebaseAbort',
 	Apply = 'Apply',
 	Blame = 'Blame',
 	Log = 'Log',
@@ -990,6 +991,11 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
+	async rebaseAbort() {
+		this.run(Operation.RebaseAbort, () => this.repository.rebaseAbort());
+	}
+
+	@throttle
 	async push(head: Branch, forcePushMode?: ForcePushMode): Promise<void> {
 		let remote: string | undefined;
 		let branch: string | undefined;
@@ -1390,6 +1396,8 @@ export class Repository implements Disposable {
 			commands.executeCommand('setContext', 'gitFreshRepository', isFreshRepository);
 			this.isFreshRepository = isFreshRepository;
 		}
+
+		commands.executeCommand('setContext', 'gitRebaseInProgress', !!this.rebaseCommit);
 
 		this._onDidChangeStatus.fire();
 	}

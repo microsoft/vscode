@@ -42,6 +42,7 @@
 	"command.fetchAll": "Fetch From All Remotes",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (Rebase)",
+	"command.rebaseAbort": "Rebase Abort",
 	"command.pullFrom": "Pull from...",
 	"command.push": "Push",
 	"command.pushForce": "Push (Force)",

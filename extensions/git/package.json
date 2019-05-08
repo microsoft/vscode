@@ -291,6 +291,11 @@
         "category": "Git"
       },
       {
+        "command": "git.rebaseAbort",
+        "title": "%command.rebaseAbort%",
+        "category": "Git"
+      },
+      {
         "command": "git.pullFrom",
         "title": "%command.pullFrom%",
         "category": "Git"
@@ -640,6 +645,10 @@
         {
           "command": "git.stashApplyLatest",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.rebaseAbort",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && gitRebaseInProgress"
         }
       ],
       "scm/title": [
@@ -677,6 +686,11 @@
           "command": "git.pullRebase",
           "group": "1_sync",
           "when": "scmProvider == git"
+        },
+        {
+          "command": "git.rebaseAbort",
+          "group": "1_sync",
+          "when": "scmProvider == git && gitRebaseInProgress"
         },
         {
           "command": "git.pullFrom",

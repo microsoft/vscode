@@ -1718,6 +1718,11 @@ export class CommandCenter {
 		await repository.pullWithRebase(repository.HEAD);
 	}
 
+	@command('git.rebaseAbort', { repository: true })
+	async rebaseAbort(repository: Repository): Promise<void> {
+		await repository.rebaseAbort();
+	}
+
 	private async _push(repository: Repository, pushOptions: PushOptions) {
 		const remotes = repository.remotes;
 

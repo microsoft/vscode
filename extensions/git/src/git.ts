@@ -1179,6 +1179,11 @@ export class Repository {
 		}
 	}
 
+	async rebaseAbort(): Promise<void> {
+		const args = ['rebase', '--abort'];
+		await this.run(args);
+	}
+
 	private async handleCommitError(commitErr: any): Promise<void> {
 		if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
