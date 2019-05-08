@@ -211,14 +211,17 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	}
 
 	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, mode?: string, initialValue?: string, encoding?: string): UntitledEditorInput {
-		if (!resource) {
+		let untitledResource: URI;
+		if (resource) {
+			untitledResource = resource;
+		} else {
 
 			// Create new taking a resource URI that is not already taken
 			let counter = this.mapResourceToInput.size + 1;
 			do {
-				resource = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}` });
+				untitledResource = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}` });
 				counter++;
-			} while (this.mapResourceToInput.has(resource));
+			} while (this.mapResourceToInput.has(untitledResource));
 		}
 
 		// Look up default language from settings if any
@@ -229,22 +232,22 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 			}
 		}
 
-		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, mode, initialValue, encoding);
+		const input = this.instantiationService.createInstance(UntitledEditorInput, untitledResource, hasAssociatedFilePath, mode, initialValue, encoding);
 
 		const contentListener = input.onDidModelChangeContent(() => {
-			this._onDidChangeContent.fire(resource!);
+			this._onDidChangeContent.fire(untitledResource);
 		});
 
 		const dirtyListener = input.onDidChangeDirty(() => {
-			this._onDidChangeDirty.fire(resource!);
+			this._onDidChangeDirty.fire(untitledResource);
 		});
 
 		const encodingListener = input.onDidModelChangeEncoding(() => {
-			this._onDidChangeEncoding.fire(resource!);
+			this._onDidChangeEncoding.fire(untitledResource);
 		});
 
 		const disposeListener = input.onDispose(() => {
-			this._onDidDisposeModel.fire(resource!);
+			this._onDidDisposeModel.fire(untitledResource);
 		});
 
 		// Remove from cache on dispose
@@ -259,7 +262,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		});
 
 		// Add to cache
-		this.mapResourceToInput.set(resource, input);
+		this.mapResourceToInput.set(untitledResource, input);
 
 		return input;
 	}
