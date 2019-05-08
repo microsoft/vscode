@@ -369,7 +369,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			sortText: data.e,
 			filterText: data.f,
 			preselect: data.g,
-			insertText: data.h || data.a,
+			insertText: typeof data.h === 'undefined' ? data.a : data.h,
 			insertTextRules: data.i,
 			range: data.j || defaultRange,
 			commitCharacters: data.k,
