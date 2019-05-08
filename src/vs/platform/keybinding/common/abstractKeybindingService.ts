@@ -17,6 +17,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 interface CurrentChord {
 	keypress: string;
@@ -70,6 +71,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	public abstract resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 	public abstract resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
 	public abstract resolveUserBinding(userBinding: string): ResolvedKeybinding[];
+	public abstract _dumpDebugInfo(): string;
 
 	public getDefaultKeybindingsContent(): string {
 		return '';
@@ -98,7 +100,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		if (!result) {
 			return undefined;
 		}
-		return result.resolvedKeybinding || undefined;
+		return withNullAsUndefined(result.resolvedKeybinding);
 	}
 
 	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {

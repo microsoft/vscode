@@ -7,14 +7,22 @@ import 'vs/css!./media/progressService2';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress } from 'vs/platform/progress/common/progress';
+import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { always, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
+import { attachDialogStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventHelper } from 'vs/base/browser/dom';
 
 export class ProgressService2 implements IProgressService2 {
 
@@ -28,9 +36,12 @@ export class ProgressService2 implements IProgressService2 {
 		@IViewletService private readonly _viewletService: IViewletService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) { }
 
-	withProgress<P extends Promise<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P {
+	withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
 
 		const { location } = options;
 		if (typeof location === 'string') {
@@ -38,13 +49,12 @@ export class ProgressService2 implements IProgressService2 {
 			if (viewlet) {
 				return this._withViewletProgress(location, task);
 			}
-			console.warn(`Bad progress location: ${location}`);
-			return undefined;
+			return Promise.reject(new Error(`Bad progress location: ${location}`));
 		}
 
 		switch (location) {
 			case ProgressLocation.Notification:
-				return this._withNotificationProgress(options, task, onDidCancel);
+				return this._withNotificationProgress({ ...options, location: ProgressLocation.Notification }, task, onDidCancel);
 			case ProgressLocation.Window:
 				return this._withWindowProgress(options, task);
 			case ProgressLocation.Explorer:
@@ -53,13 +63,14 @@ export class ProgressService2 implements IProgressService2 {
 				return this._withViewletProgress('workbench.view.scm', task);
 			case ProgressLocation.Extensions:
 				return this._withViewletProgress('workbench.view.extensions', task);
+			case ProgressLocation.Dialog:
+				return this._withDialogProgress(options, task, onDidCancel);
 			default:
-				console.warn(`Bad progress location: ${location}`);
-				return undefined;
+				return Promise.reject(new Error(`Bad progress location: ${location}`));
 		}
 	}
 
-	private _withWindowProgress<P extends Promise<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string }>) => P): P {
+	private _withWindowProgress<R = unknown>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
 
 		const task: [IProgressOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this._updateWindowProgress())];
 
@@ -71,10 +82,10 @@ export class ProgressService2 implements IProgressService2 {
 			this._updateWindowProgress();
 
 			// show progress for at least 150ms
-			always(Promise.all([
+			Promise.all([
 				timeout(150),
 				promise
-			]), () => {
+			]).finally(() => {
 				const idx = this._stack.indexOf(task);
 				this._stack.splice(idx, 1);
 				this._updateWindowProgress();
@@ -83,8 +94,7 @@ export class ProgressService2 implements IProgressService2 {
 		}, 150);
 
 		// cancel delay if promise finishes below 150ms
-		always(promise, () => clearTimeout(delayHandle));
-		return promise;
+		return promise.finally(() => clearTimeout(delayHandle));
 	}
 
 	private _updateWindowProgress(idx: number = 0) {
@@ -128,7 +138,7 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withNotificationProgress<P extends Promise<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
+	private _withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressNotificationOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
 		const toDispose: IDisposable[] = [];
 
 		const createNotification = (message: string | undefined, increment?: number): INotificationHandle | undefined => {
@@ -136,7 +146,7 @@ export class ProgressService2 implements IProgressService2 {
 				return undefined; // we need a message at least
 			}
 
-			const actions: INotificationActions = { primary: [] };
+			const actions: INotificationActions = { primary: options.primaryActions || [], secondary: options.secondaryActions || [] };
 			if (options.cancellable) {
 				const cancelAction = new class extends Action {
 					constructor() {
@@ -214,7 +224,7 @@ export class ProgressService2 implements IProgressService2 {
 		});
 
 		// Show progress for at least 800ms and then hide once done or canceled
-		always(Promise.all([timeout(800), p]), () => {
+		Promise.all([timeout(800), p]).finally(() => {
 			if (handle) {
 				handle.close();
 			}
@@ -223,7 +233,7 @@ export class ProgressService2 implements IProgressService2 {
 		return p;
 	}
 
-	private _withViewletProgress<P extends Promise<R>, R=any>(viewletId: string, task: (progress: IProgress<{ message?: string }>) => P): P {
+	private _withViewletProgress<P extends Promise<R>, R = unknown>(viewletId: string, task: (progress: IProgress<{ message?: string }>) => P): P {
 
 		const promise = task(emptyProgress);
 
@@ -267,4 +277,68 @@ export class ProgressService2 implements IProgressService2 {
 		promise.then(onDone, onDone);
 		return promise;
 	}
+
+	private _withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressOptions, task: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
+		const disposables: IDisposable[] = [];
+		const allowableCommands = [
+			'workbench.action.quit',
+			'workbench.action.reloadWindow'
+		];
+
+		let dialog: Dialog;
+
+		const createDialog = (message: string) => {
+			dialog = new Dialog(
+				this._layoutService.container,
+				message,
+				[options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss")],
+				{
+					type: 'pending',
+					keyEventProcessor: (event: StandardKeyboardEvent) => {
+						const resolved = this._keybindingService.softDispatch(event, this._layoutService.container);
+						if (resolved && resolved.commandId) {
+							if (allowableCommands.indexOf(resolved.commandId) === -1) {
+								EventHelper.stop(event, true);
+							}
+						}
+					}
+				}
+			);
+
+			disposables.push(dialog);
+			disposables.push(attachDialogStyler(dialog, this._themeService));
+
+			dialog.show().then(() => {
+				if (typeof onDidCancel === 'function') {
+					onDidCancel();
+				}
+
+				dispose(dialog);
+			});
+
+			return dialog;
+		};
+
+		const updateDialog = (message?: string) => {
+			if (message && !dialog) {
+				dialog = createDialog(message);
+			} else if (message) {
+				dialog.updateMessage(message);
+			}
+		};
+
+		const p = task({
+			report: progress => {
+				updateDialog(progress.message);
+			}
+		});
+
+		p.finally(() => {
+			dispose(disposables);
+		});
+
+		return p;
+	}
 }
+
+registerSingleton(IProgressService2, ProgressService2, true);

@@ -37,11 +37,11 @@ export class ColorDetector implements IEditorContribution {
 	private _colorDatas = new Map<string, IColorData>();
 
 	private _colorDecoratorIds: string[] = [];
-	private _decorationsTypes: { [key: string]: boolean } = {};
+	private readonly _decorationsTypes: { [key: string]: boolean } = {};
 
 	private _isEnabled: boolean;
 
-	constructor(private _editor: ICodeEditor,
+	constructor(private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {

@@ -657,6 +657,26 @@ suite('Editor Model - TextModel', () => {
 		assert.deepEqual(m.validatePosition(new Position(NaN, 3)), new Position(1, 3));
 	});
 
+	test('issue #71480: validatePosition handle floats', () => {
+		let m = TextModel.createFromString('line one\nline two');
+
+		assert.deepEqual(m.validatePosition(new Position(0.2, 1)), new Position(1, 1), 'a');
+		assert.deepEqual(m.validatePosition(new Position(1.2, 1)), new Position(1, 1), 'b');
+		assert.deepEqual(m.validatePosition(new Position(1.5, 2)), new Position(1, 2), 'c');
+		assert.deepEqual(m.validatePosition(new Position(1.8, 3)), new Position(1, 3), 'd');
+		assert.deepEqual(m.validatePosition(new Position(1, 0.3)), new Position(1, 1), 'e');
+		assert.deepEqual(m.validatePosition(new Position(2, 0.8)), new Position(2, 1), 'f');
+		assert.deepEqual(m.validatePosition(new Position(1, 1.2)), new Position(1, 1), 'g');
+		assert.deepEqual(m.validatePosition(new Position(2, 1.5)), new Position(2, 1), 'h');
+	});
+
+	test('issue #71480: validateRange handle floats', () => {
+		let m = TextModel.createFromString('line one\nline two');
+
+		assert.deepEqual(m.validateRange(new Range(0.2, 1.5, 0.8, 2.5)), new Range(1, 1, 1, 1));
+		assert.deepEqual(m.validateRange(new Range(1.2, 1.7, 1.8, 2.2)), new Range(1, 1, 1, 2));
+	});
+
 	test('validateRange around high-low surrogate pairs 1', () => {
 
 		let m = TextModel.createFromString('a📚b');

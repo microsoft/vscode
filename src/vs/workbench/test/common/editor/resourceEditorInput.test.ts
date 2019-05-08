@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { snapshotToString } from 'vs/platform/files/common/files';
+import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 
 class ServiceAccessor {
 	constructor(
@@ -36,9 +36,9 @@ suite('Workbench resource editor input', () => {
 		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
 		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
 
-		return input.resolve().then((model: ResourceEditorModel) => {
+		return input.resolve().then(model => {
 			assert.ok(model);
-			assert.equal(snapshotToString(model.createSnapshot()), 'function test() {}');
+			assert.equal(snapshotToString((model as ResourceEditorModel).createSnapshot()!), 'function test() {}');
 		});
 	});
 });

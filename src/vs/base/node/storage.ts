@@ -9,8 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { mapToString, setToString } from 'vs/base/common/map';
-import { basename } from 'path';
-import { mark } from 'vs/base/common/performance';
+import { basename } from 'vs/base/common/path';
 import { copy, renameIgnoreError, unlink } from 'vs/base/node/pfs';
 import { fill } from 'vs/base/common/arrays';
 
@@ -62,10 +61,10 @@ export interface IStorage extends IDisposable {
 	getBoolean(key: string, fallbackValue: boolean): boolean;
 	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
 
-	getInteger(key: string, fallbackValue: number): number;
-	getInteger(key: string, fallbackValue?: number): number | undefined;
+	getNumber(key: string, fallbackValue: number): number;
+	getNumber(key: string, fallbackValue?: number): number | undefined;
 
-	set(key: string, value: string | boolean | number): Promise<void>;
+	set(key: string, value: string | boolean | number | undefined | null): Promise<void>;
 	delete(key: string): Promise<void>;
 
 	close(): Promise<void>;
@@ -84,7 +83,7 @@ export class Storage extends Disposable implements IStorage {
 
 	private static readonly DEFAULT_FLUSH_DELAY = 100;
 
-	private _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
+	private readonly _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
 	get onDidChangeStorage(): Event<string> { return this._onDidChangeStorage.event; }
 
 	private state = StorageState.None;
@@ -153,7 +152,7 @@ export class Storage extends Disposable implements IStorage {
 		return this.cache.size;
 	}
 
-	init(): Promise<void> {
+	async init(): Promise<void> {
 		if (this.state !== StorageState.None) {
 			return Promise.resolve(); // either closed or already initialized
 		}
@@ -167,9 +166,7 @@ export class Storage extends Disposable implements IStorage {
 			return Promise.resolve();
 		}
 
-		return this.database.getItems().then(items => {
-			this.cache = items;
-		});
+		this.cache = await this.database.getItems();
 	}
 
 	get(key: string, fallbackValue: string): string;
@@ -196,9 +193,9 @@ export class Storage extends Disposable implements IStorage {
 		return value === 'true';
 	}
 
-	getInteger(key: string, fallbackValue: number): number;
-	getInteger(key: string, fallbackValue?: number): number | undefined;
-	getInteger(key: string, fallbackValue?: number): number | undefined {
+	getNumber(key: string, fallbackValue: number): number;
+	getNumber(key: string, fallbackValue?: number): number | undefined;
+	getNumber(key: string, fallbackValue?: number): number | undefined {
 		const value = this.get(key);
 
 		if (isUndefinedOrNull(value)) {
@@ -208,7 +205,7 @@ export class Storage extends Disposable implements IStorage {
 		return parseInt(value, 10);
 	}
 
-	set(key: string, value: string | boolean | number): Promise<void> {
+	set(key: string, value: string | boolean | number | null | undefined): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return Promise.resolve(); // Return early if we are already closed
 		}
@@ -263,7 +260,7 @@ export class Storage extends Disposable implements IStorage {
 		return this.flushDelayer.trigger(() => this.flushPending());
 	}
 
-	close(): Promise<void> {
+	async close(): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return Promise.resolve(); // return if already closed
 		}
@@ -277,8 +274,13 @@ export class Storage extends Disposable implements IStorage {
 		//
 		// Recovery: we pass our cache over as recovery option in case
 		// the DB is not healthy.
-		const onDone = () => this.database.close(() => this.cache);
-		return this.flushDelayer.trigger(() => this.flushPending(), 0 /* as soon as possible */).then(onDone, onDone);
+		try {
+			await this.flushDelayer.trigger(() => this.flushPending(), 0 /* as soon as possible */);
+		} catch (error) {
+			// Ignore
+		}
+
+		await this.database.close(() => this.cache);
 	}
 
 	private flushPending(): Promise<void> {
@@ -326,8 +328,6 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return Event.None; } // since we are the only client, there can be no external changes
 
-	private static measuredRequireDuration: boolean; // TODO@Ben remove me after a while
-
 	private static BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
 	private static MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
 
@@ -347,24 +347,25 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		this.whenConnected = this.connect(path);
 	}
 
-	getItems(): Promise<Map<string, string>> {
-		return this.whenConnected.then(connection => {
-			const items = new Map<string, string>();
+	async getItems(): Promise<Map<string, string>> {
+		const connection = await this.whenConnected;
 
-			return this.all(connection, 'SELECT * FROM ItemTable').then(rows => {
-				rows.forEach(row => items.set(row.key, row.value));
+		const items = new Map<string, string>();
 
-				if (this.logger.isTracing) {
-					this.logger.trace(`[storage ${this.name}] getItems(): ${mapToString(items)}`);
-				}
+		const rows = await this.all(connection, 'SELECT * FROM ItemTable');
+		rows.forEach(row => items.set(row.key, row.value));
 
-				return items;
-			});
-		});
+		if (this.logger.isTracing) {
+			this.logger.trace(`[storage ${this.name}] getItems(): ${items.size} rows`);
+		}
+
+		return items;
 	}
 
-	updateItems(request: IUpdateRequest): Promise<void> {
-		return this.whenConnected.then(connection => this.doUpdateItems(connection, request));
+	async updateItems(request: IUpdateRequest): Promise<void> {
+		const connection = await this.whenConnected;
+
+		return this.doUpdateItems(connection, request);
 	}
 
 	private doUpdateItems(connection: IDatabaseConnection, request: IUpdateRequest): Promise<void> {
@@ -455,10 +456,12 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		});
 	}
 
-	close(recovery?: () => Map<string, string>): Promise<void> {
+	async close(recovery?: () => Map<string, string>): Promise<void> {
 		this.logger.trace(`[storage ${this.name}] close()`);
 
-		return this.whenConnected.then(connection => this.doClose(connection, recovery));
+		const connection = await this.whenConnected;
+
+		return this.doClose(connection, recovery);
 	}
 
 	private doClose(connection: IDatabaseConnection, recovery?: () => Map<string, string>): Promise<void> {
@@ -532,24 +535,23 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		return `${path}.backup`;
 	}
 
-	checkIntegrity(full: boolean): Promise<string> {
+	async checkIntegrity(full: boolean): Promise<string> {
 		this.logger.trace(`[storage ${this.name}] checkIntegrity(full: ${full})`);
 
-		return this.whenConnected.then(connection => {
-			return this.get(connection, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check').then(row => {
-				const integrity = full ? row['integrity_check'] : row['quick_check'];
+		const connection = await this.whenConnected;
+		const row = await this.get(connection, full ? 'PRAGMA integrity_check' : 'PRAGMA quick_check');
 
-				if (connection.isErroneous) {
-					return `${integrity} (last error: ${connection.lastError})`;
-				}
+		const integrity = full ? row['integrity_check'] : row['quick_check'];
 
-				if (connection.isInMemory) {
-					return `${integrity} (in-memory!)`;
-				}
+		if (connection.isErroneous) {
+			return `${integrity} (last error: ${connection.lastError})`;
+		}
 
-				return integrity;
-			});
-		});
+		if (connection.isInMemory) {
+			return `${integrity} (in-memory!)`;
+		}
+
+		return integrity;
 	}
 
 	private connect(path: string, retryOnBusy: boolean = true): Promise<IDatabaseConnection> {
@@ -598,21 +600,8 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	}
 
 	private doConnect(path: string): Promise<IDatabaseConnection> {
-
-		// TODO@Ben clean up performance markers
 		return new Promise((resolve, reject) => {
-			let measureRequireDuration = false;
-			if (!SQLiteStorageDatabase.measuredRequireDuration) {
-				SQLiteStorageDatabase.measuredRequireDuration = true;
-				measureRequireDuration = true;
-
-				mark('willRequireSQLite');
-			}
 			import('vscode-sqlite3').then(sqlite3 => {
-				if (measureRequireDuration) {
-					mark('didRequireSQLite');
-				}
-
 				const connection: IDatabaseConnection = {
 					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 						if (error) {
@@ -622,17 +611,12 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 						// The following exec() statement serves two purposes:
 						// - create the DB if it does not exist yet
 						// - validate that the DB is not corrupt (the open() call does not throw otherwise)
-						mark('willSetupSQLiteSchema');
 						return this.exec(connection, [
 							'PRAGMA user_version = 1;',
 							'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
 						].join('')).then(() => {
-							mark('didSetupSQLiteSchema');
-
 							return resolve(connection);
 						}, error => {
-							mark('didSetupSQLiteSchema');
-
 							return connection.db.close(() => reject(error));
 						});
 					}),
@@ -715,7 +699,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private prepare(connection: IDatabaseConnection, sql: string, runCallback: (stmt: Statement) => void, errorDetails: () => string): void {
 		const stmt = connection.db.prepare(sql);
 
-		const statementErrorListener = error => {
+		const statementErrorListener = (error: Error) => {
 			this.handleSQLiteError(connection, error, `[storage ${this.name}] prepare(): ${error} (${sql}). Details: ${errorDetails()}`);
 		};
 

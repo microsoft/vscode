@@ -11,6 +11,7 @@ import { ITheme } from 'vs/platform/theme/common/themeService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import Severity from 'vs/base/common/severity';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = dom.$;
 
@@ -31,6 +32,12 @@ export class QuickInputBox {
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
 		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			handler(new StandardKeyboardEvent(e));
+		});
+	}
+
+	onMouseDown = (handler: (event: StandardMouseEvent) => void): IDisposable => {
+		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			handler(new StandardMouseEvent(e));
 		});
 	}
 
@@ -74,6 +81,10 @@ export class QuickInputBox {
 		this.inputBox.setEnabled(enabled);
 	}
 
+	hasFocus(): boolean {
+		return this.inputBox.hasFocus();
+	}
+
 	setAttribute(name: string, value: string) {
 		this.inputBox.inputElement.setAttribute(name, value);
 	}
@@ -88,6 +99,10 @@ export class QuickInputBox {
 		} else {
 			this.inputBox.showMessage({ type: decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR, content: '' });
 		}
+	}
+
+	stylesForType(decoration: Severity) {
+		return this.inputBox.stylesForType(decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR);
 	}
 
 	setFocus(): void {

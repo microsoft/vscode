@@ -83,7 +83,7 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "scope": "application"
+          "scope": "machine"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
@@ -129,7 +129,7 @@
           },
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
-          "scope": "application"
+          "scope": "machine"
         },
         "typescript.tsserver.trace": {
           "type": "string",
@@ -358,12 +358,6 @@
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
         },
-        "jsDocCompletion.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%jsDocCompletion.enabled%",
-          "scope": "resource"
-        },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
@@ -422,6 +416,18 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "javascript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
+          "scope": "resource"
+        },
+        "typescript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
           "scope": "resource"
         },
         "typescript.locale": {
@@ -510,6 +516,18 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "resource"
+        },
+        "javascript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
+          "scope": "resource"
+        },
+        "typescript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {
@@ -687,7 +705,7 @@
     "problemPatterns": [
       {
         "name": "tsc",
-        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+TS(\\d+)\\s*:\\s*(.*)$",
         "file": 1,
         "line": 2,
         "column": 3,

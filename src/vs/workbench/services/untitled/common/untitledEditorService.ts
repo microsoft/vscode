@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import * as arrays from 'vs/base/common/arrays';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { basename } from 'vs/base/common/resources';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
@@ -100,12 +102,12 @@ export interface IUntitledEditorService {
 	/**
 	 * Get the configured encoding for the given untitled resource if any.
 	 */
-	getEncoding(resource: URI): string;
+	getEncoding(resource: URI): string | undefined;
 }
 
 export class UntitledEditorService extends Disposable implements IUntitledEditorService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private mapResourceToInput = new ResourceMap<UntitledEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
@@ -124,12 +126,13 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 	}
 
-	protected get(resource: URI): UntitledEditorInput {
+	protected get(resource: URI): UntitledEditorInput | undefined {
 		return this.mapResourceToInput.get(resource);
 	}
 
@@ -164,7 +167,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	isDirty(resource: URI): boolean {
 		const input = this.get(resource);
 
-		return input && input.isDirty();
+		return input ? input.isDirty() : false;
 	}
 
 	getDirty(resources?: URI[]): URI[] {
@@ -185,10 +188,10 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	}
 
 	createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledEditorInput {
-
 		if (resource) {
-			// Massage resource if it comes with a file:// scheme
-			if (resource.scheme === Schemas.file) {
+
+			// Massage resource if it comes with known file based resource
+			if (this.fileService.canHandleResource(resource)) {
 				hasAssociatedFilePath = true;
 				resource = resource.with({ scheme: Schemas.untitled }); // ensure we have the right scheme
 			}
@@ -200,7 +203,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 
 		// Return existing instance if asked for it
 		if (resource && this.mapResourceToInput.has(resource)) {
-			return this.mapResourceToInput.get(resource);
+			return this.mapResourceToInput.get(resource)!;
 		}
 
 		// Create new otherwise
@@ -229,19 +232,19 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, initialValue, encoding);
 
 		const contentListener = input.onDidModelChangeContent(() => {
-			this._onDidChangeContent.fire(resource);
+			this._onDidChangeContent.fire(resource!);
 		});
 
 		const dirtyListener = input.onDidChangeDirty(() => {
-			this._onDidChangeDirty.fire(resource);
+			this._onDidChangeDirty.fire(resource!);
 		});
 
 		const encodingListener = input.onDidModelChangeEncoding(() => {
-			this._onDidChangeEncoding.fire(resource);
+			this._onDidChangeEncoding.fire(resource!);
 		});
 
 		const disposeListener = input.onDispose(() => {
-			this._onDidDisposeModel.fire(resource);
+			this._onDidDisposeModel.fire(resource!);
 		});
 
 		// Remove from cache on dispose
@@ -268,12 +271,14 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	suggestFileName(resource: URI): string {
 		const input = this.get(resource);
 
-		return input ? input.suggestFileName() : undefined;
+		return input ? input.suggestFileName() : basename(resource);
 	}
 
-	getEncoding(resource: URI): string {
+	getEncoding(resource: URI): string | undefined {
 		const input = this.get(resource);
 
 		return input ? input.getEncoding() : undefined;
 	}
 }
+
+registerSingleton(IUntitledEditorService, UntitledEditorService, true);

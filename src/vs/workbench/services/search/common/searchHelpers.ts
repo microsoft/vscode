@@ -5,7 +5,7 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, ITextModel } from 'vs/editor/common/model';
-import { ITextSearchPreviewOptions, TextSearchMatch, ITextSearchResult, ITextSearchMatch, ITextQuery, ITextSearchContext } from 'vs/platform/search/common/search';
+import { ITextSearchPreviewOptions, TextSearchMatch, ITextSearchResult, ITextSearchMatch, ITextQuery, ITextSearchContext } from 'vs/workbench/services/search/common/search';
 
 function editorMatchToTextSearchResult(matches: FindMatch[], model: ITextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch {
 	const firstLine = matches[0].range.startLineNumber;

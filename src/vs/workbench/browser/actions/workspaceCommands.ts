@@ -18,7 +18,6 @@ import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/qu
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { Schemas } from 'vs/base/common/network';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
@@ -35,7 +34,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: '_files.pickFolderAndOpen',
-	handler: (accessor: ServicesAccessor, forceNewWindow: boolean) => accessor.get(IFileDialogService).pickFolderAndOpen({ forceNewWindow })
+	handler: (accessor: ServicesAccessor, options: { forceNewWindow: boolean }) => accessor.get(IFileDialogService).pickFolderAndOpen(options)
 });
 
 CommandsRegistry.registerCommand({
@@ -64,14 +63,14 @@ CommandsRegistry.registerCommand({
 			title: nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
 			canSelectFolders: true,
 			canSelectMany: true,
-			defaultUri: dialogsService.defaultFolderPath(Schemas.file)
+			defaultUri: dialogsService.defaultFolderPath()
 		}).then((folders): Promise<any> | null => {
 			if (!folders || !folders.length) {
 				return null;
 			}
 
 			// Add and show Files Explorer viewlet
-			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: folder })))
+			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: resources.removeTrailingPathSeparator(folder) })))
 				.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
 				.then(() => undefined);
 		});
@@ -90,13 +89,13 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 		return undefined;
 	}
 
-	const folderPicks = folders.map(folder => {
+	const folderPicks: IQuickPickItem[] = folders.map(folder => {
 		return {
 			label: folder.name,
-			description: labelService.getUriLabel(resources.dirname(folder.uri)!, { relative: true }),
+			description: labelService.getUriLabel(resources.dirname(folder.uri), { relative: true }),
 			folder,
 			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
-		} as IQuickPickItem;
+		};
 	});
 
 	const options: IPickOptions<IQuickPickItem> = (args ? args[0] : undefined) || Object.create(null);

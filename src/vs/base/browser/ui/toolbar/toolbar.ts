@@ -11,6 +11,7 @@ import { IContextMenuProvider, DropdownMenuActionItem } from 'vs/base/browser/ui
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export const CONTEXT = 'context.toolbar';
 
@@ -74,10 +75,10 @@ export class ToolBar extends Disposable {
 					);
 					this.toggleMenuActionItem!.setActionContext(this.actionBar.context);
 
-					return this.toggleMenuActionItem || null;
+					return this.toggleMenuActionItem;
 				}
 
-				return options.actionItemProvider ? options.actionItemProvider(action) : null;
+				return options.actionItemProvider ? options.actionItemProvider(action) : undefined;
 			}
 		}));
 	}
@@ -135,7 +136,7 @@ export class ToolBar extends Disposable {
 	private getKeybindingLabel(action: IAction): string | undefined {
 		const key = this.lookupKeybindings && this.options.getKeyBinding ? this.options.getKeyBinding(action) : undefined;
 
-		return (key && key.getLabel()) || undefined;
+		return withNullAsUndefined(key && key.getLabel());
 	}
 
 	addPrimaryAction(primaryAction: IAction): () => void {

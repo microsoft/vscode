@@ -27,7 +27,7 @@ bootstrapWindow.load([
 			perf.mark('main/startup');
 
 			// @ts-ignore
-			return require('vs/workbench/electron-browser/main').startup(configuration);
+			return require('vs/workbench/electron-browser/main').main(configuration);
 		});
 	}, {
 		removeDeveloperKeybindingsAfterLoad: true,
@@ -42,7 +42,6 @@ bootstrapWindow.load([
 					onNodeCachedData.push(arguments);
 				};
 			}
-
 		},
 		beforeRequire: function () {
 			perf.mark('willLoadWorkbenchMain');
@@ -50,16 +49,25 @@ bootstrapWindow.load([
 	});
 
 /**
- * @param {object} configuration
+ * // configuration: IWindowConfiguration
+ * @param {{
+ *	partsSplashPath?: string,
+ *	highContrast?: boolean,
+ *	extensionDevelopmentPath?: string | string[],
+ *	folderUri?: object,
+ *	workspace?: object
+ * }} configuration
  */
 function showPartsSplash(configuration) {
 	perf.mark('willShowPartsSplash');
 
 	let data;
-	try {
-		data = JSON.parse(configuration.partsSplashData);
-	} catch (e) {
-		// ignore
+	if (typeof configuration.partsSplashPath === 'string') {
+		try {
+			data = JSON.parse(require('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
+		} catch (e) {
+			// ignore
+		}
 	}
 
 	// high contrast mode has been turned on from the outside, e.g OS -> ignore stored colors and layouts

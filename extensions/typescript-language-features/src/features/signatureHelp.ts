@@ -33,7 +33,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 			...typeConverters.Position.toFileLocationRequestArgs(filepath, position),
 			triggerReason: toTsTriggerReason(context)
 		};
-		const response = await this.client.interuptGetErr(() => this.client.execute('signatureHelp', args, token));
+		const response = await this.client.interruptGetErr(() => this.client.execute('signatureHelp', args, token));
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}

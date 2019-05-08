@@ -22,12 +22,12 @@ export interface IViewletService {
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openViewlet(id: string, focus?: boolean): Promise<IViewlet | null>;
+	openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null>;
 
 	/**
 	 * Returns the current active viewlet or null if none.
 	 */
-	getActiveViewlet(): IViewlet;
+	getActiveViewlet(): IViewlet | null;
 
 	/**
 	 * Returns the id of the default viewlet.
@@ -37,7 +37,7 @@ export interface IViewletService {
 	/**
 	 * Returns the viewlet by id.
 	 */
-	getViewlet(id: string): ViewletDescriptor;
+	getViewlet(id: string): ViewletDescriptor | undefined;
 
 	/**
 	 * Returns all enabled viewlets
@@ -45,7 +45,17 @@ export interface IViewletService {
 	getViewlets(): ViewletDescriptor[];
 
 	/**
-	 *
+	 * Returns the progress indicator for the side bar.
 	 */
 	getProgressIndicator(id: string): IProgressService | null;
+
+	/**
+	 * Hide the active viewlet.
+	 */
+	hideActiveViewlet(): void;
+
+	/**
+	 * Return the last active viewlet id.
+	 */
+	getLastActiveViewletId(): string;
 }

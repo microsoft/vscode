@@ -30,7 +30,7 @@ suite('OpenerService', function () {
 	test('delegate to editorService, scheme:///fff', function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
 		openerService.open(URI.parse('another:///somepath'));
-		assert.equal(editorService.lastInput.options!.selection, undefined);
+		assert.equal(editorService.lastInput!.options!.selection, undefined);
 	});
 
 	test('delegate to editorService, scheme:///fff#L123', function () {
@@ -38,22 +38,22 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
 
 		openerService.open(URI.parse('file:///somepath#L23'));
-		assert.equal(editorService.lastInput.options!.selection!.startLineNumber, 23);
-		assert.equal(editorService.lastInput.options!.selection!.startColumn, 1);
-		assert.equal(editorService.lastInput.options!.selection!.endLineNumber, undefined);
-		assert.equal(editorService.lastInput.options!.selection!.endColumn, undefined);
-		assert.equal(editorService.lastInput.resource.fragment, '');
+		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
+		assert.equal(editorService.lastInput!.options!.selection!.startColumn, 1);
+		assert.equal(editorService.lastInput!.options!.selection!.endLineNumber, undefined);
+		assert.equal(editorService.lastInput!.options!.selection!.endColumn, undefined);
+		assert.equal(editorService.lastInput!.resource.fragment, '');
 
 		openerService.open(URI.parse('another:///somepath#L23'));
-		assert.equal(editorService.lastInput.options!.selection!.startLineNumber, 23);
-		assert.equal(editorService.lastInput.options!.selection!.startColumn, 1);
+		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
+		assert.equal(editorService.lastInput!.options!.selection!.startColumn, 1);
 
 		openerService.open(URI.parse('another:///somepath#L23,45'));
-		assert.equal(editorService.lastInput.options!.selection!.startLineNumber, 23);
-		assert.equal(editorService.lastInput.options!.selection!.startColumn, 45);
-		assert.equal(editorService.lastInput.options!.selection!.endLineNumber, undefined);
-		assert.equal(editorService.lastInput.options!.selection!.endColumn, undefined);
-		assert.equal(editorService.lastInput.resource.fragment, '');
+		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
+		assert.equal(editorService.lastInput!.options!.selection!.startColumn, 45);
+		assert.equal(editorService.lastInput!.options!.selection!.endLineNumber, undefined);
+		assert.equal(editorService.lastInput!.options!.selection!.endColumn, undefined);
+		assert.equal(editorService.lastInput!.resource.fragment, '');
 	});
 
 	test('delegate to editorService, scheme:///fff#123,123', function () {
@@ -61,18 +61,18 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
 
 		openerService.open(URI.parse('file:///somepath#23'));
-		assert.equal(editorService.lastInput.options!.selection!.startLineNumber, 23);
-		assert.equal(editorService.lastInput.options!.selection!.startColumn, 1);
-		assert.equal(editorService.lastInput.options!.selection!.endLineNumber, undefined);
-		assert.equal(editorService.lastInput.options!.selection!.endColumn, undefined);
-		assert.equal(editorService.lastInput.resource.fragment, '');
+		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
+		assert.equal(editorService.lastInput!.options!.selection!.startColumn, 1);
+		assert.equal(editorService.lastInput!.options!.selection!.endLineNumber, undefined);
+		assert.equal(editorService.lastInput!.options!.selection!.endColumn, undefined);
+		assert.equal(editorService.lastInput!.resource.fragment, '');
 
 		openerService.open(URI.parse('file:///somepath#23,45'));
-		assert.equal(editorService.lastInput.options!.selection!.startLineNumber, 23);
-		assert.equal(editorService.lastInput.options!.selection!.startColumn, 45);
-		assert.equal(editorService.lastInput.options!.selection!.endLineNumber, undefined);
-		assert.equal(editorService.lastInput.options!.selection!.endColumn, undefined);
-		assert.equal(editorService.lastInput.resource.fragment, '');
+		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
+		assert.equal(editorService.lastInput!.options!.selection!.startColumn, 45);
+		assert.equal(editorService.lastInput!.options!.selection!.endLineNumber, undefined);
+		assert.equal(editorService.lastInput!.options!.selection!.endColumn, undefined);
+		assert.equal(editorService.lastInput!.resource.fragment, '');
 	});
 
 	test('delegate to commandsService, command:someid', function () {

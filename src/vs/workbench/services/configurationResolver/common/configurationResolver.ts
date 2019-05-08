@@ -12,15 +12,15 @@ export const IConfigurationResolverService = createDecorator<IConfigurationResol
 export interface IConfigurationResolverService {
 	_serviceBrand: any;
 
-	resolve(folder: IWorkspaceFolder, value: string): string;
-	resolve(folder: IWorkspaceFolder, value: string[]): string[];
-	resolve(folder: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
+	resolve(folder: IWorkspaceFolder | undefined, value: string): string;
+	resolve(folder: IWorkspaceFolder | undefined, value: string[]): string[];
+	resolve(folder: IWorkspaceFolder | undefined, value: IStringDictionary<string>): IStringDictionary<string>;
 
 	/**
 	 * Recursively resolves all variables in the given config and returns a copy of it with substituted values.
 	 * Command variables are only substituted if a "commandValueMapping" dictionary is given and if it contains an entry for the command.
 	 */
-	resolveAny(folder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>): any;
+	resolveAny(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): any;
 
 	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.
@@ -29,13 +29,13 @@ export interface IConfigurationResolverService {
 	 * @param section For example, 'tasks' or 'debug'. Used for resolving inputs.
 	 * @param variables Aliases for commands.
 	 */
-	resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any>;
+	resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any>;
 
 	/**
 	 * Similar to resolveWithInteractionReplace, except without the replace. Returns a map of variables and their resolution.
 	 * Keys in the map will be of the format input:variableName or command:variableName.
 	 */
-	resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string>>;
+	resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined>;
 }
 
 export interface PromptStringInputInfo {

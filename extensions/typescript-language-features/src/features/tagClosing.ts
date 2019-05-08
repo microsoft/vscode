@@ -12,6 +12,7 @@ import { Disposable } from '../utils/dispose';
 import * as typeConverters from '../utils/typeConverters';
 
 class TagClosing extends Disposable {
+	public static readonly minVersion = API.v300;
 
 	private _disposed = false;
 	private _timeout: NodeJS.Timer | undefined = undefined;
@@ -144,6 +145,7 @@ export class ActiveDocumentDependentRegistration extends Disposable {
 		super();
 		this._registration = this._register(new ConditionalRegistration(register));
 		vscode.window.onDidChangeActiveTextEditor(this.update, this, this._disposables);
+		vscode.workspace.onDidOpenTextDocument(this.onDidOpenDocument, this, this._disposables);
 		this.update();
 	}
 
@@ -152,6 +154,13 @@ export class ActiveDocumentDependentRegistration extends Disposable {
 		const enabled = !!(editor && vscode.languages.match(this.selector, editor.document));
 		this._registration.update(enabled);
 	}
+
+	private onDidOpenDocument(openedDocument: vscode.TextDocument) {
+		if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document === openedDocument) {
+			// The active document's language may have changed
+			this.update();
+		}
+	}
 }
 
 export function register(
@@ -159,7 +168,7 @@ export function register(
 	modeId: string,
 	client: ITypeScriptServiceClient,
 ) {
-	return new VersionDependentRegistration(client, API.v300, () =>
+	return new VersionDependentRegistration(client, TagClosing.minVersion, () =>
 		new ConfigurationDependentRegistration(modeId, 'autoClosingTags', () =>
 			new ActiveDocumentDependentRegistration(selector, () =>
 				new TagClosing(client))));

@@ -1,0 +1,41 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .debug-toolbar {
+	position: absolute;
+	z-index: 200;
+	height: 32px;
+	display: flex;
+	padding-left: 7px;
+}
+
+.monaco-workbench .debug-toolbar .monaco-action-bar .action-item {
+	height: 32px;
+}
+
+.monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container {
+	margin-right: 7px;
+}
+
+.monaco-workbench .debug-toolbar .drag-area {
+	cursor: -webkit-grab;
+	height: 32px;
+	width: 16px;
+	background: url('drag.svg') center center no-repeat;
+	background-size: 16px 16px;
+}
+
+.monaco-workbench .debug-toolbar .drag-area.dragged {
+	cursor: -webkit-grabbing;
+}
+
+.monaco-workbench  .debug-toolbar .monaco-action-bar .action-item > .action-label {
+	width: 32px;
+	height: 32px;
+	margin-right: 0;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}

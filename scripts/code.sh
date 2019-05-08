@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
 	ROOT=$(dirname "$(dirname "$(realpath "$0")")")
@@ -9,6 +11,9 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	export ELECTRON_ENABLE_LOGGING=1
 else
 	ROOT=$(dirname "$(dirname "$(readlink -f $0)")")
+	if grep -qi Microsoft /proc/version; then
+		IN_WSL=true
+	fi
 fi
 
 function code() {
@@ -50,4 +55,23 @@ function code() {
 	exec "$CODE" . "$@"
 }
 
+function code-wsl()
+{
+	# in a wsl shell
+	local WIN_CODE_CLI_CMD=$(wslpath -w "$ROOT/scripts/code-cli.bat")
+	if ! [ -z "$WIN_CODE_CLI_CMD" ]; then
+		local WSL_EXT_ID="ms-vscode-remote.remote-wsl"
+		local WSL_EXT_WLOC=$(cmd.exe /c "$WIN_CODE_CLI_CMD" --locate-extension $WSL_EXT_ID)
+		if ! [ -z "$WSL_EXT_WLOC" ]; then
+			# replace \r\n with \n in WSL_EXT_WLOC
+			local WSL_CODE=$(wslpath -u "${WSL_EXT_WLOC%%[[:cntrl:]]}")/scripts/wslCode-dev.sh
+			$WSL_CODE "$ROOT" "$@"
+			exit $?
+		fi
+	fi
+}
+
+if ! [ -z ${IN_WSL+x} ]; then
+	code-wsl "$@"
+fi
 code "$@"

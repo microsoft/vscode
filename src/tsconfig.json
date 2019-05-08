@@ -4,7 +4,13 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
-		"outDir": "../out"
+		"outDir": "../out",
+		"target": "es6",
+		"lib": [
+			"dom",
+			"es5",
+			"es2015.iterable"
+		]
 	},
 	"include": [
 		"./typings",

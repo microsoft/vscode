@@ -131,7 +131,7 @@ export class DeleteOperations {
 
 					if (position.column <= lastIndentationColumn) {
 						let fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
-						let toVisibleColumn = CursorColumns.prevTabStop(fromVisibleColumn, config.tabSize);
+						let toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
 						let toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
 						deleteSelection = new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
 					} else {

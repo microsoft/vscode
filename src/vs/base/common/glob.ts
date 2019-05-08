@@ -5,19 +5,19 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
+import * as paths from 'vs/base/common/path';
 import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { isThenable } from 'vs/base/common/async';
 
 export interface IExpression {
-	[pattern: string]: boolean | SiblingClause | any;
+	[pattern: string]: boolean | SiblingClause;
 }
 
 export interface IRelativePattern {
 	base: string;
 	pattern: string;
-	pathToRelative(from: string, to: string): string;
 }
 
 export function getEmptyExpression(): IExpression {
@@ -53,7 +53,7 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 		return [];
 	}
 
-	let segments: string[] = [];
+	const segments: string[] = [];
 
 	let inBraces = false;
 	let inBrackets = false;
@@ -102,7 +102,7 @@ function parseRegExp(pattern: string): string {
 	let regEx = '';
 
 	// Split up into segments for each slash found
-	let segments = splitGlobAware(pattern, GLOB_SPLIT);
+	const segments = splitGlobAware(pattern, GLOB_SPLIT);
 
 	// Special case where we only have globstars
 	if (segments.every(s => s === GLOBSTAR)) {
@@ -179,10 +179,10 @@ function parseRegExp(pattern: string): string {
 						continue;
 
 					case '}':
-						let choices = splitGlobAware(braceVal, ',');
+						const choices = splitGlobAware(braceVal, ',');
 
 						// Converts {foo,bar} => [foo|bar]
-						let braceRegExp = `(?:${choices.map(c => parseRegExp(c)).join('|')})`;
+						const braceRegExp = `(?:${choices.map(c => parseRegExp(c)).join('|')})`;
 
 						regEx += braceRegExp;
 
@@ -302,7 +302,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	if (T1.test(pattern)) { // common pattern: **/*.txt just need endsWith check
 		const base = pattern.substr(4); // '**/*'.length === 4
 		parsedPattern = function (path, basename) {
-			return path && strings.endsWith(path, base) ? pattern : null;
+			return typeof path === 'string' && strings.endsWith(path, base) ? pattern : null;
 		};
 	} else if (match = T2.exec(trimForExclusions(pattern, options))) { // common pattern: **/some.txt just need basename check
 		parsedPattern = trivia2(match[1], pattern);
@@ -331,11 +331,11 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 	}
 
 	return function (path, basename) {
-		if (!paths.isEqualOrParent(path, arg2.base)) {
+		if (!extpath.isEqualOrParent(path, arg2.base)) {
 			return null;
 		}
 
-		return parsedPattern(arg2.pathToRelative(arg2.base, path), basename);
+		return parsedPattern(paths.relative(arg2.base, path), basename);
 	};
 }
 
@@ -348,7 +348,7 @@ function trivia2(base: string, originalPattern: string): ParsedStringPattern {
 	const slashBase = `/${base}`;
 	const backslashBase = `\\${base}`;
 	const parsedPattern: ParsedStringPattern = function (path, basename) {
-		if (!path) {
+		if (typeof path !== 'string') {
 			return null;
 		}
 		if (basename) {
@@ -396,12 +396,12 @@ function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 
 // common patterns: **/something/else just need endsWith check, something/else just needs and equals check
 function trivia4and5(path: string, pattern: string, matchPathEnds: boolean): ParsedStringPattern {
-	const nativePath = paths.nativeSep !== paths.sep ? path.replace(ALL_FORWARD_SLASHES, paths.nativeSep) : path;
-	const nativePathEnd = paths.nativeSep + nativePath;
+	const nativePath = paths.sep !== paths.posix.sep ? path.replace(ALL_FORWARD_SLASHES, paths.sep) : path;
+	const nativePathEnd = paths.sep + nativePath;
 	const parsedPattern: ParsedStringPattern = matchPathEnds ? function (path, basename) {
-		return path && (path === nativePath || strings.endsWith(path, nativePathEnd)) ? pattern : null;
+		return typeof path === 'string' && (path === nativePath || strings.endsWith(path, nativePathEnd)) ? pattern : null;
 	} : function (path, basename) {
-		return path && path === nativePath ? pattern : null;
+		return typeof path === 'string' && path === nativePath ? pattern : null;
 	};
 	parsedPattern.allPaths = [(matchPathEnds ? '*/' : './') + path];
 	return parsedPattern;
@@ -412,7 +412,7 @@ function toRegExp(pattern: string): ParsedStringPattern {
 		const regExp = new RegExp(`^${parseRegExp(pattern)}$`);
 		return function (path: string, basename: string) {
 			regExp.lastIndex = 0; // reset RegExp to its initial state to reuse it!
-			return path && regExp.test(path) ? pattern : null;
+			return typeof path === 'string' && regExp.test(path) ? pattern : null;
 		};
 	} catch (error) {
 		return NULL;
@@ -429,8 +429,8 @@ function toRegExp(pattern: string): ParsedStringPattern {
  */
 export function match(pattern: string | IRelativePattern, path: string): boolean;
 export function match(expression: IExpression, path: string, hasSibling?: (name: string) => boolean): string /* the matching pattern */;
-export function match(arg1: string | IExpression | IRelativePattern, path: string, hasSibling?: (name: string) => boolean): any {
-	if (!arg1 || !path) {
+export function match(arg1: string | IExpression | IRelativePattern, path: string, hasSibling?: (name: string) => boolean): boolean | string | null | Promise<string | null> {
+	if (!arg1 || typeof path !== 'string') {
 		return false;
 	}
 
@@ -447,14 +447,14 @@ export function match(arg1: string | IExpression | IRelativePattern, path: strin
  */
 export function parse(pattern: string | IRelativePattern, options?: IGlobOptions): ParsedPattern;
 export function parse(expression: IExpression, options?: IGlobOptions): ParsedExpression;
-export function parse(arg1: string | IExpression | IRelativePattern, options: IGlobOptions = {}): any {
+export function parse(arg1: string | IExpression | IRelativePattern, options: IGlobOptions = {}): ParsedPattern | ParsedExpression {
 	if (!arg1) {
 		return FALSE;
 	}
 
 	// Glob with String
 	if (typeof arg1 === 'string' || isRelativePattern(arg1)) {
-		const parsedPattern = parsePattern(arg1 as string | IRelativePattern, options);
+		const parsedPattern = parsePattern(arg1, options);
 		if (parsedPattern === NULL) {
 			return FALSE;
 		}
@@ -512,21 +512,10 @@ function listToMap(list: string[]) {
 	return map;
 }
 
-export function isRelativePattern(obj: any): obj is IRelativePattern {
+export function isRelativePattern(obj: unknown): obj is IRelativePattern {
 	const rp = obj as IRelativePattern;
 
-	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string' && typeof rp.pathToRelative === 'function';
-}
-
-/**
- * Same as `parse`, but the ParsedExpression is guaranteed to return a Promise
- */
-export function parseToAsync(expression: IExpression, options?: IGlobOptions): ParsedExpression {
-	const parsedExpression = parse(expression, options);
-	return (path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | null | Promise<string | null> => {
-		const result = parsedExpression(path, basename, hasSibling);
-		return isThenable(result) ? result : Promise.resolve(result);
-	};
+	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
 }
 
 export function getBasenameTerms(patternOrExpression: ParsedPattern | ParsedExpression): string[] {
@@ -613,7 +602,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 	return resultExpression;
 }
 
-function parseExpressionPattern(pattern: string, value: any, options: IGlobOptions): (ParsedStringPattern | ParsedExpressionPattern) {
+function parseExpressionPattern(pattern: string, value: boolean | SiblingClause, options: IGlobOptions): (ParsedStringPattern | ParsedExpressionPattern) {
 	if (value === false) {
 		return NULL; // pattern is disabled
 	}
@@ -675,7 +664,7 @@ function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | Pa
 		}, <string[]>[]);
 	}
 	const aggregate: ParsedStringPattern = function (path, basename) {
-		if (!path) {
+		if (typeof path !== 'string') {
 			return null;
 		}
 		if (!basename) {

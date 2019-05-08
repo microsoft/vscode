@@ -77,7 +77,8 @@ export class NotificationsList extends Themable {
 			[renderer],
 			{
 				...this.options,
-				setRowLineHeight: false
+				setRowLineHeight: false,
+				horizontalScrolling: false
 			}
 		));
 

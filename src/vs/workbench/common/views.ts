@@ -10,7 +10,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITreeViewDataProvider } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values, keys } from 'vs/base/common/map';
@@ -24,6 +24,7 @@ export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
 export namespace Extensions {
 	export const ViewContainersRegistry = 'workbench.registry.view.containers';
+	export const ViewsRegistry = 'workbench.registry.view';
 }
 
 export interface IViewContainersRegistry {
@@ -50,7 +51,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string, extensionId?: ExtensionIdentifier): ViewContainer;
+	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -67,7 +68,7 @@ export interface IViewContainersRegistry {
 }
 
 export class ViewContainer {
-	protected constructor(readonly id: string, readonly extensionId: ExtensionIdentifier) { }
+	protected constructor(readonly id: string, readonly hideIfEmpty: boolean, readonly extensionId?: ExtensionIdentifier) { }
 }
 
 class ViewContainersRegistryImpl implements IViewContainersRegistry {
@@ -84,7 +85,7 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, extensionId: ExtensionIdentifier): ViewContainer {
+	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier): ViewContainer {
 		const existing = this.viewContainers.get(id);
 		if (existing) {
 			return existing;
@@ -92,7 +93,7 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 
 		const viewContainer = new class extends ViewContainer {
 			constructor() {
-				super(id, extensionId);
+				super(id, !!hideIfEmpty, extensionId);
 			}
 		};
 		this.viewContainers.set(id, viewContainer);
@@ -121,8 +122,7 @@ export interface IViewDescriptor {
 
 	readonly name: string;
 
-	// TODO@Sandeep do we really need this?!
-	readonly ctor: any;
+	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
 
 	readonly when?: ContextKeyExpr;
 
@@ -136,6 +136,8 @@ export interface IViewDescriptor {
 
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
+
+	readonly workspace?: boolean;
 
 	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
 }
@@ -167,7 +169,7 @@ export interface IViewsRegistry {
 	getViewContainer(id: string): ViewContainer | null;
 }
 
-export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry {
+class ViewsRegistry implements IViewsRegistry {
 
 	private readonly _onViewsRegistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>();
 	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsRegistered.event;
@@ -268,7 +270,9 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		}
 		return viewsToDeregister;
 	}
-};
+}
+
+Registry.add(Extensions.ViewsRegistry, new ViewsRegistry());
 
 export interface IView {
 
@@ -285,7 +289,7 @@ export interface IViewsViewlet extends IViewlet {
 export const IViewsService = createDecorator<IViewsService>('viewsService');
 
 export interface IViewsService {
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	openView(id: string, focus?: boolean): Promise<IView | null>;
 
@@ -296,11 +300,11 @@ export interface IViewsService {
 
 export interface ITreeView extends IDisposable {
 
-	dataProvider: ITreeViewDataProvider;
+	dataProvider: ITreeViewDataProvider | null;
 
 	showCollapseAllAction: boolean;
 
-	message: string | IMarkdownString;
+	message?: string | IMarkdownString;
 
 	readonly visible: boolean;
 
@@ -322,7 +326,7 @@ export interface ITreeView extends IDisposable {
 
 	layout(height: number): void;
 
-	show(container: HTMLElement);
+	show(container: HTMLElement): void;
 
 	getOptimalWidth(): number;
 
@@ -378,7 +382,7 @@ export interface ITreeItem {
 
 	handle: string;
 
-	parentHandle: string;
+	parentHandle?: string;
 
 	collapsibleState: TreeItemCollapsibleState;
 

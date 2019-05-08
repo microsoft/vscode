@@ -201,7 +201,7 @@ export class MarkerService implements IMarkerService {
 		return {
 			resource,
 			owner,
-			code: code || undefined,
+			code,
 			severity,
 			message,
 			source,

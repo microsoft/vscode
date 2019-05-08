@@ -53,8 +53,7 @@ export class IconBadge extends BaseBadge {
 	}
 }
 
-export class ProgressBadge extends BaseBadge {
-}
+export class ProgressBadge extends BaseBadge { }
 
 export const IActivityService = createDecorator<IActivityService>('activityService');
 
@@ -65,9 +64,4 @@ export interface IActivityService {
 	 * Show activity in the panel for the given panel or in the activitybar for the given viewlet or global action.
 	 */
 	showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
-
-	/**
-	 * Returns id of pinned viewlets following the visual order
-	 */
-	getPinnedViewletIds(): string[];
 }

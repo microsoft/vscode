@@ -11,18 +11,31 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 import { PluginManager } from './utils/plugins';
 
-export class CancelledResponse {
-	public readonly type: 'cancelled' = 'cancelled';
+declare module './protocol' {
+	interface SelectionRange {
+		textSpan: Proto.TextSpan;
+		parent?: SelectionRange;
+	}
 
-	constructor(
-		public readonly reason: string
-	) { }
+	interface SelectionRangeResponse extends Proto.Response {
+		body?: ReadonlyArray<SelectionRange>;
+	}
 }
 
-export const NoContentResponse = new class { readonly type = 'noContent'; };
-export const LanguageServiceDisabledContentResponse = new class { readonly type = 'languageServiceDisabled'; };
+export namespace ServerResponse {
 
-export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | typeof NoContentResponse | typeof LanguageServiceDisabledContentResponse;
+	export class Cancelled {
+		public readonly type = 'cancelled';
+
+		constructor(
+			public readonly reason: string
+		) { }
+	}
+
+	export const NoContent = new class { readonly type = 'noContent'; };
+
+	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent;
+}
 
 export interface TypeScriptRequestTypes {
 	'applyCodeActionCommand': [Proto.ApplyCodeActionCommandRequestArgs, Proto.ApplyCodeActionCommandResponse];
@@ -47,12 +60,12 @@ export interface TypeScriptRequestTypes {
 	'jsxClosingTag': [Proto.JsxClosingTagRequestArgs, Proto.JsxClosingTagResponse];
 	'navto': [Proto.NavtoRequestArgs, Proto.NavtoResponse];
 	'navtree': [Proto.FileRequestArgs, Proto.NavTreeResponse];
-	'occurrences': [Proto.FileLocationRequestArgs, Proto.OccurrencesResponse];
 	'organizeImports': [Proto.OrganizeImportsRequestArgs, Proto.OrganizeImportsResponse];
 	'projectInfo': [Proto.ProjectInfoRequestArgs, Proto.ProjectInfoResponse];
 	'quickinfo': [Proto.FileLocationRequestArgs, Proto.QuickInfoResponse];
 	'references': [Proto.FileLocationRequestArgs, Proto.ReferencesResponse];
 	'rename': [Proto.RenameRequestArgs, Proto.RenameResponse];
+	'selectionRange': [Proto.FileRequestArgs & { locations: Proto.Location[] }, Proto.SelectionRangeResponse];
 	'signatureHelp': [Proto.SignatureHelpRequestArgs, Proto.SignatureHelpResponse];
 	'typeDefinition': [Proto.FileLocationRequestArgs, Proto.TypeDefinitionResponse];
 }
@@ -103,18 +116,19 @@ export interface ITypeScriptServiceClient {
 		args: TypeScriptRequestTypes[K][0],
 		token: vscode.CancellationToken,
 		lowPriority?: boolean
-	): Promise<ServerResponse<TypeScriptRequestTypes[K][1]>>;
+	): Promise<ServerResponse.Response<TypeScriptRequestTypes[K][1]>>;
 
 	executeWithoutWaitingForResponse(command: 'open', args: Proto.OpenRequestArgs): void;
 	executeWithoutWaitingForResponse(command: 'close', args: Proto.FileRequestArgs): void;
 	executeWithoutWaitingForResponse(command: 'change', args: Proto.ChangeRequestArgs): void;
+	executeWithoutWaitingForResponse(command: 'updateOpen', args: Proto.UpdateOpenRequestArgs): void;
 	executeWithoutWaitingForResponse(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs): void;
 	executeWithoutWaitingForResponse(command: 'reloadProjects', args: null): void;
 
-	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse<Proto.Response>>;
+	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse.Response<Proto.Response>>;
 
 	/**
 	 * Cancel on going geterr requests and re-queue them after `f` has been evaluated.
 	 */
-	interuptGetErr<R>(f: () => R): R;
+	interruptGetErr<R>(f: () => R): R;
 }

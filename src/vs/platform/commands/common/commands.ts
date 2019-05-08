@@ -8,6 +8,7 @@ import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
@@ -37,7 +38,7 @@ export interface ICommand {
 
 export interface ICommandHandlerDescription {
 	description: string;
-	args: { name: string; description?: string; constraint?: TypeConstraint; }[];
+	args: { name: string; description?: string; constraint?: TypeConstraint; schema?: IJSONSchema; }[];
 	returns?: string;
 }
 
@@ -132,7 +133,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 export const NullCommandService: ICommandService = {
 	_serviceBrand: undefined,
 	onWillExecuteCommand: () => ({ dispose: () => { } }),
-	executeCommand<T = any>() {
-		return Promise.resolve<T>(undefined);
+	executeCommand() {
+		return Promise.resolve(undefined);
 	}
 };

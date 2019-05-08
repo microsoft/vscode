@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench.nopanel > .part.panel {
+.monaco-workbench.nopanel .part.panel {
 	display: none !important;
 	visibility: hidden !important;
 }
 
-.monaco-workbench > .part.panel {
+.monaco-workbench .part.panel {
 	z-index: initial;
 }
 
-.monaco-workbench > .part.panel .title {
+.monaco-workbench .part.panel .title {
 	padding-right: 0px;
 	height: 35px;
 	display: flex;
@@ -20,23 +20,23 @@
 	justify-content: space-between;
 }
 
-.monaco-workbench > .part.panel.bottom .title {
+.monaco-workbench .part.panel.bottom .title {
 	border-top-width: 1px;
 	border-top-style: solid;
 }
 
-.monaco-workbench > .part.panel.right {
+.monaco-workbench .part.panel.right {
 	border-left-width: 1px;
 	border-left-style: solid;
 }
 
-.monaco-workbench > .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
+.monaco-workbench .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
 	outline-offset: -2px;
 }
 
 /** Panel Switcher */
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
+.monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
 	background-image: url('ellipsis.svg');
 	display: block;
 	height: 28px;
@@ -48,16 +48,16 @@
 	background-position: center center;
 }
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
 	line-height: 27px; /* matches panel titles in settings */
 	height: 35px;
 }
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:first-child {
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:first-child {
 	padding-left: 12px;
 }
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item {
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item {
 	text-transform: uppercase;
 	padding-left: 10px;
 	padding-right: 10px;
@@ -67,24 +67,24 @@
 	display: flex;
 }
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label{
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label{
 	margin-right: 0;
 }
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:last-child {
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:last-child {
 	padding-right: 10px;
 }
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
 	border-bottom: 1px solid;
 	margin-right: 0;
 }
 
-.monaco-workbench  > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge {
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge {
 	margin-left: 8px;
 }
 
-.monaco-workbench  > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {
 	padding: 0.3em 0.5em;
 	border-radius: 1em;
 	font-weight: normal;
@@ -152,7 +152,7 @@
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more,
-.hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
+.vs-dark .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more,
+.hc-black .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
 	background-image: url('ellipsis-inverse.svg');
 }

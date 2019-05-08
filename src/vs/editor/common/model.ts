@@ -12,8 +12,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
@@ -289,7 +288,7 @@ export interface ISingleEditOperation {
 	/**
 	 * The text to replace with. This can be null to emulate a simple delete.
 	 */
-	text: string;
+	text: string | null;
 	/**
 	 * This indicates that this operation has "insert" semantics.
 	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
@@ -346,6 +345,7 @@ export class TextModelResolvedOptions {
 	_textModelResolvedOptionsBrand: void;
 
 	readonly tabSize: number;
+	readonly indentSize: number;
 	readonly insertSpaces: boolean;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
@@ -355,11 +355,13 @@ export class TextModelResolvedOptions {
 	 */
 	constructor(src: {
 		tabSize: number;
+		indentSize: number;
 		insertSpaces: boolean;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
 	}) {
 		this.tabSize = src.tabSize | 0;
+		this.indentSize = src.tabSize | 0;
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
@@ -371,6 +373,7 @@ export class TextModelResolvedOptions {
 	public equals(other: TextModelResolvedOptions): boolean {
 		return (
 			this.tabSize === other.tabSize
+			&& this.indentSize === other.indentSize
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
@@ -383,6 +386,7 @@ export class TextModelResolvedOptions {
 	public createChangeEvent(newOpts: TextModelResolvedOptions): IModelOptionsChangedEvent {
 		return {
 			tabSize: this.tabSize !== newOpts.tabSize,
+			indentSize: this.indentSize !== newOpts.indentSize,
 			insertSpaces: this.insertSpaces !== newOpts.insertSpaces,
 			trimAutoWhitespace: this.trimAutoWhitespace !== newOpts.trimAutoWhitespace,
 		};
@@ -394,6 +398,7 @@ export class TextModelResolvedOptions {
  */
 export interface ITextModelCreationOptions {
 	tabSize: number;
+	indentSize: number;
 	insertSpaces: boolean;
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
@@ -404,6 +409,7 @@ export interface ITextModelCreationOptions {
 
 export interface ITextModelUpdateOptions {
 	tabSize?: number;
+	indentSize?: number;
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
 }
@@ -454,6 +460,17 @@ export interface IActiveIndentGuideInfo {
 }
 
 /**
+ * Text snapshot that works like an iterator.
+ * Will try to return chunks of roughly ~64KB size.
+ * Will return null when finished.
+ *
+ * @internal
+ */
+export interface ITextSnapshot {
+	read(): string | null;
+}
+
+/**
  * A model.
  */
 export interface ITextModel {
@@ -492,6 +509,12 @@ export interface ITextModel {
 	 * Get the resolved options for this model.
 	 */
 	getOptions(): TextModelResolvedOptions;
+
+	/**
+	 * Get the formatting options for this model.
+	 * @internal
+	 */
+	getFormattingOptions(): FormattingOptions;
 
 	/**
 	 * Get the current version id of the model.
@@ -950,11 +973,6 @@ export interface ITextModel {
 	 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 	 */
 	normalizeIndentation(str: string): string;
-
-	/**
-	 * Get what is considered to be one indent (e.g. a tab character or 4 spaces, etc.).
-	 */
-	getOneIndent(): string;
 
 	/**
 	 * Change the options of this model.

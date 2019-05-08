@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { basename } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -23,7 +23,8 @@ export class OneReference {
 
 	constructor(
 		readonly parent: FileReferences,
-		private _range: IRange
+		private _range: IRange,
+		readonly isProviderFirst: boolean
 	) {
 		this.id = defaultGenerator.nextId();
 	}
@@ -44,7 +45,7 @@ export class OneReference {
 	getAriaMessage(): string {
 		return localize(
 			'aria.oneReference', "symbol in {0} on line {1} at column {2}",
-			basename(this.uri.fsPath), this.range.startLineNumber, this.range.startColumn
+			basename(this.uri), this.range.startLineNumber, this.range.startColumn
 		);
 	}
 }
@@ -89,7 +90,7 @@ export class FileReferences implements IDisposable {
 	private _resolved: boolean;
 	private _loadFailure: any;
 
-	constructor(private readonly _parent: ReferencesModel, private _uri: URI) {
+	constructor(private readonly _parent: ReferencesModel, private readonly _uri: URI) {
 		this._children = [];
 	}
 
@@ -120,9 +121,9 @@ export class FileReferences implements IDisposable {
 	getAriaMessage(): string {
 		const len = this.children.length;
 		if (len === 1) {
-			return localize('aria.fileReferences.1', "1 symbol in {0}, full path {1}", basename(this.uri.fsPath), this.uri.fsPath);
+			return localize('aria.fileReferences.1', "1 symbol in {0}, full path {1}", basename(this.uri), this.uri.fsPath);
 		} else {
-			return localize('aria.fileReferences.N', "{0} symbols in {1}, full path {2}", len, basename(this.uri.fsPath), this.uri.fsPath);
+			return localize('aria.fileReferences.N', "{0} symbols in {1}, full path {2}", len, basename(this.uri), this.uri.fsPath);
 		}
 	}
 
@@ -173,6 +174,7 @@ export class ReferencesModel implements IDisposable {
 	constructor(references: LocationLink[]) {
 		this._disposables = [];
 		// grouping and sorting
+		const [providersFirst] = references;
 		references.sort(ReferencesModel._compareReferences);
 
 		let current: FileReferences | undefined;
@@ -187,7 +189,7 @@ export class ReferencesModel implements IDisposable {
 			if (current.children.length === 0
 				|| !Range.equalsRange(ref.range, current.children[current.children.length - 1].range)) {
 
-				let oneRef = new OneReference(current, ref.targetSelectionRange || ref.range);
+				let oneRef = new OneReference(current, ref.targetSelectionRange || ref.range, providersFirst === ref);
 				this._disposables.push(oneRef.onRefChanged((e) => this._onDidChangeReferenceRange.fire(e)));
 				this.references.push(oneRef);
 				current.children.push(oneRef);
@@ -265,6 +267,15 @@ export class ReferencesModel implements IDisposable {
 			return this.references[nearest.idx];
 		}
 		return undefined;
+	}
+
+	firstReference(): OneReference | undefined {
+		for (const ref of this.references) {
+			if (ref.isProviderFirst) {
+				return ref;
+			}
+		}
+		return this.references[0];
 	}
 
 	dispose(): void {

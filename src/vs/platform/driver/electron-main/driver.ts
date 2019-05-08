@@ -8,7 +8,7 @@ import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
@@ -57,9 +57,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await this.whenUnfrozen(windowId);
 
 		const window = this.windowsService.getWindowById(windowId);
+		if (!window) {
+			throw new Error('Invalid window');
+		}
 		const webContents = window.win.webContents;
 		const image = await new Promise<Electron.NativeImage>(c => webContents.capturePage(c));
-
 		return image.toPNG().toString('base64');
 	}
 
@@ -67,6 +69,9 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await this.whenUnfrozen(windowId);
 
 		const window = this.windowsService.getWindowById(windowId);
+		if (!window) {
+			throw new Error('Invalid window');
+		}
 		this.reloadingWindowIds.add(windowId);
 		this.windowsService.reload(window);
 	}
@@ -78,16 +83,10 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
 		await this.whenUnfrozen(windowId);
 
-		const [first, second] = KeybindingParser.parseUserBinding(keybinding);
+		const parts = KeybindingParser.parseUserBinding(keybinding);
 
-		if (!first) {
-			return;
-		}
-
-		await this._dispatchKeybinding(windowId, first);
-
-		if (second) {
-			await this._dispatchKeybinding(windowId, second);
+		for (let part of parts) {
+			await this._dispatchKeybinding(windowId, part);
 		}
 	}
 
@@ -97,9 +96,12 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		}
 
 		const window = this.windowsService.getWindowById(windowId);
+		if (!window) {
+			throw new Error('Invalid window');
+		}
 		const webContents = window.win.webContents;
 		const noModifiedKeybinding = new SimpleKeybinding(false, false, false, false, keybinding.keyCode);
-		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding, OS);
+		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding.toChord(), OS);
 		const keyCode = resolvedKeybinding.getElectronAccelerator();
 
 		const modifiers: string[] = [];

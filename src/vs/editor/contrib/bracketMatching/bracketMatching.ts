@@ -92,7 +92,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	private _lastBracketsData: BracketsData[];
 	private _lastVersionId: number;
 	private _decorations: string[];
-	private _updateBracketsSoon: RunOnceScheduler;
+	private readonly _updateBracketsSoon: RunOnceScheduler;
 	private _matchBrackets: boolean;
 
 	constructor(

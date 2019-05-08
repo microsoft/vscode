@@ -26,7 +26,7 @@ export function getGalleryExtensionId(publisher: string, name: string): string {
 
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
 	const byExtension: T[][] = [];
-	const findGroup = extension => {
+	const findGroup = (extension: T) => {
 		for (const group of byExtension) {
 			if (group.some(e => areSameExtensions(getExtensionIdentifier(e), getExtensionIdentifier(extension)))) {
 				return group;

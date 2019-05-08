@@ -29,7 +29,7 @@ function inst(): IInstantiationService {
 	inst.stub(ITelemetryService, NullTelemetryService);
 
 	const config = new TestConfigurationService();
-	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right', closeTabsInMRUOrder: true } });
+	config.setUserConfiguration('workbench', { editor: { openPositioning: 'right', focusRecentEditorAfterClose: true } });
 	inst.stub(IConfigurationService, config);
 
 	return inst;
@@ -215,7 +215,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('group serialization', function () {
-		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).setInstantiationService(inst());
+		inst().invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 		const group = createGroup();
 
 		const input1 = input();
@@ -653,10 +653,10 @@ suite('Workbench editor groups', () => {
 		inst.stub(ITelemetryService, NullTelemetryService);
 
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('workbench', { editor: { closeTabsInMRUOrder: false } });
+		config.setUserConfiguration('workbench', { editor: { focusRecentEditorAfterClose: false } });
 		inst.stub(IConfigurationService, config);
 
-		const group = inst.createInstance(EditorGroup);
+		const group = inst.createInstance(EditorGroup, undefined);
 		const events = groupListener(group);
 
 		const input1 = input();
@@ -1003,7 +1003,7 @@ suite('Workbench editor groups', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
+		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
 		let group = createGroup();
 
@@ -1037,7 +1037,7 @@ suite('Workbench editor groups', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
+		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
 		let group1 = createGroup();
 
@@ -1107,7 +1107,7 @@ suite('Workbench editor groups', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
+		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
 		let group = createGroup();
 
@@ -1151,7 +1151,7 @@ suite('Workbench editor groups', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
+		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
 		let group1 = createGroup();
 		let group2 = createGroup();

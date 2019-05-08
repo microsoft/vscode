@@ -56,7 +56,7 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 
 export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactory {
 
-	private classifier: WrappingCharacterClassifier;
+	private readonly classifier: WrappingCharacterClassifier;
 
 	constructor(breakBeforeChars: string, breakAfterChars: string, breakObtrusiveChars: string) {
 		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars, breakObtrusiveChars);
@@ -255,8 +255,8 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 export class CharacterHardWrappingLineMapping implements ILineMapping {
 
-	private _prefixSums: PrefixSumComputer;
-	private _wrappedLinesIndent: string;
+	private readonly _prefixSums: PrefixSumComputer;
+	private readonly _wrappedLinesIndent: string;
 
 	constructor(prefixSums: PrefixSumComputer, wrappedLinesIndent: string) {
 		this._prefixSums = prefixSums;

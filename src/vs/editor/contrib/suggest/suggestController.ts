@@ -181,7 +181,7 @@ export class SuggestController implements IEditorContribution {
 				this._widget.getValue().hideWidget();
 			}
 		}));
-		this._toDispose.push(this._editor.onDidBlurEditorText(() => {
+		this._toDispose.push(this._editor.onDidBlurEditorWidget(() => {
 			if (!this._sticky) {
 				this._model.cancel();
 			}
@@ -292,11 +292,13 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
-		let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' did insert the following text: {1}", suggestion.label, suggestion.insertText);
-		alert(msg);
+		if (isNonEmptyArray(suggestion.additionalTextEdits)) {
+			let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' made {1} additional edits", suggestion.label, suggestion.additionalTextEdits.length);
+			alert(msg);
+		}
 	}
 
-	triggerSuggest(onlyFrom?: CompletionItemProvider[]): void {
+	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>): void {
 		if (this._editor.hasModel()) {
 			this._model.trigger({ auto: false, shy: false }, false, onlyFrom);
 			this._editor.revealLine(this._editor.getPosition().lineNumber, ScrollType.Smooth);

@@ -5,7 +5,6 @@
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
-import { always } from 'vs/base/common/async';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -13,13 +12,14 @@ import { Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 
 export class CodeActionContextMenu {
 
 	private _visible: boolean;
-	private _onDidExecuteCodeAction = new Emitter<void>();
 
-	readonly onDidExecuteCodeAction: Event<void> = this._onDidExecuteCodeAction.event;
+	private readonly _onDidExecuteCodeAction = new Emitter<void>();
+	public readonly onDidExecuteCodeAction: Event<void> = this._onDidExecuteCodeAction.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -27,13 +27,14 @@ export class CodeActionContextMenu {
 		private readonly _onApplyCodeAction: (action: CodeAction) => Promise<any>
 	) { }
 
-	async show(actionsToShow: Promise<CodeAction[]>, at?: { x: number; y: number } | Position): Promise<void> {
+	async show(actionsToShow: Promise<CodeActionSet>, at?: { x: number; y: number } | Position): Promise<void> {
 		const codeActions = await actionsToShow;
 		if (!this._editor.getDomNode()) {
 			// cancel when editor went off-dom
 			return Promise.reject(canceled());
 		}
-		const actions = codeActions.map(action => this.codeActionToAction(action));
+		this._visible = true;
+		const actions = codeActions.actions.map(action => this.codeActionToAction(action));
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => {
 				if (Position.isIPosition(at)) {
@@ -52,12 +53,10 @@ export class CodeActionContextMenu {
 
 	private codeActionToAction(action: CodeAction): Action {
 		const id = action.command ? action.command.id : action.title;
-		const title = action.isPreferred ? `${action.title} ★` : action.title;
-		return new Action(id, title, undefined, true, () => {
-			return always(
-				this._onApplyCodeAction(action),
-				() => this._onDidExecuteCodeAction.fire(undefined));
-		});
+		const title = action.title;
+		return new Action(id, title, undefined, true, () =>
+			this._onApplyCodeAction(action)
+				.finally(() => this._onDidExecuteCodeAction.fire(undefined)));
 	}
 
 	get isVisible(): boolean {
@@ -72,7 +71,7 @@ export class CodeActionContextMenu {
 		this._editor.render();
 
 		// Translate to absolute editor position
-		const cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
+		const cursorCoords = this._editor.getScrolledVisiblePosition(position);
 		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
 		const x = editorCoords.left + cursorCoords.left;
 		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;

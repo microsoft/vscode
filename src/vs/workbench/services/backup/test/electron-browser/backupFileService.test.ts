@@ -8,38 +8,58 @@ import * as platform from 'vs/base/common/platform';
 import * as crypto from 'crypto';
 import * as os from 'os';
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri } from 'vs/base/common/uri';
-import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
-import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
+import { BackupFileService, BackupFilesModel, hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { snapshotToString } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
+import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { parseArgs } from 'vs/platform/environment/node/argv';
+import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 
 const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');
 const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
 const workspaceResource = Uri.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
-const workspaceBackupPath = path.join(backupHome, crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex'));
+const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
 const fooFile = Uri.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
 const barFile = Uri.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
 const untitledFile = Uri.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
-const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
-const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
-const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
+const fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
+const barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
+const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
+
+class TestBackupEnvironmentService extends WorkbenchEnvironmentService {
+
+	private config: IWindowConfiguration;
+
+	constructor(workspaceBackupPath: string) {
+		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
+
+		this.config = Object.create(null);
+		this.config.backupPath = workspaceBackupPath;
+	}
+
+	get configuration(): IWindowConfiguration {
+		return this.config;
+	}
+}
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService(new TestContextService(new Workspace(workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+		const fileService = new FileService(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
 
-		super(workspaceBackupPath, fileService);
+		super(environmentService, fileService);
 	}
 
 	public toBackupResource(resource: Uri): Uri {
@@ -54,7 +74,7 @@ suite('BackupFileService', () => {
 		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 
 		// Delete any existing backups completely and then re-create it.
-		return pfs.del(backupHome, os.tmpdir()).then(() => {
+		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE).then(() => {
 			return pfs.mkdirp(backupHome).then(() => {
 				return pfs.writeFile(workspacesJsonPath, '');
 			});
@@ -62,15 +82,40 @@ suite('BackupFileService', () => {
 	});
 
 	teardown(() => {
-		return pfs.del(backupHome, os.tmpdir());
+		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
+	});
+
+	suite('hashPath', () => {
+		test('should correctly hash the path for untitled scheme URIs', () => {
+			const uri = Uri.from({
+				scheme: 'untitled',
+				path: 'Untitled-1'
+			});
+			const actual = hashPath(uri);
+			// If these hashes change people will lose their backed up files!
+			assert.equal(actual, '13264068d108c6901b3592ea654fcd57');
+			assert.equal(actual, crypto.createHash('md5').update(uri.fsPath).digest('hex'));
+		});
+
+		test('should correctly hash the path for file scheme URIs', () => {
+			const uri = Uri.file('/foo');
+			const actual = hashPath(uri);
+			// If these hashes change people will lose their backed up files!
+			if (platform.isWindows) {
+				assert.equal(actual, 'dec1a583f52468a020bd120c3f01d812');
+			} else {
+				assert.equal(actual, '1effb2475fcfba4f9e8b8a1dbc8f3caf');
+			}
+			assert.equal(actual, crypto.createHash('md5').update(uri.fsPath).digest('hex'));
+		});
 	});
 
 	suite('getBackupResource', () => {
 		test('should get the correct backup path for text files', () => {
 			// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePathHash>
 			const backupResource = fooFile;
-			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
+			const workspaceHash = hashPath(workspaceResource);
+			const filePathHash = hashPath(backupResource);
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
 			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
@@ -78,8 +123,8 @@ suite('BackupFileService', () => {
 		test('should get the correct backup path for untitled files', () => {
 			// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePath>
 			const backupResource = Uri.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
-			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
-			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
+			const workspaceHash = hashPath(workspaceResource);
+			const filePathHash = hashPath(backupResource);
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
 			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
@@ -257,7 +302,7 @@ suite('BackupFileService', () => {
 			const contents = 'test\nand more stuff';
 			service.backupResource(untitledFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 				service.resolveBackupContent(service.toBackupResource(untitledFile)).then(factory => {
-					assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+					assert.equal(contents, snapshotToString(factory!.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
 				});
 			});
 		});
@@ -272,7 +317,7 @@ suite('BackupFileService', () => {
 
 			service.backupResource(fooFile, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 				service.resolveBackupContent(service.toBackupResource(untitledFile)).then(factory => {
-					assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+					assert.equal(contents, snapshotToString(factory!.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
 				});
 			});
 		});

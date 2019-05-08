@@ -29,6 +29,8 @@ export interface ITelemetryService {
 	 */
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void>;
 
+	setEnabled(value: boolean): void;
+
 	getTelemetryInfo(): Promise<ITelemetryInfo>;
 
 	isOptedIn: boolean;

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { ITextModel, FindMatch } from 'vs/editor/common/model';
 import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/workbench/services/search/common/searchHelpers';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextQuery, QueryType, ITextSearchContext } from 'vs/platform/search/common/search';
+import { ITextQuery, QueryType, ITextSearchContext } from 'vs/workbench/services/search/common/search';
 
 suite('SearchHelpers', () => {
 	suite('editorMatchesToTextSearchResults', () => {

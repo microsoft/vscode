@@ -16,7 +16,8 @@ const monacodts = require("../monaco/api");
 const nls = require("./nls");
 const reporter_1 = require("./reporter");
 const util = require("./util");
-const util2 = require("gulp-util");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const watch = require('./watch');
 const reporter = reporter_1.createReporter();
 function getTypeScriptCompilerOptions(src) {
@@ -179,7 +180,7 @@ class MonacoGenerator {
         return r;
     }
     _log(message, ...rest) {
-        util2.log(util2.colors.cyan('[monaco.d.ts]'), message, ...rest);
+        fancyLog(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
     }
     execute() {
         const startTime = Date.now();

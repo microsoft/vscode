@@ -35,12 +35,12 @@ export class TestInstantiationService extends InstantiationService {
 		return <T>this._create(service, { mock: true });
 	}
 
-	public stub<T>(service: ServiceIdentifier<T>, ctor?: any): T;
-	public stub<T>(service: ServiceIdentifier<T>, obj?: any): T;
-	public stub<T>(service: ServiceIdentifier<T>, ctor?: any, property?: string, value?: any): sinon.SinonStub;
-	public stub<T>(service: ServiceIdentifier<T>, obj?: any, property?: string, value?: any): sinon.SinonStub;
-	public stub<T>(service: ServiceIdentifier<T>, property?: string, value?: any): sinon.SinonStub;
-	public stub<T>(serviceIdentifier: ServiceIdentifier<T>, arg2?: any, arg3?: string, arg4?: any): sinon.SinonStub {
+	public stub<T>(service: ServiceIdentifier<T>, ctor: Function): T;
+	public stub<T>(service: ServiceIdentifier<T>, obj: Partial<T>): T;
+	public stub<T>(service: ServiceIdentifier<T>, ctor: Function, property: string, value: any): sinon.SinonStub;
+	public stub<T>(service: ServiceIdentifier<T>, obj: Partial<T>, property: string, value: any): sinon.SinonStub;
+	public stub<T>(service: ServiceIdentifier<T>, property: string, value: any): sinon.SinonStub;
+	public stub<T>(serviceIdentifier: ServiceIdentifier<T>, arg2: any, arg3?: string, arg4?: any): sinon.SinonStub {
 		let service = typeof arg2 !== 'string' ? arg2 : undefined;
 		let serviceMock: IServiceMock<any> = { id: serviceIdentifier, service: service };
 		let property = typeof arg2 === 'string' ? arg2 : arg3;

@@ -70,7 +70,7 @@ declare module 'vscode' {
 
 		/**
 		 * The offset of the first character which is not a whitespace character as defined
-		 * by `/\s/`. **Note** that if a line is all whitespaces the length of the line is returned.
+		 * by `/\s/`. **Note** that if a line is all whitespace the length of the line is returned.
 		 */
 		readonly firstNonWhitespaceCharacterIndex: number;
 
@@ -1235,11 +1235,16 @@ declare module 'vscode' {
 		 * Create an URI from a string, e.g. `http://www.msft.com/some/path`,
 		 * `file:///usr/home`, or `scheme:with/path`.
 		 *
+		 * *Note* that for a while uris without a `scheme` were accepted. That is not correct
+		 * as all uris should have a scheme. To avoid breakage of existing code the optional
+		 * `strict`-argument has been added. We *strongly* advise to use it, e.g. `Uri.parse('my:uri', true)`
+		 *
 		 * @see [Uri.toString](#Uri.toString)
 		 * @param value The string value of an Uri.
+		 * @param strict Throw an error when `value` is empty or when no `scheme` can be parsed.
 		 * @return A new Uri instance.
 		 */
-		static parse(value: string): Uri;
+		static parse(value: string, strict?: boolean): Uri;
 
 		/**
 		 * Create an URI from a file system path. The [scheme](#Uri.scheme)
@@ -2014,12 +2019,20 @@ declare module 'vscode' {
 		 */
 		static readonly SourceOrganizeImports: CodeActionKind;
 
+		/**
+		 * Base kind for auto-fix source actions: `source.fixAll`.
+		 *
+		 * Fix all actions automatically fix errors that have a clear fix that do not require user input.
+		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
+		 */
+		static readonly SourceFixAll: CodeActionKind;
+
 		private constructor(value: string);
 
 		/**
 		 * String value of the kind, e.g. `"refactor.extract.function"`.
 		 */
-		readonly value?: string;
+		readonly value: string;
 
 		/**
 		 * Create a new kind by appending a more specific selector to the current kind.
@@ -2101,6 +2114,15 @@ declare module 'vscode' {
 		 * Used to filter code actions.
 		 */
 		kind?: CodeActionKind;
+
+		/**
+		 * Marks this as a preferred action. Preferred actions are used by the `auto fix` command and can be targeted
+		 * by keybindings.
+		 *
+		 * A quick fix should be marked preferred if it properly addresses the underlying error.
+		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
+		 */
+		isPreferred?: boolean;
 
 		/**
 		 * Creates a new code action.
@@ -2655,7 +2677,7 @@ declare module 'vscode' {
 		 * [location](#SymbolInformation.location)-objects, without a `range` defined. The editor will then call
 		 * `resolveWorkspaceSymbol` for selected symbols only, e.g. when opening a workspace symbol.
 		 *
-		 * @param query A non-empty query string.
+		 * @param query A query string, can be the empty string in which case all symbols should be returned.
 		 * @param token A cancellation token.
 		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
@@ -3184,6 +3206,14 @@ declare module 'vscode' {
 		 * typing a trigger character, a cursor move, or document content changes.
 		 */
 		readonly isRetrigger: boolean;
+
+		/**
+		 * The currently active [`SignatureHelp`](#SignatureHelp).
+		 *
+		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
+		 * the user arrowing through available signatures.
+		 */
+		readonly activeSignatureHelp?: SignatureHelp;
 	}
 
 	/**
@@ -3218,7 +3248,7 @@ declare module 'vscode' {
 		/**
 		 * List of characters that re-trigger signature help.
 		 *
-		 * These trigger characters are only active when signature help is alread showing. All trigger characters
+		 * These trigger characters are only active when signature help is already showing. All trigger characters
 		 * are also counted as re-trigger characters.
 		 */
 		readonly retriggerCharacters: ReadonlyArray<string>;
@@ -3676,7 +3706,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A line based folding range. To be valid, start and end line must a zero or larger and smaller than the number of lines in the document.
+	 * A line based folding range. To be valid, start and end line must be bigger than zero and smaller than the number of lines in the document.
 	 * Invalid ranges will be ignored.
 	 */
 	export class FoldingRange {
@@ -3752,6 +3782,48 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
+	}
+
+	/**
+	 * A selection range represents a part of a selection hierarchy. A selection range
+	 * may have a parent selection range that contains it.
+	 */
+	export class SelectionRange {
+
+		/**
+		 * The [range](#Range) of this selection range.
+		 */
+		range: Range;
+
+		/**
+		 * The parent selection range containing this range.
+		 */
+		parent?: SelectionRange;
+
+		/**
+		 * Creates a new selection range.
+		 *
+		 * @param range The range of the selection range.
+		 * @param parent The parent of the selection range.
+		 */
+		constructor(range: Range, parent?: SelectionRange);
+	}
+
+	export interface SelectionRangeProvider {
+		/**
+		 * Provide selection ranges for the given positions.
+		 *
+		 * Selection ranges should be computed individually and independend for each postion. The editor will merge
+		 * and deduplicate ranges but providers must return hierarchies of selection ranges so that a range
+		 * is [contained](#Range.contains) by its parent.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param positions The positions at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return Selection ranges or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[]>;
 	}
 
 	/**
@@ -4487,7 +4559,7 @@ declare module 'vscode' {
 		 * The priority of this item. Higher value means the item should
 		 * be shown more to the left.
 		 */
-		readonly priority: number;
+		readonly priority?: number;
 
 		/**
 		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
@@ -4681,7 +4753,7 @@ declare module 'vscode' {
 		storagePath: string | undefined;
 
 		/**
-		 * An absolute file path in which the extension can store gloabal state.
+		 * An absolute file path in which the extension can store global state.
 		 * The directory might not exist on disk and creation is
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
 		 *
@@ -5633,13 +5705,28 @@ declare module 'vscode' {
 		 *
 		 * @param source The existing file.
 		 * @param destination The destination location.
-		 * @param options Defines if existing files should be overwriten.
+		 * @param options Defines if existing files should be overwritten.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `source` doesn't exist.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `destination` doesn't exist, e.g. no mkdirp-logic required.
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
 		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
 		copy?(source: Uri, destination: Uri, options: { overwrite: boolean }): void | Thenable<void>;
+	}
+
+	/**
+	 * Defines a port mapping used for localhost inside the webview.
+	 */
+	export interface WebviewPortMapping {
+		/**
+		 * Localhost port to remap inside the webview.
+		 */
+		readonly webviewPort: number;
+
+		/**
+		 * Destination port. The `webviewPort` is resolved to this port.
+		 */
+		readonly extensionHostPort: number;
 	}
 
 	/**
@@ -5668,6 +5755,18 @@ declare module 'vscode' {
 		 * Pass in an empty array to disallow access to any local resources.
 		 */
 		readonly localResourceRoots?: ReadonlyArray<Uri>;
+
+		/**
+		 * Mappings of localhost ports used inside the webview.
+		 *
+		 * Port mapping allow webviews to transparently define how localhost ports are resolved. This can be used
+		 * to allow using a static localhost port inside the webview that is resolved to random port that a service is
+		 * running on.
+		 *
+		 * If a webview accesses localhost content, we recomend that you specify port mappings even if
+		 * the `webviewPort` and `extensionHostPort` ports are the same.
+		 */
+		readonly portMapping?: ReadonlyArray<WebviewPortMapping>;
 	}
 
 	/**
@@ -5855,7 +5954,7 @@ declare module 'vscode' {
 	 */
 	interface WebviewPanelSerializer {
 		/**
-		 * Restore a webview panel from its seriailzed `state`.
+		 * Restore a webview panel from its serialized `state`.
 		 *
 		 * Called when a serialized webview first becomes visible.
 		 *
@@ -5863,7 +5962,7 @@ declare module 'vscode' {
 		 * serializer must restore the webview's `.html` and hook up all webview events.
 		 * @param state Persisted state from the webview content.
 		 *
-		 * @return Thanble indicating that the webview has been fully restored.
+		 * @return Thenable indicating that the webview has been fully restored.
 		 */
 		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
 	}
@@ -5902,6 +6001,11 @@ declare module 'vscode' {
 		export const appRoot: string;
 
 		/**
+		 * The custom uri scheme the editor registers to in the operating system.
+		 */
+		export const uriScheme: string;
+
+		/**
 		 * Represents the preferred user-language, like `de-CH`, `fr`, or `en-US`.
 		 */
 		export const language: string;
@@ -5921,6 +6025,18 @@ declare module 'vscode' {
 		 * Changes each time the editor is started.
 		 */
 		export const sessionId: string;
+
+		/**
+		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
+		 * default application.
+		 *
+		 * *Note* that [`showTextDocument`](#window.showTextDocument) is the right
+		 * way to open a text document inside the editor, not this function.
+		 *
+		 * @param target The uri that should be opened.
+		 * @returns A promise indicating if open was successful.
+		 */
+		export function openExternal(target: Uri): Thenable<boolean>;
 	}
 
 	/**
@@ -6515,10 +6631,11 @@ declare module 'vscode' {
 		 *
 		 * @param name Optional human-readable string which will be used to represent the terminal in the UI.
 		 * @param shellPath Optional path to a custom shell executable to be used in the terminal.
-		 * @param shellArgs Optional args for the custom shell executable, this does not work on Windows (see #8429)
+		 * @param shellArgs Optional args for the custom shell executable. A string can be used on Windows only which
+		 * allows specifying shell args in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6).
 		 * @return A new Terminal.
 		 */
-		export function createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): Terminal;
+		export function createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): Terminal;
 
 		/**
 		 * Creates a [Terminal](#Terminal). The cwd of the terminal will be the workspace directory
@@ -6555,7 +6672,7 @@ declare module 'vscode' {
 		 * be able to handle uris which are directed to the extension itself. A uri must respect
 		 * the following rules:
 		 *
-		 * - The uri-scheme must be the product name;
+		 * - The uri-scheme must be `vscode.env.uriScheme`;
 		 * - The uri-authority must be the extension id (eg. `my.extension`);
 		 * - The uri-path, -query and -fragment parts are arbitrary.
 		 *
@@ -6841,9 +6958,10 @@ declare module 'vscode' {
 		shellPath?: string;
 
 		/**
-		 * Args for the custom shell executable, this does not work on Windows (see #8429)
+		 * Args for the custom shell executable. A string can be used on Windows only which allows
+		 * specifying shell args in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6).
 		 */
-		shellArgs?: string[];
+		shellArgs?: string[] | string;
 
 		/**
 		 * A path or Uri for the current working directory to be used for the terminal.
@@ -6914,13 +7032,13 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A light-weight user input UI that is intially not visible. After
+	 * A light-weight user input UI that is initially not visible. After
 	 * configuring it through its properties the extension can make it
 	 * visible by calling [QuickInput.show](#QuickInput.show).
 	 *
 	 * There are several reasons why this UI might have to be hidden and
 	 * the extension will be notified through [QuickInput.onDidHide](#QuickInput.onDidHide).
-	 * (Examples include: an explict call to [QuickInput.hide](#QuickInput.hide),
+	 * (Examples include: an explicit call to [QuickInput.hide](#QuickInput.hide),
 	 * the user pressing Esc, some other input UI opening, etc.)
 	 *
 	 * A user pressing Enter or some other gesture implying acceptance
@@ -6989,7 +7107,7 @@ declare module 'vscode' {
 		 *
 		 * There are several reasons why this UI might have to be hidden and
 		 * the extension will be notified through [QuickInput.onDidHide](#QuickInput.onDidHide).
-		 * (Examples include: an explict call to [QuickInput.hide](#QuickInput.hide),
+		 * (Examples include: an explicit call to [QuickInput.hide](#QuickInput.hide),
 		 * the user pressing Esc, some other input UI opening, etc.)
 		 */
 		onDidHide: Event<void>;
@@ -7483,7 +7601,7 @@ declare module 'vscode' {
 		 * cause failure of the operation.
 		 *
 		 * When applying a workspace edit that consists only of text edits an 'all-or-nothing'-strategy is used.
-		 * A workspace edit with resource creations or deletions aborts the operation, e.g. consective edits will
+		 * A workspace edit with resource creations or deletions aborts the operation, e.g. consecutive edits will
 		 * not be attempted, when a single edit fails.
 		 *
 		 * @param edit A workspace edit.
@@ -8053,6 +8171,19 @@ declare module 'vscode' {
 		export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider): Disposable;
 
 		/**
+		 * Register a selection range provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A selection range provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerSelectionRangeProvider(selector: DocumentSelector, provider: SelectionRangeProvider): Disposable;
+
+		/**
 		 * Set a [language configuration](#LanguageConfiguration) for a language.
 		 *
 		 * @param language A language identifier like `typescript`.
@@ -8522,7 +8653,7 @@ declare module 'vscode' {
 		 */
 		onWillStopSession?(): void;
 		/**
-		 * An error with the debug adapter has occured.
+		 * An error with the debug adapter has occurred.
 		 */
 		onError?(error: Error): void;
 		/**
@@ -8730,9 +8861,10 @@ declare module 'vscode' {
 		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
 		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
 		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
+		 * @param parent If specified the newly created debug session is registered as a "child" session of a "parent" debug session.
 		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSession?: DebugSession): Thenable<boolean>;
 
 		/**
 		 * Add breakpoints.
@@ -8801,7 +8933,288 @@ declare module 'vscode' {
 		 * All extensions currently known to the system.
 		 */
 		export let all: Extension<any>[];
+
+		/**
+		 * An event which fires when `extensions.all` changes. This can happen when extensions are
+		 * installed, uninstalled, enabled or disabled.
+		 */
+		export const onDidChange: Event<void>;
 	}
+
+	//#region Comments
+
+	/**
+	 * Collapsible state of a [comment thread](#CommentThread)
+	 */
+	export enum CommentThreadCollapsibleState {
+		/**
+		 * Determines an item is collapsed
+		 */
+		Collapsed = 0,
+
+		/**
+		 * Determines an item is expanded
+		 */
+		Expanded = 1
+	}
+
+	/**
+	 * A collection of [comments](#Comment) representing a conversation at a particular range in a document.
+	 */
+	export interface CommentThread {
+		/**
+		 * A unique identifier of the comment thread.
+		 */
+		readonly id: string;
+
+		/**
+		 * The uri of the document the thread has been created on.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The range the comment thread is located within the document. The thread icon will be shown
+		 * at the first line of the range.
+		 */
+		readonly range: Range;
+
+		/**
+		 * The ordered comments of the thread.
+		 */
+		comments: Comment[];
+
+		/**
+		 * Whether the thread should be collapsed or expanded when opening the document.
+		 * Defaults to Collapsed.
+		 */
+		collapsibleState: CommentThreadCollapsibleState;
+
+		/**
+		 * The optional human-readable label describing the [Comment Thread](#CommentThread)
+		 */
+		label?: string;
+
+		/**
+		 * Optional accept input command
+		 *
+		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
+		 * This command will be invoked when users the user accepts the value in the comment editor.
+		 * This command will disabled when the comment editor is empty.
+		 */
+		acceptInputCommand?: Command;
+
+
+		/**
+		 * Dispose this comment thread.
+		 *
+		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when approriate.
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * Author information of a [comment](#Comment)
+	 */
+
+	export interface CommentAuthorInformation {
+		/**
+		 * The display name of the author of the comment
+		 */
+		name: string;
+
+		/**
+		 * The optional icon path for the author
+		 */
+		iconPath?: Uri;
+	}
+
+	/**
+	 * Author information of a [comment](#Comment)
+	 */
+
+	export interface CommentAuthorInformation {
+		/**
+		 * The display name of the author of the comment
+		 */
+		name: string;
+
+		/**
+		 * The optional icon path for the author
+		 */
+		iconPath?: Uri;
+	}
+
+	/**
+	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
+	 */
+	export interface Comment {
+		/**
+		 * The id of the comment
+		 */
+		id: string;
+
+		/**
+		 * The human-readable comment body
+		 */
+		body: MarkdownString;
+
+		/**
+		 * The author information of the comment
+		 */
+		author: CommentAuthorInformation;
+
+		/**
+		 * Optional label describing the [Comment](#Comment)
+		 * Label will be rendered next to authorName if exists.
+		 */
+		label?: string;
+
+		/**
+		 * The command to be executed if the comment is selected in the Comments Panel
+		 */
+		selectCommand?: Command;
+
+		/**
+		 * The command to be executed when users try to save the edits to the comment
+		 */
+		editCommand?: Command;
+	}
+
+	/**
+	 * The comment input box in Comment Widget.
+	 */
+	export interface CommentInputBox {
+		/**
+		 * Setter and getter for the contents of the comment input box
+		 */
+		value: string;
+
+		/**
+		 * The uri of the document comment input box has been created on
+		 */
+		resource: Uri;
+
+		/**
+		 * The range the comment input box is located within the document
+		 */
+		range: Range;
+	}
+
+	/**
+	 * Commenting range provider for a [comment controller](#CommentController).
+	 */
+	export interface CommentingRangeProvider {
+		/**
+		 * Provide a list of ranges which allow new comment threads creation or null for a given document
+		 */
+		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
+	/**
+	 * Comment thread template for new comment thread creation.
+	 */
+	export interface CommentThreadTemplate {
+		/**
+		 * The human-readable label describing the [Comment Thread](#CommentThread)
+		 */
+		readonly label: string;
+
+		/**
+		 * Optional accept input command
+		 *
+		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
+		 * This command will be invoked when users the user accepts the value in the comment editor.
+		 * This command will disabled when the comment editor is empty.
+		 */
+		readonly acceptInputCommand?: Command;
+
+		/**
+		 * Optional additonal commands.
+		 *
+		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
+		 */
+		readonly additionalCommands?: Command[];
+
+		/**
+		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
+		 * when the user collapses a comment thread that has no comments in it.
+		 */
+		readonly deleteCommand?: Command;
+	}
+
+	/**
+	 * A comment controller is able to provide [comments](#CommentThread) support to the editor and
+	 * provide users various ways to interact with comments.
+	 */
+	export interface CommentController {
+		/**
+		 * The id of this comment controller.
+		 */
+		readonly id: string;
+
+		/**
+		 * The human-readable label of this comment controller.
+		 */
+		readonly label: string;
+
+		/**
+		 * The active [comment input box](#CommentInputBox) or `undefined`. The active `inputBox` is the input box of
+		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any CommentInputBox.
+		 */
+		readonly inputBox: CommentInputBox | undefined;
+
+		/**
+		 * Optional comment thread template information.
+		 *
+		 * The comment controller will use this information to create the comment widget when users attempt to create new comment thread
+		 * from the gutter or command palette.
+		 *
+		 * When users run `CommentThreadTemplate.acceptInputCommand` or `CommentThreadTemplate.additionalCommands`, extensions should create
+		 * the approriate [CommentThread](#CommentThread).
+		 *
+		 * If not provided, users won't be able to create new comment threads in the editor.
+		 */
+		template?: CommentThreadTemplate;
+
+		/**
+		 * Optional commenting range provider. Provide a list [ranges](#Range) which support commenting to any given resource uri.
+		 *
+		 * If not provided and `emptyCommentThreadFactory` exits, users can leave comments in any document opened in the editor.
+		 */
+		commentingRangeProvider?: CommentingRangeProvider;
+
+		/**
+		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
+		 * and Comments Panel once created.
+		 *
+		 * @param id An `id` for the comment thread.
+		 * @param resource The uri of the document the thread has been created on.
+		 * @param range The range the comment thread is located within the document.
+		 * @param comments The ordered comments of the thread.
+		 */
+		createCommentThread(id: string, uri: Uri, range: Range, comments: Comment[]): CommentThread;
+
+		/**
+		 * Dispose this comment controller.
+		 *
+		 * Once disposed, all [comment threads](#CommentThread) created by this comment controller will also be removed from the editor
+		 * and Comments Panel.
+		 */
+		dispose(): void;
+	}
+
+	namespace comment {
+		/**
+		 * Creates a new [comment controller](#CommentController) instance.
+		 *
+		 * @param id An `id` for the comment controller.
+		 * @param label A human-readable string for the comment controller.
+		 * @return An instance of [comment controller](#CommentController).
+		 */
+		export function createCommentController(id: string, label: string): CommentController;
+	}
+
+	//#endregion
 }
 
 /**

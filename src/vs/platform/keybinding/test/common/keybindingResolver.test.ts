@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { KeyChord, KeyCode, KeyMod, KeybindingType, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OS } from 'vs/base/common/platform';
 import { ContextKeyAndExpr, ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -26,7 +26,7 @@ suite('KeybindingResolver', () => {
 			resolvedKeybinding,
 			command,
 			commandArgs,
-			when ? when.normalize() : null,
+			when ? when.normalize() : undefined,
 			isDefault
 		);
 	}
@@ -37,7 +37,7 @@ suite('KeybindingResolver', () => {
 
 	test('resolve key', function () {
 		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
-		let runtimeKeybinding = createKeybinding(keybinding, OS);
+		let runtimeKeybinding = createSimpleKeybinding(keybinding, OS);
 		let contextRules = ContextKeyExpr.equals('bar', 'baz');
 		let keybindingItem = kbItem(keybinding, 'yes', null, contextRules, true);
 
@@ -45,19 +45,19 @@ suite('KeybindingResolver', () => {
 		assert.equal(KeybindingResolver.contextMatchesRules(createContext({ bar: 'bz' }), contextRules), false);
 
 		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(<SimpleKeybinding>runtimeKeybinding))!.commandId, 'yes');
-		assert.equal(resolver.resolve(createContext({ bar: 'bz' }), null, getDispatchStr(<SimpleKeybinding>runtimeKeybinding)), null);
+		assert.equal(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandId, 'yes');
+		assert.equal(resolver.resolve(createContext({ bar: 'bz' }), null, getDispatchStr(runtimeKeybinding)), null);
 	});
 
 	test('resolve key with arguments', function () {
 		let commandArgs = { text: 'no' };
 		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
-		let runtimeKeybinding = createKeybinding(keybinding, OS);
+		let runtimeKeybinding = createSimpleKeybinding(keybinding, OS);
 		let contextRules = ContextKeyExpr.equals('bar', 'baz');
 		let keybindingItem = kbItem(keybinding, 'yes', commandArgs, contextRules, true);
 
 		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(<SimpleKeybinding>runtimeKeybinding))!.commandArgs, commandArgs);
+		assert.equal(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandArgs, commandArgs);
 	});
 
 	test('KeybindingResolver.combine simple 1', function () {
@@ -346,24 +346,24 @@ suite('KeybindingResolver', () => {
 		let testResolve = (ctx: IContext, _expectedKey: number, commandId: string) => {
 			const expectedKey = createKeybinding(_expectedKey, OS)!;
 
-			if (expectedKey.type === KeybindingType.Chord) {
-				let firstPart = getDispatchStr(expectedKey.firstPart);
-				let chordPart = getDispatchStr(expectedKey.chordPart);
-
-				let result = resolver.resolve(ctx, null, firstPart)!;
-				assert.ok(result !== null, 'Enters chord for ' + commandId);
-				assert.equal(result.commandId, null, 'Enters chord for ' + commandId);
-				assert.equal(result.enterChord, true, 'Enters chord for ' + commandId);
-
-				result = resolver.resolve(ctx, firstPart, chordPart)!;
-				assert.ok(result !== null, 'Enters chord for ' + commandId);
-				assert.equal(result.commandId, commandId, 'Finds chorded command ' + commandId);
-				assert.equal(result.enterChord, false, 'Finds chorded command ' + commandId);
-			} else {
-				let result = resolver.resolve(ctx, null, getDispatchStr(expectedKey))!;
-				assert.ok(result !== null, 'Finds command ' + commandId);
-				assert.equal(result.commandId, commandId, 'Finds command ' + commandId);
-				assert.equal(result.enterChord, false, 'Finds command ' + commandId);
+			let previousPart: (string | null) = null;
+			for (let i = 0, len = expectedKey.parts.length; i < len; i++) {
+				let part = getDispatchStr(expectedKey.parts[i]);
+				let result = resolver.resolve(ctx, previousPart, part);
+				if (i === len - 1) {
+					// if it's the final part, then we should find a valid command,
+					// and there should not be a chord.
+					assert.ok(result !== null, `Enters chord for ${commandId} at part ${i}`);
+					assert.equal(result!.commandId, commandId, `Enters chord for ${commandId} at part ${i}`);
+					assert.equal(result!.enterChord, false, `Enters chord for ${commandId} at part ${i}`);
+				} else {
+					// if it's not the final part, then we should not find a valid command,
+					// and there should be a chord.
+					assert.ok(result !== null, `Enters chord for ${commandId} at part ${i}`);
+					assert.equal(result!.commandId, null, `Enters chord for ${commandId} at part ${i}`);
+					assert.equal(result!.enterChord, true, `Enters chord for ${commandId} at part ${i}`);
+				}
+				previousPart = part;
 			}
 		};
 

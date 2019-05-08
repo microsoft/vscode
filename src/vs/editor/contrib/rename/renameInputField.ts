@@ -116,7 +116,7 @@ export class RenameInputField implements IContentWidget, IDisposable {
 	}
 
 	private _currentAcceptInput: (() => void) | null = null;
-	private _currentCancelInput: ((focusEditor) => void) | null = null;
+	private _currentCancelInput: ((focusEditor: boolean) => void) | null = null;
 
 	public acceptInput(): void {
 		if (this._currentAcceptInput) {
@@ -144,7 +144,7 @@ export class RenameInputField implements IContentWidget, IDisposable {
 			this._hide();
 		};
 
-		return new Promise<string>(resolve => {
+		return new Promise<string | boolean>(resolve => {
 
 			this._currentCancelInput = (focusEditor) => {
 				this._currentAcceptInput = null;

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -16,28 +16,36 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import * as pfs from 'vs/base/node/pfs';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
-import { ISingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
-import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
+import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
+import { ISingleFolderWorkspaceInitializationPayload, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { Uri } from 'vscode';
+import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { createHash } from 'crypto';
+import { Schemas } from 'vs/base/common/network';
+import { originalFSPath } from 'vs/base/common/resources';
+import { isLinux } from 'vs/base/common/platform';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
+import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
+import { ConfigurationFileService } from 'vs/workbench/services/configuration/node/configurationFileService';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
-	constructor(args: ParsedArgs, _execPath: string, private customAppSettingsHome) {
+	constructor(args: ParsedArgs, _execPath: string, private customAppSettingsHome: string) {
 		super(args, _execPath);
 	}
 
@@ -56,14 +64,14 @@ function setUpFolder(folderName: string, parentDir: string): Promise<string> {
 	return Promise.resolve(pfs.mkdirp(workspaceSettingsDir, 493).then(() => folderDir));
 }
 
-function convertToWorkspacePayload(folder: Uri): ISingleFolderWorkspaceInitializationPayload {
+function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceInitializationPayload {
 	return {
 		id: createHash('md5').update(folder.fsPath).digest('hex'),
 		folder
 	} as ISingleFolderWorkspaceInitializationPayload;
 }
 
-function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configPath: string }> {
+function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configPath: URI }> {
 
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
@@ -75,7 +83,7 @@ function setUpWorkspace(folders: string[]): Promise<{ parentDir: string, configP
 			fs.writeFileSync(configPath, JSON.stringify(workspace, null, '\t'));
 
 			return Promise.all(folders.map(folder => setUpFolder(folder, parentDir)))
-				.then(() => ({ parentDir, configPath }));
+				.then(() => ({ parentDir, configPath: URI.file(configPath) }));
 		}));
 
 }
@@ -92,7 +100,7 @@ suite('WorkspaceContextService - Folder', () => {
 				workspaceResource = folderDir;
 				const globalSettingsFile = path.join(parentDir, 'settings.json');
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-				workspaceContextService = new WorkspaceService(environmentService);
+				workspaceContextService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), new RemoteAgentService(<IWindowConfiguration>{}, environmentService, new RemoteAuthorityResolverService()));
 				return (<WorkspaceService>workspaceContextService).initialize(convertToWorkspacePayload(URI.file(folderDir)));
 			});
 	});
@@ -102,7 +110,7 @@ suite('WorkspaceContextService - Folder', () => {
 			(<WorkspaceService>workspaceContextService).dispose();
 		}
 		if (parentResource) {
-			return pfs.del(parentResource, os.tmpdir());
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
 		return undefined;
 	});
@@ -136,11 +144,13 @@ suite('WorkspaceContextService - Folder', () => {
 	test('isCurrentWorkspace() => false', () => {
 		assert.ok(!workspaceContextService.isCurrentWorkspace(URI.file(workspaceResource + 'abc')));
 	});
+
+	test('workspace is complete', () => workspaceContextService.getCompleteWorkspace());
 });
 
 suite('WorkspaceContextService - Workspace', () => {
 
-	let parentResource: string, testObject: WorkspaceService;
+	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService;
 
 	setup(() => {
 		return setUpWorkspace(['a', 'b'])
@@ -148,22 +158,81 @@ suite('WorkspaceContextService - Workspace', () => {
 
 				parentResource = parentDir;
 
+				instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
-				const workspaceService = new WorkspaceService(environmentService);
+				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+				instantiationService.stub(IRemoteAgentService, remoteAgentService);
+				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), remoteAgentService);
 
-				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
-				return workspaceService.initialize({ id: configPath, configPath }).then(() => {
+				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
+					workspaceService.acquireInstantiationService(instantiationService);
+					testObject = workspaceService;
+				});
+			});
+	});
 
-					const fileService = new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+	teardown(() => {
+		if (testObject) {
+			(<WorkspaceService>testObject).dispose();
+		}
+		if (parentResource) {
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+		}
+		return undefined;
+	});
+
+	test('workspace folders', () => {
+		const actual = testObject.getWorkspace().folders;
+
+		assert.equal(actual.length, 2);
+		assert.equal(path.basename(actual[0].uri.fsPath), 'a');
+		assert.equal(path.basename(actual[1].uri.fsPath), 'b');
+	});
+
+	test('getWorkbenchState()', () => {
+		const actual = testObject.getWorkbenchState();
+
+		assert.equal(actual, WorkbenchState.WORKSPACE);
+	});
+
+
+	test('workspace is complete', () => testObject.getCompleteWorkspace());
+
+});
+
+suite('WorkspaceContextService - Workspace Editing', () => {
+
+	let parentResource: string, testObject: WorkspaceService, instantiationService: TestInstantiationService;
+
+	setup(() => {
+		return setUpWorkspace(['a', 'b'])
+			.then(({ parentDir, configPath }) => {
+
+				parentResource = parentDir;
+
+				instantiationService = <TestInstantiationService>workbenchInstantiationService();
+				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
+				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+				instantiationService.stub(IRemoteAgentService, remoteAgentService);
+				const fileService = new FileService(new NullLogService());
+				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+				const configurationFileService = new ConfigurationFileService();
+				configurationFileService.fileService = fileService;
+				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
+
+				instantiationService.stub(IWorkspaceContextService, workspaceService);
+				instantiationService.stub(IConfigurationService, workspaceService);
+				instantiationService.stub(IEnvironmentService, environmentService);
+
+				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.acquireInstantiationService(instantiationService);
-					workspaceService.acquireFileService(fileService);
 
 					testObject = workspaceService;
 				});
@@ -175,17 +244,9 @@ suite('WorkspaceContextService - Workspace', () => {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			return pfs.del(parentResource, os.tmpdir());
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
 		return undefined;
-	});
-
-	test('workspace folders', () => {
-		const actual = testObject.getWorkspace().folders;
-
-		assert.equal(actual.length, 2);
-		assert.equal(path.basename(actual[0].uri.fsPath), 'a');
-		assert.equal(path.basename(actual[1].uri.fsPath), 'b');
 	});
 
 	test('add folders', () => {
@@ -284,17 +345,21 @@ suite('WorkspaceContextService - Workspace', () => {
 			});
 	});
 
-	test('remove folders and add them back by writing into the file', done => {
+	test('remove folders and add them back by writing into the file', async done => {
 		const folders = testObject.getWorkspace().folders;
-		testObject.removeFolders([folders[0].uri])
-			.then(() => {
-				testObject.onDidChangeWorkspaceFolders(actual => {
-					assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
-					done();
-				});
-				const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
-				fs.writeFileSync(testObject.getWorkspace().configuration!.fsPath, JSON.stringify(workspace, null, '\t'));
-			}, done);
+		await testObject.removeFolders([folders[0].uri]);
+
+		testObject.onDidChangeWorkspaceFolders(actual => {
+			try {
+				assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
+				done();
+			} catch (error) {
+				done(error);
+			}
+		});
+
+		const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
+		await instantiationService.get(ITextFileService).write(testObject.getWorkspace().configuration!, JSON.stringify(workspace, null, '\t'));
 	});
 
 	test('update folders (remove last and add to end)', () => {
@@ -380,7 +445,7 @@ suite('WorkspaceContextService - Workspace', () => {
 
 suite('WorkspaceService - Initialization', () => {
 
-	let parentResource: string, workspaceConfigPath: string, testObject: WorkspaceService, globalSettingsFile: string;
+	let parentResource: string, workspaceConfigPath: URI, testObject: WorkspaceService, globalSettingsFile: string;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
@@ -412,18 +477,22 @@ suite('WorkspaceService - Initialization', () => {
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-				const workspaceService = new WorkspaceService(environmentService);
+				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+				instantiationService.stub(IRemoteAgentService, remoteAgentService);
+				const fileService = new FileService(new NullLogService());
+				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+				const configurationFileService = new ConfigurationFileService();
+				configurationFileService.fileService = fileService;
+				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize({ id: '' }).then(() => {
-					const fileService = new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.acquireInstantiationService(instantiationService);
-					workspaceService.acquireFileService(fileService);
 					testObject = workspaceService;
 				});
 			});
@@ -434,7 +503,7 @@ suite('WorkspaceService - Initialization', () => {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			return pfs.del(parentResource, os.tmpdir());
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
 		return undefined;
 	});
@@ -508,7 +577,7 @@ suite('WorkspaceService - Initialization', () => {
 				testObject.onDidChangeWorkspaceFolders(target);
 				testObject.onDidChangeConfiguration(target);
 
-				return testObject.initialize({ id: workspaceConfigPath, configPath: workspaceConfigPath })
+				return testObject.initialize(getWorkspaceIdentifier(workspaceConfigPath))
 					.then(() => {
 						assert.equal(target.callCount, 3);
 						assert.deepEqual(target.args[0], [WorkbenchState.WORKSPACE]);
@@ -537,7 +606,7 @@ suite('WorkspaceService - Initialization', () => {
 				fs.writeFileSync(path.join(parentResource, '1', '.vscode', 'settings.json'), '{ "initialization.testSetting1": "workspaceValue1" }');
 				fs.writeFileSync(path.join(parentResource, '2', '.vscode', 'settings.json'), '{ "initialization.testSetting2": "workspaceValue2" }');
 
-				return testObject.initialize({ id: workspaceConfigPath, configPath: workspaceConfigPath })
+				return testObject.initialize(getWorkspaceIdentifier(workspaceConfigPath))
 					.then(() => {
 						assert.equal(target.callCount, 4);
 						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1', 'initialization.testSetting2']);
@@ -618,7 +687,7 @@ suite('WorkspaceService - Initialization', () => {
 				testObject.onDidChangeConfiguration(target);
 
 				fs.writeFileSync(path.join(parentResource, '1', '.vscode', 'settings.json'), '{ "initialization.testSetting1": "workspaceValue2" }');
-				return testObject.initialize({ id: workspaceConfigPath, configPath: workspaceConfigPath })
+				return testObject.initialize(getWorkspaceIdentifier(workspaceConfigPath))
 					.then(() => {
 						assert.equal(target.callCount, 4);
 						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
@@ -635,7 +704,7 @@ suite('WorkspaceService - Initialization', () => {
 
 suite('WorkspaceConfigurationService - Folder', () => {
 
-	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IWorkspaceConfigurationService, globalSettingsFile: string;
+	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
@@ -647,6 +716,11 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION
+				},
+				'configurationService.folder.machineSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE
 				},
 				'configurationService.folder.testSetting': {
 					'type': 'string',
@@ -667,18 +741,22 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-				const workspaceService = new WorkspaceService(environmentService);
+				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+				instantiationService.stub(IRemoteAgentService, remoteAgentService);
+				const fileService = new FileService(new NullLogService());
+				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+				const configurationFileService = new ConfigurationFileService();
+				configurationFileService.fileService = fileService;
+				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(convertToWorkspacePayload(URI.file(folderDir))).then(() => {
-					const fileService = new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.acquireInstantiationService(instantiationService);
-					workspaceService.acquireFileService(fileService);
 					testObject = workspaceService;
 				});
 			});
@@ -689,13 +767,13 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			return pfs.del(parentResource, os.tmpdir());
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
 		return undefined;
 	});
 
 	test('defaults', () => {
-		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'testSetting': 'isSet' } });
+		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'testSetting': 'isSet' } });
 	});
 
 	test('globals override defaults', () => {
@@ -751,6 +829,13 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.equal(testObject.getValue('configurationService.folder.applicationSetting'), 'userValue'));
 	});
 
+	test('machine settings are not read from workspace', () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.machineSetting": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.machineSetting": "workspaceValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => assert.equal(testObject.getValue('configurationService.folder.machineSetting'), 'userValue'));
+	});
+
 	test('get application scope settings are not loaded after defaults are registered', () => {
 		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.anotherApplicationSetting": "workspaceValue" }');
 		return testObject.reloadConfiguration()
@@ -763,6 +848,25 @@ suite('WorkspaceConfigurationService - Folder', () => {
 							'type': 'string',
 							'default': 'isSet',
 							scope: ConfigurationScope.APPLICATION
+						}
+					}
+				});
+				assert.deepEqual(testObject.keys().workspace, []);
+			});
+	});
+
+	test('get machine scope settings are not loaded after defaults are registered', () => {
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.anotherMachineSetting": "workspaceValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => {
+				configurationRegistry.registerConfiguration({
+					'id': '_test',
+					'type': 'object',
+					'properties': {
+						'configurationService.folder.anotherMachineSetting': {
+							'type': 'string',
+							'default': 'isSet',
+							scope: ConfigurationScope.MACHINE
 						}
 					}
 				});
@@ -879,6 +983,11 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
 	});
 
+	test('update machine setting into workspace configuration in a workspace is not supported', () => {
+		return testObject.updateValue('configurationService.folder.machineSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE));
+	});
+
 	test('update tasks configuration', () => {
 		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, ConfigurationTarget.WORKSPACE)
 			.then(() => assert.deepEqual(testObject.getValue('tasks'), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
@@ -898,6 +1007,18 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.ok(target.called));
 	});
 
+	test('update memory configuration', () => {
+		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'memoryValue'));
+	});
+
+	test('update memory configuration should trigger change event before promise is resolve', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeConfiguration(target);
+		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.ok(target.called));
+	});
+
 	test('update task configuration should trigger change event before promise is resolve', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeConfiguration(target);
@@ -909,7 +1030,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 suite('WorkspaceConfigurationService-Multiroot', () => {
 
-	let parentResource: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService, jsonEditingServce: IJSONEditingService, testObject: IWorkspaceConfigurationService;
+	let parentResource: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService, jsonEditingServce: IJSONEditingService, testObject: IConfigurationService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
@@ -926,6 +1047,11 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION
 				},
+				'configurationService.workspace.machineSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE
+				},
 				'configurationService.workspace.testResourceSetting': {
 					'type': 'string',
 					'default': 'isSet',
@@ -941,22 +1067,25 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 				parentResource = parentDir;
 
-				environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
-				const workspaceService = new WorkspaceService(environmentService);
-
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+				environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
+				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+				instantiationService.stub(IRemoteAgentService, remoteAgentService);
+				const fileService = new FileService(new NullLogService());
+				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+				const configurationFileService = new ConfigurationFileService();
+				configurationFileService.fileService = fileService;
+				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
+
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
-				return workspaceService.initialize({ id: configPath, configPath }).then(() => {
-
-					const fileService = new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.acquireInstantiationService(instantiationService);
-					workspaceService.acquireFileService(fileService);
 
 					workspaceContextService = workspaceService;
 					jsonEditingServce = instantiationService.createInstance(JSONEditingService);
@@ -970,7 +1099,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			return pfs.del(parentResource, os.tmpdir());
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
 		}
 		return undefined;
 	});
@@ -980,6 +1109,13 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, { key: 'settings', value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }, true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue'));
+	});
+
+	test('machine settings are not read from workspace', () => {
+		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.machineSetting": "userValue" }');
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, { key: 'settings', value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => assert.equal(testObject.getValue('configurationService.workspace.machineSetting'), 'userValue'));
 	});
 
 	test('workspace settings override user settings after defaults are registered ', () => {
@@ -1008,6 +1144,13 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			.then(() => assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue'));
 	});
 
+	test('machine settings are not read from workspace folder', () => {
+		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.machineSetting": "userValue" }');
+		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.machineSetting": "workspaceFolderValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => assert.equal(testObject.getValue('configurationService.workspace.machineSetting'), 'userValue'));
+	});
+
 	test('application settings are not read from workspace folder after defaults are registered', () => {
 		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.testNewApplicationSetting": "userValue" }');
 		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewApplicationSetting": "workspaceFolderValue" }');
@@ -1025,6 +1168,26 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 					}
 				});
 				assert.equal(testObject.getValue('configurationService.workspace.testNewApplicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+			});
+	});
+
+	test('application settings are not read from workspace folder after defaults are registered', () => {
+		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.testNewMachineSetting": "userValue" }');
+		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewMachineSetting": "workspaceFolderValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => {
+				configurationRegistry.registerConfiguration({
+					'id': '_test',
+					'type': 'object',
+					'properties': {
+						'configurationService.workspace.testNewMachineSetting': {
+							'type': 'string',
+							'default': 'isSet',
+							scope: ConfigurationScope.MACHINE
+						}
+					}
+				});
+				assert.equal(testObject.getValue('configurationService.workspace.testNewMachineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
 			});
 	});
 
@@ -1177,6 +1340,11 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
 	});
 
+	test('update machine setting into workspace configuration in a workspace is not supported', () => {
+		return testObject.updateValue('configurationService.workspace.machineSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE));
+	});
+
 	test('update workspace folder configuration', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('configurationService.workspace.testResourceSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
@@ -1200,6 +1368,18 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				return testObject.updateValue('configurationService.workspace.testResourceSetting', 'workspaceFolderValue2', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
 					.then(() => assert.ok(target.called));
 			});
+	});
+
+	test('update memory configuration', () => {
+		return testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.equal(testObject.getValue('configurationService.workspace.testSetting'), 'memoryValue'));
+	});
+
+	test('update memory configuration should trigger change event before promise is resolve', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeConfiguration(target);
+		return testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
+			.then(() => assert.ok(target.called));
 	});
 
 	test('update tasks configuration in a folder', () => {
@@ -1229,3 +1409,19 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			});
 	});
 });
+
+function getWorkspaceId(configPath: URI): string {
+	let workspaceConfigPath = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
+	if (!isLinux) {
+		workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
+	}
+
+	return createHash('md5').update(workspaceConfigPath).digest('hex');
+}
+
+export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
+	return {
+		configPath,
+		id: getWorkspaceId(configPath)
+	};
+}

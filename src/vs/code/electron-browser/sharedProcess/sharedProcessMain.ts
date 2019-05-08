@@ -5,8 +5,8 @@
 
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/product/node/product';
+import pkg from 'vs/platform/product/node/package';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -28,9 +28,8 @@ import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIp
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
-import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
+import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { ipcRenderer } from 'electron';
-import { createSharedProcessContributions } from 'vs/code/electron-browser/sharedProcess/contrib/contributions';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
@@ -39,10 +38,16 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';
 import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
+import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
+import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
+import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
+import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -59,6 +64,20 @@ interface ISharedProcessInitData {
 }
 
 const eventPrefix = 'monacoworkbench';
+
+class MainProcessService implements IMainProcessService {
+	constructor(private server: Server, private mainRouter: StaticRouter) { }
+
+	_serviceBrand: ServiceIdentifier<any>;
+
+	getChannel(channelName: string): IChannel {
+		return this.server.getChannel(channelName, this.mainRouter);
+	}
+
+	registerChannel(channelName: string, channel: IServerChannel<string>): void {
+		this.server.registerChannel(channelName, channel);
+	}
+}
 
 function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): void {
 	const services = new ServiceCollection();
@@ -82,12 +101,14 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
-	const windowsChannel = server.getChannel('windows', mainRouter);
-	const windowsService = new WindowsChannelClient(windowsChannel);
+	const mainProcessService = new MainProcessService(server, mainRouter);
+	services.set(IMainProcessService, mainProcessService);
+
+	const windowsService = new WindowsService(mainProcessService);
 	services.set(IWindowsService, windowsService);
 
 	const activeWindowManager = new ActiveWindowManager(windowsService);
@@ -100,7 +121,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	instantiationService.invokeFunction(accessor => {
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
-		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
+		const { appRoot, extensionsPath, extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
 		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
 		telemetryLogService.info('===========================================================');
@@ -123,7 +144,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		}
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
 
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [false]));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 
@@ -135,14 +156,21 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 			const channel = new ExtensionManagementChannel(extensionManagementService, () => null);
 			server.registerChannel('extensions', channel);
 
-			// clean up deprecated extensions
-			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
-
 			const localizationsService = accessor.get(ILocalizationsService);
 			const localizationsChannel = new LocalizationsChannel(localizationsService);
 			server.registerChannel('localizations', localizationsChannel);
 
-			createSharedProcessContributions(instantiationService2);
+			// clean up deprecated extensions
+			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+			// update localizations cache
+			(localizationsService as LocalizationsService).update();
+			// cache clean ups
+			disposables.push(combinedDisposable([
+				instantiationService2.createInstance(NodeCachedDataCleaner),
+				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
+				instantiationService2.createInstance(StorageDataCleaner),
+				instantiationService2.createInstance(LogsDataCleaner)
+			]));
 			disposables.push(extensionManagementService as ExtensionManagementService);
 		});
 	});

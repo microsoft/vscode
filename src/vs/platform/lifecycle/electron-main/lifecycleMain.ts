@@ -12,7 +12,6 @@ import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { always } from 'vs/base/common/async';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -202,7 +201,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			const shutdownPromise = this.beginOnWillShutdown();
 
 			// Wait until shutdown is signaled to be complete
-			always(shutdownPromise, () => {
+			shutdownPromise.finally(() => {
 
 				// Resolve pending quit promise now without veto
 				this.resolvePendingQuitPromise(false /* no veto */);
@@ -234,7 +233,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			}
 		});
 
-		this.pendingWillShutdownPromise = Promise.all(joiners).then(undefined, err => this.logService.error(err));
+		this.pendingWillShutdownPromise = Promise.all(joiners).then(() => undefined, err => this.logService.error(err));
 
 		return this.pendingWillShutdownPromise;
 	}
@@ -277,7 +276,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		});
 
 		// Window After Closing
-		window.win.on('closed', e => {
+		window.win.on('closed', () => {
 			this.logService.trace(`Lifecycle#window.on('closed') - window ID ${window.id}`);
 
 			// update window count

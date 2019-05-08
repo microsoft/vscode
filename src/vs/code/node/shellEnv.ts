@@ -9,7 +9,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { isWindows } from 'vs/base/common/platform';
 
 function getUnixShellEnvironment(): Promise<typeof process.env> {
-	const promise = new Promise((resolve, reject) => {
+	const promise = new Promise<typeof process.env>((resolve, reject) => {
 		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
 		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
@@ -29,9 +29,9 @@ function getUnixShellEnvironment(): Promise<typeof process.env> {
 
 		const buffers: Buffer[] = [];
 		child.on('error', () => resolve({}));
-		child.stdout.on('data', b => buffers.push(b as Buffer));
+		child.stdout.on('data', b => buffers.push(b));
 
-		child.on('close', (code: number, signal: any) => {
+		child.on('close', code => {
 			if (code !== 0) {
 				return reject(new Error('Failed to get environment'));
 			}
@@ -66,7 +66,7 @@ function getUnixShellEnvironment(): Promise<typeof process.env> {
 	});
 
 	// swallow errors
-	return promise.then(undefined, () => ({}));
+	return promise.catch(() => ({}));
 }
 
 

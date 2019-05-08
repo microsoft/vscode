@@ -7,3 +7,4 @@ ThirdPartyNotices.txt eol=crlf
 *.cmd eol=crlf
 *.ps1 eol=lf
 *.sh eol=lf
+*.rtf -text

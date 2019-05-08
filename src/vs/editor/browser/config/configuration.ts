@@ -15,11 +15,12 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 class CSSBasedConfigurationCache {
 
-	private _keys: { [key: string]: BareFontInfo; };
-	private _values: { [key: string]: FontInfo; };
+	private readonly _keys: { [key: string]: BareFontInfo; };
+	private readonly _values: { [key: string]: FontInfo; };
 
 	constructor() {
 		this._keys = Object.create(null);
@@ -27,23 +28,23 @@ class CSSBasedConfigurationCache {
 	}
 
 	public has(item: BareFontInfo): boolean {
-		let itemId = item.getId();
+		const itemId = item.getId();
 		return !!this._values[itemId];
 	}
 
 	public get(item: BareFontInfo): FontInfo {
-		let itemId = item.getId();
+		const itemId = item.getId();
 		return this._values[itemId];
 	}
 
 	public put(item: BareFontInfo, value: FontInfo): void {
-		let itemId = item.getId();
+		const itemId = item.getId();
 		this._keys[itemId] = item;
 		this._values[itemId] = value;
 	}
 
 	public remove(item: BareFontInfo): void {
-		let itemId = item.getId();
+		const itemId = item.getId();
 		delete this._keys[itemId];
 		delete this._values[itemId];
 	}
@@ -53,12 +54,16 @@ class CSSBasedConfigurationCache {
 	}
 }
 
+export function clearAllFontInfos(): void {
+	CSSBasedConfiguration.INSTANCE.clearCache();
+}
+
 export function readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
 	return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
 }
 
 export function restoreFontInfo(storageService: IStorageService): void {
-	let strStoredFontInfo = storageService.get('editorFontInfo', StorageScope.GLOBAL);
+	const strStoredFontInfo = storageService.get('editorFontInfo', StorageScope.GLOBAL);
 	if (typeof strStoredFontInfo !== 'string') {
 		return;
 	}
@@ -75,7 +80,7 @@ export function restoreFontInfo(storageService: IStorageService): void {
 }
 
 export function saveFontInfo(storageService: IStorageService): void {
-	let knownFontInfo = CSSBasedConfiguration.INSTANCE.saveFontInfo();
+	const knownFontInfo = CSSBasedConfiguration.INSTANCE.saveFontInfo();
 	if (knownFontInfo.length > 0) {
 		storageService.store('editorFontInfo', JSON.stringify(knownFontInfo), StorageScope.GLOBAL);
 	}
@@ -121,6 +126,11 @@ class CSSBasedConfiguration extends Disposable {
 		super.dispose();
 	}
 
+	public clearCache(): void {
+		this._cache = new CSSBasedConfigurationCache();
+		this._onDidChange.fire();
+	}
+
 	private _writeToCache(item: BareFontInfo, value: FontInfo): void {
 		this._cache.put(item, value);
 
@@ -134,10 +144,10 @@ class CSSBasedConfiguration extends Disposable {
 	}
 
 	private _evictUntrustedReadings(): void {
-		let values = this._cache.getValues();
+		const values = this._cache.getValues();
 		let somethingRemoved = false;
 		for (let i = 0, len = values.length; i < len; i++) {
-			let item = values[i];
+			const item = values[i];
 			if (!item.isTrusted) {
 				somethingRemoved = true;
 				this._cache.remove(item);
@@ -157,7 +167,7 @@ class CSSBasedConfiguration extends Disposable {
 		// Take all the saved font info and insert them in the cache without the trusted flag.
 		// The reason for this is that a font might have been installed on the OS in the meantime.
 		for (let i = 0, len = savedFontInfo.length; i < len; i++) {
-			let fontInfo = new FontInfo(savedFontInfo[i], false);
+			const fontInfo = new FontInfo(savedFontInfo[i], false);
 			this._writeToCache(fontInfo, fontInfo);
 		}
 	}
@@ -190,7 +200,7 @@ class CSSBasedConfiguration extends Disposable {
 	}
 
 	private static createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[] | null): CharWidthRequest {
-		let result = new CharWidthRequest(chr, type);
+		const result = new CharWidthRequest(chr, type);
 		all.push(result);
 		if (monospace) {
 			monospace.push(result);
@@ -199,8 +209,8 @@ class CSSBasedConfiguration extends Disposable {
 	}
 
 	private static _actualReadConfiguration(bareFontInfo: BareFontInfo): FontInfo {
-		let all: CharWidthRequest[] = [];
-		let monospace: CharWidthRequest[] = [];
+		const all: CharWidthRequest[] = [];
+		const monospace: CharWidthRequest[] = [];
 
 		const typicalHalfwidthCharacter = this.createRequest('n', CharWidthRequestType.Regular, all, monospace);
 		const typicalFullwidthCharacter = this.createRequest('\uff4d', CharWidthRequestType.Regular, all, null);
@@ -252,7 +262,7 @@ class CSSBasedConfiguration extends Disposable {
 		const maxDigitWidth = Math.max(digit0.width, digit1.width, digit2.width, digit3.width, digit4.width, digit5.width, digit6.width, digit7.width, digit8.width, digit9.width);
 
 		let isMonospace = true;
-		let referenceWidth = monospace[0].width;
+		const referenceWidth = monospace[0].width;
 		for (let i = 1, len = monospace.length; i < len; i++) {
 			const diff = referenceWidth - monospace[i].width;
 			if (diff < -0.001 || diff > 0.001) {
@@ -310,8 +320,13 @@ export class Configuration extends CommonEditorConfiguration {
 
 	private readonly _elementSizeObserver: ElementSizeObserver;
 
-	constructor(options: IEditorOptions, referenceDomElement: HTMLElement | null = null) {
-		super(options);
+	constructor(
+		isSimpleWidget: boolean,
+		options: IEditorOptions,
+		referenceDomElement: HTMLElement | null = null,
+		private readonly accessibilityService: IAccessibilityService
+	) {
+		super(isSimpleWidget, options);
 
 		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));
 
@@ -322,7 +337,7 @@ export class Configuration extends CommonEditorConfiguration {
 		}
 
 		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
-		this._register(browser.onDidChangeAccessibilitySupport(() => this._recomputeOptions()));
+		this._register(this.accessibilityService.onDidChangeAccessibilitySupport(() => this._recomputeOptions()));
 
 		this._recomputeOptions();
 	}
@@ -363,7 +378,7 @@ export class Configuration extends CommonEditorConfiguration {
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: browser.getPixelRatio(),
 			zoomLevel: browser.getZoomLevel(),
-			accessibilitySupport: browser.getAccessibilitySupport()
+			accessibilitySupport: this.accessibilityService.getAccessibilitySupport()
 		};
 	}
 

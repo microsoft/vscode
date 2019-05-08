@@ -33,47 +33,49 @@ export function setARIAContainer(parent: HTMLElement) {
 /**
  * Given the provided message, will make sure that it is read as alert to screen readers.
  */
-export function alert(msg: string): void {
-	insertMessage(alertContainer, msg);
+export function alert(msg: string, disableRepeat?: boolean): void {
+	insertMessage(alertContainer, msg, disableRepeat);
 }
 
 /**
  * Given the provided message, will make sure that it is read as status to screen readers.
  */
-export function status(msg: string): void {
+export function status(msg: string, disableRepeat?: boolean): void {
 	if (isMacintosh) {
-		alert(msg); // VoiceOver does not seem to support status role
+		alert(msg, disableRepeat); // VoiceOver does not seem to support status role
 	} else {
-		insertMessage(statusContainer, msg);
+		insertMessage(statusContainer, msg, disableRepeat);
 	}
 }
 
 let repeatedTimes = 0;
 let prevText: string | undefined = undefined;
-function insertMessage(target: HTMLElement, msg: string): void {
+function insertMessage(target: HTMLElement, msg: string, disableRepeat?: boolean): void {
 	if (!ariaContainer) {
-		// console.warn('ARIA support needs a container. Call setARIAContainer() first.');
 		return;
 	}
 
-	if (prevText === msg) {
-		repeatedTimes++;
-	}
-	else {
-		prevText = msg;
-		repeatedTimes = 0;
-	}
+	// If the same message should be inserted that is already present, a screen reader would
+	// not announce this message because it matches the previous one. As a workaround, we
+	// alter the message with the number of occurences unless this is explicitly disabled
+	// via the disableRepeat flag.
+	if (!disableRepeat) {
+		if (prevText === msg) {
+			repeatedTimes++;
+		} else {
+			prevText = msg;
+			repeatedTimes = 0;
+		}
 
-
-	switch (repeatedTimes) {
-		case 0: break;
-		case 1: msg = nls.localize('repeated', "{0} (occurred again)", msg); break;
-		default: msg = nls.localize('repeatedNtimes', "{0} (occurred {1} times)", msg, repeatedTimes); break;
+		switch (repeatedTimes) {
+			case 0: break;
+			case 1: msg = nls.localize('repeated', "{0} (occurred again)", msg); break;
+			default: msg = nls.localize('repeatedNtimes', "{0} (occurred {1} times)", msg, repeatedTimes); break;
+		}
 	}
 
 	dom.clearNode(target);
 	target.textContent = msg;
-
 
 	// See https://www.paciellogroup.com/blog/2012/06/html5-accessibility-chops-aria-rolealert-browser-support/
 	target.style.visibility = 'hidden';

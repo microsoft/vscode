@@ -16,15 +16,15 @@ import { Range } from 'vs/editor/common/core/range';
 
 export class ContentHoverWidget extends Widget implements editorBrowser.IContentWidget {
 
-	private _id: string;
+	private readonly _id: string;
 	protected _editor: editorBrowser.ICodeEditor;
 	private _isVisible: boolean;
-	private _containerDomNode: HTMLElement;
-	private _domNode: HTMLElement;
+	private readonly _containerDomNode: HTMLElement;
+	private readonly _domNode: HTMLElement;
 	protected _showAtPosition: Position | null;
 	protected _showAtRange: Range | null;
 	private _stoleFocus: boolean;
-	private scrollbar: DomScrollableElement;
+	private readonly scrollbar: DomScrollableElement;
 	private disposables: IDisposable[] = [];
 
 	// Editor.IContentWidget.allowEditorOverflow
@@ -68,9 +68,9 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 			}
 		}));
 
-		this._editor.onDidLayoutChange(e => this.updateMaxHeight());
+		this._editor.onDidLayoutChange(e => this.layout());
 
-		this.updateMaxHeight();
+		this.layout();
 		this._editor.addContentWidget(this);
 		this._showAtPosition = null;
 		this._showAtRange = null;
@@ -151,22 +151,23 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this.scrollbar.scanDomNode();
 	}
 
-	private updateMaxHeight(): void {
+	private layout(): void {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 		const { fontSize, lineHeight } = this._editor.getConfiguration().fontInfo;
 
 		this._domNode.style.fontSize = `${fontSize}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;
 		this._domNode.style.maxHeight = `${height}px`;
+		this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}
 }
 
 export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWidget {
 
-	private _id: string;
+	private readonly _id: string;
 	protected _editor: editorBrowser.ICodeEditor;
 	private _isVisible: boolean;
-	private _domNode: HTMLElement;
+	private readonly _domNode: HTMLElement;
 	protected _showAtLineNumber: number;
 
 	constructor(id: string, editor: editorBrowser.ICodeEditor) {

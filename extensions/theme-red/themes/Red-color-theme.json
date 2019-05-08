@@ -9,6 +9,7 @@
 		"sideBar.background": "#330000",
 		"statusBar.background": "#700000",
 		"statusBar.noFolderBackground": "#700000",
+		"statusBarItem.remoteBackground": "#c33",
 		"editorGroupHeader.tabsBackground": "#330000",
 		"titleBar.activeBackground": "#770000",
 		"titleBar.inactiveBackground": "#772222",

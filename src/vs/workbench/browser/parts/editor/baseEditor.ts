@@ -8,7 +8,7 @@ import { EditorInput, EditorOptions, IEditor, GroupIdentifier, IEditorMemento } 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
@@ -118,6 +118,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 	setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible);
+
 		// Propagate to Editor
 		this.setEditorVisible(visible, group);
 	}
@@ -247,7 +248,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 	}
 
-	private doGetResource(resourceOrEditor: URI | EditorInput): URI | null {
+	private doGetResource(resourceOrEditor: URI | EditorInput): URI | undefined {
 		if (resourceOrEditor instanceof EditorInput) {
 			return resourceOrEditor.getResource();
 		}

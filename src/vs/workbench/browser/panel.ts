@@ -8,7 +8,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { Action } from 'vs/base/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { isAncestor } from 'vs/base/browser/dom';
 
@@ -45,7 +45,7 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	 * Returns an array of registered panels known to the platform.
 	 */
 	getPanels(): PanelDescriptor[] {
-		return this.getComposites() as PanelDescriptor[];
+		return this.getComposites();
 	}
 
 	/**
@@ -61,6 +61,13 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	getDefaultPanelId(): string {
 		return this.defaultPanelId;
 	}
+
+	/**
+	 * Find out if a panel exists with the provided ID.
+	 */
+	hasPanel(id: string): boolean {
+		return this.getPanels().some(panel => panel.id === id);
+	}
 }
 
 /**
@@ -68,40 +75,37 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
  */
 export abstract class TogglePanelAction extends Action {
 
-	private panelId: string;
-
 	constructor(
 		id: string,
 		label: string,
-		panelId: string,
+		private readonly panelId: string,
 		protected panelService: IPanelService,
-		private partService: IPartService,
+		private layoutService: IWorkbenchLayoutService,
 		cssClass?: string
 	) {
 		super(id, label, cssClass);
-		this.panelId = panelId;
 	}
 
 	run(): Promise<any> {
 		if (this.isPanelFocused()) {
-			this.partService.setPanelHidden(true);
+			this.layoutService.setPanelHidden(true);
 		} else {
 			this.panelService.openPanel(this.panelId, true);
 		}
 
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	private isPanelActive(): boolean {
 		const activePanel = this.panelService.getActivePanel();
 
-		return activePanel && activePanel.getId() === this.panelId;
+		return !!activePanel && activePanel.getId() === this.panelId;
 	}
 
 	private isPanelFocused(): boolean {
 		const activeElement = document.activeElement;
 
-		return !!(this.isPanelActive() && activeElement && isAncestor(activeElement, this.partService.getContainer(Parts.PANEL_PART)));
+		return !!(this.isPanelActive() && activeElement && isAncestor(activeElement, this.layoutService.getContainer(Parts.PANEL_PART)));
 	}
 }
 

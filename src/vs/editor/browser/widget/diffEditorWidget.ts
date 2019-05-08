@@ -148,7 +148,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly id: number;
 
-	private _domElement: HTMLElement;
+	private readonly _domElement: HTMLElement;
 	protected readonly _containerDomElement: HTMLElement;
 	private readonly _overviewDomElement: HTMLElement;
 	private readonly _overviewViewportDomElement: FastDomNode<HTMLElement>;
@@ -160,12 +160,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private originalEditor: CodeEditorWidget;
 	private _originalDomNode: HTMLElement;
-	private _originalEditorState: VisualEditorState;
+	private readonly _originalEditorState: VisualEditorState;
 	private _originalOverviewRuler: editorBrowser.IOverviewRuler;
 
 	private modifiedEditor: CodeEditorWidget;
 	private _modifiedDomNode: HTMLElement;
-	private _modifiedEditorState: VisualEditorState;
+	private readonly _modifiedEditorState: VisualEditorState;
 	private _modifiedOverviewRuler: editorBrowser.IOverviewRuler;
 
 	private _currentlyChangingViewZones: boolean;
@@ -184,15 +184,15 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _enableSplitViewResizing: boolean;
 	private _strategy: IDiffEditorWidgetStyle;
 
-	private _updateDecorationsRunner: RunOnceScheduler;
+	private readonly _updateDecorationsRunner: RunOnceScheduler;
 
-	private _editorWorkerService: IEditorWorkerService;
+	private readonly _editorWorkerService: IEditorWorkerService;
 	protected _contextKeyService: IContextKeyService;
-	private _codeEditorService: ICodeEditorService;
-	private _themeService: IThemeService;
-	private _notificationService: INotificationService;
+	private readonly _codeEditorService: ICodeEditorService;
+	private readonly _themeService: IThemeService;
+	private readonly _notificationService: INotificationService;
 
-	private _reviewPane: DiffReview;
+	private readonly _reviewPane: DiffReview;
 
 	constructor(
 		domElement: HTMLElement,
@@ -1251,7 +1251,7 @@ interface IMyViewZone {
 class ForeignViewZonesIterator {
 
 	private _index: number;
-	private _source: IEditorWhitespace[];
+	private readonly _source: IEditorWhitespace[];
 	public current: IEditorWhitespace | null;
 
 	constructor(source: IEditorWhitespace[]) {
@@ -1272,9 +1272,9 @@ class ForeignViewZonesIterator {
 
 abstract class ViewZonesComputer {
 
-	private lineChanges: editorCommon.ILineChange[];
-	private originalForeignVZ: IEditorWhitespace[];
-	private modifiedForeignVZ: IEditorWhitespace[];
+	private readonly lineChanges: editorCommon.ILineChange[];
+	private readonly originalForeignVZ: IEditorWhitespace[];
+	private readonly modifiedForeignVZ: IEditorWhitespace[];
 
 	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[]) {
 		this.lineChanges = lineChanges;
@@ -1532,7 +1532,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 	static MINIMUM_EDITOR_WIDTH = 100;
 
 	private _disableSash: boolean;
-	private _sash: Sash;
+	private readonly _sash: Sash;
 	private _sashRatio: number | null;
 	private _sashPosition: number | null;
 	private _startSashPosition: number;
@@ -1911,10 +1911,10 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 
 class InlineViewZonesComputer extends ViewZonesComputer {
 
-	private originalModel: ITextModel;
-	private modifiedEditorConfiguration: editorOptions.InternalEditorOptions;
-	private modifiedEditorTabSize: number;
-	private renderIndicators: boolean;
+	private readonly originalModel: ITextModel;
+	private readonly modifiedEditorConfiguration: editorOptions.InternalEditorOptions;
+	private readonly modifiedEditorTabSize: number;
+	private readonly renderIndicators: boolean;
 
 	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean) {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ);

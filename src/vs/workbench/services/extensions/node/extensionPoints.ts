@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as semver from 'semver';
 import * as json from 'vs/base/common/json';
 import * as arrays from 'vs/base/common/arrays';
@@ -14,8 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, ExtensionIdentifierWithVersion } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierWithVersion, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 const MANIFEST_FILE = 'package.json';
 

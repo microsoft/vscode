@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
-import { join } from 'vs/base/common/paths';
+import { join } from 'vs/base/common/path';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -14,11 +14,11 @@ import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorMo
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { snapshotToString } from 'vs/platform/files/common/files';
 import { timeout } from 'vs/base/common/async';
+import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class TestUntitledEditorService extends UntitledEditorService {
-	get(resource: URI): UntitledEditorInput { return super.get(resource); }
+	get(resource: URI) { return super.get(resource); }
 	getAll(resources?: URI[]): UntitledEditorInput[] { return super.getAll(resources); }
 }
 
@@ -68,7 +68,7 @@ suite('Workbench untitled editors', () => {
 		assert.equal(service.getAll().length, 1);
 
 		// dirty
-		input2.resolve().then((model: UntitledEditorModel) => {
+		input2.resolve().then(model => {
 			assert.ok(!service.isDirty(input2.getResource()));
 
 			const listener = service.onDidChangeDirty(resource => {
@@ -112,7 +112,7 @@ suite('Workbench untitled editors', () => {
 		const input = service.createOrGet();
 
 		// dirty
-		return input.resolve().then((model: UntitledEditorModel) => {
+		return input.resolve().then(model => {
 			model.textEditorModel.setValue('foo bar');
 			assert.ok(model.isDirty());
 
@@ -126,14 +126,14 @@ suite('Workbench untitled editors', () => {
 	test('Untitled via loadOrCreate', function () {
 		const service = accessor.untitledEditorService;
 		service.loadOrCreate().then(model1 => {
-			model1.textEditorModel.setValue('foo bar');
+			model1.textEditorModel!.setValue('foo bar');
 			assert.ok(model1.isDirty());
 
-			model1.textEditorModel.setValue('');
+			model1.textEditorModel!.setValue('');
 			assert.ok(!model1.isDirty());
 
 			return service.loadOrCreate({ initialValue: 'Hello World' }).then(model2 => {
-				assert.equal(snapshotToString(model2.createSnapshot()), 'Hello World');
+				assert.equal(snapshotToString(model2.createSnapshot()!), 'Hello World');
 
 				const input = service.createOrGet();
 
@@ -169,7 +169,7 @@ suite('Workbench untitled editors', () => {
 		const input = service.createOrGet(file);
 
 		// dirty
-		return input.resolve().then((model: UntitledEditorModel) => {
+		return input.resolve().then(model => {
 			model.textEditorModel.setValue('foo bar');
 			assert.ok(model.isDirty());
 
@@ -223,7 +223,7 @@ suite('Workbench untitled editors', () => {
 		});
 
 		// dirty
-		return input.resolve().then((model: UntitledEditorModel) => {
+		return input.resolve().then(model => {
 			model.setEncoding('utf16');
 
 			assert.equal(counter, 1);
@@ -245,7 +245,7 @@ suite('Workbench untitled editors', () => {
 			assert.equal(r.toString(), input.getResource().toString());
 		});
 
-		return input.resolve().then((model: UntitledEditorModel) => {
+		return input.resolve().then(model => {
 			model.textEditorModel.setValue('foo');
 			assert.equal(counter, 0, 'Dirty model should not trigger event immediately');
 
@@ -288,7 +288,7 @@ suite('Workbench untitled editors', () => {
 			assert.equal(r.toString(), input.getResource().toString());
 		});
 
-		return input.resolve().then((model: UntitledEditorModel) => {
+		return input.resolve().then(model => {
 			assert.equal(counter, 0);
 			input.dispose();
 			assert.equal(counter, 1);

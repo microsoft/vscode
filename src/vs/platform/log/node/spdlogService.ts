@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { ILogService, LogLevel, NullLogService, AbstractLogService } from 'vs/platform/log/common/log';
 import * as spdlog from 'spdlog';
 
@@ -25,7 +25,7 @@ export function createSpdLogService(processName: string, logLevel: LogLevel, log
 
 export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): spdlog.RotatingLogger {
 	const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
-	return new _spdlog.RotatingLogger(name, filename, filesize, filecount);
+	return _spdlog.createRotatingLogger(name, filename, filesize, filecount);
 }
 
 class SpdLogService extends AbstractLogService implements ILogService {

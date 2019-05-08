@@ -42,7 +42,7 @@ class TranslationRemindRuleWalker extends Lint.RuleWalker {
 	private visitImportLikeDeclaration(node: ts.ImportDeclaration | ts.ImportEqualsDeclaration) {
 		const currentFile = node.getSourceFile().fileName;
 		const matchService = currentFile.match(/vs\/workbench\/services\/\w+/);
-		const matchPart = currentFile.match(/vs\/workbench\/parts\/\w+/);
+		const matchPart = currentFile.match(/vs\/workbench\/contrib\/\w+/);
 		if (!matchService && !matchPart) {
 			return;
 		}

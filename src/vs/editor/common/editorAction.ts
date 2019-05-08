@@ -12,7 +12,7 @@ export class InternalEditorAction implements IEditorAction {
 	public readonly label: string;
 	public readonly alias: string;
 
-	private readonly _precondition: ContextKeyExpr | null;
+	private readonly _precondition: ContextKeyExpr | undefined;
 	private readonly _run: () => Promise<void>;
 	private readonly _contextKeyService: IContextKeyService;
 
@@ -20,7 +20,7 @@ export class InternalEditorAction implements IEditorAction {
 		id: string,
 		label: string,
 		alias: string,
-		precondition: ContextKeyExpr | null,
+		precondition: ContextKeyExpr | undefined,
 		run: () => Promise<void>,
 		contextKeyService: IContextKeyService
 	) {

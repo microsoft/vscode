@@ -13,7 +13,7 @@ export class Memento {
 
 	private static readonly COMMON_PREFIX = 'memento/';
 
-	private id: string;
+	private readonly id: string;
 
 	constructor(id: string, private storageService: IStorageService) {
 		this.id = Memento.COMMON_PREFIX + id;
@@ -59,7 +59,7 @@ export class Memento {
 }
 
 class ScopedMemento {
-	private mementoObj: object;
+	private readonly mementoObj: object;
 
 	constructor(private id: string, private scope: StorageScope, private storageService: IStorageService) {
 		this.mementoObj = this.load();

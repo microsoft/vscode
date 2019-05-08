@@ -174,6 +174,7 @@ class SupportedCodeActionProvider {
 }
 
 class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
+	public static readonly minVersion = API.v213;
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
 		providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
@@ -269,9 +270,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			arguments: [tsAction],
 			title: ''
 		};
-		if (tsAction.fixName === 'spelling') {
-			codeAction.isPreferred = true;
-		}
+		codeAction.isPreferred = isPreferredFix(tsAction);
 		return codeAction;
 	}
 
@@ -305,6 +304,21 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 	}
 }
 
+const preferredFixes = new Set([
+	'annotateWithTypeFromJSDoc',
+	'constructorForDerivedNeedSuperCall',
+	'extendsInterfaceBecomesImplements',
+	'fixAwaitInSyncFunction',
+	'fixClassIncorrectlyImplementsInterface',
+	'fixUnreachableCode',
+	'forgottenThisPropertyAccess',
+	'spelling',
+	'unusedIdentifier',
+]);
+function isPreferredFix(tsAction: Proto.CodeFixAction): boolean {
+	return preferredFixes.has(tsAction.fixName);
+}
+
 export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
@@ -313,7 +327,7 @@ export function register(
 	diagnosticsManager: DiagnosticsManager,
 	telemetryReporter: TelemetryReporter
 ) {
-	return new VersionDependentRegistration(client, API.v213, () =>
+	return new VersionDependentRegistration(client, TypeScriptQuickFixProvider.minVersion, () =>
 		vscode.languages.registerCodeActionsProvider(selector,
 			new TypeScriptQuickFixProvider(client, fileConfigurationManager, commandManager, diagnosticsManager, telemetryReporter),
 			TypeScriptQuickFixProvider.metadata));

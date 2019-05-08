@@ -13,15 +13,13 @@ import { DataUri } from 'vs/base/common/resources';
  * An editor model that just represents a resource that can be loaded.
  */
 export class BinaryEditorModel extends EditorModel {
-	private name: string;
-	private resource: URI;
 	private size: number;
-	private etag: string;
-	private mime: string;
+	private etag: string | undefined;
+	private readonly mime: string;
 
 	constructor(
-		resource: URI,
-		name: string,
+		private readonly resource: URI,
+		private readonly name: string,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
@@ -70,15 +68,15 @@ export class BinaryEditorModel extends EditorModel {
 	/**
 	 * The etag of the binary resource if known.
 	 */
-	getETag(): string {
+	getETag(): string | undefined {
 		return this.etag;
 	}
 
-	load(): Promise<EditorModel> {
+	load(): Promise<BinaryEditorModel> {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.canHandleResource(this.resource)) {
-			return this.fileService.resolveFile(this.resource).then(stat => {
+			return this.fileService.resolve(this.resource, { resolveMetadata: true }).then(stat => {
 				this.etag = stat.etag;
 				if (typeof stat.size === 'number') {
 					this.size = stat.size;

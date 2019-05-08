@@ -48,7 +48,7 @@ export namespace EditorScroll_ {
 			return false;
 		}
 
-		let scrollArg: RawArguments = arg;
+		const scrollArg: RawArguments = arg;
 
 		if (!types.isString(scrollArg.to)) {
 			return false;
@@ -86,7 +86,28 @@ export namespace EditorScroll_ {
 					* 'value': Number of units to move. Default is '1'.
 					* 'revealCursor': If 'true' reveals the cursor if it is outside view port.
 				`,
-				constraint: isEditorScrollArgs
+				constraint: isEditorScrollArgs,
+				schema: {
+					'type': 'object',
+					'required': ['to'],
+					'properties': {
+						'to': {
+							'type': 'string',
+							'enum': ['up', 'down']
+						},
+						'by': {
+							'type': 'string',
+							'enum': ['line', 'wrappedLine', 'page', 'halfPage']
+						},
+						'value': {
+							'type': 'number',
+							'default': 1
+						},
+						'revealCursor': {
+							'type': 'boolean',
+						}
+					}
+				}
 			}
 		]
 	};
@@ -192,7 +213,7 @@ export namespace RevealLine_ {
 			return false;
 		}
 
-		let reveaLineArg: RawArguments = arg;
+		const reveaLineArg: RawArguments = arg;
 
 		if (!types.isNumber(reveaLineArg.lineNumber)) {
 			return false;
@@ -217,7 +238,20 @@ export namespace RevealLine_ {
 						'top', 'center', 'bottom'
 						\`\`\`
 				`,
-				constraint: isRevealLineArgs
+				constraint: isRevealLineArgs,
+				schema: {
+					'type': 'object',
+					'required': ['lineNumber'],
+					'properties': {
+						'lineNumber': {
+							'type': 'number',
+						},
+						'at': {
+							'type': 'string',
+							'enum': ['top', 'center', 'bottom']
+						}
+					}
+				}
 			}
 		]
 	};
@@ -766,7 +800,7 @@ export namespace CoreNavigationCommands {
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
 			const states = cursors.getAll();
-			let newStates: PartialCursorState[] = states.slice(0);
+			const newStates: PartialCursorState[] = states.slice(0);
 			newStates[lastAddedCursorIndex] = CursorMoveCommands.moveTo(context, states[lastAddedCursorIndex], true, args.position, args.viewPosition);
 
 			cursors.context.model.pushStackElement();
@@ -847,7 +881,7 @@ export namespace CoreNavigationCommands {
 		}
 
 		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
-			let result: PartialCursorState[] = [];
+			const result: PartialCursorState[] = [];
 			for (let i = 0, len = cursors.length; i < len; i++) {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
@@ -926,7 +960,7 @@ export namespace CoreNavigationCommands {
 		}
 
 		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
-			let result: PartialCursorState[] = [];
+			const result: PartialCursorState[] = [];
 			for (let i = 0, len = cursors.length; i < len; i++) {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
@@ -1246,8 +1280,8 @@ export namespace CoreNavigationCommands {
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
 			const states = cursors.getAll();
-			let newStates: PartialCursorState[] = states.slice(0);
-			let lastAddedState = states[lastAddedCursorIndex];
+			const newStates: PartialCursorState[] = states.slice(0);
+			const lastAddedState = states[lastAddedCursorIndex];
 			newStates[lastAddedCursorIndex] = CursorMoveCommands.word(context, lastAddedState, lastAddedState.modelState.hasSelection(), args.position);
 
 			context.model.pushStackElement();
@@ -1304,7 +1338,7 @@ export namespace CoreNavigationCommands {
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
 			const states = cursors.getAll();
-			let newStates: PartialCursorState[] = states.slice(0);
+			const newStates: PartialCursorState[] = states.slice(0);
 			newStates[lastAddedCursorIndex] = CursorMoveCommands.line(cursors.context, states[lastAddedCursorIndex], this._inSelectionMode, args.position, args.viewPosition);
 
 			cursors.context.model.pushStackElement();
@@ -1336,7 +1370,7 @@ export namespace CoreNavigationCommands {
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_I
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_L
 				}
 			});
 		}
@@ -1651,21 +1685,21 @@ class EditorOrNativeTextInputCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 
-		let focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			return this._runEditorHandler(accessor, focusedEditor, args);
 		}
 
 		// Ignore this action when user is focused on an element that allows for entering text
-		let activeElement = <HTMLElement>document.activeElement;
+		const activeElement = <HTMLElement>document.activeElement;
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			document.execCommand(this._inputHandler);
 			return;
 		}
 
 		// Redirecting to active editor
-		let activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
+		const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 		if (activeEditor) {
 			activeEditor.focus();
 			return this._runEditorHandler(accessor, activeEditor, args);
@@ -1673,7 +1707,7 @@ class EditorOrNativeTextInputCommand extends Command {
 	}
 
 	private _runEditorHandler(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		let HANDLER = this._editorHandler;
+		const HANDLER = this._editorHandler;
 		if (typeof HANDLER === 'string') {
 			editor.trigger('keyboard', HANDLER, args);
 		} else {
@@ -1691,10 +1725,11 @@ class EditorHandlerCommand extends Command {
 
 	private readonly _handlerId: string;
 
-	constructor(id: string, handlerId: string) {
+	constructor(id: string, handlerId: string, description?: ICommandHandlerDescription) {
 		super({
 			id: id,
-			precondition: null
+			precondition: null,
+			description: description
 		});
 		this._handlerId = handlerId;
 	}
@@ -1767,12 +1802,26 @@ registerCommand(new EditorOrNativeTextInputCommand({
 }));
 registerCommand(new EditorHandlerCommand('default:' + Handler.Redo, Handler.Redo));
 
-function registerOverwritableCommand(handlerId: string): void {
+function registerOverwritableCommand(handlerId: string, description?: ICommandHandlerDescription): void {
 	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
-	registerCommand(new EditorHandlerCommand(handlerId, handlerId));
+	registerCommand(new EditorHandlerCommand(handlerId, handlerId, description));
 }
 
-registerOverwritableCommand(Handler.Type);
+registerOverwritableCommand(Handler.Type, {
+	description: `Type`,
+	args: [{
+		name: 'args',
+		schema: {
+			'type': 'object',
+			'required': ['text'],
+			'properties': {
+				'text': {
+					'type': 'string'
+				}
+			},
+		}
+	}]
+});
 registerOverwritableCommand(Handler.ReplacePreviousChar);
 registerOverwritableCommand(Handler.CompositionStart);
 registerOverwritableCommand(Handler.CompositionEnd);

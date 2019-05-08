@@ -27,7 +27,7 @@ function writeFile(filePath, contents) {
     fs.writeFileSync(filePath, contents);
 }
 function extractEditor(options) {
-    const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
+    const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
     let compilerOptions;
     if (tsConfig.extends) {
         compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
@@ -36,13 +36,12 @@ function extractEditor(options) {
         compilerOptions = tsConfig.compilerOptions;
     }
     tsConfig.compilerOptions = compilerOptions;
+    compilerOptions.noEmit = false;
     compilerOptions.noUnusedLocals = false;
     compilerOptions.preserveConstEnums = false;
     compilerOptions.declaration = false;
+    compilerOptions.noImplicitAny = false;
     compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
-    delete compilerOptions.types;
-    delete tsConfig.extends;
-    tsConfig.exclude = [];
     options.compilerOptions = compilerOptions;
     let result = tss.shake(options);
     for (let fileName in result) {
@@ -92,6 +91,8 @@ function extractEditor(options) {
     }
     delete tsConfig.compilerOptions.moduleResolution;
     writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
+    const tsConfigBase = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.base.json')).toString());
+    writeOutputFile('tsconfig.base.json', JSON.stringify(tsConfigBase, null, '\t'));
     [
         'vs/css.build.js',
         'vs/css.d.ts',

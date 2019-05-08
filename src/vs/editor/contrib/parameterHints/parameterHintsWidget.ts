@@ -47,7 +47,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	allowEditorOverflow = true;
 
 	constructor(
-		private editor: ICodeEditor,
+		private readonly editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IModeService modeService: IModeService,
@@ -72,6 +72,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	private createParamaterHintDOMNodes() {
 		this.element = $('.editor-widget.parameter-hints-widget');
 		const wrapper = dom.append(this.element, $('.wrapper'));
+		wrapper.tabIndex = -1;
 
 		const buttons = dom.append(wrapper, $('.buttons'));
 		const previous = dom.append(buttons, $('.button.previous'));

@@ -16,12 +16,12 @@ import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
 
 export class MoveLinesCommand implements ICommand {
 
-	private _selection: Selection;
-	private _isMovingDown: boolean;
-	private _autoIndent: boolean;
+	private readonly _selection: Selection;
+	private readonly _isMovingDown: boolean;
+	private readonly _autoIndent: boolean;
 
 	private _selectionId: string;
-	private _moveEndPositionDown: boolean;
+	private _moveEndPositionDown?: boolean;
 	private _moveEndLineSelectionShrink: boolean;
 
 	constructor(selection: Selection, isMovingDown: boolean, autoIndent: boolean) {
@@ -50,9 +50,8 @@ export class MoveLinesCommand implements ICommand {
 			s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
 		}
 
-		let tabSize = model.getOptions().tabSize;
-		let insertSpaces = model.getOptions().insertSpaces;
-		let indentConverter = this.buildIndentConverter(tabSize);
+		const { tabSize, indentSize, insertSpaces } = model.getOptions();
+		let indentConverter = this.buildIndentConverter(tabSize, indentSize, insertSpaces);
 		let virtualModel = {
 			getLineTokens: (lineNumber: number) => {
 				return model.getLineTokens(lineNumber);
@@ -215,25 +214,13 @@ export class MoveLinesCommand implements ICommand {
 		this._selectionId = builder.trackSelection(s);
 	}
 
-	private buildIndentConverter(tabSize: number): IIndentConverter {
+	private buildIndentConverter(tabSize: number, indentSize: number, insertSpaces: boolean): IIndentConverter {
 		return {
 			shiftIndent: (indentation) => {
-				let desiredIndentCount = ShiftCommand.shiftIndentCount(indentation, indentation.length + 1, tabSize);
-				let newIndentation = '';
-				for (let i = 0; i < desiredIndentCount; i++) {
-					newIndentation += '\t';
-				}
-
-				return newIndentation;
+				return ShiftCommand.shiftIndent(indentation, indentation.length + 1, tabSize, indentSize, insertSpaces);
 			},
 			unshiftIndent: (indentation) => {
-				let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + 1, tabSize);
-				let newIndentation = '';
-				for (let i = 0; i < desiredIndentCount; i++) {
-					newIndentation += '\t';
-				}
-
-				return newIndentation;
+				return ShiftCommand.unshiftIndent(indentation, indentation.length + 1, tabSize, indentSize, insertSpaces);
 			}
 		};
 	}

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, INotificationViewItem } from 'vs/workbench/common/notifications';
-import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
 
 export class NotificationsStatus extends Disposable {
-	private statusItem: IDisposable;
+	private statusItem: IStatusbarEntryAccessor;
 	private isNotificationsCenterVisible: boolean;
 	private _counter: Set<INotificationViewItem>;
 
@@ -64,19 +64,18 @@ export class NotificationsStatus extends Disposable {
 	}
 
 	private updateNotificationsStatusItem(): void {
-
-		// Dispose old first
-		if (this.statusItem) {
-			this.statusItem.dispose();
-		}
-
-		// Create new
-		this.statusItem = this.statusbarService.addEntry({
+		const statusProperties: IStatusbarEntry = {
 			text: this.count === 0 ? '$(bell)' : `$(bell) ${this.count}`,
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
 			tooltip: this.getTooltip(),
 			showBeak: this.isNotificationsCenterVisible
-		}, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
+		};
+
+		if (!this.statusItem) {
+			this.statusItem = this.statusbarService.addEntry(statusProperties, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
+		} else {
+			this.statusItem.update(statusProperties);
+		}
 	}
 
 	private getTooltip(): string {
@@ -97,13 +96,5 @@ export class NotificationsStatus extends Disposable {
 		}
 
 		return localize('notifications', "{0} New Notifications", this.count);
-	}
-
-	dispose() {
-		super.dispose();
-
-		if (this.statusItem) {
-			this.statusItem.dispose();
-		}
 	}
 }

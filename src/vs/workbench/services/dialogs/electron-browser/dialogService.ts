@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IWindowService, INativeOpenDialogOptions, OpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { DialogService as HTMLDialogService } from 'vs/platform/dialogs/browser/dialogService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import * as resources from 'vs/base/common/resources';
-import { isParent } from 'vs/platform/files/common/files';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 interface IMassagedMessageBoxOptions {
 
@@ -35,13 +35,48 @@ interface IMassagedMessageBoxOptions {
 }
 
 export class DialogService implements IDialogService {
+	_serviceBrand: any;
+
+	private impl: IDialogService;
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
+		@ILayoutService layoutService: ILayoutService,
+		@IThemeService themeService: IThemeService,
+		@IWindowService windowService: IWindowService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService
+	) {
+
+		// Use HTML based dialogs
+		if (configurationService.getValue('workbench.dialogs.customEnabled') === true) {
+			this.impl = new HTMLDialogService(logService, layoutService, themeService);
+		}
+		// Electron dialog service
+		else {
+			this.impl = new NativeDialogService(windowService, logService, sharedProcessService);
+		}
+	}
+
+	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		return this.impl.confirm(confirmation);
+	}
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<number> {
+		return this.impl.show(severity, message, buttons, options);
+	}
+}
+
+class NativeDialogService implements IDialogService {
 
 	_serviceBrand: any;
 
 	constructor(
 		@IWindowService private readonly windowService: IWindowService,
-		@ILogService private readonly logService: ILogService
-	) { }
+		@ILogService private readonly logService: ILogService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService
+	) {
+		sharedProcessService.registerChannel('dialog', new DialogChannel(this));
+	}
 
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
@@ -52,7 +87,7 @@ export class DialogService implements IDialogService {
 			return {
 				confirmed: buttonIndexMap[result.button] === 0 ? true : false,
 				checkboxChecked: result.checkboxChecked
-			} as IConfirmationResult;
+			};
 		});
 	}
 
@@ -152,147 +187,4 @@ export class DialogService implements IDialogService {
 	}
 }
 
-export class FileDialogService implements IFileDialogService {
-
-	_serviceBrand: any;
-
-	constructor(
-		@IWindowService private readonly windowService: IWindowService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IHistoryService private readonly historyService: IHistoryService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
-	) { }
-
-	public defaultFilePath(schemeFilter: string): URI | undefined {
-		// Check for last active file first...
-		let candidate = this.historyService.getLastActiveFile(schemeFilter);
-
-		// ...then for last active file root
-		if (!candidate) {
-			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
-		}
-
-		return candidate && resources.dirname(candidate) || undefined;
-	}
-
-	public defaultFolderPath(schemeFilter: string): URI | undefined {
-		// Check for last active file root first...
-		let candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
-
-		// ...then for last active file
-		if (!candidate) {
-			candidate = this.historyService.getLastActiveFile(schemeFilter);
-		}
-
-		return candidate && resources.dirname(candidate) || undefined;
-	}
-
-	public defaultWorkspacePath(schemeFilter: string): URI | undefined {
-
-		// Check for current workspace config file first...
-		if (schemeFilter === Schemas.file && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration && !isUntitledWorkspace(configuration.fsPath, this.environmentService)) {
-				return resources.dirname(configuration) || undefined;
-			}
-		}
-
-		// ...then fallback to default folder path
-		return this.defaultFolderPath(schemeFilter);
-	}
-
-	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
-		return {
-			forceNewWindow: options.forceNewWindow,
-			telemetryExtraData: options.telemetryExtraData,
-			dialogOptions: {
-				defaultPath: options.defaultUri && options.defaultUri.fsPath
-			}
-		};
-	}
-
-	public pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
-		if (!defaultUri) {
-			options.defaultUri = this.defaultFilePath(Schemas.file);
-		}
-		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
-
-	}
-
-	public pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
-		if (!defaultUri) {
-			options.defaultUri = this.defaultFilePath(Schemas.file);
-		}
-		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
-	}
-
-	public pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
-		let defaultUri = options.defaultUri;
-		if (!defaultUri) {
-			options.defaultUri = this.defaultFolderPath(Schemas.file);
-		}
-		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
-	}
-
-	public pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		let defaultUri = options.defaultUri;
-		if (!defaultUri) {
-			options.defaultUri = this.defaultWorkspacePath(Schemas.file);
-		}
-		return this.windowService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
-	}
-
-	private toNativeSaveDialogOptions(options: ISaveDialogOptions): Electron.SaveDialogOptions {
-		return {
-			defaultPath: options.defaultUri && options.defaultUri.fsPath,
-			buttonLabel: options.saveLabel,
-			filters: options.filters,
-			title: options.title
-		};
-	}
-
-	public showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const defaultUri = options.defaultUri;
-		if (defaultUri && defaultUri.scheme !== Schemas.file) {
-			return Promise.reject(new Error('Not supported - Save-dialogs can only be opened on `file`-uris.'));
-		}
-		return this.windowService.showSaveDialog(this.toNativeSaveDialogOptions(options)).then(result => {
-			if (result) {
-				return URI.file(result);
-			}
-			return undefined;
-		});
-	}
-
-	public showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
-		const defaultUri = options.defaultUri;
-		if (defaultUri && defaultUri.scheme !== Schemas.file) {
-			return Promise.reject(new Error('Not supported - Open-dialogs can only be opened on `file`-uris.'));
-		}
-
-		const newOptions: OpenDialogOptions = {
-			title: options.title,
-			defaultPath: defaultUri && defaultUri.fsPath,
-			buttonLabel: options.openLabel,
-			filters: options.filters,
-			properties: []
-		};
-		newOptions.properties!.push('createDirectory');
-		if (options.canSelectFiles) {
-			newOptions.properties!.push('openFile');
-		}
-		if (options.canSelectFolders) {
-			newOptions.properties!.push('openDirectory');
-		}
-		if (options.canSelectMany) {
-			newOptions.properties!.push('multiSelections');
-		}
-		return this.windowService.showOpenDialog(newOptions).then(result => result ? result.map(URI.file) : undefined);
-	}
-}
-
-function isUntitledWorkspace(path: string, environmentService: IEnvironmentService): boolean {
-	return isParent(path, environmentService.workspacesHome, !isLinux /* ignore case */);
-}
+registerSingleton(IDialogService, DialogService, true);

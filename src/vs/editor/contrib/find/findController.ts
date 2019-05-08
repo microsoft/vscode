@@ -71,12 +71,12 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	private static readonly ID = 'editor.contrib.findController';
 
 	protected _editor: ICodeEditor;
-	private _findWidgetVisible: IContextKey<boolean>;
+	private readonly _findWidgetVisible: IContextKey<boolean>;
 	protected _state: FindReplaceState;
 	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel | null;
-	private _storageService: IStorageService;
-	private _clipboardService: IClipboardService;
+	private readonly _storageService: IStorageService;
+	private readonly _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
 
 	public static get(editor: ICodeEditor): CommonFindController {

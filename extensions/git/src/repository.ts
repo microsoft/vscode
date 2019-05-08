@@ -13,7 +13,7 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
 import { StatusBarCommands } from './statusbar';
-import { Branch, Ref, Remote, RefType, GitErrorCodes, Status } from './api/git';
+import { Branch, Ref, Remote, RefType, GitErrorCodes, Status, LogOptions, Change } from './api/git';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -206,7 +206,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_ADD:
 				return new ThemeColor('gitDecoration.addedResourceForeground');
-			case Status.INDEX_RENAMED: // todo@joh - special color?
+			case Status.INDEX_RENAMED:
 			case Status.UNTRACKED:
 				return new ThemeColor('gitDecoration.untrackedResourceForeground');
 			case Status.IGNORED:
@@ -300,7 +300,8 @@ export const enum Operation {
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
 	Apply = 'Apply',
-	Blame = 'Blame'
+	Blame = 'Blame',
+	Log = 'Log',
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -672,20 +673,6 @@ export class Repository implements Disposable {
 			}
 		}
 
-
-
-
-
-
-
-
-
-
-		// const subjectThreshold =
-
-
-		// 	Math.max(config.get<number>('inputValidationLength') || 50, config.get<number>('subjectValidationLength') || 50, 0) || 50;
-
 		if (line.length <= threshold) {
 			if (setting !== 'always') {
 				return;
@@ -727,8 +714,16 @@ export class Repository implements Disposable {
 		return this.run(Operation.Config, () => this.repository.config('local', key));
 	}
 
+	getGlobalConfig(key: string): Promise<string> {
+		return this.run(Operation.Config, () => this.repository.config('global', key));
+	}
+
 	setConfig(key: string, value: string): Promise<string> {
 		return this.run(Operation.Config, () => this.repository.config('local', key, value));
+	}
+
+	log(options?: LogOptions): Promise<Commit[]> {
+		return this.run(Operation.Log, () => this.repository.log(options));
 	}
 
 	@throttle
@@ -740,19 +735,31 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diff(cached));
 	}
 
-	diffWithHEAD(path: string): Promise<string> {
+	diffWithHEAD(): Promise<Change[]>;
+	diffWithHEAD(path: string): Promise<string>;
+	diffWithHEAD(path?: string | undefined): Promise<string | Change[]>;
+	diffWithHEAD(path?: string | undefined): Promise<string | Change[]> {
 		return this.run(Operation.Diff, () => this.repository.diffWithHEAD(path));
 	}
 
-	diffWith(ref: string, path: string): Promise<string> {
+	diffWith(ref: string): Promise<Change[]>;
+	diffWith(ref: string, path: string): Promise<string>;
+	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
+	diffWith(ref: string, path?: string): Promise<string | Change[]> {
 		return this.run(Operation.Diff, () => this.repository.diffWith(ref, path));
 	}
 
-	diffIndexWithHEAD(path: string): Promise<string> {
+	diffIndexWithHEAD(): Promise<Change[]>;
+	diffIndexWithHEAD(path: string): Promise<string>;
+	diffIndexWithHEAD(path?: string | undefined): Promise<string | Change[]>;
+	diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
 		return this.run(Operation.Diff, () => this.repository.diffIndexWithHEAD(path));
 	}
 
-	diffIndexWith(ref: string, path: string): Promise<string> {
+	diffIndexWith(ref: string): Promise<Change[]>;
+	diffIndexWith(ref: string, path: string): Promise<string>;
+	diffIndexWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
+	diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
 		return this.run(Operation.Diff, () => this.repository.diffIndexWith(ref, path));
 	}
 
@@ -760,7 +767,10 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffBlobs(object1, object2));
 	}
 
-	diffBetween(ref1: string, ref2: string, path: string): Promise<string> {
+	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
+	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+	diffBetween(ref1: string, ref2: string, path?: string | undefined): Promise<string | Change[]>;
+	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
 		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
 	}
 

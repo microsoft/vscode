@@ -7,6 +7,7 @@ import { INotificationService, INotification, INotificationHandle, Severity, Not
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -104,3 +105,5 @@ export class NotificationService extends Disposable implements INotificationServ
 		return handle;
 	}
 }
+
+registerSingleton(INotificationService, NotificationService, true);

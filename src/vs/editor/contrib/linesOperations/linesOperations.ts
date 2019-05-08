@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
@@ -17,9 +17,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
-import { DeleteLinesCommand } from 'vs/editor/contrib/linesOperations/deleteLinesCommand';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -29,7 +28,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 
 abstract class AbstractCopyLinesAction extends EditorAction {
 
-	private down: boolean;
+	private readonly down: boolean;
 
 	constructor(down: boolean, opts: IActionOptions) {
 		super(opts);
@@ -101,7 +100,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 
 abstract class AbstractMoveLinesAction extends EditorAction {
 
-	private down: boolean;
+	private readonly down: boolean;
 
 	constructor(down: boolean, opts: IActionOptions) {
 		super(opts);
@@ -171,7 +170,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 }
 
 export abstract class AbstractSortLinesAction extends EditorAction {
-	private descending: boolean;
+	private readonly descending: boolean;
 
 	constructor(descending: boolean, opts: IActionOptions) {
 		super(opts);
@@ -265,6 +264,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 
 interface IDeleteLinesOperation {
 	startLineNumber: number;
+	selectionStartColumn: number;
 	endLineNumber: number;
 	positionColumn: number;
 }
@@ -286,26 +286,50 @@ export class DeleteLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
 
 		let ops = this._getLinesToRemove(editor);
 
-		// Finally, construct the delete lines commands
-		let commands: ICommand[] = ops.map((op) => {
-			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
-		});
+		let model: ITextModel = editor.getModel();
+		if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
+			// Model is empty
+			return;
+		}
+
+		let linesDeleted = 0;
+		let edits: IIdentifiedSingleEditOperation[] = [];
+		let cursorState: Selection[] = [];
+		for (let i = 0, len = ops.length; i < len; i++) {
+			const op = ops[i];
+
+			let startLineNumber = op.startLineNumber;
+			let endLineNumber = op.endLineNumber;
+
+			let startColumn = 1;
+			let endColumn = model.getLineMaxColumn(endLineNumber);
+			if (endLineNumber < model.getLineCount()) {
+				endLineNumber += 1;
+				endColumn = 1;
+			} else if (startLineNumber > 1) {
+				startLineNumber -= 1;
+				startColumn = model.getLineMaxColumn(startLineNumber);
+			}
+
+			edits.push(EditOperation.replace(new Selection(startLineNumber, startColumn, endLineNumber, endColumn), ''));
+			cursorState.push(new Selection(startLineNumber - linesDeleted, op.positionColumn, startLineNumber - linesDeleted, op.positionColumn));
+			linesDeleted += (op.endLineNumber - op.startLineNumber + 1);
+		}
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
+		editor.executeEdits(this.id, edits, cursorState);
 		editor.pushUndoStop();
 	}
 
-	private _getLinesToRemove(editor: ICodeEditor): IDeleteLinesOperation[] {
+	private _getLinesToRemove(editor: IActiveCodeEditor): IDeleteLinesOperation[] {
 		// Construct delete operations
-		let selections = editor.getSelections();
-		if (selections === null) {
-			return [];
-		}
-		let operations: IDeleteLinesOperation[] = selections.map((s) => {
+		let operations: IDeleteLinesOperation[] = editor.getSelections().map((s) => {
 
 			let endLineNumber = s.endLineNumber;
 			if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
@@ -314,6 +338,7 @@ export class DeleteLinesAction extends EditorAction {
 
 			return {
 				startLineNumber: s.startLineNumber,
+				selectionStartColumn: s.selectionStartColumn,
 				endLineNumber: endLineNumber,
 				positionColumn: s.positionColumn
 			};
@@ -445,10 +470,10 @@ export class InsertLineAfterAction extends EditorAction {
 
 export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const primaryCursor = editor.getSelection();
-		if (primaryCursor === null) {
+		if (!editor.hasModel()) {
 			return;
 		}
+		const primaryCursor = editor.getSelection();
 
 		let rangesToDelete = this._getRangesToDelete(editor);
 		// merge overlapping selections
@@ -483,7 +508,7 @@ export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 	 */
 	protected abstract _getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[];
 
-	protected abstract _getRangesToDelete(editor: ICodeEditor): Range[];
+	protected abstract _getRangesToDelete(editor: IActiveCodeEditor): Range[];
 }
 
 export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
@@ -532,7 +557,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: ICodeEditor): Range[] {
+	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
 		let selections = editor.getSelections();
 		if (selections === null) {
 			return [];
@@ -550,7 +575,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			if (selection.isEmpty()) {
 				if (selection.startColumn === 1) {
 					let deleteFromLine = Math.max(1, selection.startLineNumber - 1);
-					let deleteFromColumn = selection.startLineNumber === 1 ? 1 : model!.getLineContent(deleteFromLine).length + 1;
+					let deleteFromColumn = selection.startLineNumber === 1 ? 1 : model.getLineContent(deleteFromLine).length + 1;
 					return new Range(deleteFromLine, deleteFromColumn, selection.startLineNumber, 1);
 				} else {
 					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
@@ -601,7 +626,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: ICodeEditor): Range[] {
+	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
 		let model = editor.getModel();
 		if (model === null) {
 			return [];
@@ -615,7 +640,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 
 		let rangesToDelete: Range[] = selections.map((sel) => {
 			if (sel.isEmpty()) {
-				const maxColumn = model!.getLineMaxColumn(sel.startLineNumber);
+				const maxColumn = model.getLineMaxColumn(sel.startLineNumber);
 
 				if (sel.startColumn === maxColumn) {
 					return new Range(sel.startLineNumber, sel.startColumn, sel.startLineNumber + 1, 1);
@@ -861,6 +886,8 @@ export abstract class AbstractCaseAction extends EditorAction {
 			return;
 		}
 
+		let wordSeparators = editor.getConfiguration().wordSeparators;
+
 		let commands: ICommand[] = [];
 
 		for (let i = 0, len = selections.length; i < len; i++) {
@@ -875,12 +902,12 @@ export abstract class AbstractCaseAction extends EditorAction {
 
 				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
 				let text = model.getValueInRange(wordRange);
-				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text),
+				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text, wordSeparators),
 					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
 
 			} else {
 				let text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text), selection));
+				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text, wordSeparators), selection));
 			}
 		}
 
@@ -889,7 +916,7 @@ export abstract class AbstractCaseAction extends EditorAction {
 		editor.pushUndoStop();
 	}
 
-	protected abstract _modifyText(text: string): string;
+	protected abstract _modifyText(text: string, wordSeparators: string): string;
 }
 
 export class UpperCaseAction extends AbstractCaseAction {
@@ -902,7 +929,7 @@ export class UpperCaseAction extends AbstractCaseAction {
 		});
 	}
 
-	protected _modifyText(text: string): string {
+	protected _modifyText(text: string, wordSeparators: string): string {
 		return text.toLocaleUpperCase();
 	}
 }
@@ -917,8 +944,45 @@ export class LowerCaseAction extends AbstractCaseAction {
 		});
 	}
 
-	protected _modifyText(text: string): string {
+	protected _modifyText(text: string, wordSeparators: string): string {
 		return text.toLocaleLowerCase();
+	}
+}
+
+export class TitleCaseAction extends AbstractCaseAction {
+	constructor() {
+		super({
+			id: 'editor.action.transformToTitlecase',
+			label: nls.localize('editor.transformToTitlecase', "Transform to Title Case"),
+			alias: 'Transform to Title Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		const separators = '\r\n\t ' + wordSeparators;
+		const excludedChars = separators.split('');
+
+		let title = '';
+		let startUpperCase = true;
+
+		for (let i = 0; i < text.length; i++) {
+			let currentChar = text[i];
+
+			if (excludedChars.indexOf(currentChar) >= 0) {
+				startUpperCase = true;
+
+				title += currentChar;
+			} else if (startUpperCase) {
+				startUpperCase = false;
+
+				title += currentChar.toLocaleUpperCase();
+			} else {
+				title += currentChar.toLocaleLowerCase();
+			}
+		}
+
+		return title;
 	}
 }
 
@@ -940,3 +1004,4 @@ registerEditorAction(JoinLinesAction);
 registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
+registerEditorAction(TitleCaseAction);

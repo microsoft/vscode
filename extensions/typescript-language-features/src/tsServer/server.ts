@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
-import { CancelledResponse, NoContentResponse, ServerResponse } from '../typescriptService';
+import { ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
@@ -27,11 +27,57 @@ import { RequestItem, RequestQueue, RequestQueueingType } from './requestQueue';
 
 class TypeScriptServerError extends Error {
 
+	public static create(
+		version: TypeScriptVersion,
+		response: Proto.Response,
+	): TypeScriptServerError {
+		const parsedResult = TypeScriptServerError.parseErrorText(version, response);
+		return new TypeScriptServerError(version, response,
+			parsedResult ? parsedResult.message : undefined,
+			parsedResult ? parsedResult.stack : undefined);
+	}
+
 	constructor(
 		version: TypeScriptVersion,
-		public readonly response: Proto.Response,
+		private readonly response: Proto.Response,
+		public readonly serverMessage: string | undefined,
+		public readonly serverStack: string | undefined,
 	) {
-		super(`TypeScript Server Error (${version.versionString})\n${TypeScriptServerError.normalizeMessageStack(version, response.message)}`);
+		super(`TypeScript Server Error (${version.versionString})\n${serverMessage}\n${serverStack}`);
+	}
+
+	public get serverErrorText() {
+		return this.response.message;
+	}
+
+	public get serverCommand() {
+		return this.response.command;
+	}
+
+	/**
+	 * Given a `errorText` from a tsserver request indicating failure in handling a request,
+	 * prepares a payload for telemetry-logging.
+	 */
+	private static parseErrorText(
+		version: TypeScriptVersion,
+		response: Proto.Response,
+	) {
+		const errorText = response.message;
+		if (errorText) {
+			const errorPrefix = 'Error processing request. ';
+			if (errorText.startsWith(errorPrefix)) {
+				const prefixFreeErrorText = errorText.substr(errorPrefix.length);
+				const newlineIndex = prefixFreeErrorText.indexOf('\n');
+				if (newlineIndex >= 0) {
+					// Newline expected between message and stack.
+					return {
+						message: prefixFreeErrorText.substring(0, newlineIndex),
+						stack: TypeScriptServerError.normalizeMessageStack(version, prefixFreeErrorText.substring(newlineIndex + 1))
+					};
+				}
+			}
+		}
+		return undefined;
 	}
 
 	/**
@@ -42,7 +88,7 @@ class TypeScriptServerError extends Error {
 		message: string | undefined,
 	) {
 		if (!message) {
-			return message;
+			return '';
 		}
 		return message.replace(new RegExp(`${escapeRegExp(version.path)}[/\\\\]tsserver.js:`, 'gi'), 'tsserver.js:');
 	}
@@ -161,6 +207,10 @@ export class TypeScriptServerSpawner {
 
 		if (apiVersion.gte(API.v291)) {
 			args.push('--noGetErrOnBackgroundUpdate');
+		}
+
+		if (apiVersion.gte(API.v345)) {
+			args.push('--validateDefaultNpmLocation');
 		}
 
 		return { args, cancellationPipeName, tsServerLogFile };
@@ -299,7 +349,7 @@ export class TypeScriptServer extends Disposable {
 		} finally {
 			const callback = this.fetchCallback(seq);
 			if (callback) {
-				callback.onSuccess(new CancelledResponse(`Cancelled request ${seq} - ${command}`));
+				callback.onSuccess(new ServerResponse.Cancelled(`Cancelled request ${seq} - ${command}`));
 			}
 		}
 	}
@@ -315,15 +365,15 @@ export class TypeScriptServer extends Disposable {
 			callback.onSuccess(response);
 		} else if (response.message === 'No content available.') {
 			// Special case where response itself is successful but there is not any data to return.
-			callback.onSuccess(NoContentResponse);
+			callback.onSuccess(ServerResponse.NoContent);
 		} else {
-			callback.onError(new TypeScriptServerError(this._version, response));
+			callback.onError(TypeScriptServerError.create(this._version, response));
 		}
 	}
 
 	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
-	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse<Proto.Response>>;
-	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse<Proto.Response>> | undefined {
+	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
+	public executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
 		const request = this._requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request,
@@ -331,9 +381,9 @@ export class TypeScriptServer extends Disposable {
 			isAsync: executeInfo.isAsync,
 			queueingType: getQueueingType(command, executeInfo.lowPriority)
 		};
-		let result: Promise<ServerResponse<Proto.Response>> | undefined;
+		let result: Promise<ServerResponse.Response<Proto.Response>> | undefined;
 		if (executeInfo.expectsResult) {
-			result = new Promise<ServerResponse<Proto.Response>>((resolve, reject) => {
+			result = new Promise<ServerResponse.Response<Proto.Response>>((resolve, reject) => {
 				this._callbacks.add(request.seq, { onSuccess: resolve, onError: reject, startTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
 
 				if (executeInfo.token) {
@@ -344,7 +394,6 @@ export class TypeScriptServer extends Disposable {
 			}).catch((err: Error) => {
 				if (err instanceof TypeScriptServerError) {
 					if (!executeInfo.token || !executeInfo.token.isCancellationRequested) {
-						const properties = this.parseErrorText(err.response.message, err.response.command);
 						/* __GDPR__
 							"languageServiceErrorResponse" : {
 								"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -356,7 +405,12 @@ export class TypeScriptServer extends Disposable {
 								]
 							}
 						*/
-						this._telemetryReporter.logTelemetry('languageServiceErrorResponse', properties);
+						this._telemetryReporter.logTelemetry('languageServiceErrorResponse', {
+							command: err.serverCommand,
+							message: err.serverMessage || '',
+							stack: err.serverStack || '',
+							errortext: err.serverErrorText || '',
+						});
 					}
 				}
 
@@ -368,30 +422,6 @@ export class TypeScriptServer extends Disposable {
 		this.sendNextRequests();
 
 		return result;
-	}
-
-	/**
-	 * Given a `errorText` from a tsserver request indicating failure in handling a request,
-	 * prepares a payload for telemetry-logging.
-	 */
-	private parseErrorText(errorText: string | undefined, command: string) {
-		const properties: ObjectMap<string> = Object.create(null);
-		properties['command'] = command;
-		if (errorText) {
-			properties['errorText'] = errorText;
-
-			const errorPrefix = 'Error processing request. ';
-			if (errorText.startsWith(errorPrefix)) {
-				const prefixFreeErrorText = errorText.substr(errorPrefix.length);
-				const newlineIndex = prefixFreeErrorText.indexOf('\n');
-				if (newlineIndex >= 0) {
-					// Newline expected between message and stack.
-					properties['message'] = prefixFreeErrorText.substring(0, newlineIndex);
-					properties['stack'] = prefixFreeErrorText.substring(newlineIndex + 1);
-				}
-			}
-		}
-		return properties;
 	}
 
 	private sendNextRequests(): void {
@@ -432,7 +462,7 @@ export class TypeScriptServer extends Disposable {
 	}
 }
 
-const fenceCommands = new Set(['change', 'close', 'open']);
+const fenceCommands = new Set(['change', 'close', 'open', 'updateOpen']);
 
 function getQueueingType(
 	command: string,

@@ -53,6 +53,7 @@ export class MockContextKeyService implements IContextKeyService {
 	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
 		return Event.None;
 	}
+	public bufferChangeEvents() { }
 	public getContextKeyValue(key: string) {
 		const value = this._keys.get(key);
 		if (value) {
@@ -98,7 +99,7 @@ export class MockKeybindingService implements IKeybindingService {
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);
-		return this.resolveKeybinding(keybinding)[0];
+		return this.resolveKeybinding(keybinding.toChord())[0];
 	}
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
@@ -131,5 +132,9 @@ export class MockKeybindingService implements IKeybindingService {
 
 	public mightProducePrintableCharacter(e: IKeyboardEvent): boolean {
 		return false;
+	}
+
+	public _dumpDebugInfo(): string {
+		return '';
 	}
 }

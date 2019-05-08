@@ -21,6 +21,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { FileKind } from 'vs/platform/files/common/files';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class FileElement {
 	constructor(
@@ -31,7 +32,7 @@ export class FileElement {
 
 export type BreadcrumbElement = FileElement | OutlineModel | OutlineGroup | OutlineElement;
 
-type FileInfo = { path: FileElement[], folder: IWorkspaceFolder };
+type FileInfo = { path: FileElement[], folder?: IWorkspaceFolder };
 
 export class EditorBreadcrumbsModel {
 
@@ -105,17 +106,19 @@ export class EditorBreadcrumbsModel {
 		}
 
 		let info: FileInfo = {
-			folder: workspaceService.getWorkspaceFolder(uri),
+			folder: withNullAsUndefined(workspaceService.getWorkspaceFolder(uri)),
 			path: []
 		};
-		while (uri.path !== '/') {
-			if (info.folder && isEqual(info.folder.uri, uri)) {
+
+		let uriPrefix: URI | null = uri;
+		while (uriPrefix && uriPrefix.path !== '/') {
+			if (info.folder && isEqual(info.folder.uri, uriPrefix)) {
 				break;
 			}
-			info.path.unshift(new FileElement(uri, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
-			let prevPathLength = uri.path.length;
-			uri = dirname(uri);
-			if (uri.path.length === prevPathLength) {
+			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
+			let prevPathLength = uriPrefix.path.length;
+			uriPrefix = dirname(uriPrefix);
+			if (uriPrefix.path.length === prevPathLength) {
 				break;
 			}
 		}
@@ -148,7 +151,9 @@ export class EditorBreadcrumbsModel {
 			this._updateOutlineElements([]);
 		}
 
-		const buffer = this._editor.getModel();
+		const editor = this._editor!;
+
+		const buffer = editor.getModel();
 		if (!buffer || !DocumentSymbolProviderRegistry.has(buffer) || !isEqual(buffer.uri, this._uri)) {
 			return;
 		}
@@ -174,11 +179,11 @@ export class EditorBreadcrumbsModel {
 				// copy the model
 				model = model.adopt();
 
-				this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
-				this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
+				this._updateOutlineElements(this._getOutlineElements(model, editor.getPosition()));
+				this._outlineDisposables.push(editor.onDidChangeCursorPosition(_ => {
 					timeout.cancelAndSet(() => {
-						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.getModel()) {
-							this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
+						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && editor.getModel()) {
+							this._updateOutlineElements(this._getOutlineElements(model, editor.getPosition()));
 						}
 					}, 150);
 				}));
@@ -189,22 +194,22 @@ export class EditorBreadcrumbsModel {
 		});
 	}
 
-	private _getOutlineElements(model: OutlineModel, position: IPosition): Array<OutlineModel | OutlineGroup | OutlineElement> {
-		if (!model) {
+	private _getOutlineElements(model: OutlineModel, position: IPosition | null): Array<OutlineModel | OutlineGroup | OutlineElement> {
+		if (!model || !position) {
 			return [];
 		}
-		let item: OutlineGroup | OutlineElement = model.getItemEnclosingPosition(position);
+		let item: OutlineGroup | OutlineElement | undefined = model.getItemEnclosingPosition(position);
 		if (!item) {
 			return [model];
 		}
 		let chain: Array<OutlineGroup | OutlineElement> = [];
 		while (item) {
 			chain.push(item);
-			let parent = item.parent;
+			let parent: any = item.parent;
 			if (parent instanceof OutlineModel) {
 				break;
 			}
-			if (parent instanceof OutlineGroup && size(parent.parent.children) === 1) {
+			if (parent instanceof OutlineGroup && parent.parent && size(parent.parent.children) === 1) {
 				break;
 			}
 			item = parent;

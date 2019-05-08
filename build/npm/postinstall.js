@@ -17,7 +17,17 @@ function yarnInstall(location, opts) {
 	opts.cwd = location;
 	opts.stdio = 'inherit';
 
-	const result = cp.spawnSync(yarn, ['install'], opts);
+	const raw = process.env['npm_config_argv'] || '{}';
+	const argv = JSON.parse(raw);
+	const original = argv.original || [];
+	const args = ['install'];
+
+	if (original.indexOf('--ignore-optional') > -1) {
+		args.push('--ignore-optional');
+	}
+
+	console.log('Installing dependencies in \'%s\'.', location);
+	const result = cp.spawnSync(yarn, args, opts);
 
 	if (result.error || result.status !== 0) {
 		process.exit(1);

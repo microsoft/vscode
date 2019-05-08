@@ -17,7 +17,9 @@ import * as monacodts from '../monaco/api';
 import * as nls from './nls';
 import { createReporter } from './reporter';
 import * as util from './util';
-import * as util2 from 'gulp-util';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
+
 const watch = require('./watch');
 
 const reporter = createReporter();
@@ -218,7 +220,7 @@ class MonacoGenerator {
 	}
 
 	private _log(message: any, ...rest: any[]): void {
-		util2.log(util2.colors.cyan('[monaco.d.ts]'), message, ...rest);
+		fancyLog(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
 	}
 
 	public execute(): void {

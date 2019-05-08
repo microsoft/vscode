@@ -21,8 +21,8 @@ export function isFalsyOrWhitespace(str: string | undefined): boolean {
  * @returns the provided number with the given number of preceding zeros.
  */
 export function pad(n: number, l: number, char: string = '0'): string {
-	let str = '' + n;
-	let r = [str];
+	const str = '' + n;
+	const r = [str];
 
 	for (let i = str.length; i < l; i++) {
 		r.push(char);
@@ -44,7 +44,7 @@ export function format(value: string, ...args: any[]): string {
 		return value;
 	}
 	return value.replace(_formatRegexp, function (match, group) {
-		let idx = parseInt(group, 10);
+		const idx = parseInt(group, 10);
 		return isNaN(idx) || idx < 0 || idx >= args.length ?
 			match :
 			args[idx];
@@ -79,7 +79,7 @@ export function escapeRegExpCharacters(value: string): string {
  * @param needle the thing to trim (default is a blank)
  */
 export function trim(haystack: string, needle: string = ' '): string {
-	let trimmed = ltrim(haystack, needle);
+	const trimmed = ltrim(haystack, needle);
 	return rtrim(trimmed, needle);
 }
 
@@ -93,7 +93,7 @@ export function ltrim(haystack: string, needle: string): string {
 		return haystack;
 	}
 
-	let needleLen = needle.length;
+	const needleLen = needle.length;
 	if (needleLen === 0 || haystack.length === 0) {
 		return haystack;
 	}
@@ -116,7 +116,7 @@ export function rtrim(haystack: string, needle: string): string {
 		return haystack;
 	}
 
-	let needleLen = needle.length,
+	const needleLen = needle.length,
 		haystackLen = haystack.length;
 
 	if (needleLen === 0 || haystackLen === 0) {
@@ -173,7 +173,7 @@ export function startsWith(haystack: string, needle: string): boolean {
  * Determines if haystack ends with needle.
  */
 export function endsWith(haystack: string, needle: string): boolean {
-	let diff = haystack.length - needle.length;
+	const diff = haystack.length - needle.length;
 	if (diff > 0) {
 		return haystack.indexOf(needle, diff) === diff;
 	} else if (diff === 0) {
@@ -232,7 +232,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 
 	// We check against an empty string. If the regular expression doesn't advance
 	// (e.g. ends in an endless loop) it will match an empty string.
-	let match = regexp.exec('');
+	const match = regexp.exec('');
 	return !!(match && <any>regexp.lastIndex === 0);
 }
 
@@ -253,7 +253,7 @@ export function regExpFlags(regexp: RegExp): string {
  */
 export function firstNonWhitespaceIndex(str: string): number {
 	for (let i = 0, len = str.length; i < len; i++) {
-		let chCode = str.charCodeAt(i);
+		const chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return i;
 		}
@@ -267,7 +267,7 @@ export function firstNonWhitespaceIndex(str: string): number {
  */
 export function getLeadingWhitespace(str: string, start: number = 0, end: number = str.length): string {
 	for (let i = start; i < end; i++) {
-		let chCode = str.charCodeAt(i);
+		const chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return str.substring(start, i);
 		}
@@ -281,7 +281,7 @@ export function getLeadingWhitespace(str: string, start: number = 0, end: number
  */
 export function lastNonWhitespaceIndex(str: string, startIndex: number = str.length - 1): number {
 	for (let i = startIndex; i >= 0; i--) {
-		let chCode = str.charCodeAt(i);
+		const chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 			return i;
 		}
@@ -380,7 +380,7 @@ function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
 
 		// a-z A-Z
 		if (isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
-			let diff = Math.abs(codeA - codeB);
+			const diff = Math.abs(codeA - codeB);
 			if (diff !== 0 && diff !== 32) {
 				return false;
 			}
@@ -431,8 +431,8 @@ export function commonSuffixLength(a: string, b: string): number {
 	let i: number,
 		len = Math.min(a.length, b.length);
 
-	let aLastIndex = a.length - 1;
-	let bLastIndex = b.length - 1;
+	const aLastIndex = a.length - 1;
+	const bLastIndex = b.length - 1;
 
 	for (i = 0; i < len; i++) {
 		if (a.charCodeAt(aLastIndex - i) !== b.charCodeAt(bLastIndex - i)) {
@@ -459,7 +459,7 @@ function substrEquals(a: string, aStart: number, aEnd: number, b: string, bStart
  * For instance `overlap("foobar", "arr, I'm a pirate") === 2`.
  */
 export function overlap(a: string, b: string): number {
-	let aEnd = a.length;
+	const aEnd = a.length;
 	let bEnd = b.length;
 	let aStart = aEnd - bEnd;
 
@@ -486,9 +486,9 @@ export function overlap(a: string, b: string): number {
 // Code points U+0000 to U+D7FF and U+E000 to U+FFFF are represented on a single character
 // Code points U+10000 to U+10FFFF are represented on two consecutive characters
 //export function getUnicodePoint(str:string, index:number, len:number):number {
-//	let chrCode = str.charCodeAt(index);
+//	const chrCode = str.charCodeAt(index);
 //	if (0xD800 <= chrCode && chrCode <= 0xDBFF && index + 1 < len) {
-//		let nextChrCode = str.charCodeAt(index + 1);
+//		const nextChrCode = str.charCodeAt(index + 1);
 //		if (0xDC00 <= nextChrCode && nextChrCode <= 0xDFFF) {
 //			return (chrCode - 0xD800) << 10 + (nextChrCode - 0xDC00) + 0x10000;
 //		}
@@ -627,6 +627,21 @@ export function removeAnsiEscapeCodes(str: string): string {
 	return str;
 }
 
+export const removeAccents: (str: string) => string = (function () {
+	if (typeof (String.prototype as any).normalize !== 'function') {
+		// ☹️ no ES6 features...
+		return function (str: string) { return str; };
+	} else {
+		// transform into NFD form and remove accents
+		// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
+		const regex = /[\u0300-\u036f]/g;
+		return function (str: string) {
+			return (str as any).normalize('NFD').replace(regex, empty);
+		};
+	}
+})();
+
+
 // -- UTF-8 BOM
 
 export const UTF8_BOM_CHARACTER = String.fromCharCode(CharCode.UTF8_BOM);
@@ -670,7 +685,7 @@ export function fuzzyContains(target: string, query: string): boolean {
 	let index = 0;
 	let lastIndexOf = -1;
 	while (index < queryLen) {
-		let indexOf = targetLower.indexOf(query[index], lastIndexOf + 1);
+		const indexOf = targetLower.indexOf(query[index], lastIndexOf + 1);
 		if (indexOf < 0) {
 			return false;
 		}

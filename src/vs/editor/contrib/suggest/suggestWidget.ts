@@ -40,7 +40,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { FileKind } from 'vs/platform/files/common/files';
 
 const expandSuggestionDocsByDefault = false;
-const maxSuggestionsToShow = 12;
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -63,8 +62,16 @@ export const editorSuggestWidgetHighlightForeground = registerColor('editorSugge
 
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
-function matchesColor(text: string): string | null {
-	return text && text.match(colorRegExp) ? text : null;
+function extractColor(item: CompletionItem, out: string[]): boolean {
+	if (item.completion.label.match(colorRegExp)) {
+		out[0] = item.completion.label;
+		return true;
+	}
+	if (typeof item.completion.documentation === 'string' && item.completion.documentation.match(colorRegExp)) {
+		out[0] = item.completion.documentation;
+		return true;
+	}
+	return false;
 }
 
 function canExpandCompletionItem(item: CompletionItem | null) {
@@ -156,11 +163,11 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			matches: createMatches(element.score)
 		};
 
-		let color: string | null = null;
-		if (suggestion.kind === CompletionItemKind.Color && ((color = matchesColor(suggestion.label)) || typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation))) {
+		let color: string[] = [];
+		if (suggestion.kind === CompletionItemKind.Color && extractColor(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
-			data.colorspan.style.backgroundColor = color;
+			data.colorspan.style.backgroundColor = color[0];
 
 		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
 			// special logic for 'file' completion items
@@ -236,10 +243,10 @@ class SuggestionDetails {
 
 	constructor(
 		container: HTMLElement,
-		private widget: SuggestWidget,
-		private editor: ICodeEditor,
-		private markdownRenderer: MarkdownRenderer,
-		private triggerKeybindingLabel: string
+		private readonly widget: SuggestWidget,
+		private readonly editor: ICodeEditor,
+		private readonly markdownRenderer: MarkdownRenderer,
+		private readonly triggerKeybindingLabel: string
 	) {
 		this.disposables = [];
 
@@ -409,8 +416,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private list: List<CompletionItem>;
 	private listHeight: number;
 
-	private suggestWidgetVisible: IContextKey<boolean>;
-	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
+	private readonly suggestWidgetVisible: IContextKey<boolean>;
+	private readonly suggestWidgetMultipleSuggestions: IContextKey<boolean>;
 
 	private readonly editorBlurTimeout = new TimeoutTimer();
 	private readonly showTimeout = new TimeoutTimer();
@@ -429,7 +436,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
-	private storageService: IStorageService;
+	private readonly storageService: IStorageService;
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
@@ -439,7 +446,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private docsPositionPreviousWidgetY: number | null;
 
 	constructor(
-		private editor: ICodeEditor,
+		private readonly editor: ICodeEditor,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -458,13 +465,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.storageService = storageService;
 
 		this.element = $('.editor-widget.suggest-widget');
-		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
-			addClass(this.element, 'no-icons');
-		}
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this, this.editor, markdownRenderer, triggerKeybindingLabel);
+
+		const applyIconStyle = () => toggleClass(this.element, 'no-icons', !this.editor.getConfiguration().contribInfo.suggest.showIcons);
+		applyIconStyle();
 
 		let renderer = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
 
@@ -484,7 +491,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			this.list.onMouseDown(e => this.onListMouseDown(e)),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
-			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
+			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()),
+			this.editor.onDidChangeConfiguration(e => e.contribInfo && applyIconStyle())
 		];
 
 		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
@@ -515,6 +523,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			return;
 		}
 
+		// prevent stealing browser focus from the editor
+		e.browserEvent.preventDefault();
+		e.browserEvent.stopPropagation();
+
 		this.select(e.element, e.index);
 	}
 
@@ -535,23 +547,15 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		item.resolve(CancellationToken.None).then(() => {
 			this.onDidSelectEmitter.fire({ item, index, model: completionModel });
-			alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.completion.label));
 			this.editor.focus();
 		});
 	}
 
 	private _getSuggestionAriaAlertLabel(item: CompletionItem): string {
-		const isSnippet = item.completion.kind === CompletionItemKind.Snippet;
-
-		if (!canExpandCompletionItem(item)) {
-			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestion', "{0}, snippet suggestion", item.completion.label)
-				: nls.localize('ariaCurrentSuggestion', "{0}, suggestion", item.completion.label);
-		} else if (this.expandDocsSettingFromStorage()) {
-			return isSnippet ? nls.localize('ariaCurrentSnippeSuggestionReadDetails', "{0}, snippet suggestion. Reading details. {1}", item.completion.label, this.details.getAriaLabel())
-				: nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, suggestion. Reading details. {1}", item.completion.label, this.details.getAriaLabel());
+		if (this.expandDocsSettingFromStorage()) {
+			return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, this.details.getAriaLabel());
 		} else {
-			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestionWithDetails', "{0}, snippet suggestion, has details", item.completion.label)
-				: nls.localize('ariaCurrentSuggestionWithDetails', "{0}, suggestion, has details", item.completion.label);
+			return item.completion.label;
 		}
 	}
 
@@ -562,7 +566,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 		this._lastAriaAlertLabel = newAriaAlertLabel;
 		if (this._lastAriaAlertLabel) {
-			alert(this._lastAriaAlertLabel);
+			alert(this._lastAriaAlertLabel, true);
 		}
 	}
 
@@ -1033,7 +1037,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			height = this.unfocusedHeight;
 		} else {
 			const suggestionCount = this.list.contentHeight / this.unfocusedHeight;
-			height = Math.min(suggestionCount, maxSuggestionsToShow) * this.unfocusedHeight;
+			const { maxVisibleSuggestions } = this.editor.getConfiguration().contribInfo.suggest;
+			height = Math.min(suggestionCount, maxVisibleSuggestions) * this.unfocusedHeight;
 		}
 
 		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
@@ -1113,7 +1118,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	// Heights
 
 	private get maxWidgetHeight(): number {
-		return this.unfocusedHeight * maxSuggestionsToShow;
+		return this.unfocusedHeight * this.editor.getConfiguration().contribInfo.suggest.maxVisibleSuggestions;
 	}
 
 	private get unfocusedHeight(): number {

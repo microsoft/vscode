@@ -21,8 +21,8 @@ export interface FoldingModelChangeEvent {
 export type CollapseMemento = ILineRange[];
 
 export class FoldingModel {
-	private _textModel: ITextModel;
-	private _decorationProvider: IDecorationProvider;
+	private readonly _textModel: ITextModel;
+	private readonly _decorationProvider: IDecorationProvider;
 
 	private _regions: FoldingRegions;
 	private _editorDecorationIds: string[];
@@ -66,7 +66,7 @@ export class FoldingModel {
 	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
 		let newEditorDecorations: IModelDeltaDecoration[] = [];
 
-		let isBlocked = (startLineNumber, endLineNumber) => {
+		let isBlocked = (startLineNumber: number, endLineNumber: number) => {
 			for (let blockedLineNumber of blockedLineNumers) {
 				if (startLineNumber < blockedLineNumber && blockedLineNumber <= endLineNumber) { // first line is visible
 					return true;
