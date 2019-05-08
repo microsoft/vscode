@@ -173,6 +173,16 @@ suite('Workbench untitled editors', () => {
 		input.dispose();
 	});
 
+	test('Untitled with initial content is dirty', async () => {
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet(undefined, undefined, 'Hello World');
+
+		// dirty
+		const model = await input.resolve();
+		assert.ok(model.isDirty());
+		input.dispose();
+	});
+
 	test('Untitled created with files.defaultLanguage setting', () => {
 		const defaultLanguage = 'javascript';
 		const config = accessor.testConfigurationService;

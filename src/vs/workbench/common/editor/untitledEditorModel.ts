@@ -146,7 +146,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			const hasBackup = !!backup;
 
 			// untitled associated to file path are dirty right away as well as untitled with content
-			this.setDirty(this._hasAssociatedFilePath || hasBackup);
+			this.setDirty(this._hasAssociatedFilePath || hasBackup || !!this.initialValue);
 
 			let untitledContents: ITextBufferFactory;
 			if (backup) {
