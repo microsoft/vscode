@@ -307,9 +307,11 @@ class QuickInput implements IQuickInput {
 			const styles = this.ui.inputBox.stylesForType(severity);
 			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : null;
 			this.ui.message.style.border = styles.border ? `1px solid ${styles.border}` : null;
+			this.ui.message.style.paddingBottom = '4px';
 		} else {
 			this.ui.message.style.backgroundColor = '';
 			this.ui.message.style.border = '';
+			this.ui.message.style.paddingBottom = '';
 		}
 	}
 
