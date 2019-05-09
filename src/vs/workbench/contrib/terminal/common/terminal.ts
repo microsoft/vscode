@@ -192,6 +192,12 @@ export interface IShellLaunchConfig {
 	 * provided as nothing will be inherited from the process or any configuration.
 	 */
 	strictEnv?: boolean;
+
+	/**
+	 * Moving forward, conpty will be the default. However, there are cases where conpty is not ready
+	 * do be the default. This property will force winpty to be uses, even when conpty would normally be used.
+	 */
+	forceWinpty?: boolean;
 }
 
 export interface ITerminalService {
