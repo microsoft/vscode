@@ -2759,10 +2759,10 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('tasksConfigurationTitle', "Tasks"),
 	type: 'object',
 	properties: {
-		'tasks.terminal.windowsUseWinpty': {
-			markdownDescription: nls.localize('tasks.terminal.windowsUseWinpty', "Takes precedent over all other pty settings and forces the integrated terminal to use Winpty instead of Conpty."),
+		'tasks.terminal.windowsEnableConpty': {
+			markdownDescription: nls.localize('tasks.terminal.windowsEnableConpty', "Works in conjunction with the terminal.integrated.windowsEnableConpty setting. Both must be enabled for tasks to use conpty. Defaults to false."),
 			type: 'boolean',
-			default: true
+			default: false
 		}
 	}
 });

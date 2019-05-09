@@ -881,7 +881,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		// Conpty doesn't do linefeeds in an expected way. Force winpty unless the user has requested otherwise.
-		shellLaunchConfig.forceWinpty = this.configurationService.getValue('tasks.terminal.windowsUseWinpty');
+		shellLaunchConfig.forceWinpty = !this.configurationService.getValue('tasks.terminal.windowsEnableConpty');
 		return shellLaunchConfig;
 	}
 
