@@ -242,6 +242,9 @@ export class ContextView extends Disposable {
 		// if view intersects vertically with anchor, shift it horizontally
 		if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
 			horizontalAnchor.size = around.width;
+			if (anchorAlignment === AnchorAlignment.RIGHT) {
+				horizontalAnchor.offset = around.left;
+			}
 		}
 
 		const left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
