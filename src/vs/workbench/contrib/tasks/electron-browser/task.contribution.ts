@@ -2759,8 +2759,8 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('tasksConfigurationTitle', "Tasks"),
 	type: 'object',
 	properties: {
-		'tasks.terminal.windowsEnableConpty': {
-			markdownDescription: nls.localize('tasks.terminal.windowsEnableConpty', "Works in conjunction with the terminal.integrated.windowsEnableConpty setting. Both must be enabled for tasks to use conpty. Defaults to false."),
+		'tasks.terminal.windowsAllowConpty': {
+			markdownDescription: nls.localize('tasks.terminal.windowsAllowConpty', "Works in conjunction with the terminal.integrated.windowsEnableConpty setting. Both must be enabled for tasks to use conpty. Defaults to false."),
 			type: 'boolean',
 			default: false
 		}
