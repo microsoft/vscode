@@ -1360,6 +1360,7 @@ class TaskService extends Disposable implements ITaskService {
 				this.modelService, this.configurationResolverService, this.telemetryService,
 				this.contextService, this._environmentService,
 				TaskService.OutputChannelId,
+				this.configurationService,
 				(workspaceFolder: IWorkspaceFolder) => {
 					if (!workspaceFolder) {
 						return undefined;
@@ -2736,6 +2737,7 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from '../common/jsonSchema_v1';
 import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,
@@ -2749,3 +2751,19 @@ ProblemMatcherRegistry.onMatcherChanged(() => {
 	updateProblemMatchers();
 	jsonRegistry.notifySchemaChanged(schemaId);
 });
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+configurationRegistry.registerConfiguration({
+	id: 'Tasks',
+	order: 100,
+	title: nls.localize('tasksConfigurationTitle', "Tasks"),
+	type: 'object',
+	properties: {
+		'tasks.terminal.windowsAllowConpty': {
+			markdownDescription: nls.localize('tasks.terminal.windowsAllowConpty', "Works in conjunction with the `#terminal.integrated.windowsEnableConpty#` setting. Both must be enabled for tasks to use conpty. Defaults to `false`."),
+			type: 'boolean',
+			default: false
+		}
+	}
+});
+
