@@ -209,11 +209,14 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 		};
 	});
 
+	// auto focus the default formatter
+	let autoFocusItem = picks.filter((pick) => pick.description)[0];
+
 	const configurePick: IQuickPickItem = {
 		label: nls.localize('config', "Configure Default Formatter...")
 	};
 
-	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick], { placeHolder: nls.localize('format.placeHolder', "Select a formatter") });
+	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick], { placeHolder: nls.localize('format.placeHolder', "Select a formatter"), activeItem: autoFocusItem });
 	if (!pick) {
 		// dismissed
 		return undefined;
