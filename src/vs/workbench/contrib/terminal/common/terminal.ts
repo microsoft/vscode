@@ -195,7 +195,7 @@ export interface IShellLaunchConfig {
 
 	/**
 	 * Moving forward, conpty will be the default. However, there are cases where conpty is not ready
-	 * do be the default. This property will force winpty to be used, even when conpty would normally be used.
+	 * to be the default. This property will force winpty to be used, even when conpty would normally be used.
 	 */
 	forceWinpty?: boolean;
 }
