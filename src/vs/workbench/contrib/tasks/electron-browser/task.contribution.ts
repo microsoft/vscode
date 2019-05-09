@@ -1894,20 +1894,22 @@ class TaskService extends Disposable implements ITaskService {
 		return true;
 	}
 
+	private createTaskQuickPickEntry(task: Task): TaskQuickPickEntry {
+		let description: string | undefined;
+		if (this.needsFolderQualification()) {
+			let workspaceFolder = task.getWorkspaceFolder();
+			if (workspaceFolder) {
+				description = workspaceFolder.name;
+			}
+		}
+		return { label: task._label, description, task };
+	}
+
 	private createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry): TaskQuickPickEntry[] {
 		if (tasks === undefined || tasks === null || tasks.length === 0) {
 			return [];
 		}
-		const TaskQuickPickEntry = (task: Task): TaskQuickPickEntry => {
-			let description: string | undefined;
-			if (this.needsFolderQualification()) {
-				let workspaceFolder = task.getWorkspaceFolder();
-				if (workspaceFolder) {
-					description = workspaceFolder.name;
-				}
-			}
-			return { label: task._label, description, task };
-		};
+		let TaskQuickPickEntry = this.createTaskQuickPickEntry;
 		function fillEntries(entries: QuickPickInput<TaskQuickPickEntry>[], tasks: Task[], groupLabel: string): void {
 			if (tasks.length) {
 				entries.push({ type: 'separator', label: groupLabel });
@@ -2581,20 +2583,29 @@ class TaskService extends Disposable implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		this.showQuickPick(this.getActiveTasks(),
-			nls.localize('TaskService.pickShowTask', 'Select the task to show its output'),
-			{
-				label: nls.localize('TaskService.noTaskIsRunning', 'No task is running'),
-				task: null
-			},
-			false, true
-		).then((entry) => {
-			let task: Task | undefined | null = entry ? entry.task : undefined;
-			if (task === undefined || task === null) {
-				return;
-			}
-			this._taskSystem!.revealTask(task);
-		});
+
+		this.getActiveTasks()
+			.then((tasks) => {
+				if (tasks.length === 1) {
+					return this.createTaskQuickPickEntry(tasks[0]);
+				}
+				else {
+					return this.showQuickPick(tasks,
+						nls.localize('TaskService.pickShowTask', 'Select the task to show its output'),
+						{
+							label: nls.localize('TaskService.noTaskIsRunning', 'No task is running'),
+							task: null
+						},
+						false, true
+					);
+				}
+			}).then((entry) => {
+				let task: Task | undefined | null = entry ? entry.task : undefined;
+				if (task === undefined || task === null) {
+					return;
+				}
+				this._taskSystem!.revealTask(task);
+			});
 	}
 }
 
