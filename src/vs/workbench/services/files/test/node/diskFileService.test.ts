@@ -15,7 +15,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, symlink, RimRafMode, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -62,6 +62,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 	totalBytesRead: number = 0;
 
+	private invalidStatSize: boolean;
+
 	private _testCapabilities: FileSystemProviderCapabilities;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._testCapabilities) {
@@ -80,6 +82,20 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 	set capabilities(capabilities: FileSystemProviderCapabilities) {
 		this._testCapabilities = capabilities;
+	}
+
+	setInvalidStatSize(disabled: boolean): void {
+		this.invalidStatSize = disabled;
+	}
+
+	async stat(resource: URI): Promise<IStat> {
+		const res = await super.stat(resource);
+
+		if (this.invalidStatSize) {
+			res.size = String(res.size) as any; // for https://github.com/Microsoft/vscode/issues/72909
+		}
+
+		return res;
 	}
 
 	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
@@ -355,7 +371,7 @@ suite('Disk File Service', () => {
 
 	test('resolve - folder symbolic link', async () => {
 		if (isWindows) {
-			return; // not happy
+			return; // not reliable on windows
 		}
 
 		const link = URI.file(join(testDir, 'deep-link'));
@@ -369,7 +385,7 @@ suite('Disk File Service', () => {
 
 	test('resolve - file symbolic link', async () => {
 		if (isWindows) {
-			return; // not happy
+			return; // not reliable on windows
 		}
 
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
@@ -382,7 +398,7 @@ suite('Disk File Service', () => {
 
 	test('resolve - invalid symbolic link does not break', async () => {
 		if (isWindows) {
-			return; // not happy
+			return; // not reliable on windows
 		}
 
 		const link = URI.file(join(testDir, 'foo'));
@@ -824,8 +840,20 @@ suite('Disk File Service', () => {
 		return testReadFile(URI.file(join(testDir, 'small.txt')));
 	});
 
+	test('readFile - small file - buffered / readonly', () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
+
+		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	});
+
 	test('readFile - small file - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	});
+
+	test('readFile - small file - unbuffered / readonly', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly);
 
 		return testReadFile(URI.file(join(testDir, 'small.txt')));
 	});
@@ -1037,6 +1065,24 @@ suite('Disk File Service', () => {
 		assert.equal(fileProvider.totalBytesRead, 0);
 	});
 
+	test('readFile - FILE_NOT_MODIFIED_SINCE does not fire wrongly - https://github.com/Microsoft/vscode/issues/72909', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+		fileProvider.setInvalidStatSize(true);
+
+		const resource = URI.file(join(testDir, 'index.html'));
+
+		await service.readFile(resource);
+
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.readFile(resource, { etag: undefined });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(!error);
+	});
+
 	test('readFile - FILE_NOT_MODIFIED_SINCE - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
@@ -1200,6 +1246,26 @@ suite('Disk File Service', () => {
 		assert.equal(readFileSync(resource.fsPath), newContent);
 	});
 
+	test('writeFile - buffered - readonly throws', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
+
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+
+		let error: Error;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent));
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error!);
+	});
+
 	test('writeFile - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
@@ -1226,6 +1292,26 @@ suite('Disk File Service', () => {
 		assert.equal(fileStat.name, 'lorem.txt');
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+	});
+
+	test('writeFile - unbuffered - readonly throws', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly);
+
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		assert.equal(content, 'Small File');
+
+		const newContent = 'Updates to the small file';
+
+		let error: Error;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent));
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error!);
 	});
 
 	test('writeFile (large file) - multiple parallel writes queue up', async () => {
@@ -1336,20 +1422,25 @@ suite('Disk File Service', () => {
 		assert.equal(readFileSync(resource.fsPath), newContent);
 	});
 
-	test('writeFile (error when writing to file that has been updated meanwhile)', async () => {
+	test('writeFile - error when writing to file that has been updated meanwhile', async () => {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
 		const stat = await service.resolve(resource);
 
-		const content = readFileSync(resource.fsPath);
+		const content = readFileSync(resource.fsPath).toString();
 		assert.equal(content, 'Small File');
 
 		const newContent = 'Updates to the small file';
 		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
 
+		const newContentLeadingToError = newContent + newContent;
+
+		const fakeMtime = 1000;
+		const fakeSize = 1000;
+
 		let error: FileOperationError | undefined = undefined;
 		try {
-			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: etag(0, 0), mtime: 0 });
+			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToError), { etag: etag({ mtime: fakeMtime, size: fakeSize }), mtime: fakeMtime });
 		} catch (err) {
 			error = err;
 		}
@@ -1357,6 +1448,32 @@ suite('Disk File Service', () => {
 		assert.ok(error);
 		assert.ok(error instanceof FileOperationError);
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
+	});
+
+	test('writeFile - no error when writing to file where size is the same', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		const stat = await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath).toString();
+		assert.equal(content, 'Small File');
+
+		const newContent = content; // same content
+		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
+
+		const newContentLeadingToNoError = newContent; // writing the same content should be OK
+
+		const fakeMtime = 1000;
+		const actualSize = newContent.length;
+
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToNoError), { etag: etag({ mtime: fakeMtime, size: actualSize }), mtime: fakeMtime });
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(!error);
 	});
 
 	test('watch - file', done => {
@@ -1370,7 +1487,7 @@ suite('Disk File Service', () => {
 
 	test('watch - file symbolic link', async done => {
 		if (isWindows) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
@@ -1383,7 +1500,7 @@ suite('Disk File Service', () => {
 
 	test('watch - file - multiple writes', done => {
 		if (isWindows) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
@@ -1446,6 +1563,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - change file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch3'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1458,6 +1579,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - add file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch4'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1469,6 +1594,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - delete file', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch5'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1481,6 +1610,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - add folder', done => {
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const watchDir = URI.file(join(testDir, 'watch6'));
 		mkdirSync(watchDir.fsPath);
 
@@ -1492,8 +1625,8 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - delete folder', done => {
-		if (isWindows) {
-			return done(); // not happy
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const watchDir = URI.file(join(testDir, 'watch7'));
@@ -1508,8 +1641,8 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - folder (non recursive) - symbolic link - change file', async done => {
-		if (isWindows) {
-			return done(); // not happy
+		if (!isLinux) {
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const watchDir = URI.file(join(testDir, 'deep-link'));
@@ -1525,7 +1658,7 @@ suite('Disk File Service', () => {
 
 	test('watch - folder (non recursive) - rename file', done => {
 		if (!isLinux) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const watchDir = URI.file(join(testDir, 'watch8'));
@@ -1543,7 +1676,7 @@ suite('Disk File Service', () => {
 
 	test('watch - folder (non recursive) - rename file (different case)', done => {
 		if (!isLinux) {
-			return done(); // not happy
+			return done(); // watch tests are flaky on other platforms
 		}
 
 		const watchDir = URI.file(join(testDir, 'watch8'));

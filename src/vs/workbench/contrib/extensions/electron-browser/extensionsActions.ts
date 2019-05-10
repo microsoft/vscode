@@ -328,9 +328,9 @@ export class RemoteInstallAction extends ExtensionAction {
 			// Installed User Extension
 			&& this.extension && this.extension.local && this.extension.type === ExtensionType.User && this.extension.state === ExtensionState.Installed
 			// Local Workspace Extension
-			&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)
+			&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && (isLanguagePackExtension(this.extension.local.manifest) || !isUIExtension(this.extension.local.manifest, this.configurationService))
 			// Extension does not exist in remote
-			&& !this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
+			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
 			&& this.extensionsWorkbenchService.canInstall(this.extension)
 		) {
 			this.enabled = true;
@@ -406,10 +406,10 @@ export class LocalInstallAction extends ExtensionAction {
 		if (this.environmentService.configuration.remoteAuthority
 			// Installed User Extension
 			&& this.extension && this.extension.local && this.extension.type === ExtensionType.User && this.extension.state === ExtensionState.Installed
-			// Remote UI Extension
-			&& this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && isUIExtension(this.extension.local.manifest, this.configurationService)
+			// Remote UI or Language pack Extension
+			&& this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && (isLanguagePackExtension(this.extension.local.manifest) || isUIExtension(this.extension.local.manifest, this.configurationService))
 			// Extension does not exist in local
-			&& !this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.localExtensionManagementServer)
+			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.localExtensionManagementServer)
 			&& this.extensionsWorkbenchService.canInstall(this.extension)
 		) {
 			this.enabled = true;
@@ -1745,7 +1745,9 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super(id, label, 'extension-action');
 		this.recommendations = recommendations;
@@ -1762,16 +1764,29 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 					let installPromises: Promise<any>[] = [];
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
-						installPromises.push(model.resolve(i, CancellationToken.None).then(e => {
-							return this.extensionWorkbenchService.install(e).then(undefined, err => {
-								console.error(err);
-								return promptDownloadManually(e.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", e.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
-							});
-						}));
+						installPromises.push(model.resolve(i, CancellationToken.None).then(e => this.installExtension(e)));
 					}
 					return Promise.all(installPromises);
 				});
 			});
+	}
+
+	private async installExtension(extension: IExtension): Promise<void> {
+		try {
+			if (extension.local && extension.gallery) {
+				if (isUIExtension(extension.local.manifest, this.configurationService)) {
+					await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(extension.gallery);
+					return;
+				} else if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+					await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(extension.gallery);
+					return;
+				}
+			}
+			await this.extensionWorkbenchService.install(extension);
+		} catch (err) {
+			console.error(err);
+			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+		}
 	}
 }
 
@@ -2660,18 +2675,18 @@ export class DisabledLabelAction extends ExtensionAction {
 	update(): void {
 		this.class = `${DisabledLabelAction.Class} hide`;
 		this.label = '';
-		if (this.extension && this.extension.local && isLanguagePackExtension(this.extension.local.manifest)) {
-			return;
-		}
 		if (this.warningAction.tooltip) {
 			this.class = DisabledLabelAction.Class;
 			this.label = this.warningAction.tooltip;
 			return;
 		}
+		if (this.extension && this.extension.local && isLanguagePackExtension(this.extension.local.manifest)) {
+			return;
+		}
 		if (this.extension && this.extension.local && this._runningExtensions) {
 			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
 			const isExtensionRunning = this._runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier));
-			if (!isExtensionRunning && !isEnabled) {
+			if (!isExtensionRunning && !isEnabled && this.extensionEnablementService.canChangeEnablement(this.extension.local)) {
 				this.class = DisabledLabelAction.Class;
 				this.label = localize('disabled by user', "This extension is disabled by the user.");
 				return;
@@ -2728,9 +2743,17 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 			!this._runningExtensions ||
 			!this.workbenchEnvironmentService.configuration.remoteAuthority ||
 			!this.extensionManagementServerService.remoteExtensionManagementServer ||
-			this.extension.state !== ExtensionState.Installed ||
-			isLanguagePackExtension(this.extension.local.manifest)
+			this.extension.state !== ExtensionState.Installed
 		) {
+			return;
+		}
+		if (isLanguagePackExtension(this.extension.local.manifest)) {
+			if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server !== this.extension.server)) {
+				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+				this.tooltip = this.extension.server === this.extensionManagementServerService.localExtensionManagementServer
+					? localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it also there.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer))
+					: localize('Install language pack also locally', "Install the language pack extension locally to enable it also there.");
+			}
 			return;
 		}
 		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];

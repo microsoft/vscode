@@ -26,12 +26,12 @@ const id = 'workbench.action.openSnippets';
 
 namespace ISnippetPick {
 	export function is(thing: object): thing is ISnippetPick {
-		return thing && typeof (<ISnippetPick>thing).filepath === 'string';
+		return thing && URI.isUri((<ISnippetPick>thing).filepath);
 	}
 }
 
 interface ISnippetPick extends IQuickPickItem {
-	filepath: string;
+	filepath: URI;
 	hint?: true;
 }
 
@@ -71,7 +71,7 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 
 			existing.push({
 				label: basename(file.location.fsPath),
-				filepath: file.location.fsPath,
+				filepath: file.location,
 				description: names.size === 0
 					? nls.localize('global.scope', "(global)")
 					: nls.localize('global.1', "({0})", values(names).join(', '))
@@ -83,7 +83,7 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 			existing.push({
 				label: basename(file.location.fsPath),
 				description: `(${modeService.getLanguageName(mode)})`,
-				filepath: file.location.fsPath
+				filepath: file.location
 			});
 			seen.add(mode);
 		}
@@ -96,15 +96,15 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 			future.push({
 				label: mode,
 				description: `(${label})`,
-				filepath: join(dir, `${mode}.json`),
+				filepath: URI.file(join(dir, `${mode}.json`)),
 				hint: true
 			});
 		}
 	}
 
 	existing.sort((a, b) => {
-		let a_ext = extname(a.filepath);
-		let b_ext = extname(b.filepath);
+		let a_ext = extname(a.filepath.path);
+		let b_ext = extname(b.filepath.path);
 		if (a_ext === b_ext) {
 			return a.label.localeCompare(b.label);
 		} else if (a_ext === '.code-snippets') {
@@ -165,7 +165,7 @@ async function createSnippetFile(scope: string, defaultPath: URI, windowService:
 }
 
 async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileService, textFileService: ITextFileService) {
-	if (await fileService.exists(URI.file(pick.filepath))) {
+	if (await fileService.exists(pick.filepath)) {
 		return;
 	}
 	const contents = [
@@ -185,7 +185,7 @@ async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileS
 		'\t// }',
 		'}'
 	].join('\n');
-	await textFileService.write(URI.file(pick.filepath), contents);
+	await textFileService.write(pick.filepath, contents);
 }
 
 CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
@@ -240,7 +240,7 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 		if (pick.hint) {
 			await createLanguageSnippetFile(pick, fileService, textFileService);
 		}
-		return opener.open(URI.file(pick.filepath));
+		return opener.open(pick.filepath);
 	}
 });
 

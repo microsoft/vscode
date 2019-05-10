@@ -474,12 +474,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (typesArray.indexOf(DataTransfers.FILES.toLowerCase()) === -1 && typesArray.indexOf(CodeDataTransfers.FILES.toLowerCase()) === -1) {
 				return false;
 			}
-			if (this.environmentService.configuration.remoteAuthority) {
-				const resources = extractResources(originalEvent, true);
-				if (resources.some(r => r.resource.authority !== this.environmentService.configuration.remoteAuthority)) {
-					return false;
-				}
-			}
 		}
 
 		// Other-Tree DND
@@ -612,6 +606,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent, true);
+		if (this.environmentService.configuration.remoteAuthority) {
+			if (droppedResources.some(r => r.resource.authority !== this.environmentService.configuration.remoteAuthority)) {
+				return Promise.resolve();
+			}
+		}
 
 		// Check for dropped external files to be folders
 		return this.fileService.resolveAll(droppedResources).then(result => {

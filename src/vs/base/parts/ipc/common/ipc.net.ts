@@ -141,17 +141,17 @@ export const enum ProtocolConstants {
 	 */
 	AcknowledgeTimeoutTime = 10000, // 10 seconds
 	/**
-	 * Send at least a message every 30s for keep alive reasons.
+	 * Send at least a message every 5s for keep alive reasons.
 	 */
-	KeepAliveTime = 30000, // 30 seconds
+	KeepAliveTime = 5000, // 5 seconds
 	/**
-	 * If there is no message received for 60 seconds, consider the connection closed...
+	 * If there is no message received for 10 seconds, consider the connection closed...
 	 */
-	KeepAliveTimeoutTime = 60000, // 60 seconds
+	KeepAliveTimeoutTime = 10000, // 10 seconds
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	 */
-	ReconnectionGraceTime = 60 * 60 * 1000, // 1hr
+	ReconnectionGraceTime = 3 * 60 * 60 * 1000, // 3hrs
 }
 
 class ProtocolMessage {
@@ -685,6 +685,10 @@ export class PersistentProtocol {
 
 		this._sendKeepAliveCheck();
 		this._recvKeepAliveCheck();
+	}
+
+	public acceptDisconnect(): void {
+		this._onClose.fire();
 	}
 
 	private _receiveMessage(msg: ProtocolMessage): void {

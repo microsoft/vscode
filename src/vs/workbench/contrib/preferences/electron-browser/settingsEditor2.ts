@@ -205,7 +205,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions, token: CancellationToken): Promise<void> {
+	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | null, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => new Promise(process.nextTick)) // Force setInput to be async
@@ -213,10 +213,10 @@ export class SettingsEditor2 extends BaseEditor {
 				return this.render(token);
 			})
 			.then(() => {
+				options = options || SettingsEditorOptions.create({});
+
 				if (!this.viewState.settingsTarget) {
-					if (!options) {
-						options = SettingsEditorOptions.create({ target: ConfigurationTarget.USER_LOCAL });
-					} else if (!options.target) {
+					if (!options.target) {
 						options.target = ConfigurationTarget.USER_LOCAL;
 					}
 				}
@@ -1066,6 +1066,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.tocTree.setFocus([]);
+			this.viewState.filterToCategory = undefined;
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
 			this.onSearchModeToggled();
 
@@ -1207,6 +1208,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.tocTree.setFocus([]);
+			this.viewState.filterToCategory = undefined;
 			this.tocTree.expandAll();
 
 			this.renderTree(undefined, true);

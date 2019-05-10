@@ -30,6 +30,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
 // implementation
 
@@ -478,7 +479,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.doSetFileIconTheme(newIconTheme);
 
 			// remember theme data for a quick restore
-			if (newIconTheme.isLoaded) {
+			if (newIconTheme.isLoaded && newIconTheme.location && !getRemoteAuthority(newIconTheme.location)) {
 				this.storageService.store(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData(), StorageScope.GLOBAL);
 			}
 

@@ -81,7 +81,7 @@
 	width: 10px;
 }
 
-.vs-dark .monaco-action-bar .action-item .action-label.system-disable.warning.icon {
+.monaco-action-bar .action-item .action-label.system-disable.warning.icon {
 	background: url('status-warning.svg') center center no-repeat;
 }
 
@@ -89,7 +89,7 @@
 	background: url('status-warning-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-action-bar .action-item .action-label.system-disable.info.icon {
+.monaco-action-bar .action-item .action-label.system-disable.info.icon {
 	background: url('status-info.svg') center center no-repeat;
 }
 

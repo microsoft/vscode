@@ -76,7 +76,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -150,7 +150,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			if (viewContainer && viewContainer.hideIfEmpty) {
 				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
 				if (viewDescriptors && viewDescriptors.activeViewDescriptors.length === 0) {
-					this.removeComposite(viewletDescriptor.id, true); // Update the composite bar by hiding
+					this.hideComposite(viewletDescriptor.id); // Update the composite bar by hiding
 				}
 			}
 		}
@@ -309,14 +309,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			disposable.dispose();
 		}
 		this.viewletDisposables.delete(viewletId);
-		this.removeComposite(viewletId, true);
+		this.hideComposite(viewletId);
 	}
 
 	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
 		if (viewDescriptors.activeViewDescriptors.length) {
 			this.compositeBar.addComposite(viewlet);
 		} else {
-			this.removeComposite(viewlet.id, true);
+			this.hideComposite(viewlet.id);
 		}
 	}
 
@@ -334,18 +334,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const viewlets = this.viewletService.getViewlets();
 		for (const { id } of this.cachedViewlets) {
 			if (viewlets.every(viewlet => viewlet.id !== id)) {
-				this.removeComposite(id, false);
+				this.hideComposite(id);
 			}
 		}
 	}
 
-	private removeComposite(compositeId: string, hide: boolean): void {
-		if (hide) {
-			this.compositeBar.hideComposite(compositeId);
-		} else {
-			this.compositeBar.removeComposite(compositeId);
-		}
-
+	private hideComposite(compositeId: string): void {
+		this.compositeBar.hideComposite(compositeId);
 		const compositeActions = this.compositeActions[compositeId];
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();
@@ -441,7 +436,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 						}
 					}
 				}
-				state.push({ id: compositeItem.id, iconUrl: viewlet.iconUrl && viewlet.iconUrl.scheme === Schemas.file ? viewlet.iconUrl : undefined, views, pinned: compositeItem && compositeItem.pinned, order: compositeItem ? compositeItem.order : undefined, visible: compositeItem && compositeItem.visible });
+				state.push({ id: compositeItem.id, iconUrl: viewlet.iconUrl && viewlet.iconUrl.scheme === Schemas.file ? viewlet.iconUrl : undefined, views, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+			} else {
+				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, order: compositeItem.order, visible: false });
 			}
 		}
 

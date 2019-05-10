@@ -309,7 +309,7 @@ export class ProgressService2 implements IProgressService2 {
 			disposables.push(attachDialogStyler(dialog, this._themeService));
 
 			dialog.show().then(() => {
-				if (options.cancellable && typeof onDidCancel === 'function') {
+				if (typeof onDidCancel === 'function') {
 					onDidCancel();
 				}
 
