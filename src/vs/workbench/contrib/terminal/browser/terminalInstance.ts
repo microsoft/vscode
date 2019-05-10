@@ -438,7 +438,7 @@ export class TerminalInstance implements ITerminalInstance {
 					return;
 				}
 				if (this._processManager.os === platform.OperatingSystem.Windows) {
-					this._xterm.winptyCompatInit();
+					this._xterm.setOption('windowsMode', true);
 				}
 				this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager);
 			});
