@@ -527,13 +527,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Untitled file support
 		const untitledInput = <IUntitledResourceInput>input;
-		if (!untitledInput.resource || typeof untitledInput.filePath === 'string' || (untitledInput.resource instanceof URI && untitledInput.resource.scheme === Schemas.untitled)) {
-			return this.untitledEditorService.createOrGet(
-				untitledInput.filePath ? URI.file(untitledInput.filePath) : untitledInput.resource,
-				untitledInput.language,
-				untitledInput.contents,
-				untitledInput.encoding
-			);
+		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource && untitledInput.resource.scheme === Schemas.untitled)) {
+			return this.untitledEditorService.createOrGet(untitledInput.resource, untitledInput.language, untitledInput.contents, untitledInput.encoding);
 		}
 
 		// Resource Editor Support

@@ -13,7 +13,7 @@ import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { realcaseSync } from 'vs/base/node/extpath';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files/node/watcher/watcher';
 import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -114,11 +114,20 @@ export class ChokidarWatcherService implements IWatcherService {
 			disableGlobbing: true // fix https://github.com/Microsoft/vscode/issues/4586
 		};
 
+		const excludes: string[] = [];
 		// if there's only one request, use the built-in ignore-filterering
 		const isSingleFolder = requests.length === 1;
 		if (isSingleFolder) {
-			watcherOpts.ignored = requests[0].excludes;
+			excludes.push(...requests[0].excludes);
 		}
+
+		if ((isMacintosh || isLinux) && (basePath.length === 0 || basePath === '/')) {
+			excludes.push('/dev/**');
+			if (isLinux) {
+				excludes.push('/proc/**', '/sys/**');
+			}
+		}
+		watcherOpts.ignored = excludes;
 
 		// Chokidar fails when the basePath does not match case-identical to the path on disk
 		// so we have to find the real casing of the path and do some path massaging to fix this

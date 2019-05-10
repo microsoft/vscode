@@ -200,7 +200,8 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		super(
 			contextService,
@@ -219,7 +220,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			contextKeyService,
 			dialogService,
 			fileDialogService,
-			editorService
+			editorService,
+			textResourceConfigurationService
 		);
 	}
 
@@ -897,6 +899,7 @@ export class TestFileService implements IFileService {
 	readonly onError: Event<Error> = Event.None;
 
 	private content = 'Hello Html';
+	private lastReadFileUri: URI;
 
 	constructor() {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
@@ -909,6 +912,10 @@ export class TestFileService implements IFileService {
 
 	public getContent(): string {
 		return this.content;
+	}
+
+	public getLastReadFileUri(): URI {
+		return this.lastReadFileUri;
 	}
 
 	public get onFileChanges(): Event<FileChangesEvent> {
@@ -950,6 +957,8 @@ export class TestFileService implements IFileService {
 	}
 
 	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
+		this.lastReadFileUri = resource;
+
 		return Promise.resolve({
 			resource: resource,
 			value: VSBuffer.fromString(this.content),
@@ -962,6 +971,8 @@ export class TestFileService implements IFileService {
 	}
 
 	readFileStream(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileStreamContent> {
+		this.lastReadFileUri = resource;
+
 		return Promise.resolve({
 			resource: resource,
 			value: {
@@ -1015,8 +1026,12 @@ export class TestFileService implements IFileService {
 
 	onDidChangeFileSystemProviderRegistrations = Event.None;
 
-	registerProvider(_scheme: string, _provider: IFileSystemProvider) {
-		return { dispose() { } };
+	private providers = new Map<string, IFileSystemProvider>();
+
+	registerProvider(scheme: string, provider: IFileSystemProvider) {
+		this.providers.set(scheme, provider);
+
+		return toDisposable(() => this.providers.delete(scheme));
 	}
 
 	activateProvider(_scheme: string): Promise<void> {
@@ -1024,7 +1039,7 @@ export class TestFileService implements IFileService {
 	}
 
 	canHandleResource(resource: URI): boolean {
-		return resource.scheme === 'file';
+		return resource.scheme === 'file' || this.providers.has(resource.scheme);
 	}
 
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean { return false; }

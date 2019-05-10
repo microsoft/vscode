@@ -23,8 +23,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { once } from 'vs/base/common/functional';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { toLocalResource } from 'vs/base/common/resources';
 
 /**
  * Explorer viewlet id.
@@ -133,6 +131,14 @@ export const SortOrderConfiguration = {
 
 export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';
 
+export function resourceToFileOnDisk(scheme: string, resource: URI): URI {
+	return resource.with({ scheme, query: JSON.stringify({ scheme: resource.scheme }) });
+}
+
+export function fileOnDiskToResource(resource: URI): URI {
+	return resource.with({ scheme: JSON.parse(resource.query)['scheme'], query: null });
+}
+
 export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	private fileWatcherDisposable: IDisposable | undefined;
 
@@ -140,13 +146,12 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileService private readonly fileService: IFileService,
 		@IModeService private readonly modeService: IModeService,
-		@IModelService private readonly modelService: IModelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IModelService private readonly modelService: IModelService
 	) {
 	}
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
-		const savedFileResource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
+		const savedFileResource = fileOnDiskToResource(resource);
 
 		// Make sure our file from disk is resolved up to date
 		return this.resolveEditorModel(resource).then(codeEditorModel => {
@@ -174,7 +179,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	private resolveEditorModel(resource: URI, createAsNeeded?: true): Promise<ITextModel>;
 	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Promise<ITextModel | null>;
 	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
-		const savedFileResource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
+		const savedFileResource = fileOnDiskToResource(resource);
 
 		return this.textFileService.readStream(savedFileResource).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);

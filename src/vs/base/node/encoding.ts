@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as stream from 'vs/base/node/stream';
 import * as iconv from 'iconv-lite';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
@@ -19,15 +18,20 @@ export const UTF16be_BOM = [0xFE, 0xFF];
 export const UTF16le_BOM = [0xFF, 0xFE];
 export const UTF8_BOM = [0xEF, 0xBB, 0xBF];
 
+const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to decide about a file being binary or not
+const NO_GUESS_BUFFER_MAX_LEN = 512; 			// when not auto guessing the encoding, small number of bytes are enough
+const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
+
 export interface IDecodeStreamOptions {
-	guessEncoding?: boolean;
+	guessEncoding: boolean;
 	minBytesRequiredForDetection?: number;
-	overwriteEncoding?(detectedEncoding: string | null): string;
+
+	overwriteEncoding(detectedEncoding: string | null): string;
 }
 
 export interface IDecodeStreamResult {
-	detected: IDetectedEncodingResult;
 	stream: NodeJS.ReadableStream;
+	detected: IDetectedEncodingResult;
 }
 
 export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
@@ -35,78 +39,82 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 		options.minBytesRequiredForDetection = options.guessEncoding ? AUTO_GUESS_BUFFER_MAX_LEN : NO_GUESS_BUFFER_MAX_LEN;
 	}
 
-	if (!options.overwriteEncoding) {
-		options.overwriteEncoding = detected => detected || UTF8;
-	}
-
 	return new Promise<IDecodeStreamResult>((resolve, reject) => {
 		const writer = new class extends Writable {
 			private decodeStream: NodeJS.ReadWriteStream;
-			private decodeStreamConstruction: Promise<void>;
-			private buffer: Buffer[] = [];
+			private decodeStreamPromise: Promise<void>;
+
+			private bufferedChunks: Buffer[] = [];
 			private bytesBuffered = 0;
 
-			_write(chunk: any, encoding: string, callback: Function): void {
+			_write(chunk: Buffer, encoding: string, callback: (error: Error | null) => void): void {
 				if (!Buffer.isBuffer(chunk)) {
-					callback(new Error('data must be a buffer'));
+					return callback(new Error('toDecodeStream(): data must be a buffer'));
 				}
 
+				// if the decode stream is ready, we just write directly
 				if (this.decodeStream) {
-					this.decodeStream.write(chunk, callback); // just a forwarder now
+					this.decodeStream.write(chunk, callback);
 
 					return;
 				}
 
-				this.buffer.push(chunk);
-				this.bytesBuffered += chunk.length;
+				// otherwise we need to buffer the data until the stream is ready
+				this.bufferedChunks.push(chunk);
+				this.bytesBuffered += chunk.byteLength;
 
 				// waiting for the decoder to be ready
-				if (this.decodeStreamConstruction) {
-					this.decodeStreamConstruction.then(() => callback(), err => callback(err));
+				if (this.decodeStreamPromise) {
+					this.decodeStreamPromise.then(() => callback(null), error => callback(error));
 				}
 
-				// buffered enough data, create stream and forward data
+				// buffered enough data for encoding detection, create stream and forward data
 				else if (typeof options.minBytesRequiredForDetection === 'number' && this.bytesBuffered >= options.minBytesRequiredForDetection) {
 					this._startDecodeStream(callback);
 				}
 
-				// only buffering
+				// only buffering until enough data for encoding detection is there
 				else {
-					callback();
+					callback(null);
 				}
 			}
 
-			_startDecodeStream(callback: Function): void {
-				this.decodeStreamConstruction = Promise.resolve(detectEncodingFromBuffer({
-					buffer: Buffer.concat(this.buffer),
+			_startDecodeStream(callback: (error: Error | null) => void): void {
+
+				// detect encoding from buffer
+				this.decodeStreamPromise = Promise.resolve(detectEncodingFromBuffer({
+					buffer: Buffer.concat(this.bufferedChunks),
 					bytesRead: this.bytesBuffered
 				}, options.guessEncoding)).then(detected => {
-					if (options.overwriteEncoding) {
-						detected.encoding = options.overwriteEncoding(detected.encoding);
-					}
 
+					// ensure to respect overwrite of encoding
+					detected.encoding = options.overwriteEncoding(detected.encoding);
+
+					// decode and write buffer
 					this.decodeStream = decodeStream(detected.encoding);
+					this.decodeStream.write(Buffer.concat(this.bufferedChunks), callback);
+					this.bufferedChunks.length = 0;
 
-					for (const buffer of this.buffer) {
-						this.decodeStream.write(buffer);
-					}
-
-					callback();
+					// signal to the outside our detected encoding
+					// and final decoder stream
 					resolve({ detected, stream: this.decodeStream });
-				}, err => {
-					this.emit('error', err);
-					callback(err);
+				}, error => {
+					this.emit('error', error);
+
+					callback(error);
 				});
 			}
 
-			_final(callback: (err?: any) => any) {
+			_final(callback: (error: Error | null) => void) {
 
 				// normal finish
 				if (this.decodeStream) {
 					this.decodeStream.end(callback);
 				}
 
-				// we were still waiting for data...
+				// we were still waiting for data to do the encoding
+				// detection. thus, wrap up starting the stream even
+				// without all the data to get things going
 				else {
 					this._startDecodeStream(() => this.decodeStream.end(callback));
 				}
@@ -121,18 +129,6 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 	});
 }
 
-export function bomLength(encoding: string): number {
-	switch (encoding) {
-		case UTF8:
-			return 3;
-		case UTF16be:
-		case UTF16le:
-			return 2;
-	}
-
-	return 0;
-}
-
 export function decode(buffer: Buffer, encoding: string): string {
 	return iconv.decode(buffer, toNodeEncoding(encoding));
 }
@@ -145,7 +141,7 @@ export function encodingExists(encoding: string): boolean {
 	return iconv.encodingExists(toNodeEncoding(encoding));
 }
 
-export function decodeStream(encoding: string | null): NodeJS.ReadWriteStream {
+function decodeStream(encoding: string | null): NodeJS.ReadWriteStream {
 	return iconv.decodeStream(toNodeEncoding(encoding));
 }
 
@@ -162,7 +158,7 @@ function toNodeEncoding(enc: string | null): string {
 }
 
 export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): string | null {
-	if (!buffer || bytesRead < 2) {
+	if (!buffer || bytesRead < UTF16be_BOM.length) {
 		return null;
 	}
 
@@ -179,7 +175,7 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, 
 		return UTF16le;
 	}
 
-	if (bytesRead < 3) {
+	if (bytesRead < UTF8_BOM.length) {
 		return null;
 	}
 
@@ -193,27 +189,13 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, 
 	return null;
 }
 
-/**
- * Detects the Byte Order Mark in a given file.
- * If no BOM is detected, null will be passed to callback.
- */
-export async function detectEncodingByBOM(file: string): Promise<string | null> {
-	try {
-		const { buffer, bytesRead } = await stream.readExactlyByFile(file, 3);
-
-		return detectEncodingByBOMFromBuffer(buffer, bytesRead);
-	} catch (error) {
-		return null; // ignore errors (like file not found)
-	}
-}
-
 const MINIMUM_THRESHOLD = 0.2;
 const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 
 /**
  * Guesses the encoding from buffer.
  */
-export async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
+async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
 	const jschardet = await import('jschardet');
 
 	jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
@@ -283,18 +265,19 @@ export function toCanonicalName(enc: string): string {
 	}
 }
 
-const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to decide about a file being binary or not
-const NO_GUESS_BUFFER_MAX_LEN = 512; 			// when not auto guessing the encoding, small number of bytes are enough
-const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
-
 export interface IDetectedEncodingResult {
 	encoding: string | null;
 	seemsBinary: boolean;
 }
 
-export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false): IDetectedEncodingResult;
-export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult>;
-export function detectEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult> | IDetectedEncodingResult {
+export interface IReadResult {
+	buffer: Buffer | null;
+	bytesRead: number;
+}
+
+export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: false): IDetectedEncodingResult;
+export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult>;
+export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult> | IDetectedEncodingResult {
 
 	// Always first check for BOM to find out about encoding
 	let encoding = detectEncodingByBOMFromBuffer(buffer, bytesRead);

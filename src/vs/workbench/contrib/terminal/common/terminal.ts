@@ -112,10 +112,10 @@ export interface ITerminalConfigHelper {
 	/**
 	 * Merges the default shell path and args into the provided launch configuration
 	 */
-	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride?: platform.Platform): void;
+	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, platformOverride?: platform.Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	checkWorkspaceShellPermissions(platformOverride?: platform.Platform): boolean;
+	checkWorkspaceShellPermissions(osOverride?: platform.OperatingSystem): boolean;
 }
 
 export interface ITerminalFont {
@@ -192,6 +192,12 @@ export interface IShellLaunchConfig {
 	 * provided as nothing will be inherited from the process or any configuration.
 	 */
 	strictEnv?: boolean;
+
+	/**
+	 * Moving forward, conpty will be the default. However, there are cases where conpty is not ready
+	 * to be the default. This property will force winpty to be used, even when conpty would normally be used.
+	 */
+	forceWinpty?: boolean;
 }
 
 export interface ITerminalService {
@@ -253,6 +259,7 @@ export interface ITerminalService {
 	findPrevious(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
+	getDefaultShell(p: platform.Platform): string;
 	selectDefaultWindowsShell(): Promise<string | undefined>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
@@ -268,7 +275,7 @@ export interface ITerminalService {
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string): Promise<string>;
 
 	extHostReady(remoteAuthority: string): void;
-	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
+	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
 }
 
 export const enum Direction {
@@ -714,6 +721,7 @@ export interface ITerminalProcessExtHostRequest {
 	activeWorkspaceRootUri: URI;
 	cols: number;
 	rows: number;
+	isWorkspaceShellAllowed: boolean;
 }
 
 export enum LinuxDistro {

@@ -52,6 +52,12 @@
             comment: "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
         },
         {
+            type: 'label',
+            name: '*english-please',
+            action: 'close',
+            comment: "This issue is being closed because its description is not in English, that makes it hard for us to work on it. Please open a new issue with an English description. You might find [Bing Translator](https://www.bing.com/translator) useful."
+        },
+        {
             type: 'comment',
             name: 'duplicate',
             allowUsers: ['cleidigh', 'usernamehw'],

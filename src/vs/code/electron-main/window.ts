@@ -554,8 +554,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		const configuration = configurationIn ? configurationIn : objects.mixin({}, this.currentConfig);
 
 		// Delete some properties we do not want during reload
-		delete configuration.filesToOpen;
-		delete configuration.filesToCreate;
+		delete configuration.filesToOpenOrCreate;
 		delete configuration.filesToDiff;
 		delete configuration.filesToWait;
 

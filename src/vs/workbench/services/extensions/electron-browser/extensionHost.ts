@@ -38,6 +38,7 @@ import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
+import { isEqualOrParent } from 'vs/base/common/resources';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
@@ -400,7 +401,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: withNullAsUndefined(workspace.configuration),
 						id: workspace.id,
-						name: this._labelService.getWorkspaceLabel(workspace)
+						name: this._labelService.getWorkspaceLabel(workspace),
+						isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false
 					},
 					resolvedExtensions: [],
 					hostExtensions: [],

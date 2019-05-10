@@ -34,7 +34,7 @@ import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion, IExtension as IPlatformExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -584,13 +584,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	get local(): IExtension[] {
-		const result = [...this.localExtensions.local];
-		if (!this.remoteExtensions) {
-			return result;
-		}
-		result.push(...this.remoteExtensions.local);
+		const result = [...this.installed];
 		const byId = groupByExtension(result, r => r.identifier);
 		return byId.reduce((result, extensions) => { result.push(this.getPrimaryExtension(extensions)); return result; }, []);
+	}
+
+	get installed(): IExtension[] {
+		const result = [...this.localExtensions.local];
+		if (this.remoteExtensions) {
+			result.push(...this.remoteExtensions.local);
+		}
+		return result;
 	}
 
 	get outdated(): IExtension[] {
@@ -812,7 +816,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		return this.installWithProgress(async () => {
-			await this.extensionService.installFromGallery(gallery);
+			const extensionService = extension.server && extension.local && !isLanguagePackExtension(extension.local.manifest) ? extension.server.extensionManagementService : this.extensionService;
+			await extensionService.installFromGallery(gallery);
 			this.checkAndEnableDisabledDependencies(gallery.identifier);
 			return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
 		}, gallery.displayName);
@@ -854,7 +859,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' with version '{1}' as it is not compatible with VS Code.", extension.gallery!.identifier.id, version)));
 				}
 				return this.installWithProgress(async () => {
-					await this.extensionService.installFromGallery(gallery);
+					const extensionService = extension.server && extension.local && !isLanguagePackExtension(extension.local.manifest) ? extension.server.extensionManagementService : this.extensionService;
+					await extensionService.installFromGallery(gallery);
 					if (extension.latestVersion !== version) {
 						this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(gallery.identifier, version));
 					}

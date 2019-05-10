@@ -17,7 +17,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, Platform } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { timeout } from 'vs/base/common/async';
@@ -106,6 +106,7 @@ export abstract class TerminalService implements ITerminalService {
 
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
+	public abstract getDefaultShell(platform: Platform): string;
 	public abstract selectDefaultWindowsShell(): Promise<string | undefined>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
@@ -118,7 +119,7 @@ export abstract class TerminalService implements ITerminalService {
 		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
 	}
 
-	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void {
+	public requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
 		this._extensionService.whenInstalledExtensionsRegistered().then(async () => {
 			// Wait for the remoteAuthority to be ready (and listening for events) before proceeding
 			const conn = this._remoteAgentService.getConnection();
@@ -127,7 +128,7 @@ export abstract class TerminalService implements ITerminalService {
 			while (!this._extHostsReady[remoteAuthority] && ++retries < 50) {
 				await timeout(100);
 			}
-			this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows });
+			this._onInstanceRequestExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, isWorkspaceShellAllowed });
 		});
 	}
 
@@ -426,6 +427,9 @@ export abstract class TerminalService implements ITerminalService {
 			return Promise.resolve(null);
 		}
 		const current = potentialPaths.shift();
+		if (current! === '') {
+			return this._validateShellPaths(label, potentialPaths);
+		}
 		return this._fileService.exists(URI.file(current!)).then(exists => {
 			if (!exists) {
 				return this._validateShellPaths(label, potentialPaths);

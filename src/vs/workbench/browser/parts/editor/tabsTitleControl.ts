@@ -360,6 +360,12 @@ export class TabsTitleControl extends TitleControl {
 
 	updateEditorLabel(editor: IEditorInput): void {
 
+		// Update all labels to account for changes to tab labels
+		this.updateEditorLabels();
+	}
+
+	updateEditorLabels(): void {
+
 		// A change to a label requires to recompute all labels
 		this.computeTabLabels();
 

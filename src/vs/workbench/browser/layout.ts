@@ -10,8 +10,7 @@ import { onDidChangeFullscreen, isFullscreen, getZoomFactor } from 'vs/base/brow
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IUntitledResourceInput, IResourceDiffInput } from 'vs/workbench/common/editor';
+import { IUntitledResourceInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
@@ -24,7 +23,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWindowService, IPath, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -34,7 +33,7 @@ import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
-import { coalesce } from 'vs/base/common/arrays';
+import { IFileService } from 'vs/platform/files/common/files';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -182,7 +181,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.registerLayoutListeners();
 
 		// State
-		this.initLayoutState(accessor.get(ILifecycleService));
+		this.initLayoutState(accessor.get(ILifecycleService), accessor.get(IFileService));
 	}
 
 	private registerLayoutListeners(): void {
@@ -319,7 +318,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private initLayoutState(lifecycleService: ILifecycleService): void {
+	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
 
 		// Fullscreen
 		this.state.fullscreen = isFullscreen();
@@ -358,7 +357,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.editor.restoreCentered = this.storageService.getBoolean(Storage.CENTERED_LAYOUT_ENABLED, StorageScope.WORKSPACE, false);
 
 		// Editors to open
-		this.state.editor.editorsToOpen = this.resolveEditorsToOpen();
+		this.state.editor.editorsToOpen = this.resolveEditorsToOpen(fileService);
 
 		// Panel visibility
 		this.state.panel.hidden = this.storageService.getBoolean(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE, true);
@@ -389,7 +388,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
 	}
 
-	private resolveEditorsToOpen(): Promise<IResourceEditor[]> | IResourceEditor[] {
+	private resolveEditorsToOpen(fileService: IFileService): Promise<IResourceEditor[]> | IResourceEditor[] {
 		const configuration = this.environmentService.configuration;
 		const hasInitialFilesToOpen = this.hasInitialFilesToOpen();
 
@@ -400,21 +399,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (hasInitialFilesToOpen) {
 
 			// Files to diff is exclusive
-			const filesToDiff = this.toInputs(configuration.filesToDiff, false);
-			if (filesToDiff && filesToDiff.length === 2) {
-				return [<IResourceDiffInput>{
-					leftResource: filesToDiff[0].resource,
-					rightResource: filesToDiff[1].resource,
-					options: { pinned: true },
-					forceFile: true
-				}];
-			}
+			return pathsToEditors(configuration.filesToDiff, fileService).then(filesToDiff => {
+				if (filesToDiff && filesToDiff.length === 2) {
+					return [{
+						leftResource: filesToDiff[0].resource,
+						rightResource: filesToDiff[1].resource,
+						options: { pinned: true },
+						forceFile: true
+					}];
+				}
 
-			const filesToCreate = this.toInputs(configuration.filesToCreate, true);
-			const filesToOpen = this.toInputs(configuration.filesToOpen, false);
-
-			// Otherwise: Open/Create files
-			return [...filesToOpen, ...filesToCreate];
+				// Otherwise: Open/Create files
+				return pathsToEditors(configuration.filesToOpenOrCreate, fileService);
+			});
 		}
 
 		// Empty workbench
@@ -439,38 +436,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const configuration = this.environmentService.configuration;
 
 		return !!(
-			(configuration.filesToCreate && configuration.filesToCreate.length > 0) ||
-			(configuration.filesToOpen && configuration.filesToOpen.length > 0) ||
-			(configuration.filesToDiff && configuration.filesToDiff.length > 0));
-	}
-
-	private toInputs(paths: IPath[] | undefined, isNew: boolean): Array<IResourceInput | IUntitledResourceInput> {
-		if (!paths || !paths.length) {
-			return [];
-		}
-
-		return coalesce(paths.map(p => {
-			const resource = p.fileUri;
-			if (!resource) {
-				return undefined;
-			}
-
-			let input: IResourceInput | IUntitledResourceInput;
-			if (isNew) {
-				input = { filePath: resource.fsPath, options: { pinned: true } };
-			} else {
-				input = { resource, options: { pinned: true }, forceFile: true };
-			}
-
-			if (!isNew && typeof p.lineNumber === 'number') {
-				input.options!.selection = {
-					startLineNumber: p.lineNumber,
-					startColumn: p.columnNumber || 1
-				};
-			}
-
-			return input;
-		}));
+			(configuration.filesToOpenOrCreate && configuration.filesToOpenOrCreate.length > 0) ||
+			(configuration.filesToDiff && configuration.filesToDiff.length > 0)
+		);
 	}
 
 	private updatePanelPosition() {

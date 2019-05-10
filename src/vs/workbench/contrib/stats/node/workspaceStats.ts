@@ -246,8 +246,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	/* __GDPR__FRAGMENT__
 		"WorkspaceTags" : {
-			"workbench.filesToOpen" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workbench.filesToCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workbench.filesToOpenOrCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workbench.filesToDiff" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"workspace.roots" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -352,9 +351,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		tags['workspace.id'] = workspaceId;
 
-		const { filesToOpen, filesToCreate, filesToDiff } = configuration;
-		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || 0;
-		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || 0;
+		const { filesToOpenOrCreate, filesToDiff } = configuration;
+		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || 0;
 
 		const isEmpty = state === WorkbenchState.EMPTY;
@@ -586,11 +584,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return folder && [folder];
 	}
 
-	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IWindowConfiguration): URI | undefined {
-		if (filesToOpen && filesToOpen.length) {
-			return this.parentURI(filesToOpen[0].fileUri);
-		} else if (filesToCreate && filesToCreate.length) {
-			return this.parentURI(filesToCreate[0].fileUri);
+	private findFolder({ filesToOpenOrCreate, filesToDiff }: IWindowConfiguration): URI | undefined {
+		if (filesToOpenOrCreate && filesToOpenOrCreate.length) {
+			return this.parentURI(filesToOpenOrCreate[0].fileUri);
 		} else if (filesToDiff && filesToDiff.length) {
 			return this.parentURI(filesToDiff[0].fileUri);
 		}

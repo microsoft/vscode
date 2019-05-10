@@ -9,23 +9,6 @@ import * as stream from 'vs/base/node/stream';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 suite('Stream', () => {
-	test('readExactlyByFile - ANSI', function () {
-		const file = getPathFromAmdModule(require, './fixtures/file.css');
-
-		return stream.readExactlyByFile(file, 10).then(({ buffer, bytesRead }) => {
-			assert.equal(bytesRead, 10);
-			assert.equal(buffer!.toString(), '/*--------');
-		});
-	});
-
-	test('readExactlyByFile - empty', function () {
-		const file = getPathFromAmdModule(require, './fixtures/empty.txt');
-
-		return stream.readExactlyByFile(file, 10).then(({ bytesRead }) => {
-			assert.equal(bytesRead, 0);
-		});
-	});
-
 	test('readToMatchingString - ANSI', function () {
 		const file = getPathFromAmdModule(require, './fixtures/file.css');
 

@@ -91,7 +91,7 @@ class CodeRendererMain extends Disposable {
 
 		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait && filesToWait.paths;
-		[filesToWaitPaths, this.configuration.filesToOpen, this.configuration.filesToCreate, this.configuration.filesToDiff].forEach(paths => {
+		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
 					if (path.fileUri) {

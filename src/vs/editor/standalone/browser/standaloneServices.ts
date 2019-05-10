@@ -48,6 +48,7 @@ import { ISuggestMemoryService, SuggestMemoryService } from 'vs/editor/contrib/s
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { ICodeLensCache, CodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -145,8 +146,6 @@ export module StaticServices {
 
 	export const markerDecorationsService = define(IMarkerDecorationsService, (o) => new MarkerDecorationsService(modelService.get(o), markerService.get(o)));
 
-	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o)));
-
 	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 
 	export const codeEditorService = define(ICodeEditorService, (o) => new StandaloneCodeEditorServiceImpl(standaloneThemeService.get(o)));
@@ -157,8 +156,11 @@ export module StaticServices {
 
 	export const logService = define(ILogService, () => new NullLogService());
 
+	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o), logService.get(o)));
+
 	export const suggestMemoryService = define(ISuggestMemoryService, (o) => new SuggestMemoryService(storageService.get(o), configurationService.get(o)));
 
+	export const codeLensCacheService = define(ICodeLensCache, (o) => new CodeLensCache(storageService.get(o)));
 }
 
 export class DynamicStandaloneServices extends Disposable {

@@ -394,6 +394,22 @@ suite('Debug - Model', () => {
 		assert.equal(secondStackFrame.getSpecificSourceName(), '.../x/c/d/internalModule.js');
 	});
 
+	test('stack frame toString()', () => {
+		const session = createMockSession(model);
+		const thread = new Thread(session, 'mockthread', 1);
+		const firstSource = new Source({
+			name: 'internalModule.js',
+			path: 'a/b/c/d/internalModule.js',
+			sourceReference: 10,
+		}, 'aDebugSessionId');
+		const stackFrame = new StackFrame(thread, 1, firstSource, 'app', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+		assert.equal(stackFrame.toString(), 'app (internalModule.js:1)');
+
+		const secondSource = new Source(undefined, 'aDebugSessionId');
+		const stackFrame2 = new StackFrame(thread, 2, secondSource, 'module', 'normal', { startLineNumber: undefined!, startColumn: undefined!, endLineNumber: undefined!, endColumn: undefined! }, 2);
+		assert.equal(stackFrame2.toString(), 'module');
+	});
+
 	test('debug child sessions are added in correct order', () => {
 		const session = createMockSession(model);
 		model.addSession(session);

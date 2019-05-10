@@ -39,6 +39,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot } from 'vs/editor/common/model';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -85,7 +86,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		super();
 
@@ -508,7 +510,6 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			}));
 		}
 
-
 		// Soft revert the dirty source files if any
 		await this.revertAll(dirtySourceModels.map(dirtySourceModel => dirtySourceModel.getResource()), { soft: true });
 
@@ -869,12 +870,19 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				return false;
 			}
 
-			// take over encoding and model value from source model
+			// take over encoding, mode and model value from source model
 			targetModel.updatePreferredEncoding(sourceModel.getEncoding());
 			if (targetModel.textEditorModel) {
 				const snapshot = sourceModel.createSnapshot();
 				if (snapshot) {
 					this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(snapshot));
+				}
+
+				if (sourceModel.textEditorModel) {
+					const language = sourceModel.textEditorModel.getLanguageIdentifier();
+					if (language.id > 1) {
+						targetModel.textEditorModel.setMode(language); // only use if more specific than plain/text
+					}
 				}
 			}
 

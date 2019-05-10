@@ -7,7 +7,7 @@ import 'vs/css!./media/progressService2';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress } from 'vs/platform/progress/common/progress';
+import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { timeout } from 'vs/base/common/async';
@@ -54,7 +54,7 @@ export class ProgressService2 implements IProgressService2 {
 
 		switch (location) {
 			case ProgressLocation.Notification:
-				return this._withNotificationProgress(options, task, onDidCancel);
+				return this._withNotificationProgress({ ...options, location: ProgressLocation.Notification }, task, onDidCancel);
 			case ProgressLocation.Window:
 				return this._withWindowProgress(options, task);
 			case ProgressLocation.Explorer:
@@ -138,7 +138,7 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
+	private _withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressNotificationOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
 		const toDispose: IDisposable[] = [];
 
 		const createNotification = (message: string | undefined, increment?: number): INotificationHandle | undefined => {
@@ -146,7 +146,7 @@ export class ProgressService2 implements IProgressService2 {
 				return undefined; // we need a message at least
 			}
 
-			const actions: INotificationActions = { primary: [] };
+			const actions: INotificationActions = { primary: options.primaryActions || [], secondary: options.secondaryActions || [] };
 			if (options.cancellable) {
 				const cancelAction = new class extends Action {
 					constructor() {
@@ -309,7 +309,7 @@ export class ProgressService2 implements IProgressService2 {
 			disposables.push(attachDialogStyler(dialog, this._themeService));
 
 			dialog.show().then(() => {
-				if (options.cancellable && typeof onDidCancel === 'function') {
+				if (typeof onDidCancel === 'function') {
 					onDidCancel();
 				}
 

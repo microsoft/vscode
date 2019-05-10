@@ -6,19 +6,19 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID, IColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
-import { ColorThemeData } from './colorThemeData';
+import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ColorThemeStore } from 'vs/workbench/services/themes/browser/colorThemeStore';
+import { ColorThemeStore } from 'vs/workbench/services/themes/common/colorThemeStore';
 import { FileIconThemeStore } from 'vs/workbench/services/themes/common/fileIconThemeStore';
 import { FileIconThemeData } from 'vs/workbench/services/themes/common/fileIconThemeData';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
@@ -30,6 +30,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
 // implementation
 
@@ -60,10 +61,6 @@ function validateThemeId(theme: string): string {
 		case `vs-dark ${oldDefaultThemeExtensionId}-themes-dark_plus-tmTheme`: return `vs-dark ${defaultThemeExtensionId}-themes-dark_plus-json`;
 	}
 	return theme;
-}
-
-export interface IColorCustomizations {
-	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
 }
 
 export class WorkbenchThemeService implements IWorkbenchThemeService {
@@ -482,7 +479,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.doSetFileIconTheme(newIconTheme);
 
 			// remember theme data for a quick restore
-			if (newIconTheme.isLoaded) {
+			if (newIconTheme.isLoaded && newIconTheme.location && !getRemoteAuthority(newIconTheme.location)) {
 				this.storageService.store(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData(), StorageScope.GLOBAL);
 			}
 

@@ -49,6 +49,15 @@ export interface IBaseResourceInput {
 	 * looking at the scheme of the resource(s).
 	 */
 	readonly forceFile?: boolean;
+
+	/**
+	 * Hint to indicate that this input should be treated as a
+	 * untitled file.
+	 *
+	 * Without this hint, the editor service will make a guess by
+	 * looking at the scheme of the resource(s).
+	 */
+	readonly forceUntitled?: boolean;
 }
 
 export interface IResourceInput extends IBaseResourceInput {

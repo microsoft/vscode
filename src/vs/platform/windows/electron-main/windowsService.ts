@@ -176,7 +176,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	async getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
 		this.logService.trace('windowsService#getRecentlyOpened', windowId);
 
-		return this.withWindow(windowId, codeWindow => this.historyService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderUri, codeWindow.config.filesToOpen), () => this.historyService.getRecentlyOpened())!;
+		return this.withWindow(windowId, codeWindow => this.historyService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderUri, codeWindow.config.filesToOpenOrCreate), () => this.historyService.getRecentlyOpened())!;
 	}
 
 	async newWindowTab(): Promise<void> {

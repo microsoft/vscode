@@ -260,7 +260,7 @@ configurationRegistry.registerConfiguration({
 			default: 'inherited'
 		},
 		'terminal.integrated.windowsEnableConpty': {
-			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
+			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication. Winpty will be used if this is false. Note that ConPTY will be disabled regardless of this setting when the Windows 10 build number is lower than 18309 or when you're running the 32-bit VS Code client under 64-bit Windows."),
 			type: 'boolean',
 			default: true
 		},
@@ -271,6 +271,11 @@ configurationRegistry.registerConfiguration({
 		},
 		'terminal.integrated.experimentalRefreshOnResume': {
 			description: nls.localize('terminal.integrated.experimentalRefreshOnResume', "An experimental setting that will refresh the terminal renderer when the system is resumed."),
+			type: 'boolean',
+			default: false
+		},
+		'terminal.integrated.windowsAllowConptyTasks': {
+			markdownDescription: nls.localize('terminal.integrated.windowsAllowConptyTasks', "Works in conjunction with the `#terminal.integrated.windowsEnableConpty#` setting. Both must be enabled for tasks to use conpty. Defaults to `false`."),
 			type: 'boolean',
 			default: false
 		}

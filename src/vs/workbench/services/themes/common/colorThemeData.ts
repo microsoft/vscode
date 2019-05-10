@@ -6,8 +6,8 @@
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITokenColorizationRule, IColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { convertSettings } from 'vs/workbench/services/themes/browser/themeCompatibility';
+import { ExtensionData, ITokenColorCustomizations, ITokenColorizationRule, IColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
@@ -15,7 +15,6 @@ import * as resources from 'vs/base/common/resources';
 import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IColorCustomizations } from 'vs/workbench/services/themes/browser/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';

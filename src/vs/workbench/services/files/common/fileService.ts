@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -17,6 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, bufferToStream, VSBufferReadableStream, writeableBufferStream, VSBufferWriteableStream } from 'vs/base/common/buffer';
 import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -101,7 +102,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// Assert path is absolute
 		if (!isAbsolutePath(resource)) {
-			throw new FileOperationError(localize('invalidPath', "The path of resource '{0}' must be absolute", resource.toString(true)), FileOperationResult.FILE_INVALID_PATH);
+			throw new FileOperationError(localize('invalidPath', "The path of resource '{0}' must be absolute", this.resourceForError(resource)), FileOperationResult.FILE_INVALID_PATH);
 		}
 
 		// Activate provider
@@ -110,11 +111,11 @@ export class FileService extends Disposable implements IFileService {
 		// Assert provider
 		const provider = this.provider.get(resource.scheme);
 		if (!provider) {
-			const err = new Error();
-			err.name = 'ENOPRO';
-			err.message = `No provider found for ${resource.toString()}`;
+			const error = new Error();
+			error.name = 'ENOPRO';
+			error.message = localize('noProviderFound', "No file system provider found for {0}", resource.toString());
 
-			throw err;
+			throw error;
 		}
 
 		return provider;
@@ -150,13 +151,13 @@ export class FileService extends Disposable implements IFileService {
 			// Specially handle file not found case as file operation result
 			if (toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound) {
 				throw new FileOperationError(
-					localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
+					localize('fileNotFoundError', "File not found ({0})", this.resourceForError(resource)),
 					FileOperationResult.FILE_NOT_FOUND
 				);
 			}
 
 			// Bubble up any other error as is
-			throw error;
+			throw this.ensureError(error);
 		}
 	}
 
@@ -205,7 +206,7 @@ export class FileService extends Disposable implements IFileService {
 			isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 			mtime: stat.mtime,
 			size: stat.size,
-			etag: etag(stat.mtime, stat.size)
+			etag: etag({ mtime: stat.mtime, size: stat.size })
 		};
 
 		// check to recurse for directories
@@ -270,7 +271,7 @@ export class FileService extends Disposable implements IFileService {
 		// validate overwrite
 		const overwrite = !!(options && options.overwrite);
 		if (!overwrite && await this.exists(resource)) {
-			throw new FileOperationError(localize('fileExists', "File to create already exists ({0})", resource.toString(true)), FileOperationResult.FILE_MODIFIED_SINCE, options);
+			throw new FileOperationError(localize('fileExists', "File to create already exists ({0})", this.resourceForError(resource)), FileOperationResult.FILE_MODIFIED_SINCE, options);
 		}
 
 		// do write into file (this will create it too)
@@ -305,7 +306,7 @@ export class FileService extends Disposable implements IFileService {
 				await this.doWriteUnbuffered(provider, resource, bufferOrReadable);
 			}
 		} catch (error) {
-			throw new FileOperationError(localize('err.write', "Failed to write file {0}", resource.toString(false)), toFileOperationResult(error), options);
+			throw new FileOperationError(localize('err.write', "Unable to write file ({0})", this.ensureError(error).toString()), toFileOperationResult(error), options);
 		}
 
 		return this.resolve(resource, { resolveMetadata: true });
@@ -321,7 +322,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// file cannot be directory
 		if ((stat.type & FileType.Directory) !== 0) {
-			throw new FileOperationError(localize('fileIsDirectoryError', "Expected file {0} is actually a directory", resource.toString()), FileOperationResult.FILE_IS_DIRECTORY, options);
+			throw new FileOperationError(localize('fileIsDirectoryError', "Expected file {0} is actually a directory", this.resourceForError(resource)), FileOperationResult.FILE_IS_DIRECTORY, options);
 		}
 
 		// Dirty write prevention: if the file on disk has been changed and does not match our expected
@@ -336,7 +337,11 @@ export class FileService extends Disposable implements IFileService {
 		// check for size is a weaker check because it can return a false negative if the file has changed
 		// but to the same length. This is a compromise we take to avoid having to produce checksums of
 		// the file content for comparison which would be much slower to compute.
-		if (options && typeof options.mtime === 'number' && typeof options.etag === 'string' && options.mtime < stat.mtime && options.etag !== etag(stat.size, options.mtime)) {
+		if (
+			options && typeof options.mtime === 'number' && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED &&
+			typeof stat.mtime === 'number' && typeof stat.size === 'number' &&
+			options.mtime < stat.mtime && options.etag !== etag({ mtime: options.mtime /* not using stat.mtime for a reason, see above */, size: stat.size })
+		) {
 			throw new FileOperationError(localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE, options);
 		}
 
@@ -374,7 +379,7 @@ export class FileService extends Disposable implements IFileService {
 			// due to the likelyhood of hitting a NOT_MODIFIED_SINCE result.
 			// otherwise, we let it run in parallel to the file reading for
 			// optimal startup performance.
-			if (options && options.etag) {
+			if (options && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED) {
 				await statPromise;
 			}
 
@@ -397,7 +402,7 @@ export class FileService extends Disposable implements IFileService {
 				value: fileStream
 			};
 		} catch (error) {
-			throw new FileOperationError(localize('err.read', "Failed to read file {0}", resource.toString(false)), toFileOperationResult(error), options);
+			throw new FileOperationError(localize('err.read', "Unable to read file ({0})", this.ensureError(error).toString()), toFileOperationResult(error), options);
 		}
 	}
 
@@ -461,7 +466,7 @@ export class FileService extends Disposable implements IFileService {
 				stream.write(buffer.slice(0, lastChunkLength));
 			}
 		} catch (error) {
-			throw error;
+			throw this.ensureError(error);
 		} finally {
 			await provider.close(handle);
 		}
@@ -488,11 +493,11 @@ export class FileService extends Disposable implements IFileService {
 
 		// Return early if resource is a directory
 		if (stat.isDirectory) {
-			throw new FileOperationError(localize('fileIsDirectoryError', "Expected file {0} is actually a directory", resource.toString()), FileOperationResult.FILE_IS_DIRECTORY, options);
+			throw new FileOperationError(localize('fileIsDirectoryError', "Expected file {0} is actually a directory", this.resourceForError(resource)), FileOperationResult.FILE_IS_DIRECTORY, options);
 		}
 
-		// Return early if file not modified since
-		if (options && options.etag && options.etag === stat.etag) {
+		// Return early if file not modified since (unless disabled)
+		if (options && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED && options.etag === stat.etag) {
 			throw new FileOperationError(localize('fileNotModifiedError', "File not modified since"), FileOperationResult.FILE_NOT_MODIFIED_SINCE, options);
 		}
 
@@ -560,17 +565,21 @@ export class FileService extends Disposable implements IFileService {
 
 			// same provider with fast copy: leverage copy() functionality
 			if (sourceProvider === targetProvider && hasFileFolderCopyCapability(sourceProvider)) {
-				return sourceProvider.copy(source, target, { overwrite: !!overwrite }).then(() => mode);
+				await sourceProvider.copy(source, target, { overwrite: !!overwrite });
 			}
 
 			// when copying via buffer/unbuffered, we have to manually
 			// traverse the source if it is a folder and not a file
-			const sourceFile = await this.resolve(source);
-			if (sourceFile.isDirectory) {
-				return this.doCopyFolder(sourceProvider, sourceFile, targetProvider, target).then(() => mode);
-			} else {
-				return this.doCopyFile(sourceProvider, source, targetProvider, target).then(() => mode);
+			else {
+				const sourceFile = await this.resolve(source);
+				if (sourceFile.isDirectory) {
+					await this.doCopyFolder(sourceProvider, sourceFile, targetProvider, target);
+				} else {
+					await this.doCopyFile(sourceProvider, source, targetProvider, target);
+				}
 			}
+
+			return mode;
 		}
 
 		// move source => target
@@ -578,14 +587,18 @@ export class FileService extends Disposable implements IFileService {
 
 			// same provider: leverage rename() functionality
 			if (sourceProvider === targetProvider) {
-				return sourceProvider.rename(source, target, { overwrite: !!overwrite }).then(() => mode);
+				await sourceProvider.rename(source, target, { overwrite: !!overwrite });
+
+				return mode;
 			}
 
 			// across providers: copy to target & delete at source
 			else {
 				await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
 
-				return this.del(source, { recursive: true }).then(() => 'copy' as 'move' | 'copy');
+				await this.del(source, { recursive: true });
+
+				return 'copy';
 			}
 		}
 	}
@@ -684,7 +697,7 @@ export class FileService extends Disposable implements IFileService {
 			try {
 				const stat = await provider.stat(directory);
 				if ((stat.type & FileType.Directory) === 0) {
-					throw new Error(localize('mkdirExistsError', "{0} exists, but is not a directory", directory.toString()));
+					throw new Error(localize('mkdirExistsError', "{0} exists, but is not a directory", this.resourceForError(directory)));
 				}
 
 				break; // we have hit a directory that exists -> good
@@ -724,7 +737,7 @@ export class FileService extends Disposable implements IFileService {
 		if (!recursive && await this.exists(resource)) {
 			const stat = await this.resolve(resource);
 			if (stat.isDirectory && Array.isArray(stat.children) && stat.children.length > 0) {
-				throw new Error(localize('deleteFailed', "Failed to delete non-empty folder '{0}'.", resource.toString()));
+				throw new Error(localize('deleteFailed', "Unable to delete non-empty folder '{0}'.", this.resourceForError(resource)));
 			}
 		}
 
@@ -854,7 +867,7 @@ export class FileService extends Disposable implements IFileService {
 				posInFile += chunk.byteLength;
 			}
 		} catch (error) {
-			throw error;
+			throw this.ensureError(error);
 		} finally {
 			await provider.close(handle);
 		}
@@ -920,7 +933,7 @@ export class FileService extends Disposable implements IFileService {
 				}
 			} while (bytesRead > 0);
 		} catch (error) {
-			throw error;
+			throw this.ensureError(error);
 		} finally {
 			await Promise.all([
 				typeof sourceHandle === 'number' ? sourceProvider.close(sourceHandle) : Promise.resolve(),
@@ -951,7 +964,7 @@ export class FileService extends Disposable implements IFileService {
 			const buffer = await sourceProvider.readFile(source);
 			await this.doWriteBuffer(targetProvider, targetHandle, VSBuffer.wrap(buffer), buffer.byteLength, 0, 0);
 		} catch (error) {
-			throw error;
+			throw this.ensureError(error);
 		} finally {
 			await targetProvider.close(targetHandle);
 		}
@@ -982,6 +995,14 @@ export class FileService extends Disposable implements IFileService {
 		return true;
 	}
 
+	private ensureError(error?: Error): Error {
+		if (!error) {
+			return new Error(localize('unknownError', "Unknown Error")); // https://github.com/Microsoft/vscode/issues/72798
+		}
+
+		return error;
+	}
+
 	private throwIfTooLarge(totalBytesRead: number, options?: IReadFileOptions): boolean {
 
 		// Return early if file is too large to load
@@ -996,6 +1017,14 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		return true;
+	}
+
+	private resourceForError(resource: URI): string {
+		if (resource.scheme === Schemas.file) {
+			return resource.fsPath;
+		}
+
+		return resource.toString(true);
 	}
 
 	//#endregion

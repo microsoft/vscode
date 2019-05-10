@@ -51,7 +51,15 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		}
 
 		this._initialCwd = cwd;
-		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+
+		// Only use ConPTY when the client is non WoW64 (see #72190) and the Windows build number is at least 18309 (for
+		// stability/performance reasons)
+		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		const useConpty = windowsEnableConpty &&
+			process.platform === 'win32' &&
+			!is32ProcessOn64Windows &&
+			getWindowsBuildNumber() >= 18309;
+
 		const options: pty.IPtyForkOptions = {
 			name: shellName,
 			cwd,

@@ -2,7 +2,7 @@
 <svg xmlns='http://www.w3.org/2000/svg' version='1.1' width='10px' height='10px'>
 	<style>
     circle {
-      animation: ball 1.04s linear infinite;
+      animation: ball 1.04s steps(8) infinite;
     }
 
     circle:nth-child(2) { animation-delay: 0.13s; }

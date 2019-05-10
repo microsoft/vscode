@@ -263,13 +263,13 @@ export class WorkspaceConfiguration extends Disposable {
 		this._workspaceIdentifier = workspaceIdentifier;
 		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
 			if (this._workspaceIdentifier.configPath.scheme === Schemas.file) {
-				this.switch();
+				this.switch(new FileServiceBasedWorkspaceConfiguration(this._configurationFileService));
 			} else {
 				this.waitAndSwitch(this._workspaceIdentifier);
 			}
 		}
-		await this._workspaceConfiguration.load(this._workspaceIdentifier);
 		this._loaded = this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration;
+		await this._workspaceConfiguration.load(this._workspaceIdentifier);
 	}
 
 	reload(): Promise<void> {
@@ -300,21 +300,25 @@ export class WorkspaceConfiguration extends Disposable {
 	private async waitAndSwitch(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
 		await this._configurationFileService.whenProviderRegistered(workspaceIdentifier.configPath.scheme);
 		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
-			this.switch();
+			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this._configurationFileService));
+			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier);
+			this.switch(fileServiceBasedWorkspaceConfiguration);
 			this._loaded = true;
-			this.onDidWorkspaceConfigurationChange();
+			this.onDidWorkspaceConfigurationChange(false);
 		}
 	}
 
-	private switch(): void {
+	private switch(fileServiceBasedWorkspaceConfiguration: FileServiceBasedWorkspaceConfiguration): void {
 		this._workspaceConfiguration.dispose();
 		this._workspaceConfigurationChangeDisposable.dispose();
-		this._workspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this._configurationFileService));
-		this._workspaceConfigurationChangeDisposable = this._register(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange()));
+		this._workspaceConfiguration = this._register(fileServiceBasedWorkspaceConfiguration);
+		this._workspaceConfigurationChangeDisposable = this._register(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange(true)));
 	}
 
-	private async onDidWorkspaceConfigurationChange(): Promise<void> {
-		await this.reload();
+	private async onDidWorkspaceConfigurationChange(reload: boolean): Promise<void> {
+		if (reload) {
+			await this.reload();
+		}
 		this.updateCache();
 		this._onDidUpdateConfiguration.fire();
 	}

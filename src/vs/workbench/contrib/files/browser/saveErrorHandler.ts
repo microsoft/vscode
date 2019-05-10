@@ -19,7 +19,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { FileOnDiskContentProvider } from 'vs/workbench/contrib/files/common/files';
+import { FileOnDiskContentProvider, resourceToFileOnDisk } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SAVE_FILE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
@@ -136,14 +136,15 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 			const isReadonly = fileOperationError.fileOperationResult === FileOperationResult.FILE_READ_ONLY;
 			const triedToMakeWriteable = isReadonly && fileOperationError.options && (fileOperationError.options as IWriteTextFileOptions).overwriteReadonly;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
+			const canHandlePermissionOrReadonlyErrors = resource.scheme === Schemas.file; // https://github.com/Microsoft/vscode/issues/48659
 
-			// Save Elevated (TODO@remote cannot write elevated https://github.com/Microsoft/vscode/issues/48659)
-			if (resource.scheme === Schemas.file && (isPermissionDenied || triedToMakeWriteable)) {
+			// Save Elevated
+			if (canHandlePermissionOrReadonlyErrors && (isPermissionDenied || triedToMakeWriteable)) {
 				actions.primary!.push(this.instantiationService.createInstance(SaveElevatedAction, model, triedToMakeWriteable));
 			}
 
-			// Overwrite (TODO@remote cannot overwrite readonly https://github.com/Microsoft/vscode/issues/48659)
-			else if (resource.scheme === Schemas.file && isReadonly) {
+			// Overwrite
+			else if (canHandlePermissionOrReadonlyErrors && isReadonly) {
 				actions.primary!.push(this.instantiationService.createInstance(OverwriteReadonlyAction, model));
 			}
 
@@ -158,13 +159,14 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 			// Discard
 			actions.primary!.push(this.instantiationService.createInstance(ExecuteCommandAction, REVERT_FILE_COMMAND_ID, nls.localize('discard', "Discard")));
 
-			if (isReadonly) {
+			// Message
+			if (canHandlePermissionOrReadonlyErrors && isReadonly) {
 				if (triedToMakeWriteable) {
 					message = isWindows ? nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is read-only. Select 'Overwrite as Admin' to retry as administrator.", basename(resource)) : nls.localize('readonlySaveErrorSudo', "Failed to save '{0}': File is read-only. Select 'Overwrite as Sudo' to retry as superuser.", basename(resource));
 				} else {
 					message = nls.localize('readonlySaveError', "Failed to save '{0}': File is read-only. Select 'Overwrite' to attempt to make it writeable.", basename(resource));
 				}
-			} else if (isPermissionDenied) {
+			} else if (canHandlePermissionOrReadonlyErrors && isPermissionDenied) {
 				message = isWindows ? nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", basename(resource)) : nls.localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", basename(resource));
 			} else {
 				message = nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(resource), toErrorMessage(error, false));
@@ -246,7 +248,7 @@ class ResolveSaveConflictAction extends Action {
 
 			return this.editorService.openEditor(
 				{
-					leftResource: URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }),
+					leftResource: resourceToFileOnDisk(CONFLICT_RESOLUTION_SCHEME, resource),
 					rightResource: resource,
 					label: editorLabel,
 					options: { pinned: true }

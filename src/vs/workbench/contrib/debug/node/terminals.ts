@@ -29,35 +29,37 @@ export function getTerminalLauncher() {
 }
 
 let _DEFAULT_TERMINAL_LINUX_READY: Promise<string> | null = null;
+
 export function getDefaultTerminalLinuxReady(): Promise<string> {
 	if (!_DEFAULT_TERMINAL_LINUX_READY) {
-		_DEFAULT_TERMINAL_LINUX_READY = new Promise<string>(c => {
+		_DEFAULT_TERMINAL_LINUX_READY = new Promise<string>(resolve => {
 			if (env.isLinux) {
 				Promise.all<any>([pfs.exists('/etc/debian_version'), process.lazyEnv]).then(([isDebian]) => {
 					if (isDebian) {
-						c('x-terminal-emulator');
+						resolve('x-terminal-emulator');
 					} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {
-						c('gnome-terminal');
+						resolve('gnome-terminal');
 					} else if (process.env.DESKTOP_SESSION === 'kde-plasma') {
-						c('konsole');
+						resolve('konsole');
 					} else if (process.env.COLORTERM) {
-						c(process.env.COLORTERM);
+						resolve(process.env.COLORTERM);
 					} else if (process.env.TERM) {
-						c(process.env.TERM);
+						resolve(process.env.TERM);
 					} else {
-						c('xterm');
+						resolve('xterm');
 					}
 				});
 				return;
 			}
 
-			c('xterm');
+			resolve('xterm');
 		});
 	}
 	return _DEFAULT_TERMINAL_LINUX_READY;
 }
 
 let _DEFAULT_TERMINAL_WINDOWS: string | null = null;
+
 export function getDefaultTerminalWindows(): string {
 	if (!_DEFAULT_TERMINAL_WINDOWS) {
 		const isWoW64 = !!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
@@ -82,7 +84,7 @@ class WinTerminalService extends TerminalLauncher {
 
 		const exec = configuration.external.windowsExec || getDefaultTerminalWindows();
 
-		return new Promise<number | undefined>((c, e) => {
+		return new Promise<number | undefined>((resolve, reject) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
 			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
@@ -104,9 +106,11 @@ class WinTerminalService extends TerminalLauncher {
 			};
 
 			const cmd = cp.spawn(WinTerminalService.CMD, cmdArgs, options);
-			cmd.on('error', e);
+			cmd.on('error', err => {
+				reject(improveError(err));
+			});
 
-			c(undefined);
+			resolve(undefined);
 		});
 	}
 }
@@ -120,7 +124,7 @@ class MacTerminalService extends TerminalLauncher {
 
 		const terminalApp = configuration.external.osxExec || MacTerminalService.DEFAULT_TERMINAL_OSX;
 
-		return new Promise<number | undefined>((c, e) => {
+		return new Promise<number | undefined>((resolve, reject) => {
 
 			if (terminalApp === MacTerminalService.DEFAULT_TERMINAL_OSX || terminalApp === 'iTerm.app') {
 
@@ -156,24 +160,26 @@ class MacTerminalService extends TerminalLauncher {
 
 				let stderr = '';
 				const osa = cp.spawn(MacTerminalService.OSASCRIPT, osaArgs);
-				osa.on('error', e);
+				osa.on('error', err => {
+					reject(improveError(err));
+				});
 				osa.stderr.on('data', (data) => {
 					stderr += data.toString();
 				});
 				osa.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(undefined);
+						resolve(undefined);
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);
-							e(new Error(lines[0]));
+							reject(new Error(lines[0]));
 						} else {
-							e(new Error(nls.localize('mac.terminal.script.failed', "Script '{0}' failed with exit code {1}", script, code)));
+							reject(new Error(nls.localize('mac.terminal.script.failed', "Script '{0}' failed with exit code {1}", script, code)));
 						}
 					}
 				});
 			} else {
-				e(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
+				reject(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
 			}
 		});
 	}
@@ -188,7 +194,7 @@ class LinuxTerminalService extends TerminalLauncher {
 		const terminalConfig = configuration.external;
 		const execThenable: Promise<string> = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 
-		return new Promise<number | undefined>((c, e) => {
+		return new Promise<number | undefined>((resolve, reject) => {
 
 			let termArgs: string[] = [];
 			//termArgs.push('--title');
@@ -218,25 +224,37 @@ class LinuxTerminalService extends TerminalLauncher {
 
 				let stderr = '';
 				const cmd = cp.spawn(exec, termArgs, options);
-				cmd.on('error', e);
+				cmd.on('error', err => {
+					reject(improveError(err));
+				});
 				cmd.stderr.on('data', (data) => {
 					stderr += data.toString();
 				});
 				cmd.on('exit', (code: number) => {
 					if (code === 0) {	// OK
-						c(undefined);
+						resolve(undefined);
 					} else {
 						if (stderr) {
 							const lines = stderr.split('\n', 1);
-							e(new Error(lines[0]));
+							reject(new Error(lines[0]));
 						} else {
-							e(new Error(nls.localize('linux.term.failed', "'{0}' failed with exit code {1}", exec, code)));
+							reject(new Error(nls.localize('linux.term.failed', "'{0}' failed with exit code {1}", exec, code)));
 						}
 					}
 				});
 			});
 		});
 	}
+}
+
+/**
+ * tries to turn OS errors into more meaningful error messages
+ */
+function improveError(err: Error): Error {
+	if (err['errno'] === 'ENOENT' && err['path']) {
+		return new Error(nls.localize('ext.term.app.not.found', "can't find terminal application '{0}'", err['path']));
+	}
+	return err;
 }
 
 /**

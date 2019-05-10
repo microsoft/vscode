@@ -518,19 +518,20 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
-	test('showWorkspaceFolderPick', async function () {
-		const p = window.showWorkspaceFolderPick(undefined);
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showWorkspaceFolderPick', async function () {
+	// 	const p = window.showWorkspaceFolderPick(undefined);
 
-		await timeout(10);
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		try {
-			await p;
-			assert.ok(true);
-		}
-		catch (_error) {
-			assert.ok(false);
-		}
-	});
+	// 	await timeout(10);
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	try {
+	// 		await p;
+	// 		assert.ok(true);
+	// 	}
+	// 	catch (_error) {
+	// 		assert.ok(false);
+	// 	}
+	// });
 
 	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
 		const result = window.showInputBox({
