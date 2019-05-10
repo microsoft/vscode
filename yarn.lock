@@ -5901,11 +5901,6 @@ mute-stream@0.0.7, mute-stream@~0.0.4:
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.7.tgz#3075ce93bc21b8fab43e1bc4da7e8115ed1e7bab"
   integrity sha1-MHXOk7whuPq0PhvE2n6BFe0ee6s=
 
-nan@2.12.1, nan@^2.12.1:
-  version "2.12.1"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.12.1.tgz#7b1aa193e9aa86057e3c7bbd0ac448e770925552"
-  integrity sha512-JY7V6lRkStKcKTvHO5NVSQRv+RV+FIL5pvDoLiAtSL9pKlC5x9PKQcZDsq7m4FO4d57mkhC6Z+QhAh3Jdk5JFw==
-
 nan@2.8.0, nan@^2.8.0:
   version "2.8.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.8.0.tgz#ed715f3fe9de02b57a5e6252d90a96675e1f085a"
@@ -5915,6 +5910,16 @@ nan@^2.10.0:
   version "2.11.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.11.0.tgz#574e360e4d954ab16966ec102c0c049fd961a099"
   integrity sha512-F4miItu2rGnV2ySkXOQoA8FKz/SR2Q2sWP0sbTxNxz/tuokeC8WxOhPMcwi0qIyGtVn/rrSeLbvVkznqCdwYnw==
+
+nan@^2.12.1:
+  version "2.12.1"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.12.1.tgz#7b1aa193e9aa86057e3c7bbd0ac448e770925552"
+  integrity sha512-JY7V6lRkStKcKTvHO5NVSQRv+RV+FIL5pvDoLiAtSL9pKlC5x9PKQcZDsq7m4FO4d57mkhC6Z+QhAh3Jdk5JFw==
+
+nan@^2.13.2:
+  version "2.13.2"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.13.2.tgz#f51dc7ae66ba7d5d55e1e6d4d8092e802c9aefe7"
+  integrity sha512-TghvYc72wlMGMVMluVo9WRJc0mB8KxxF/gZ4YYFy7V2ZQX9l7rgbPg7vjS9mt6U5HXODVFVI2bOduCzwOMv/lw==
 
 nan@^2.9.2, nan@~2.10.0:
   version "2.10.0"
@@ -6039,12 +6044,12 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.8.1:
-  version "0.8.1"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.8.1.tgz#94b457bec013e7a09b8d9141f63b0787fa25c23f"
-  integrity sha512-j+/g0Q5dR+vkELclpJpz32HcS3O/3EdPSGPvDXJZVJQLCvgG0toEbfmymxAEyQyZEpaoKHAcoL+PvKM+4N9nlw==
+node-pty@0.9.0-beta1:
+  version "0.9.0-beta1"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta1.tgz#177f50dbc84c59348896c07b4df0f3492b1d8c53"
+  integrity sha512-ncEljJ6QUu30rbZeo3nq/2ufTxgLFf1buzTIB+ARM4BAi+i/z7K6RGobgOU4VF7gWVEuzmyCjzDvDWkiDz3kMQ==
   dependencies:
-    nan "2.12.1"
+    nan "^2.13.2"
 
 node.extend@~1.1.2:
   version "1.1.6"
