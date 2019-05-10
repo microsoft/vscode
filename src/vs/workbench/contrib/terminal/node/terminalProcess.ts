@@ -83,15 +83,15 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			this._processStartupComplete = Promise.resolve(undefined);
 			return;
 		}
-		this._ptyProcess.on('data', (data) => {
+		this._ptyProcess.onData(data => {
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
 		});
-		this._ptyProcess.on('exit', (code) => {
-			this._exitCode = code;
+		this._ptyProcess.onExit(e => {
+			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		});
 
