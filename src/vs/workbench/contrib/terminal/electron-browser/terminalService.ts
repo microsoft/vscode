@@ -98,7 +98,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		});
 	}
 
-	protected _getDefaultShell(p: platform.Platform): string {
+	public getDefaultShell(p: platform.Platform): string {
 		return getDefaultShell(p);
 	}
 
