@@ -445,7 +445,6 @@ export class TerminalInstance implements ITerminalInstance {
 		} else if (this.shellLaunchConfig.isRendererOnly) {
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, undefined, undefined);
 		}
-		this._xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 
 		// Register listener to trigger the onInput ext API if the terminal is a renderer only
 		if (this._shellLaunchConfig.isRendererOnly) {
@@ -507,6 +506,7 @@ export class TerminalInstance implements ITerminalInstance {
 			(<any>this._wrapperElement).xterm = this._xterm;
 
 			this._xterm.open(this._xtermElement);
+			this._xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 			this._xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 				// Disable all input if the terminal is exiting
 				if (this._isExiting) {
