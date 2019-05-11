@@ -201,7 +201,7 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 	const overrides = { resource: model.uri, overrideIdentifier: model.getModeId() };
 	const defaultFormatter = configService.getValue<string>(DefaultFormatter.configName, overrides);
 
-	let autoFocusPick;
+	let defaultFormatterPick: IIndexedPick | undefined;
 
 	const picks = formatters.map((provider, index) => {
 		const isDefault = ExtensionIdentifier.equals(provider.extensionId, defaultFormatter);
@@ -213,7 +213,7 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 
 		if (isDefault) {
 			// autofocus default pick
-			autoFocusPick = pick;
+			defaultFormatterPick = pick;
 		}
 
 		return pick;
@@ -223,7 +223,12 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 		label: nls.localize('config', "Configure Default Formatter...")
 	};
 
-	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick], { placeHolder: nls.localize('format.placeHolder', "Select a formatter"), activeItem: autoFocusPick });
+	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick],
+		{
+			placeHolder: nls.localize('format.placeHolder', "Select a formatter"),
+			activeItem: defaultFormatterPick
+		}
+	);
 	if (!pick) {
 		// dismissed
 		return undefined;
