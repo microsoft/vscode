@@ -876,10 +876,8 @@ declare module 'vscode-xterm' {
 
 		handler(text: string): void;
 
-		/**
-		 * Emit an event on the terminal.
-		 */
-		emit(type: string, data: any): void;
+		_onScroll: IEventEmitter2<number>;
+		_onKey: IEventEmitter2<{ key: string }>;
 
 		charMeasure?: { height: number, width: number };
 
@@ -887,6 +885,10 @@ declare module 'vscode-xterm' {
 			_renderLayers: any[];
 			onIntersectionChange: any;
 		};
+	}
+
+	interface IEventEmitter2<T> {
+		fire(e: T): void;
 	}
 
 	interface ISearchOptions {
