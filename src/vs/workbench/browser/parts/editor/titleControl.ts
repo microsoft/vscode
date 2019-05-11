@@ -6,7 +6,7 @@
 import { applyDragImage } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionsOrientation, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, IRunEvent } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
@@ -15,7 +15,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/titlecontrol';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
-import { createActionItem, fillInActionBarActions, fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { createActionViewItem, fillInActionBarActions, fillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ExecuteCommandAction, IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -128,7 +128,7 @@ export abstract class TitleControl extends Themable {
 		const context: IEditorCommandsContext = { groupId: this.group.id };
 
 		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
-			actionItemProvider: action => this.actionItemProvider(action),
+			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
@@ -158,21 +158,21 @@ export abstract class TitleControl extends Themable {
 		}));
 	}
 
-	private actionItemProvider(action: IAction): IActionItem | undefined {
+	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
 		const activeControl = this.group.activeControl;
 
 		// Check Active Editor
-		let actionItem: IActionItem | undefined = undefined;
+		let actionViewItem: IActionViewItem | undefined = undefined;
 		if (activeControl instanceof BaseEditor) {
-			actionItem = activeControl.getActionItem(action);
+			actionViewItem = activeControl.getActionViewItem(action);
 		}
 
 		// Check extensions
-		if (!actionItem) {
-			actionItem = createActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		if (!actionViewItem) {
+			actionViewItem = createActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 		}
 
-		return actionItem;
+		return actionViewItem;
 	}
 
 	protected updateEditorActionsToolbar(): void {

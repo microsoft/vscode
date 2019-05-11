@@ -6,8 +6,8 @@
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
 import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
-import { ActionBar, ActionsOrientation, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextMenuProvider, DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
+import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextMenuProvider, DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -17,7 +17,7 @@ export const CONTEXT = 'context.toolbar';
 
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
-	actionItemProvider?: IActionItemProvider;
+	actionViewItemProvider?: IActionViewItemProvider;
 	ariaLabel?: string;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	actionRunner?: IActionRunner;
@@ -32,7 +32,7 @@ export class ToolBar extends Disposable {
 	private options: IToolBarOptions;
 	private actionBar: ActionBar;
 	private toggleMenuAction: ToggleMenuAction;
-	private toggleMenuActionItem?: DropdownMenuActionItem;
+	private toggleMenuActionViewItem?: DropdownMenuActionViewItem;
 	private hasSecondaryActions: boolean;
 	private lookupKeybindings: boolean;
 
@@ -42,7 +42,7 @@ export class ToolBar extends Disposable {
 		this.options = options;
 		this.lookupKeybindings = typeof this.options.getKeyBinding === 'function';
 
-		this.toggleMenuAction = this._register(new ToggleMenuAction(() => this.toggleMenuActionItem && this.toggleMenuActionItem.show(), options.toggleMenuTitle));
+		this.toggleMenuAction = this._register(new ToggleMenuAction(() => this.toggleMenuActionViewItem && this.toggleMenuActionViewItem.show(), options.toggleMenuTitle));
 
 		let element = document.createElement('div');
 		element.className = 'monaco-toolbar';
@@ -52,33 +52,33 @@ export class ToolBar extends Disposable {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
-			actionItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: Action) => {
 
 				// Return special action item for the toggle menu action
 				if (action.id === ToggleMenuAction.ID) {
 
 					// Dispose old
-					if (this.toggleMenuActionItem) {
-						this.toggleMenuActionItem.dispose();
+					if (this.toggleMenuActionViewItem) {
+						this.toggleMenuActionViewItem.dispose();
 					}
 
 					// Create new
-					this.toggleMenuActionItem = new DropdownMenuActionItem(
+					this.toggleMenuActionViewItem = new DropdownMenuActionViewItem(
 						action,
 						(<ToggleMenuAction>action).menuActions,
 						contextMenuProvider,
-						this.options.actionItemProvider,
+						this.options.actionViewItemProvider,
 						this.actionRunner,
 						this.options.getKeyBinding,
 						'toolbar-toggle-more',
 						this.options.anchorAlignmentProvider
 					);
-					this.toggleMenuActionItem!.setActionContext(this.actionBar.context);
+					this.toggleMenuActionViewItem!.setActionContext(this.actionBar.context);
 
-					return this.toggleMenuActionItem;
+					return this.toggleMenuActionViewItem;
 				}
 
-				return options.actionItemProvider ? options.actionItemProvider(action) : undefined;
+				return options.actionViewItemProvider ? options.actionViewItemProvider(action) : undefined;
 			}
 		}));
 	}
@@ -93,8 +93,8 @@ export class ToolBar extends Disposable {
 
 	set context(context: any) {
 		this.actionBar.context = context;
-		if (this.toggleMenuActionItem) {
-			this.toggleMenuActionItem.setActionContext(context);
+		if (this.toggleMenuActionViewItem) {
+			this.toggleMenuActionViewItem.setActionContext(context);
 		}
 	}
 
@@ -156,9 +156,9 @@ export class ToolBar extends Disposable {
 	}
 
 	dispose(): void {
-		if (this.toggleMenuActionItem) {
-			this.toggleMenuActionItem.dispose();
-			this.toggleMenuActionItem = undefined;
+		if (this.toggleMenuActionViewItem) {
+			this.toggleMenuActionViewItem.dispose();
+			this.toggleMenuActionViewItem = undefined;
 		}
 
 		super.dispose();

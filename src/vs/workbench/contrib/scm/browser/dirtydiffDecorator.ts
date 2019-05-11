@@ -35,11 +35,11 @@ import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekV
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
-import { IActionBarOptions, ActionsOrientation, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionBarOptions, ActionsOrientation, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { MenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
 import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
@@ -49,21 +49,6 @@ import { ISplice } from 'vs/base/common/sequence';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { createStyleSheet } from 'vs/base/browser/dom';
-
-// TODO@Joao
-// Need to subclass MenuItemActionItem in order to respect
-// the action context coming from any action bar, without breaking
-// existing users
-class DiffMenuItemActionItem extends MenuItemActionItem {
-
-	onClick(event: MouseEvent): void {
-		event.preventDefault();
-		event.stopPropagation();
-
-		this.actionRunner.run(this._commandAction, this._context)
-			.then(undefined, err => this._notificationService.error(err));
-	}
-}
 
 class DiffActionRunner extends ActionRunner {
 
@@ -289,17 +274,17 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		return {
 			actionRunner,
-			actionItemProvider: action => this.getActionItem(action),
+			actionViewItemProvider: action => this.getActionViewItem(action),
 			orientation: ActionsOrientation.HORIZONTAL_REVERSE
 		};
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
 			return undefined;
 		}
 
-		return new DiffMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		return new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 	}
 
 	protected _fillBody(container: HTMLElement): void {

@@ -13,7 +13,7 @@ import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, a
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { Viewlet, ViewletRegistry, Extensions } from 'vs/workbench/browser/viewlet';
@@ -127,7 +127,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		const actions = append(container, $('.actions'));
 		this.toolbar = new ToolBar(actions, this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: action => this.getActionItem(action),
+			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => withNullAsUndefined(this.keybindingService.lookupKeybinding(action.id)),
 			actionRunner: this.actionRunner
@@ -180,7 +180,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		return undefined;
 	}
 
@@ -289,12 +289,12 @@ export class PanelViewlet extends Viewlet {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (this.isSingleView()) {
-			return this.panelItems[0].panel.getActionItem(action);
+			return this.panelItems[0].panel.getActionViewItem(action);
 		}
 
-		return super.getActionItem(action);
+		return super.getActionViewItem(action);
 	}
 
 	focus(): void {

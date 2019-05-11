@@ -7,7 +7,7 @@ import 'vs/css!vs/workbench/contrib/debug/browser/media/repl';
 import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
 import * as errors from 'vs/base/common/errors';
-import { IAction, IActionItem, Action } from 'vs/base/common/actions';
+import { IAction, IActionViewItem, Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -39,7 +39,7 @@ import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/wor
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { FocusSessionActionItem } from 'vs/workbench/contrib/debug/browser/debugActionItems';
+import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
 import { first } from 'vs/base/common/arrays';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -309,9 +309,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replInput.focus();
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === SelectReplAction.ID) {
-			return this.instantiationService.createInstance(SelectReplActionItem, this.selectReplAction);
+			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction);
 		}
 
 		return undefined;
@@ -852,7 +852,7 @@ class ReplCopyAllAction extends EditorAction {
 registerEditorAction(AcceptReplInputAction);
 registerEditorAction(ReplCopyAllAction);
 
-class SelectReplActionItem extends FocusSessionActionItem {
+class SelectReplActionViewItem extends FocusSessionActionViewItem {
 
 	protected getActionContext(_: string, index: number): any {
 		return this.debugService.getModel().getSessions(true)[index];

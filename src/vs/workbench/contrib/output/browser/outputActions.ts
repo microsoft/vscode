@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
-import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -125,7 +125,7 @@ export class SwitchOutputAction extends Action {
 	}
 }
 
-export class SwitchOutputActionItem extends SelectActionItem {
+export class SwitchOutputActionViewItem extends SelectActionViewItem {
 
 	private static readonly SEPARATOR = '─────────';
 
@@ -168,7 +168,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		this.logChannels = groups[1] || [];
 		const showSeparator = this.outputChannels.length && this.logChannels.length;
 		const separatorIndex = showSeparator ? this.outputChannels.length : -1;
-		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
+		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionViewItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
 		let selected = 0;
 		const activeChannel = this.outputService.getActiveChannel();
 		if (activeChannel) {
