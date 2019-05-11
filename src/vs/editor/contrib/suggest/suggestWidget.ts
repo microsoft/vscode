@@ -965,8 +965,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.expandSideOrBelow();
 
 		show(this.details.element);
-		this.details.render(this.list.getFocusedElements()[0]);
+
+		// Set maxHeight before .render() as Fix for #72587
 		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
+		this.details.render(this.list.getFocusedElements()[0]);
 
 		// Reset margin-top that was set as Fix for #26416
 		this.listElement.style.marginTop = '0px';
