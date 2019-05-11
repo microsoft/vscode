@@ -45,7 +45,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			}
 
 			// Detected Mode
-			const detectedModeId: string | null = detectModeId(modelService, modeService, resource);
+			const detectedModeId = detectModeId(modelService, modeService, resource);
 			if (detectedModeId) {
 				classes.push(`${cssEscape(detectedModeId)}-lang-file-icon`);
 			}
@@ -55,41 +55,49 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 }
 
 export function detectModeId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
-	let detectedModeId: string | null = null;
-	if (resource) {
-		let modeId: string | null = null;
+	if (!resource) {
+		return null; // we need a resource at least
+	}
 
-		// Data URI: check for encoded metadata
-		if (resource.scheme === Schemas.data) {
-			const metadata = DataUri.parseMetaData(resource);
-			const mime = metadata.get(DataUri.META_DATA_MIME);
+	let modeId: string | null = null;
 
-			if (mime) {
-				modeId = modeService.getModeId(mime);
-			} else {
-				const name = metadata.get(DataUri.META_DATA_LABEL);
-				if (name) {
-					modeId = modeService.getModeIdByFilepathOrFirstLine(name);
-				}
-			}
-		}
+	// Data URI: check for encoded metadata
+	if (resource.scheme === Schemas.data) {
+		const metadata = DataUri.parseMetaData(resource);
+		const mime = metadata.get(DataUri.META_DATA_MIME);
 
-		// Any other URI: check for model if existing and fallback to path based detection
-		else {
-			const model = modelService.getModel(resource);
-			if (model) {
-				modeId = model.getModeId();
-			} else {
-				modeId = modeService.getModeIdByFilepathOrFirstLine(resource.path.toLowerCase());
-			}
-		}
-
-		if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-			detectedModeId = modeId; // only take if the mode is specific (aka no just plain text)
+		if (mime) {
+			modeId = modeService.getModeId(mime);
 		}
 	}
 
-	return detectedModeId;
+	// Any other URI: check for model if existing
+	else {
+		const model = modelService.getModel(resource);
+		if (model) {
+			modeId = model.getModeId();
+		}
+	}
+
+	// only take if the mode is specific (aka no just plain text)
+	if (modeId && modeId !== PLAINTEXT_MODE_ID) {
+		return modeId;
+	}
+
+	// otherwise fallback to path based detection
+	let path: string | undefined;
+	if (resource.scheme === Schemas.data) {
+		const metadata = DataUri.parseMetaData(resource);
+		path = metadata.get(DataUri.META_DATA_LABEL);
+	} else {
+		path = resource.path.toLowerCase();
+	}
+
+	if (path) {
+		return modeService.getModeIdByFilepathOrFirstLine(path);
+	}
+
+	return null; // finally - we do not know the mode id
 }
 
 export function cssEscape(val: string): string {
