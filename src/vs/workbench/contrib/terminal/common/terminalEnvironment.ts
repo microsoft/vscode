@@ -164,15 +164,14 @@ export function mergeDefaultShellPathAndArgs(
 	shell: IShellLaunchConfig,
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
+	defaultShell: string,
 	platformOverride: platform.Platform = platform.platform
 ): void {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellConfigValue = fetchSetting(`terminal.integrated.shell.${platformKey}`);
-	// const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
 	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
-	// const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 
-	shell.executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || <string>shellConfigValue.default;
+	shell.executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || (<string | null>shellConfigValue.default || defaultShell);
 	shell.args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
 
 	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
