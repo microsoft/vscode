@@ -44,18 +44,18 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 			}
 
-			// Detected Language
-			const detectedLangId: string | null = detectLangId(modelService, modeService, resource);
-			if (detectedLangId) {
-				classes.push(`${cssEscape(detectedLangId)}-lang-file-icon`);
+			// Detected Mode
+			const detectedModeId: string | null = detectModeId(modelService, modeService, resource);
+			if (detectedModeId) {
+				classes.push(`${cssEscape(detectedModeId)}-lang-file-icon`);
 			}
 		}
 	}
 	return classes;
 }
 
-export function detectLangId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
-	let detectedLangId: string | null = null;
+export function detectModeId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
+	let detectedModeId: string | null = null;
 	if (resource) {
 		let modeId: string | null = null;
 
@@ -66,6 +66,11 @@ export function detectLangId(modelService: IModelService, modeService: IModeServ
 
 			if (mime) {
 				modeId = modeService.getModeId(mime);
+			} else {
+				const name = metadata.get(DataUri.META_DATA_LABEL);
+				if (name) {
+					modeId = modeService.getModeIdByFilepathOrFirstLine(name);
+				}
 			}
 		}
 
@@ -73,18 +78,18 @@ export function detectLangId(modelService: IModelService, modeService: IModeServ
 		else {
 			const model = modelService.getModel(resource);
 			if (model) {
-				modeId = model.getLanguageIdentifier().language;
+				modeId = model.getModeId();
 			} else {
 				modeId = modeService.getModeIdByFilepathOrFirstLine(resource.path.toLowerCase());
 			}
 		}
 
 		if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-			detectedLangId = modeId; // only take if the mode is specific (aka no just plain text)
+			detectedModeId = modeId; // only take if the mode is specific (aka no just plain text)
 		}
 	}
 
-	return detectedLangId;
+	return detectedModeId;
 }
 
 export function cssEscape(val: string): string {

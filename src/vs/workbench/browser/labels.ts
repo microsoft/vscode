@@ -21,7 +21,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { getIconClasses, detectLangId } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses, detectModeId } from 'vs/editor/common/services/getIconClasses';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -237,7 +237,7 @@ class ResourceLabelWidget extends IconLabel {
 	private label?: IResourceLabelProps;
 	private options?: IResourceLabelOptions;
 	private computedIconClasses?: string[];
-	private lastKnownDetectedLangId?: string;
+	private lastKnownDetectedModeId?: string;
 	private computedPathLabel?: string;
 
 	private needsRedraw?: Redraw;
@@ -281,7 +281,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (model.uri.toString() === this.label.resource.toString()) {
-			if (this.lastKnownDetectedLangId !== model.getLanguageIdentifier().language) {
+			if (this.lastKnownDetectedModeId !== model.getModeId()) {
 				this.render(true); // update if the language id of the model has changed from our last known state
 			}
 		}
@@ -384,7 +384,7 @@ class ResourceLabelWidget extends IconLabel {
 	clear(): void {
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedLangId = undefined;
+		this.lastKnownDetectedModeId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 
@@ -405,10 +405,10 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.label) {
-			const detectedLangId = this.label.resource ? withNullAsUndefined(detectLangId(this.modelService, this.modeService, this.label.resource)) : undefined;
-			if (this.lastKnownDetectedLangId !== detectedLangId) {
+			const detectedModeId = this.label.resource ? withNullAsUndefined(detectModeId(this.modelService, this.modeService, this.label.resource)) : undefined;
+			if (this.lastKnownDetectedModeId !== detectedModeId) {
 				clearIconCache = true;
-				this.lastKnownDetectedLangId = detectedLangId;
+				this.lastKnownDetectedModeId = detectedModeId;
 			}
 		}
 
@@ -482,7 +482,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedLangId = undefined;
+		this.lastKnownDetectedModeId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 	}
