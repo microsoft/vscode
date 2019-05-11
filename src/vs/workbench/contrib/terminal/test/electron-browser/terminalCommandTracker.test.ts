@@ -46,13 +46,13 @@ suite('Workbench - TerminalCommandTracker', () => {
 		test('should track commands when the prompt is of sufficient size', () => {
 			assert.equal(xterm.markers.length, 0);
 			syncWrite(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm.emit('key', '\x0d');
+			xterm._core._onKey.fire({ key: '\x0d' });
 			assert.equal(xterm.markers.length, 1);
 		});
 		test('should not track commands when the prompt is too small', () => {
 			assert.equal(xterm.markers.length, 0);
 			syncWrite(xterm, '\x1b[2G'); // Move cursor to column 2
-			xterm.emit('key', '\x0d');
+			xterm._core._onKey.fire({ key: '\x0d' });
 			assert.equal(xterm.markers.length, 0);
 		});
 	});
@@ -60,7 +60,7 @@ suite('Workbench - TerminalCommandTracker', () => {
 	suite('Commands', () => {
 		test('should scroll to the next and previous commands', () => {
 			syncWrite(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm.emit('key', '\x0d'); // Mark line #10
+			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line #10
 			assert.equal(xterm.markers[0].line, 9);
 
 			for (let i = 0; i < 20; i++) {
@@ -94,11 +94,11 @@ suite('Workbench - TerminalCommandTracker', () => {
 			syncWrite(xterm, '\r0');
 			syncWrite(xterm, '\n\r1');
 			syncWrite(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm.emit('key', '\x0d'); // Mark line
+			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
 			assert.equal(xterm.markers[0].line, 10);
 			syncWrite(xterm, '\n\r2');
 			syncWrite(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm.emit('key', '\x0d'); // Mark line
+			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
 			assert.equal(xterm.markers[1].line, 11);
 			syncWrite(xterm, '\n\r3');
 
@@ -124,11 +124,11 @@ suite('Workbench - TerminalCommandTracker', () => {
 			syncWrite(xterm, '\r0');
 			syncWrite(xterm, '\n\r1');
 			syncWrite(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm.emit('key', '\x0d'); // Mark line
+			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
 			assert.equal(xterm.markers[0].line, 10);
 			syncWrite(xterm, '\n\r2');
 			syncWrite(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm.emit('key', '\x0d'); // Mark line
+			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
 			assert.equal(xterm.markers[1].line, 11);
 			syncWrite(xterm, '\n\r3');
 

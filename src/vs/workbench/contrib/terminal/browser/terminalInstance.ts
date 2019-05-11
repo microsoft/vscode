@@ -371,7 +371,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
 			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
 			if (this._xterm) {
-				this._xterm.emit('scroll', this._xterm._core.buffer.ydisp);
+				this._xterm._core._onScroll.fire(this._xterm._core.buffer.ydisp);
 			}
 		}
 
@@ -421,12 +421,12 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
-		this._xterm.on('linefeed', () => this._onLineFeed());
-		this._xterm.on('key', (key, ev) => this._onKey(key, ev));
+		this._xterm.onLineFeed(() => this._onLineFeed());
+		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 
 		if (this._processManager) {
 			this._processManager.onProcessData(data => this._onProcessData(data));
-			this._xterm.on('data', data => this._processManager!.write(data));
+			this._xterm.onData(data => this._processManager!.write(data));
 			// TODO: How does the cwd work on detached processes?
 			this.processReady.then(async () => {
 				this._linkHandler.processCwd = await this._processManager!.getInitialCwd();
@@ -445,11 +445,11 @@ export class TerminalInstance implements ITerminalInstance {
 		} else if (this.shellLaunchConfig.isRendererOnly) {
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, undefined, undefined);
 		}
-		this._xterm.on('focus', () => this._onFocus.fire(this));
+		this._xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 
 		// Register listener to trigger the onInput ext API if the terminal is a renderer only
 		if (this._shellLaunchConfig.isRendererOnly) {
-			this._xterm.on('data', (data) => this._sendRendererInput(data));
+			this._xterm.onData(data => this._sendRendererInput(data));
 		}
 
 		this._commandTracker = new TerminalCommandTracker(this._xterm);
@@ -858,7 +858,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
-			this._xterm.emit('scroll', this._xterm._core.buffer.ydisp);
+			this._xterm._core._onScroll.fire(this._xterm._core.buffer.ydisp);
 			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will
