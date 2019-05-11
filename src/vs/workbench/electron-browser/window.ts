@@ -501,7 +501,7 @@ export class ElectronWindow extends Disposable {
 				}
 
 				listener.dispose();
-				this.fileService.del(waitMarkerFile);
+				await this.fileService.del(waitMarkerFile);
 			}
 		});
 
