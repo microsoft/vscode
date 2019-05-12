@@ -170,7 +170,7 @@ export class MenuBar extends Disposable {
 				return;
 			}
 
-			if (e.altKey && this.options.disableAltBehavior) {
+			if (e.altKey && this.options.disableAltBehavior && this.options.visibility !== 'toggle') {
 				return;
 			}
 
@@ -781,7 +781,7 @@ export class MenuBar extends Disposable {
 			return;
 		}
 
-		if (modifierKeyStatus.lastKeyPressed === 'alt' && this.options.disableAltBehavior) {
+		if (modifierKeyStatus.lastKeyPressed === 'alt' && this.options.disableAltBehavior && this.options.visibility !== 'toggle') {
 			return;
 		}
 
