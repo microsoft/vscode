@@ -155,6 +155,7 @@ export class CodeInsetWidget {
 			}
 
 			const div = document.createElement('div');
+			div.className = 'code-inset';
 			webview.mountTo(div);
 			webview.onMessage((e: { type: string, payload: any }) => {
 				// The webview contents can use a "size-info" message to report its size.
