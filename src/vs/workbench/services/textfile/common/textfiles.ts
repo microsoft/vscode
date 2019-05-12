@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions, IModeSupport } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
@@ -479,12 +479,6 @@ export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
 	readonly textEditorModel: ITextModel;
 
 	createSnapshot(): ITextSnapshot;
-}
-
-export function isResolvedTextEditorModel(model: ITextEditorModel): model is IResolvedTextEditorModel;
-export function isResolvedTextEditorModel(model: ITextFileEditorModel): model is IResolvedTextFileEditorModel;
-export function isResolvedTextEditorModel(model: ITextEditorModel | ITextFileEditorModel): model is IResolvedTextEditorModel | IResolvedTextFileEditorModel {
-	return !!model.textEditorModel;
 }
 
 export interface IWillMoveEvent {

@@ -16,10 +16,9 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
+	protected textEditorModelHandle: URI | null;
+	private createdEditorModel: boolean;
 
-	protected createdEditorModel: boolean;
-
-	private textEditorModelHandle: URI | null;
 	private modelDisposeListener: IDisposable | null;
 
 	constructor(
@@ -154,11 +153,11 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	createSnapshot(this: IResolvedTextEditorModel): ITextSnapshot;
 	createSnapshot(this: ITextEditorModel): ITextSnapshot | null;
 	createSnapshot(): ITextSnapshot | null {
-		if (this.isResolved()) {
-			return this.textEditorModel.createSnapshot(true /* preserve BOM */);
+		if (!this.textEditorModel) {
+			return null;
 		}
 
-		return null;
+		return this.textEditorModel.createSnapshot(true /* preserve BOM */);
 	}
 
 	isResolved(): this is IResolvedTextEditorModel {
