@@ -34,7 +34,7 @@ class CacheItem {
 	) { }
 }
 
-class CodeLensCache implements ICodeLensCache {
+export class CodeLensCache implements ICodeLensCache {
 
 	_serviceBrand: any;
 

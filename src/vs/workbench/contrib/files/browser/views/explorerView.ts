@@ -511,8 +511,10 @@ export class ExplorerView extends ViewletPanel {
 			return;
 		}
 
-		// Expand all stats in the parent chain
-		let item: ExplorerItem | undefined = this.explorerService.roots.filter(i => isEqualOrParent(resource, i.resource))[0];
+		// Expand all stats in the parent chain.
+		let item: ExplorerItem | undefined = this.explorerService.roots.filter(i => isEqualOrParent(resource, i.resource))
+			// Take the root that is the closest to the stat #72299
+			.sort((first, second) => second.resource.path.length - first.resource.path.length)[0];
 
 		while (item && item.resource.toString() !== resource.toString()) {
 			await this.tree.expand(item);
