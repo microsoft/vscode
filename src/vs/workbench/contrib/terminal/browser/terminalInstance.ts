@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -970,10 +970,32 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		this._isExiting = true;
-		let exitCodeMessage: string;
+		let exitCodeMessage: string | undefined;
 
+		// Create exit code message
 		if (exitCode) {
-			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
+			if (exitCode === SHELL_PATH_INVALID_EXIT_CODE) {
+				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPath', 'The terminal shell path does not exist: {0}', this._shellLaunchConfig.executable);
+			} else if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
+				let args = '';
+				if (typeof this._shellLaunchConfig.args === 'string') {
+					args = ` ${this._shellLaunchConfig.args}`;
+				} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
+					args = ' ' + this._shellLaunchConfig.args.map(a => {
+						if (typeof a === 'string' && a.indexOf(' ') !== -1) {
+							return `'${a}'`;
+						}
+						return a;
+					}).join(' ');
+				}
+				if (this._shellLaunchConfig.executable) {
+					exitCodeMessage = nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode);
+				} else {
+					exitCodeMessage = nls.localize('terminal.integrated.launchFailedExtHost', 'The terminal process failed to launch (exit code: {0})', exitCode);
+				}
+			} else {
+				exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
+			}
 		}
 
 		this._logService.debug(`Terminal process exit (id: ${this.id})${this._processManager ? ' state ' + this._processManager.processState : ''}`);
@@ -981,8 +1003,8 @@ export class TerminalInstance implements ITerminalInstance {
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
 		if (this._shellLaunchConfig.waitOnExit && (!this._processManager || this._processManager.processState !== ProcessState.KILLED_BY_USER)) {
-			if (exitCode) {
-				this._xterm.writeln(exitCodeMessage!);
+			if (exitCodeMessage) {
+				this._xterm.writeln(exitCodeMessage);
 			}
 			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
 				let message = this._shellLaunchConfig.waitOnExit;
@@ -997,29 +1019,14 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		} else {
 			this.dispose();
-			if (exitCode) {
+			if (exitCodeMessage) {
 				if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
-					let args = '';
-					if (typeof this._shellLaunchConfig.args === 'string') {
-						args = this._shellLaunchConfig.args;
-					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
-						args = ' ' + this._shellLaunchConfig.args.map(a => {
-							if (typeof a === 'string' && a.indexOf(' ') !== -1) {
-								return `'${a}'`;
-							}
-							return a;
-						}).join(' ');
-					}
-					if (this._shellLaunchConfig.executable) {
-						this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
-					} else {
-						this._notificationService.error(nls.localize('terminal.integrated.launchFailedExtHost', 'The terminal process failed to launch (exit code: {0})', exitCode));
-					}
+					this._notificationService.error(exitCodeMessage);
 				} else {
 					if (this._configHelper.config.showExitAlert) {
-						this._notificationService.error(exitCodeMessage!);
+						this._notificationService.error(exitCodeMessage);
 					} else {
-						console.warn(exitCodeMessage!);
+						console.warn(exitCodeMessage);
 					}
 				}
 			}
