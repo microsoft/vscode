@@ -153,7 +153,7 @@ module.exports = function createWebviewManager(host) {
 						scrollTarget.scrollIntoView();
 					}
 				} else {
-					host.postMessage('did-click-link', node.href);
+					host.postMessage('did-click-link', node.href.baseVal || node.href);
 				}
 				event.preventDefault();
 				break;

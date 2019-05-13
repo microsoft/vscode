@@ -240,7 +240,7 @@ export class ResourcesDropHandler {
 		return this.backupFileService.resolveBackupContent(droppedDirtyEditor.backupResource!).then(content => {
 
 			// Set the contents of to the resource to the target
-			return this.backupFileService.backupResource(droppedDirtyEditor.resource, content!.create(this.getDefaultEOL()).createSnapshot(true));
+			return this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
 		}).then(() => false, () => false /* ignore any error */);
 	}
 

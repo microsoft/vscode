@@ -44,6 +44,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { Schemas } from 'vs/base/common/network';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -171,7 +172,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private contextService: IWorkspaceContextService,
 		private environmentService: IWorkbenchEnvironmentService,
 		private outputChannelId: string,
-		taskSystemInfoResolver: TaskSystemInfoResovler
+		private readonly configurationService: IConfigurationService,
+		taskSystemInfoResolver: TaskSystemInfoResovler,
 	) {
 
 		this.activeTasks = Object.create(null);
@@ -523,8 +525,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 							if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 								(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
 								let reveal = task.command.presentation!.reveal;
-								let revealProblem = task.command.presentation!.revealProblem;
-								if (revealProblem === RevealProblemKind.OnProblem) {
+								let revealProblems = task.command.presentation!.revealProblems;
+								if (revealProblems === RevealProblemKind.OnProblem) {
 									this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 								} else if (reveal === RevealKind.Silent) {
 									this.terminalService.setActiveInstance(terminal!);
@@ -653,8 +655,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 						}
 					}
 					let reveal = task.command.presentation!.reveal;
-					let revealProblem = task.command.presentation!.revealProblem;
-					let revealProblemPanel = terminal && (revealProblem === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0);
+					let revealProblems = task.command.presentation!.revealProblems;
+					let revealProblemPanel = terminal && (revealProblems === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0);
 					if (revealProblemPanel) {
 						this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 					} else if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
@@ -688,7 +690,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminal) {
 			return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
 		}
-		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblem === RevealProblemKind.Always);
+		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblems === RevealProblemKind.Always);
 		if (showProblemPanel) {
 			this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 		} else if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
@@ -754,7 +756,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: undefined, args: undefined, waitOnExit };
-			this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig, platform);
+			this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig, this.terminalService.getDefaultShell(platform), platform);
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
@@ -877,6 +879,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
 		}
+
+		// Conpty doesn't do linefeeds in an expected way. Force winpty unless the user has requested otherwise.
+		shellLaunchConfig.forceWinpty = !this.configurationService.getValue('terminal.integrated.windowsAllowConptyTasks');
 		return shellLaunchConfig;
 	}
 

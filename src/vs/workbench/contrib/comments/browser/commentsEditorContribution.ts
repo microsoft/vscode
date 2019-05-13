@@ -446,6 +446,13 @@ export class ReviewController implements IEditorContribution {
 					return;
 				}
 
+				let matchedNewCommentThreadZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && (zoneWidget.commentThread as any).commentThreadHandle === -1 && Range.equalsRange(zoneWidget.commentThread.range, thread.range));
+
+				if (matchedNewCommentThreadZones.length) {
+					matchedNewCommentThreadZones[0].update(thread, true);
+					return;
+				}
+
 				const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId];
 				this.displayCommentThread(e.owner, thread, pendingCommentText, draftMode);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -462,26 +469,18 @@ export class ReviewController implements IEditorContribution {
 		this._commentWidgets.push(zoneWidget);
 	}
 
-	private addCommentThreadFromTemplate(lineNumber: number, ownerId: string, extensionId: string | undefined, template: modes.CommentThreadTemplate): ReviewZoneWidget {
-		let templateReviewZoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, ownerId, {
-			commentThreadHandle: -1,
-			label: template!.label,
-			acceptInputCommand: template.acceptInputCommand,
-			additionalCommands: template.additionalCommands,
-			deleteCommand: template.deleteCommand,
-			extensionId: extensionId,
-			threadId: null,
-			resource: null,
-			comments: [],
-			range: {
-				startLineNumber: lineNumber,
-				startColumn: 0,
-				endLineNumber: lineNumber,
-				endColumn: 0
-			},
-			collapsibleState: modes.CommentThreadCollapsibleState.Expanded,
-		},
-			'', modes.DraftMode.NotSupported);
+	private addCommentThreadFromTemplate(lineNumber: number, ownerId: string): ReviewZoneWidget {
+		let templateCommentThread = this.commentService.getCommentThreadFromTemplate(ownerId, this.editor.getModel()!.uri, {
+			startLineNumber: lineNumber,
+			startColumn: 1,
+			endLineNumber: lineNumber,
+			endColumn: 1
+		})!;
+
+		templateCommentThread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
+		templateCommentThread.comments = [];
+
+		let templateReviewZoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, ownerId, templateCommentThread, '', modes.DraftMode.NotSupported);
 
 		return templateReviewZoneWidget;
 	}
@@ -692,22 +691,19 @@ export class ReviewController implements IEditorContribution {
 	public addCommentAtLine2(lineNumber: number, replyCommand: modes.Command | undefined, ownerId: string, extensionId: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined, template: modes.CommentThreadTemplate | undefined) {
 		if (commentingRangesInfo) {
 			let range = new Range(lineNumber, 1, lineNumber, 1);
-			if (commentingRangesInfo.newCommentThreadCallback && template) {
+			if (template) {
 				// create comment widget through template
-				let commentThreadWidget = this.addCommentThreadFromTemplate(lineNumber, ownerId, extensionId, template);
+				let commentThreadWidget = this.addCommentThreadFromTemplate(lineNumber, ownerId);
 				commentThreadWidget.display(lineNumber, true);
-
-				return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel()!.uri, range)
-					.then(commentThread => {
-						commentThreadWidget.update(commentThread!, true);
-						this._commentWidgets.push(commentThreadWidget);
-						this.processNextThreadToAdd();
-					})
-					.catch(e => {
-						this.notificationService.error(nls.localize('commentThreadAddFailure', "Adding a new comment thread failed: {0}.", e.message));
-						commentThreadWidget.dispose();
-						this.processNextThreadToAdd();
-					});
+				this._commentWidgets.push(commentThreadWidget);
+				commentThreadWidget.onDidClose(() => {
+					this._commentWidgets = this._commentWidgets.filter(zoneWidget => !(
+						zoneWidget.owner === commentThreadWidget.owner &&
+						(zoneWidget.commentThread as any).commentThreadHandle === -1 &&
+						Range.equalsRange(zoneWidget.commentThread.range, commentThreadWidget.commentThread.range)
+					));
+				});
+				this.processNextThreadToAdd();
 			} else if (commentingRangesInfo.newCommentThreadCallback) {
 				return commentingRangesInfo.newCommentThreadCallback(this.editor.getModel()!.uri, range)
 					.then(_ => {

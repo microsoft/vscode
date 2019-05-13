@@ -10,7 +10,7 @@ import { IWindowsService, IWindowService, IURIToOpen, IOpenSettings, INewWindowO
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID, IExplorerService, resourceToFileOnDisk } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
@@ -330,7 +330,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = basename(uri);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			editorService.openEditor({ leftResource: uri.with({ scheme: COMPARE_WITH_SAVED_SCHEMA }), rightResource: uri, label: editorLabel }).then(() => {
+			editorService.openEditor({ leftResource: resourceToFileOnDisk(COMPARE_WITH_SAVED_SCHEMA, uri), rightResource: uri, label: editorLabel }).then(() => {
 
 				// Dispose once no more diff editor is opened with the scheme
 				if (registerEditorListener) {

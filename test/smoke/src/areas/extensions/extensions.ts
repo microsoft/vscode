@@ -28,14 +28,14 @@ export class Extensions extends Viewlet {
 		await this.code.waitForElement(SEARCH_BOX);
 	}
 
-	async searchForExtension(name: string): Promise<any> {
+	async searchForExtension(id: string): Promise<any> {
 		await this.code.waitAndClick(SEARCH_BOX);
 		await this.code.waitForActiveElement(SEARCH_BOX);
-		await this.code.waitForTypeInEditor(SEARCH_BOX, `name:"${name}"`);
+		await this.code.waitForTypeInEditor(SEARCH_BOX, `@id:${id}`);
 	}
 
-	async installExtension(name: string): Promise<void> {
-		await this.searchForExtension(name);
+	async installExtension(id: string, name: string): Promise<void> {
+		await this.searchForExtension(id);
 		const ariaLabel = `${name}. Press enter for extension details.`;
 		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${ariaLabel}"] .extension li[class='action-item'] .extension-action.install`);
 		await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`);

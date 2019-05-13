@@ -19,7 +19,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { FileOnDiskContentProvider } from 'vs/workbench/contrib/files/common/files';
+import { FileOnDiskContentProvider, resourceToFileOnDisk } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SAVE_FILE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
@@ -248,7 +248,7 @@ class ResolveSaveConflictAction extends Action {
 
 			return this.editorService.openEditor(
 				{
-					leftResource: resource.with({ scheme: CONFLICT_RESOLUTION_SCHEME }),
+					leftResource: resourceToFileOnDisk(CONFLICT_RESOLUTION_SCHEME, resource),
 					rightResource: resource,
 					label: editorLabel,
 					options: { pinned: true }
