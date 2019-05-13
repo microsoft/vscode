@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display } from 'electron';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -740,32 +740,30 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Single Monitor: be strict about x/y positioning
 		if (displays.length === 1) {
-			const displayBounds = displays[0].bounds;
-
-			// Careful with maximized: in that mode x/y can well be negative!
-			if (state.mode !== WindowMode.Maximized && displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
-				if (state.x < displayBounds.x) {
-					state.x = displayBounds.x; // prevent window from falling out of the screen to the left
+			const displayWorkingArea = this.getWorkingArea(displays[0]);
+			if (state.mode !== WindowMode.Maximized && displayWorkingArea) {
+				if (state.x < displayWorkingArea.x) {
+					state.x = displayWorkingArea.x; // prevent window from falling out of the screen to the left
 				}
 
-				if (state.y < displayBounds.y) {
-					state.y = displayBounds.y; // prevent window from falling out of the screen to the top
+				if (state.y < displayWorkingArea.y) {
+					state.y = displayWorkingArea.y; // prevent window from falling out of the screen to the top
 				}
 
-				if (state.x > (displayBounds.x + displayBounds.width)) {
-					state.x = displayBounds.x; // prevent window from falling out of the screen to the right
+				if (state.x > (displayWorkingArea.x + displayWorkingArea.width)) {
+					state.x = displayWorkingArea.x; // prevent window from falling out of the screen to the right
 				}
 
-				if (state.y > (displayBounds.y + displayBounds.height)) {
-					state.y = displayBounds.y; // prevent window from falling out of the screen to the bottom
+				if (state.y > (displayWorkingArea.y + displayWorkingArea.height)) {
+					state.y = displayWorkingArea.y; // prevent window from falling out of the screen to the bottom
 				}
 
-				if (state.width > displayBounds.width) {
-					state.width = displayBounds.width; // prevent window from exceeding display bounds width
+				if (state.width > displayWorkingArea.width) {
+					state.width = displayWorkingArea.width; // prevent window from exceeding display bounds width
 				}
 
-				if (state.height > displayBounds.height) {
-					state.height = displayBounds.height; // prevent window from exceeding display bounds height
+				if (state.height > displayWorkingArea.height) {
+					state.height = displayWorkingArea.height; // prevent window from exceeding display bounds height
 				}
 			}
 
@@ -791,12 +789,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Multi Monitor (non-fullscreen): be less strict because metrics can be crazy
 		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
 		const display = screen.getDisplayMatching(bounds);
+		const displayWorkingArea = this.getWorkingArea(display);
 		if (
-			display &&												// we have a display matching the desired bounds
-			bounds.x < display.bounds.x + display.bounds.width &&	// prevent window from falling out of the screen to the right
-			bounds.y < display.bounds.y + display.bounds.height &&	// prevent window from falling out of the screen to the bottom
-			bounds.x + bounds.width > display.bounds.x &&			// prevent window from falling out of the screen to the left
-			bounds.y + bounds.height > display.bounds.y				// prevent window from falling out of the scree nto the top
+			display &&														// we have a display matching the desired bounds
+			displayWorkingArea &&											// we have valid working area bounds
+			bounds.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
+			bounds.y < displayWorkingArea.y + displayWorkingArea.height &&	// prevent window from falling out of the screen to the bottom
+			bounds.x + bounds.width > displayWorkingArea.x &&				// prevent window from falling out of the screen to the left
+			bounds.y + bounds.height > displayWorkingArea.y					// prevent window from falling out of the scree nto the top
 		) {
 			if (state.mode === WindowMode.Maximized) {
 				const defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
@@ -810,6 +810,24 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		return null;
+	}
+
+	private getWorkingArea(display: Display): Rectangle | undefined {
+
+		// Prefer the working area of the display to account for taskbars on the
+		// desktop being positioned somewhere (https://github.com/Microsoft/vscode/issues/50830).
+		//
+		// Linux X11 sessions sometimes report wrong display bounds, so we validate
+		// the reported sizes are positive.
+		if (display.workArea.width > 0 && display.workArea.height > 0) {
+			return display.workArea;
+		}
+
+		if (display.bounds.width > 0 && display.bounds.height > 0) {
+			return display.bounds;
+		}
+
+		return undefined;
 	}
 
 	getBounds(): Electron.Rectangle {

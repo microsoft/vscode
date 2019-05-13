@@ -370,7 +370,7 @@ class InlineImageView {
 			dispose: () => combinedDisposable(disposables).dispose()
 		};
 
-		const cacheKey = descriptor.resource.toString();
+		const cacheKey = `${descriptor.resource.toString()}:${descriptor.etag}`;
 
 		let ctrlPressed = false;
 		let altPressed = false;

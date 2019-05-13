@@ -21,7 +21,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { getIconClasses, getConfiguredLangId } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses, detectModeId } from 'vs/editor/common/services/getIconClasses';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -121,7 +121,16 @@ export class ResourceLabels extends Disposable {
 				return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
 			}
 
-			this._widgets.forEach(widget => widget.notifyModelModeChanged(e));
+			this._widgets.forEach(widget => widget.notifyModelModeChanged(e.model));
+		}));
+
+		// notify when model is added
+		this._register(this.modelService.onModelAdded(model => {
+			if (!model.uri) {
+				return; // we need the resource to compare
+			}
+
+			this._widgets.forEach(widget => widget.notifyModelAdded(model));
 		}));
 
 		// notify when file decoration changes
@@ -228,7 +237,7 @@ class ResourceLabelWidget extends IconLabel {
 	private label?: IResourceLabelProps;
 	private options?: IResourceLabelOptions;
 	private computedIconClasses?: string[];
-	private lastKnownConfiguredLangId?: string;
+	private lastKnownDetectedModeId?: string;
 	private computedPathLabel?: string;
 
 	private needsRedraw?: Redraw;
@@ -258,13 +267,21 @@ class ResourceLabelWidget extends IconLabel {
 		}
 	}
 
-	notifyModelModeChanged(e: { model: ITextModel; oldModeId: string; }): void {
+	notifyModelModeChanged(model: ITextModel): void {
+		this.handleModelEvent(model);
+	}
+
+	notifyModelAdded(model: ITextModel): void {
+		this.handleModelEvent(model);
+	}
+
+	private handleModelEvent(model: ITextModel): void {
 		if (!this.label || !this.label.resource) {
 			return; // only update if label exists
 		}
 
-		if (e.model.uri.toString() === this.label.resource.toString()) {
-			if (this.lastKnownConfiguredLangId !== e.model.getLanguageIdentifier().language) {
+		if (model.uri.toString() === this.label.resource.toString()) {
+			if (this.lastKnownDetectedModeId !== model.getModeId()) {
 				this.render(true); // update if the language id of the model has changed from our last known state
 			}
 		}
@@ -367,7 +384,7 @@ class ResourceLabelWidget extends IconLabel {
 	clear(): void {
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownConfiguredLangId = undefined;
+		this.lastKnownDetectedModeId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 
@@ -388,10 +405,10 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.label) {
-			const configuredLangId = this.label.resource ? withNullAsUndefined(getConfiguredLangId(this.modelService, this.modeService, this.label.resource)) : undefined;
-			if (this.lastKnownConfiguredLangId !== configuredLangId) {
+			const detectedModeId = this.label.resource ? withNullAsUndefined(detectModeId(this.modelService, this.modeService, this.label.resource)) : undefined;
+			if (this.lastKnownDetectedModeId !== detectedModeId) {
 				clearIconCache = true;
-				this.lastKnownConfiguredLangId = configuredLangId;
+				this.lastKnownDetectedModeId = detectedModeId;
 			}
 		}
 
@@ -465,7 +482,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownConfiguredLangId = undefined;
+		this.lastKnownDetectedModeId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 	}
