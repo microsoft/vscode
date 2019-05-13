@@ -31,7 +31,7 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	constructor(defaultSettingsResource: URI,
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
-		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, textModelResolverService);
+		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, undefined, textModelResolverService);
 	}
 
 	getTypeId(): string {
