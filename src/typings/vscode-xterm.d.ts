@@ -910,7 +910,6 @@ declare module 'vscode-xterm' {
 		_core: TerminalCore;
 
 		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
-		winptyCompatInit(): void;
 
 		/**
 		 * Find the next instance of the term, then scroll to and select it. If it
