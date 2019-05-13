@@ -234,14 +234,14 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	args = { _: [] };
 	execPath: string;
 	cliPath: string;
-	appRoot: string = '/nodeless/';
+	appRoot: string = '/web/';
 	userHome: string;
 	userDataPath: string;
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string = '/nodeless/settings';
-	appSettingsPath: string = '/nodeless/settings/settings.json';
-	appKeybindingsPath: string = '/nodeless/settings/keybindings.json';
+	appSettingsHome: string = '/web/settings';
+	appSettingsPath: string = '/web/settings/settings.json';
+	appKeybindingsPath: string = '/web/settings/keybindings.json';
 	machineSettingsHome: string;
 	machineSettingsPath: string;
 	settingsSearchBuildId?: number;
@@ -264,7 +264,7 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	wait: boolean;
 	status: boolean;
 	log?: string;
-	logsPath: string = '/nodeless/logs';
+	logsPath: string = '/web/logs';
 	verbose: boolean;
 	skipGettingStarted: boolean;
 	skipReleaseNotes: boolean;

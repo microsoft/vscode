@@ -80,8 +80,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private readonly touchBarGroups: Electron.TouchBarSegmentedControl[];
 
-	private nodeless: boolean;
-
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
@@ -97,8 +95,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this.whenReadyCallbacks = [];
-
-		this.nodeless = !!(environmentService.args.nodeless && !environmentService.isBuilt);
 
 		// create browser window
 		this.createBrowserWindow(config);
@@ -129,7 +125,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: this.nodeless ? undefined : getBackgroundColor(this.stateService),
+			backgroundColor: getBackgroundColor(this.stateService),
 			minWidth: CodeWindow.MIN_WIDTH,
 			minHeight: CodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
@@ -142,10 +138,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				backgroundThrottling: false
 			}
 		};
-
-		if (this.nodeless) {
-			options.webPreferences!.nodeIntegration = false; // simulate Electron 5 behaviour
-		}
 
 		if (isLinux) {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
@@ -196,10 +188,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (!this._win.isVisible()) {
 				this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
 			}
-		}
-
-		if (this.nodeless) {
-			this._win.webContents.toggleDevTools();
 		}
 
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
@@ -637,10 +625,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private doGetUrl(config: object): string {
-		if (this.nodeless) {
-			return `${require.toUrl('vs/code/electron-browser/workbench/workbench.nodeless.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
-		}
-
 		return `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 

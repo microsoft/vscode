@@ -26,13 +26,15 @@
 
 		// @ts-ignore
 		require([
-			'vs/workbench/workbench.nodeless.main',
-			'vs/nls!vs/workbench/workbench.nodeless.main',
-			'vs/css!vs/workbench/workbench.nodeless.main'
-		], function () {
-
+			'vs/workbench/workbench.web.main',
+			'vs/nls!vs/workbench/workbench.web.main',
+			'vs/css!vs/workbench/workbench.web.main'
+		],
 			// @ts-ignore
-			require('vs/workbench/browser/nodeless.main').main().then(undefined, console.error);
-		});
+			function () {
+
+				// @ts-ignore
+				require('vs/workbench/browser/web.main').main().then(undefined, console.error);
+			});
 	});
 })();
