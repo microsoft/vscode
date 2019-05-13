@@ -230,10 +230,11 @@ export function isUnspecific(mime: string[] | string): boolean {
  * 2. Otherwise, if there are other extensions, suggest the first one.
  * 3. Otherwise, suggest the prefix.
  */
-export function suggestFilename(langId: string | null, prefix: string): string {
+export function suggestFilename(mode: string | undefined, prefix: string): string {
 	const extensions = registeredAssociations
-		.filter(assoc => !assoc.userConfigured && assoc.extension && assoc.id === langId)
+		.filter(assoc => !assoc.userConfigured && assoc.extension && assoc.id === mode)
 		.map(assoc => assoc.extension);
+
 	const extensionsWithDotFirst = coalesce(extensions)
 		.filter(assoc => startsWith(assoc, '.'));
 

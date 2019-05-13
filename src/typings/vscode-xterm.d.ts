@@ -928,5 +928,7 @@ declare module 'vscode-xterm' {
 		 * @return Whether a result was found.
 		 */
 		findPrevious(term: string, findOptions: ISearchOptions): boolean;
+
+		addCsiHandler(flag: string, callback: (params: number[], collect: string) => boolean): IDisposable;
 	}
 }

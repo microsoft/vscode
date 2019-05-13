@@ -439,6 +439,13 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 				if (this._processManager.os === platform.OperatingSystem.Windows) {
 					this._xterm.setOption('windowsMode', true);
+					// Force line data to be sent when the cursor is moved, the main purpose for
+					// this is because ConPTY will often not do a line feed but instead move the
+					// cursor, in which case we still want to send the current line's data to tasks.
+					this._xterm.addCsiHandler('H', () => {
+						this._onCursorMove();
+						return false;
+					});
 				}
 				this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager);
 			});
@@ -1112,6 +1119,11 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!newLine.isWrapped) {
 			this._sendLineData(buffer, buffer.ybase + buffer.y - 1);
 		}
+	}
+
+	private _onCursorMove(): void {
+		const buffer = (<any>this._xterm._core.buffer);
+		this._sendLineData(buffer, buffer.ybase + buffer.y);
 	}
 
 	private _sendLineData(buffer: any, lineIndex: number): void {
