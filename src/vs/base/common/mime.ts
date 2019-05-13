@@ -197,7 +197,11 @@ function guessMimeTypeByFirstline(firstLine: string): string | null {
 	}
 
 	if (firstLine.length > 0) {
-		for (const association of registeredAssociations) {
+
+		// We want to prioritize associations based on the order they are registered so that the last registered
+		// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
+		for (let i = registeredAssociations.length - 1; i >= 0; i--) {
+			const association = registeredAssociations[i];
 			if (!association.firstline) {
 				continue;
 			}
