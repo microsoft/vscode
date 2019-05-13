@@ -238,59 +238,44 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private async doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): Promise<void> {
 
 		// Handle file resources first
-		await Promise.all(dirtyFileModels.map(async model => {
-			const snapshot = model.createSnapshot();
-			if (snapshot) {
-				await this.backupFileService.backupResource(model.getResource(), snapshot, model.getVersionId());
-			}
-		}));
+		await Promise.all(dirtyFileModels.map(model => model.backup()));
 
 		// Handle untitled resources
-		const untitledModelPromises = untitledResources
+		await Promise.all(untitledResources
 			.filter(untitled => this.untitledEditorService.exists(untitled))
-			.map(untitled => this.untitledEditorService.loadOrCreate({ resource: untitled }));
-
-		const untitledModels = await Promise.all(untitledModelPromises);
-
-		await Promise.all(untitledModels.map(async model => {
-			const snapshot = model.createSnapshot();
-			if (snapshot) {
-				await this.backupFileService.backupResource(model.getResource(), snapshot, model.getVersionId());
-			}
-		}));
+			.map(async untitled => (await this.untitledEditorService.loadOrCreate({ resource: untitled })).backup()));
 	}
 
-	private confirmBeforeShutdown(): boolean | Promise<boolean> {
-		return this.confirmSave().then(confirm => {
+	private async confirmBeforeShutdown(): Promise<boolean> {
+		const confirm = await this.confirmSave();
 
-			// Save
-			if (confirm === ConfirmResult.SAVE) {
-				return this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true }).then(result => {
-					if (result.results.some(r => !r.success)) {
-						return true; // veto if some saves failed
-					}
+		// Save
+		if (confirm === ConfirmResult.SAVE) {
+			const result = await this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true });
 
-					return this.noVeto({ cleanUpBackups: true });
-				});
+			if (result.results.some(r => !r.success)) {
+				return true; // veto if some saves failed
 			}
 
-			// Don't Save
-			else if (confirm === ConfirmResult.DONT_SAVE) {
+			return this.noVeto({ cleanUpBackups: true });
+		}
 
-				// Make sure to revert untitled so that they do not restore
-				// see https://github.com/Microsoft/vscode/issues/29572
-				this.untitledEditorService.revertAll();
+		// Don't Save
+		else if (confirm === ConfirmResult.DONT_SAVE) {
 
-				return this.noVeto({ cleanUpBackups: true });
-			}
+			// Make sure to revert untitled so that they do not restore
+			// see https://github.com/Microsoft/vscode/issues/29572
+			this.untitledEditorService.revertAll();
 
-			// Cancel
-			else if (confirm === ConfirmResult.CANCEL) {
-				return true; // veto
-			}
+			return this.noVeto({ cleanUpBackups: true });
+		}
 
-			return false;
-		});
+		// Cancel
+		else if (confirm === ConfirmResult.CANCEL) {
+			return true; // veto
+		}
+
+		return false;
 	}
 
 	private noVeto(options: { cleanUpBackups: boolean }): boolean | Promise<boolean> {
@@ -503,10 +488,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				dirtyTargetModelUris.push(targetModelResource);
 
 				// Backup dirty source model to the target resource it will become later
-				const snapshot = sourceModel.createSnapshot();
-				if (snapshot) {
-					await this.backupFileService.backupResource(targetModelResource, snapshot, sourceModel.getVersionId());
-				}
+				await sourceModel.backup(targetModelResource);
 			}));
 		}
 
@@ -872,17 +854,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 			// take over encoding, mode and model value from source model
 			targetModel.updatePreferredEncoding(sourceModel.getEncoding());
-			if (targetModel.textEditorModel) {
-				const snapshot = sourceModel.createSnapshot();
-				if (snapshot) {
-					this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(snapshot));
-				}
+			if (sourceModel.isResolved() && targetModel.isResolved()) {
+				this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
 
-				if (sourceModel.textEditorModel) {
-					const language = sourceModel.textEditorModel.getLanguageIdentifier();
-					if (language.id > 1) {
-						targetModel.textEditorModel.setMode(language); // only use if more specific than plain/text
-					}
+				const language = sourceModel.textEditorModel.getLanguageIdentifier();
+				if (language.id > 1) {
+					targetModel.textEditorModel.setMode(language); // only use if more specific than plain/text
 				}
 			}
 

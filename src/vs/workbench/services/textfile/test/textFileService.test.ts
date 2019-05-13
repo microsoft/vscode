@@ -65,7 +65,7 @@ suite('Files - TextFileService', () => {
 		accessor.untitledEditorService.revertAll();
 	});
 
-	test('confirm onWillShutdown - no veto', function () {
+	test('confirm onWillShutdown - no veto', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
@@ -76,9 +76,7 @@ suite('Files - TextFileService', () => {
 		if (typeof veto === 'boolean') {
 			assert.ok(!veto);
 		} else {
-			veto.then(veto => {
-				assert.ok(!veto);
-			});
+			assert.ok(!(await veto));
 		}
 	});
 

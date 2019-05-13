@@ -44,7 +44,7 @@ suite('Files - TextFileEditorModel', () => {
 		accessor.fileService.setContent(content);
 	});
 
-	test('Save', async function () {
+	test('save', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		await model.load();
@@ -52,10 +52,38 @@ suite('Files - TextFileEditorModel', () => {
 		model.textEditorModel!.setValue('bar');
 		assert.ok(getLastModifiedTime(model) <= Date.now());
 
+		let savedEvent = false;
+		model.onDidStateChange(e => {
+			if (e === StateChange.SAVED) {
+				savedEvent = true;
+			}
+		});
+
 		await model.save();
 
 		assert.ok(model.getLastSaveAttemptTime() <= Date.now());
 		assert.ok(!model.isDirty());
+		assert.ok(savedEvent);
+
+		model.dispose();
+		assert.ok(!accessor.modelService.getModel(model.getResource()));
+	});
+
+	test('save - touching also emits saved event', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
+
+		await model.load();
+
+		let savedEvent = false;
+		model.onDidStateChange(e => {
+			if (e === StateChange.SAVED) {
+				savedEvent = true;
+			}
+		});
+
+		await model.save({ force: true });
+
+		assert.ok(savedEvent);
 
 		model.dispose();
 		assert.ok(!accessor.modelService.getModel(model.getResource()));

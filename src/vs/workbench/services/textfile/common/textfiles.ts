@@ -448,13 +448,9 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	readonly onDidContentChange: Event<StateChange>;
 	readonly onDidStateChange: Event<StateChange>;
 
-	getVersionId(): number;
-
 	getResource(): URI;
 
 	hasState(state: ModelState): boolean;
-
-	getETag(): string | null;
 
 	updatePreferredEncoding(encoding: string): void;
 
@@ -464,16 +460,17 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(soft?: boolean): Promise<void>;
 
-	createSnapshot(): ITextSnapshot | null;
+	backup(target?: URI): Promise<void>;
 
 	isDirty(): boolean;
 
-	isResolved(): boolean;
+	isResolved(): this is IResolvedTextFileEditorModel;
 
 	isDisposed(): boolean;
 }
 
 export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
+
 	readonly textEditorModel: ITextModel;
 
 	createSnapshot(): ITextSnapshot;

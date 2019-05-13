@@ -134,24 +134,32 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
+	backup(): Promise<void> {
+		if (this.isResolved()) {
+			return this.backupFileService.backupResource(this.resource, this.createSnapshot(), this.versionId);
+		}
+
+		return Promise.resolve();
+	}
+
 	load(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
 
 		// Check for backups first
-		return this.backupFileService.loadBackupResource(this.resource).then((backupResource) => {
+		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
 			if (backupResource) {
 				return this.backupFileService.resolveBackupContent(backupResource);
 			}
 
-			return undefined;
-		}).then(backupTextBufferFactory => {
-			const hasBackup = !!backupTextBufferFactory;
+			return Promise.resolve(undefined);
+		}).then(backup => {
+			const hasBackup = !!backup;
 
 			// untitled associated to file path are dirty right away as well as untitled with content
 			this.setDirty(this._hasAssociatedFilePath || hasBackup);
 
 			let untitledContents: ITextBufferFactory;
-			if (backupTextBufferFactory) {
-				untitledContents = backupTextBufferFactory;
+			if (backup) {
+				untitledContents = backup.value;
 			} else {
 				untitledContents = createTextBufferFactory(this.initialValue || '');
 			}
