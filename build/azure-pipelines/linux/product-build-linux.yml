@@ -10,7 +10,7 @@ steps:
 - task: AzureKeyVault@1
   displayName: 'Azure Key Vault: Get Secrets'
   inputs:
-    azureSubscription: 'VS Code Setup, Update, and Build Services (8afa857f-ba38-4efa-bd5b-41fc50ac5200)'
+    azureSubscription: 'vscode-builds-subscription'
     KeyVaultName: vscode
 
 - script: |
