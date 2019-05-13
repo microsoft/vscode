@@ -287,6 +287,30 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('events: onDidSaveTextDocument fires even for non dirty file when saved', () => {
+		return createRandomFile().then(file => {
+			let disposables: vscode.Disposable[] = [];
+
+			let onDidSaveTextDocument = false;
+			disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
+				assert.ok(pathEquals(e.uri.fsPath, file.fsPath));
+				onDidSaveTextDocument = true;
+			}));
+
+			return vscode.workspace.openTextDocument(file).then(doc => {
+				return vscode.window.showTextDocument(doc).then(() => {
+					return vscode.commands.executeCommand('workbench.action.files.save').then(() => {
+						assert.ok(onDidSaveTextDocument);
+
+						disposeAll(disposables);
+
+						return deleteFile(file);
+					});
+				});
+			});
+		});
+	});
+
 	test('openTextDocument, with selection', function () {
 		return createRandomFile('foo\nbar\nbar').then(file => {
 			return vscode.workspace.openTextDocument(file).then(doc => {

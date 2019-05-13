@@ -20,6 +20,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -470,7 +471,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 					.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
 				return this._apiInspectConfigToPlain<string | string[]>(setting);
 			};
-			terminalEnvironment.mergeDefaultShellPathAndArgs(shellLaunchConfig, fetchSetting, isWorkspaceShellAllowed || false);
+			terminalEnvironment.mergeDefaultShellPathAndArgs(shellLaunchConfig, fetchSetting, isWorkspaceShellAllowed || false, getDefaultShell(platform.platform));
 		}
 
 		// Get the initial cwd

@@ -6,9 +6,8 @@
 import { IEncodingSupport } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
-import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -37,7 +36,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private configuredEncoding: string;
 
 	constructor(
-		private readonly modeId: string,
+		private readonly preferredMode: string,
 		private readonly resource: URI,
 		private _hasAssociatedFilePath: boolean,
 		private readonly initialValue: string,
@@ -56,14 +55,6 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 	get hasAssociatedFilePath(): boolean {
 		return this._hasAssociatedFilePath;
-	}
-
-	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): ILanguageSelection {
-		if (!modeId || modeId === PLAINTEXT_MODE_ID) {
-			return modeService.createByFilepathOrFirstLine(this.resource.fsPath, firstLineText); // lookup mode via resource path if the provided modeId is unspecific
-		}
-
-		return super.getOrCreateMode(modeService, modeId, firstLineText);
 	}
 
 	private registerListeners(): void {
@@ -88,12 +79,12 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.versionId;
 	}
 
-	getModeId(): string | null {
+	getMode(): string | undefined {
 		if (this.textEditorModel) {
-			return this.textEditorModel.getLanguageIdentifier().language;
+			return this.textEditorModel.getModeId();
 		}
 
-		return this.modeId;
+		return this.preferredMode;
 	}
 
 	getEncoding(): string {
@@ -134,36 +125,44 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
+	backup(): Promise<void> {
+		if (this.isResolved()) {
+			return this.backupFileService.backupResource(this.resource, this.createSnapshot(), this.versionId);
+		}
+
+		return Promise.resolve();
+	}
+
 	load(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
 
 		// Check for backups first
-		return this.backupFileService.loadBackupResource(this.resource).then((backupResource) => {
+		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
 			if (backupResource) {
 				return this.backupFileService.resolveBackupContent(backupResource);
 			}
 
-			return undefined;
-		}).then(backupTextBufferFactory => {
-			const hasBackup = !!backupTextBufferFactory;
+			return Promise.resolve(undefined);
+		}).then(backup => {
+			const hasBackup = !!backup;
 
 			// untitled associated to file path are dirty right away as well as untitled with content
-			this.setDirty(this._hasAssociatedFilePath || hasBackup);
+			this.setDirty(this._hasAssociatedFilePath || hasBackup || !!this.initialValue);
 
 			let untitledContents: ITextBufferFactory;
-			if (backupTextBufferFactory) {
-				untitledContents = backupTextBufferFactory;
+			if (backup) {
+				untitledContents = backup.value;
 			} else {
 				untitledContents = createTextBufferFactory(this.initialValue || '');
 			}
 
 			// Create text editor model if not yet done
 			if (!this.textEditorModel) {
-				this.createTextEditorModel(untitledContents, this.resource, this.modeId);
+				this.createTextEditorModel(untitledContents, this.resource, this.preferredMode);
 			}
 
 			// Otherwise update
 			else {
-				this.updateTextEditorModel(untitledContents);
+				this.updateTextEditorModel(untitledContents, this.preferredMode);
 			}
 
 			// Encoding

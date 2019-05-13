@@ -42,8 +42,8 @@ import { Schemas } from 'vs/base/common/network';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
-	public static readonly ID = VIEWLET_ID;
-	public static readonly LABEL = nls.localize('showExplorerViewlet', "Show Explorer");
+	static readonly ID = VIEWLET_ID;
+	static readonly LABEL = nls.localize('showExplorerViewlet', "Show Explorer");
 
 	constructor(
 		id: string,
@@ -124,8 +124,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 // Register default file input factory
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileInputFactory({
-	createFileInput: (resource, encoding, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, encoding);
+	createFileInput: (resource, encoding, mode, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, encoding, mode);
 	},
 
 	isFileInput: (obj): obj is IFileEditorInput => {
@@ -137,6 +137,7 @@ interface ISerializedFileInput {
 	resource: string;
 	resourceJSON: object;
 	encoding?: string;
+	modeId?: string;
 }
 
 // Register Editor Input Factory
@@ -144,25 +145,27 @@ class FileEditorInputFactory implements IEditorInputFactory {
 
 	constructor() { }
 
-	public serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
 		const resource = fileEditorInput.getResource();
 		const fileInput: ISerializedFileInput = {
 			resource: resource.toString(), // Keep for backwards compatibility
 			resourceJSON: resource.toJSON(),
-			encoding: fileEditorInput.getEncoding()
+			encoding: fileEditorInput.getEncoding(),
+			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
 		};
 
 		return JSON.stringify(fileInput);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
 		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
 			const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
 			const resource = !!fileInput.resourceJSON ? URI.revive(<UriComponents>fileInput.resourceJSON) : URI.parse(fileInput.resource);
 			const encoding = fileInput.encoding;
+			const mode = fileInput.modeId;
 
-			return accessor.get(IEditorService).createInput({ resource, encoding, forceFile: true }) as FileEditorInput;
+			return accessor.get(IEditorService).createInput({ resource, encoding, mode, forceFile: true }) as FileEditorInput;
 		});
 	}
 }

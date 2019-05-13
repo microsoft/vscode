@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
+import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
+import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -86,20 +86,20 @@ export class SimpleBackupFileService implements IBackupFileService {
 		return Promise.resolve(undefined);
 	}
 
-	backupResource(resource: URI, content: ITextSnapshot, versionId?: number): Promise<void> {
+	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
 		this.backups.set(backupResource.toString(), content);
 
 		return Promise.resolve();
 	}
 
-	resolveBackupContent(backupResource: URI): Promise<ITextBufferFactory | undefined> {
+	resolveBackupContent<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
-			return Promise.resolve(createTextBufferFactoryFromSnapshot(snapshot));
+			return Promise.resolve({ value: createTextBufferFactoryFromSnapshot(snapshot) });
 		}
 
-		return Promise.resolve(undefined);
+		return Promise.reject('Unexpected backup resource to resolve');
 	}
 
 	getWorkspaceFileBackups(): Promise<URI[]> {
