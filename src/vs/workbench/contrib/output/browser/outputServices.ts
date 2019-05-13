@@ -244,7 +244,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private createInput(channel: IOutputChannel): ResourceEditorInput {
 		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channel.id });
-		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), resource);
+		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), resource, undefined);
 	}
 
 	private saveState(): void {
