@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {
@@ -69,15 +69,16 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			experimentalUseConpty: useConpty
 		};
 
-		fs.stat(shellLaunchConfig.executable!, (err) => {
-			if (err && err.code === 'ENOENT') {
-				this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
-				this._queueProcessExit();
-				this._processStartupComplete = Promise.resolve(undefined);
-				return;
-			}
-			this.setupPtyProcess(shellLaunchConfig, options);
-		});
+		// TODO: Need to verify whether executable is on $PATH, otherwise things like cmd.exe will break
+		// fs.stat(shellLaunchConfig.executable!, (err) => {
+		// 	if (err && err.code === 'ENOENT') {
+		// 		this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
+		// 		this._queueProcessExit();
+		// 		this._processStartupComplete = Promise.resolve(undefined);
+		// 		return;
+		// 	}
+		this.setupPtyProcess(shellLaunchConfig, options);
+		// });
 	}
 
 	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {
