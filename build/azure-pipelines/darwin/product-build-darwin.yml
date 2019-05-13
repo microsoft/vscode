@@ -7,6 +7,12 @@ steps:
   inputs:
     versionSpec: "1.10.1"
 
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
 - script: |
     set -e
 
@@ -78,7 +84,7 @@ steps:
 - script: |
     set -e
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
     AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
     VSCODE_HOCKEYAPP_TOKEN="$(VSCODE_HOCKEYAPP_TOKEN)" \

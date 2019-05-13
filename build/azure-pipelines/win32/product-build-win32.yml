@@ -12,6 +12,12 @@ steps:
     versionSpec: '2.x'
     addToPath: true
 
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
@@ -133,7 +139,7 @@ steps:
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
     $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(AZURE_STORAGE_ACCESS_KEY_2)"
-    $env:AZURE_DOCUMENTDB_MASTERKEY = "$(AZURE_DOCUMENTDB_MASTERKEY)"
+    $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
     $env:VSCODE_HOCKEYAPP_TOKEN = "$(VSCODE_HOCKEYAPP_TOKEN)"
     .\build\azure-pipelines\win32\publish.ps1
   displayName: Publish
