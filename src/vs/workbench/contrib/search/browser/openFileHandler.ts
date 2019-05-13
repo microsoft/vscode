@@ -203,7 +203,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		const queryOptions: IFileQueryBuilderOptions = {
 			_reason: 'openFileHandler',
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
-			filePattern: query.value,
+			filePattern: query.original,
 			cacheKey
 		};
 

@@ -1066,6 +1066,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.tocTree.setFocus([]);
+			this.viewState.filterToCategory = undefined;
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
 			this.onSearchModeToggled();
 
@@ -1207,6 +1208,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.tocTree.setFocus([]);
+			this.viewState.filterToCategory = undefined;
 			this.tocTree.expandAll();
 
 			this.renderTree(undefined, true);
