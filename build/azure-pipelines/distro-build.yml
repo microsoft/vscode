@@ -16,7 +16,7 @@ steps:
     cat << EOF > ~/.netrc
     machine github.com
     login vscode
-    password $(VSCODE_MIXIN_PASSWORD)
+    password $(github-distro-mixin-password)
     EOF
 
     git config user.email "vscode@microsoft.com"
