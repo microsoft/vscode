@@ -694,19 +694,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
 		}
-
-		if (!state) {
-			state = defaultWindowState();
-		}
-
-		return state;
+		return state || defaultWindowState();
 	}
 
 	private validateWindowState(state: IWindowState): IWindowState | undefined {
-		if (!state) {
-			return undefined;
-		}
-
 		if (typeof state.x !== 'number'
 			|| typeof state.y !== 'number'
 			|| typeof state.width !== 'number'
