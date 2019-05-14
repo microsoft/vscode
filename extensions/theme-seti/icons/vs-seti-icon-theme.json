@@ -1240,6 +1240,14 @@
 		"_zip_1": {
 			"fontCharacter": "\\E091",
 			"fontColor": "#6d8086"
+		},
+		"_drone_ci_light": {
+			"fontCharacter": "\\E092",
+			"fontColor": "#5c82bb"
+		},
+		"_drone_ci": {
+			"fontCharacter": "\\E092",
+			"fontColor": "#2c4c7c"
 		}
 	},
 	"file": "_default",
@@ -1469,7 +1477,8 @@
 		"cmakelists.txt": "_makefile_3",
 		"procfile": "_heroku",
 		"todo": "_todo",
-		"npm-debug.log": "_npm_ignored"
+		"npm-debug.log": "_npm_ignored",
+		".drone.yml": "_drone_ci"
 	},
 	"languageIds": {
 		"bat": "_windows",
