@@ -82,8 +82,8 @@ export class QuickOpenEntry {
 	/**
 	 * The options for the label to use for this entry
 	 */
-	getLabelOptions(): IIconLabelValueOptions | null {
-		return null;
+	getLabelOptions(): IIconLabelValueOptions | undefined {
+		return undefined;
 	}
 
 	/**
@@ -97,15 +97,15 @@ export class QuickOpenEntry {
 	/**
 	 * Detail information about the entry that is optional and can be shown below the label
 	 */
-	getDetail(): string | null {
-		return null;
+	getDetail(): string | undefined {
+		return undefined;
 	}
 
 	/**
 	 * The icon of the entry to identify it from others in the list
 	 */
-	getIcon(): string | null {
-		return null;
+	getIcon(): string | undefined {
+		return undefined;
 	}
 
 	/**
@@ -118,8 +118,8 @@ export class QuickOpenEntry {
 	/**
 	 * A tooltip to show when hovering over the entry.
 	 */
-	getTooltip(): string | null {
-		return null;
+	getTooltip(): string | undefined {
+		return undefined;
 	}
 
 	/**
@@ -233,7 +233,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
 
-	getLabelOptions(): IIconLabelValueOptions | null {
+	getLabelOptions(): IIconLabelValueOptions | undefined {
 		return this.entry ? this.entry.getLabelOptions() : super.getLabelOptions();
 	}
 
@@ -241,7 +241,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getAriaLabel() : super.getAriaLabel();
 	}
 
-	getDetail(): string | null {
+	getDetail(): string | undefined {
 		return this.entry ? this.entry.getDetail() : super.getDetail();
 	}
 
@@ -249,7 +249,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getResource() : super.getResource();
 	}
 
-	getIcon(): string | null {
+	getIcon(): string | undefined {
 		return this.entry ? this.entry.getIcon() : super.getIcon();
 	}
 
@@ -459,13 +459,13 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			// Label
 			const options: IIconLabelValueOptions = entry.getLabelOptions() || Object.create(null);
 			options.matches = labelHighlights || [];
-			options.title = types.withNullAsUndefined(entry.getTooltip());
+			options.title = entry.getTooltip();
 			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
 			data.label.setLabel(types.withNullAsUndefined(entry.getLabel()), entry.getDescription(), options);
 
 			// Meta
-			data.detail.set(types.withNullAsUndefined(entry.getDetail()), detailHighlights);
+			data.detail.set(entry.getDetail(), detailHighlights);
 
 			// Keybinding
 			data.keybinding.set(entry.getKeybinding()!);
