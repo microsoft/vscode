@@ -3,12 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const httpServer = require('http-server');
 const opn = require('opn');
+const cp = require('child_process');
+const path = require('path');
 
-const url = 'http://127.0.0.1:8080/out/vs/code/browser/workbench/workbench.html';
+const proc = cp.execFile(path.join(__dirname, process.platform === 'win32' ? 'remoteExtensionAgent.bat' : 'remoteExtensionAgent.sh'));
 
-httpServer.createServer({ root: '.', cache: 5 }).listen(8080);
-console.log(`Open ${url} in your browser`);
+let launched = false;
+proc.stdout.on("data", data => {
+	if (!launched && data.toString().indexOf('Extension host agent listening on 8000')) {
+		launched = true;
 
-opn(url);
+		setTimeout(() => {
+			const url = 'http://127.0.0.1:8000';
+			console.log(`Open ${url} in your browser`);
+
+			opn(url);
+		}, 100);
+	}
+});
