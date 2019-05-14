@@ -1033,7 +1033,7 @@ export class ChangeModeAction extends Action {
 		setTimeout(() => {
 			this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || base) }).then(language => {
 				if (language) {
-					const fileAssociationsConfig = this.configurationService.inspect(FILES_ASSOCIATIONS_CONFIG);
+					const fileAssociationsConfig = this.configurationService.inspect<{}>(FILES_ASSOCIATIONS_CONFIG);
 
 					let associationKey: string;
 					if (extension && base[0] !== '.') {
