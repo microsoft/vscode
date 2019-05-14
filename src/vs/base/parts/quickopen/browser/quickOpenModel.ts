@@ -36,7 +36,7 @@ let IDS = 0;
 export class QuickOpenItemAccessorClass implements IItemAccessor<QuickOpenEntry> {
 
 	getItemLabel(entry: QuickOpenEntry): string | null {
-		return entry.getLabel();
+		return types.withUndefinedAsNull(entry.getLabel());
 	}
 
 	getItemDescription(entry: QuickOpenEntry): string | null {
@@ -75,8 +75,8 @@ export class QuickOpenEntry {
 	/**
 	 * The label of the entry to identify it from others in the list
 	 */
-	getLabel(): string | null {
-		return null;
+	getLabel(): string | undefined {
+		return undefined;
 	}
 
 	/**
@@ -229,7 +229,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		this.withBorder = showBorder;
 	}
 
-	getLabel(): string | null {
+	getLabel(): string | undefined {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
 
@@ -556,7 +556,7 @@ export class QuickOpenModel implements
 	}
 
 	getLabel(entry: QuickOpenEntry): string | null {
-		return entry.getLabel();
+		return types.withUndefinedAsNull(entry.getLabel());
 	}
 
 	getAriaLabel(entry: QuickOpenEntry): string {

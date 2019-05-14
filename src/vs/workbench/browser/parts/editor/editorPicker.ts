@@ -39,7 +39,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	getLabel() {
-		return this.editor.getName();
+		return withNullAsUndefined(this.editor.getName());
 	}
 
 	getIcon(): string {
