@@ -40,7 +40,7 @@ export class QuickOpenItemAccessorClass implements IItemAccessor<QuickOpenEntry>
 	}
 
 	getItemDescription(entry: QuickOpenEntry): string | null {
-		return entry.getDescription();
+		return types.withUndefinedAsNull(entry.getDescription());
 	}
 
 	getItemPath(entry: QuickOpenEntry): string | undefined {
@@ -111,8 +111,8 @@ export class QuickOpenEntry {
 	/**
 	 * A secondary description that is optional and can be shown right to the label
 	 */
-	getDescription(): string | null {
-		return null;
+	getDescription(): string | undefined {
+		return undefined;
 	}
 
 	/**
@@ -125,15 +125,15 @@ export class QuickOpenEntry {
 	/**
 	 * A tooltip to show when hovering over the description portion of the entry.
 	 */
-	getDescriptionTooltip(): string | null {
-		return null;
+	getDescriptionTooltip(): string | undefined {
+		return undefined;
 	}
 
 	/**
 	 * An optional keybinding to show for an entry.
 	 */
-	getKeybinding(): ResolvedKeybinding | null {
-		return null;
+	getKeybinding(): ResolvedKeybinding | undefined {
+		return undefined;
 	}
 
 	/**
@@ -253,7 +253,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getIcon() : super.getIcon();
 	}
 
-	getDescription(): string | null {
+	getDescription(): string | undefined {
 		return this.entry ? this.entry.getDescription() : super.getDescription();
 	}
 
@@ -460,9 +460,9 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			const options: IIconLabelValueOptions = entry.getLabelOptions() || Object.create(null);
 			options.matches = labelHighlights || [];
 			options.title = types.withNullAsUndefined(entry.getTooltip());
-			options.descriptionTitle = entry.getDescriptionTooltip() || types.withNullAsUndefined(entry.getDescription()); // tooltip over description because it could overflow
+			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
-			data.label.setLabel(types.withNullAsUndefined(entry.getLabel()), types.withNullAsUndefined(entry.getDescription()), options);
+			data.label.setLabel(types.withNullAsUndefined(entry.getLabel()), entry.getDescription(), options);
 
 			// Meta
 			data.detail.set(types.withNullAsUndefined(entry.getDetail()), detailHighlights);

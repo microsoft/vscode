@@ -710,7 +710,7 @@ class EditorHistoryItemAccessorClass extends QuickOpenItemAccessorClass {
 	}
 
 	getItemDescription(entry: QuickOpenEntry): string | null {
-		return this.allowMatchOnDescription ? entry.getDescription() : null;
+		return this.allowMatchOnDescription ? types.withUndefinedAsNull(entry.getDescription()) : null;
 	}
 }
 
@@ -725,7 +725,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	private input: IEditorInput | IResourceInput;
 	private resource: URI | undefined;
 	private label: string | null;
-	private description: string | null;
+	private description?: string;
 	private dirty: boolean;
 
 	constructor(
@@ -745,7 +745,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		if (input instanceof EditorInput) {
 			this.resource = resourceForEditorHistory(input, fileService);
 			this.label = input.getName();
-			this.description = input.getDescription();
+			this.description = types.withNullAsUndefined(input.getDescription());
 			this.dirty = input.isDirty();
 		} else {
 			const resourceInput = input as IResourceInput;
@@ -778,7 +778,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return nls.localize('entryAriaLabel', "{0}, recently opened", this.getLabel());
 	}
 
-	getDescription(): string | null {
+	getDescription(): string | undefined {
 		return this.description;
 	}
 
