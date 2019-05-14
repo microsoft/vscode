@@ -140,8 +140,8 @@ export class QuickOpenEntry {
 	 * A resource for this entry. Resource URIs can be used to compare different kinds of entries and group
 	 * them together.
 	 */
-	getResource(): URI | null {
-		return null;
+	getResource(): URI | undefined {
+		return undefined;
 	}
 
 	/**
@@ -245,7 +245,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getDetail() : super.getDetail();
 	}
 
-	getResource(): URI | null {
+	getResource(): URI | undefined {
 		return this.entry ? this.entry.getResource() : super.getResource();
 	}
 
