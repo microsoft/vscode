@@ -58,11 +58,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Color, RGBA } from 'vs/base/common/color';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IFileService } from 'vs/platform/files/common/files';
 
-export const workspaceResource = URI.from({
+export const workspaceResource = URI.file((<any>self).USER_HOME_DIR || '/').with({
 	scheme: Schemas.vscodeRemote,
-	authority: document.location.host,
-	path: '/'
+	authority: document.location.host
 });
 
 //#region Backup File
@@ -702,7 +702,8 @@ export class SimpleSearchService implements ISearchService {
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IEditorService private editorService: IEditorService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IFileService private fileService: IFileService
 	) {
 
 	}
@@ -732,8 +733,8 @@ export class SimpleSearchService implements ISearchService {
 		return Disposable.None;
 	}
 
-	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch> {
-		const localResults = new ResourceMap<IFileMatch>();
+	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch | null> {
+		const localResults = new ResourceMap<IFileMatch | null>();
 
 		if (query.type === QueryType.Text) {
 			const models = this.modelService.getModels();
@@ -754,10 +755,8 @@ export class SimpleSearchService implements ISearchService {
 					}
 				}
 
-				// Don't support other resource schemes than files for now
-				// why is that? we should search for resources from other
-				// schemes
-				else if (resource.scheme !== Schemas.file) {
+				// Block walkthrough, webview, etc.
+				else if (!this.fileService.canHandleResource(resource)) {
 					return;
 				}
 
@@ -766,8 +765,7 @@ export class SimpleSearchService implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				// @ts-ignore
-				const matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
+				const matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, query.maxResults);
 				if (matches.length) {
 					const fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
@@ -775,7 +773,6 @@ export class SimpleSearchService implements ISearchService {
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
 					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
 				} else {
-					// @ts-ignore
 					localResults.set(resource, null);
 				}
 			});
@@ -785,13 +782,6 @@ export class SimpleSearchService implements ISearchService {
 	}
 
 	private matches(resource: URI, query: ITextQuery): boolean {
-		// includes
-		if (query.includePattern) {
-			if (resource.scheme !== Schemas.file) {
-				return false; // if we match on file patterns, we have to ignore non file resources
-			}
-		}
-
 		return pathIncludedInQuery(query, resource.fsPath);
 	}
 }
