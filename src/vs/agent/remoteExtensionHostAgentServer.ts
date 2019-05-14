@@ -28,6 +28,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 const CONNECTION_AUTH_TOKEN = generateUuid();
 
@@ -287,7 +288,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					const _data = await util.promisify(fs.readFile)(filePath);
 					const data = _data.toString()
 						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
-						.replace('{{USER_HOME_DIR}}', os.userInfo().homedir);
+						.replace('{{USER_HOME_DIR}}', escapeRegExpCharacters(os.userInfo().homedir));
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
 				} else {
