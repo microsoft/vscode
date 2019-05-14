@@ -1018,16 +1018,6 @@ declare module 'vscode-xterm' {
 	interface TerminalCore {
 		debug: boolean;
 
-		buffer: {
-			y: number;
-			ybase: number;
-			ydisp: number;
-			x: number;
-			lines: any[];
-
-			translateBufferLineToString(lineIndex: number, trimRight: boolean): string;
-		};
-
 		handler(text: string): void;
 
 		_onScroll: IEventEmitter2<number>;
