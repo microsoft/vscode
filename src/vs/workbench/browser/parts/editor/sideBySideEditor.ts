@@ -93,10 +93,10 @@ export class SideBySideEditor extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		const oldInput = <SideBySideEditorInput>this.input;
+	setInput(newInput: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+		const oldInput = this.input as SideBySideEditorInput;
 		return super.setInput(newInput, options, token)
-			.then(() => this.updateInput(oldInput, newInput, options, token));
+			.then(() => this.updateInput(oldInput, newInput as SideBySideEditorInput, options, token));
 	}
 
 	setOptions(options: EditorOptions): void {

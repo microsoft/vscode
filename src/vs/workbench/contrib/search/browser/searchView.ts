@@ -682,7 +682,7 @@ export class SearchView extends ViewletPanel {
 		}));
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch>): void {
+	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch | null>): void {
 		if (!e.element) {
 			return;
 		}
