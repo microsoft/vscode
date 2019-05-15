@@ -9,7 +9,7 @@ import fs = require('fs');
 import cp = require('child_process');
 
 
-const getRootTempDir = (() => {
+export const getRootTempDir = (() => {
 	let dir: string | undefined;
 	return () => {
 		if (!dir) {

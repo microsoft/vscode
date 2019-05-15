@@ -17,6 +17,7 @@
   ],
   "dependencies": {
     "jsonc-parser": "^2.0.1",
+    "rimraf": "^2.6.3",
     "semver": "5.5.1",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
@@ -24,10 +25,12 @@
   "devDependencies": {
     "@types/node": "8.0.33",
     "@types/semver": "^5.5.0",
+    "@types/rimraf": "2.0.2",
     "vscode": "^1.1.10"
   },
   "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json",
+    "watch": "tsc --watch"
   },
   "activationEvents": [
     "onLanguage:javascript",
