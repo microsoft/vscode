@@ -181,7 +181,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.setLocaleVariables);
 
-		this._logService.debug(`Terminal process launching`, shellLaunchConfig, initialCwd, cols, rows, env);
 		const useConpty = this._configHelper.config.windowsEnableConpty;
 		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
 	}
