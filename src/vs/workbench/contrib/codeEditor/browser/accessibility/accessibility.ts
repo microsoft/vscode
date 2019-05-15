@@ -282,7 +282,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			id: 'editor.action.showAccessibilityHelp',
 			label: nls.localize('ShowAccessibilityHelpAction', "Show Accessibility Help"),
 			alias: 'Show Accessibility Help',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Alt | KeyCode.F1,

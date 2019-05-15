@@ -367,7 +367,7 @@ export class ShowPreviousChangeAction extends EditorAction {
 			id: 'editor.action.dirtydiff.previous',
 			label: nls.localize('show previous change', "Show Previous Change"),
 			alias: 'Show Previous Change',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -401,7 +401,7 @@ export class ShowNextChangeAction extends EditorAction {
 			id: 'editor.action.dirtydiff.next',
 			label: nls.localize('show next change', "Show Next Change"),
 			alias: 'Show Next Change',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -454,7 +454,7 @@ export class MoveToPreviousChangeAction extends EditorAction {
 			id: 'workbench.action.editor.previousChange',
 			label: nls.localize('move to previous change', "Move to Previous Change"),
 			alias: 'Move to Previous Change',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -496,7 +496,7 @@ export class MoveToNextChangeAction extends EditorAction {
 			id: 'workbench.action.editor.nextChange',
 			label: nls.localize('move to next change', "Move to Next Change"),
 			alias: 'Move to Next Change',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
 	}

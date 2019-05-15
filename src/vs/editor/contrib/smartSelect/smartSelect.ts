@@ -161,7 +161,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 			id: 'editor.action.smartSelect.expand',
 			label: nls.localize('smartSelect.expand', "Expand Selection"),
 			alias: 'Expand Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
@@ -187,7 +187,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 			id: 'editor.action.smartSelect.shrink',
 			label: nls.localize('smartSelect.shrink', "Shrink Selection"),
 			alias: 'Shrink Selection',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
