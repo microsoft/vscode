@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { KeyCode, KeyMod, ResolvedKeybinding } from 'vs/base/common/keyCodes';
@@ -176,18 +176,18 @@ export class ContextMenuController implements IEditorContribution {
 
 			getActions: () => actions,
 
-			getActionItem: (action) => {
+			getActionViewItem: (action) => {
 				const keybinding = this._keybindingFor(action);
 				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
+					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
 				}
 
-				const customActionItem = <any>action;
-				if (typeof customActionItem.getActionItem === 'function') {
-					return customActionItem.getActionItem();
+				const customActionViewItem = <any>action;
+				if (typeof customActionViewItem.getActionViewItem === 'function') {
+					return customActionViewItem.getActionViewItem();
 				}
 
-				return new ActionItem(action, action, { icon: true, label: true, isMenu: true });
+				return new ActionViewItem(action, action, { icon: true, label: true, isMenu: true });
 			},
 
 			getKeyBinding: (action): ResolvedKeybinding | undefined => {
