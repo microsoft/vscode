@@ -93,10 +93,10 @@ export class SideBySideEditor extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		const oldInput = <SideBySideEditorInput>this.input;
+	setInput(newInput: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+		const oldInput = this.input as SideBySideEditorInput;
 		return super.setInput(newInput, options, token)
-			.then(() => this.updateInput(oldInput, newInput, options, token));
+			.then(() => this.updateInput(oldInput, newInput as SideBySideEditorInput, options, token));
 	}
 
 	setOptions(options: EditorOptions): void {
@@ -177,8 +177,8 @@ export class SideBySideEditor extends BaseEditor {
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		const detailsEditor = this.doCreateEditor(<EditorInput>newInput.details, this.detailsEditorContainer);
-		const masterEditor = this.doCreateEditor(<EditorInput>newInput.master, this.masterEditorContainer);
+		const detailsEditor = this.doCreateEditor(newInput.details, this.detailsEditorContainer);
+		const masterEditor = this.doCreateEditor(newInput.master, this.masterEditorContainer);
 
 		return this.onEditorsCreated(detailsEditor, masterEditor, newInput.details, newInput.master, options, token);
 	}

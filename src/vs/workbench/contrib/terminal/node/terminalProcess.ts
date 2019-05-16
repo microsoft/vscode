@@ -11,8 +11,9 @@ import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _exitCode: number;
@@ -39,7 +40,8 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		cols: number,
 		rows: number,
 		env: platform.IProcessEnvironment,
-		windowsEnableConpty: boolean
+		windowsEnableConpty: boolean,
+		@ILogService private readonly _logService: ILogService
 	) {
 		let shellName: string;
 		if (os.platform() === 'win32') {
@@ -69,19 +71,22 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			experimentalUseConpty: useConpty
 		};
 
-		fs.stat(shellLaunchConfig.executable!, (err) => {
-			if (err && err.code === 'ENOENT') {
-				this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
-				this._queueProcessExit();
-				this._processStartupComplete = Promise.resolve(undefined);
-				return;
-			}
-			this.setupPtyProcess(shellLaunchConfig, options);
-		});
+		// TODO: Need to verify whether executable is on $PATH, otherwise things like cmd.exe will break
+		// fs.stat(shellLaunchConfig.executable!, (err) => {
+		// 	if (err && err.code === 'ENOENT') {
+		// 		this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
+		// 		this._queueProcessExit();
+		// 		this._processStartupComplete = Promise.resolve(undefined);
+		// 		return;
+		// 	}
+		this.setupPtyProcess(shellLaunchConfig, options);
+		// });
 	}
 
 	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {
-		const ptyProcess = pty.spawn(shellLaunchConfig.executable!, shellLaunchConfig.args || [], options);
+		const args = shellLaunchConfig.args || [];
+		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
+		const ptyProcess = pty.spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessIdReady(() => c());
@@ -149,6 +154,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			// point but we want to make sure
 			try {
 				if (this._ptyProcess) {
+					this._logService.trace('IPty#kill');
 					this._ptyProcess.kill();
 				}
 			} catch (ex) {
@@ -183,6 +189,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		if (this._isDisposed || !this._ptyProcess) {
 			return;
 		}
+		this._logService.trace('IPty#write', data);
 		this._ptyProcess.write(data);
 	}
 
@@ -193,7 +200,10 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		// Ensure that cols and rows are always >= 1, this prevents a native
 		// exception in winpty.
 		if (this._ptyProcess) {
-			this._ptyProcess.resize(Math.max(cols, 1), Math.max(rows, 1));
+			cols = Math.max(cols, 1);
+			rows = Math.max(rows, 1);
+			this._logService.trace('IPty#resize', cols, rows);
+			this._ptyProcess.resize(cols, rows);
 		}
 	}
 
@@ -208,6 +218,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 					resolve(this._initialCwd);
 					return;
 				}
+				this._logService.trace('IPty#pid');
 				exec('lsof -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
 					if (stdout !== '') {
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
@@ -222,6 +233,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 					resolve(this._initialCwd);
 					return;
 				}
+				this._logService.trace('IPty#pid');
 				fs.readlink('/proc/' + this._ptyProcess.pid + '/cwd', (err, linkedstr) => {
 					if (err) {
 						resolve(this._initialCwd);

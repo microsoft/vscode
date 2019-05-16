@@ -218,7 +218,7 @@ class ProtocolReader extends Disposable {
 				// save new state => next time will read the body
 				this._state.readHead = false;
 				this._state.readLen = buff.readUInt32BE(9);
-				this._state.messageType = <ProtocolMessageType>buff.readUInt8(0);
+				this._state.messageType = buff.readUInt8(0);
 				this._state.id = buff.readUInt32BE(1);
 				this._state.ack = buff.readUInt32BE(5);
 			} else {

@@ -4,13 +4,10 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/3fa2a8862b6a06ca381f8e46eb782e5dd014d426",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/dc404ccf4eb08a5f76434e759b519f59051a32e5",
 	"name": "C++",
 	"scopeName": "source.cpp",
 	"patterns": [
-		{
-			"include": "#parameter_struct"
-		},
 		{
 			"include": "#struct_declare"
 		},
@@ -37,6 +34,9 @@
 		},
 		{
 			"include": "#exception_keywords"
+		},
+		{
+			"include": "#static_assert"
 		},
 		{
 			"include": "#other_keywords"
@@ -274,6 +274,10 @@
 			"match": ",",
 			"name": "comma.cpp punctuation.separator.delimiter.cpp"
 		},
+		"assignment_operator": {
+			"match": "\\=",
+			"name": "keyword.operator.assignment.cpp"
+		},
 		"preprocessor_context": {
 			"patterns": [
 				{
@@ -367,197 +371,267 @@
 				}
 			]
 		},
-		"literal_numeric_seperator": {
-			"match": "(?<!')'(?!')",
-			"name": "punctuation.separator.constant.numeric.cpp"
-		},
 		"number_literal": {
-			"match": "(?<!\\w)(?:(?:(0[xX])(?:([0-9a-fA-F](?:(?:[0-9a-fA-F]|((?<!')'(?!'))))*))?((?:(?<=[0-9a-fA-F])\\.|\\.(?=[0-9a-fA-F])))(?:([0-9a-fA-F](?:(?:[0-9a-fA-F]|((?<!')'(?!'))))*))?(?:(([pP])(\\+)?(\\-)?((?-mix:(?:[0-9](?:(?:[0-9]|(?:(?<!')'(?!'))))*)))))?|(?:([0-9](?:(?:[0-9]|((?<!')'(?!'))))*))?((?:(?<=[0-9])\\.|\\.(?=[0-9])))(?:([0-9](?:(?:[0-9]|((?<!')'(?!'))))*))?(?:(([eE])(\\+)?(\\-)?((?-mix:(?:[0-9](?:(?:[0-9]|(?:(?<!')'(?!'))))*)))))?)(?:([lLfF](?!\\w)))?|(?:(?:(?:(0[bB])((?:(?:[01]|((?<!')'(?!'))))+)|(0)((?:(?:[0-7]|((?<!')'(?!'))))+))|(0[xX])([0-9a-fA-F](?:(?:[0-9a-fA-F]|((?<!')'(?!'))))*)(?:(([pP])(\\+)?(\\-)?((?-mix:(?:[0-9](?:(?:[0-9]|(?:(?<!')'(?!'))))*)))))?)|([0-9](?:(?:[0-9]|((?<!')'(?!'))))*)(?:(([eE])(\\+)?(\\-)?((?-mix:(?:[0-9](?:(?:[0-9]|(?:(?<!')'(?!'))))*)))))?)(?:((?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)(?!\\w)))?)(\\w*)",
-			"captures": {
-				"1": {
-					"name": "keyword.other.unit.hexadecimal.cpp"
-				},
-				"2": {
-					"name": "constant.numeric.hexadecimal.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
+			"begin": "(?<!\\w)(?=\\d|\\.\\d)",
+			"end": "(?!(?:['0-9a-zA-Z_\\.']|(?<=[eEpP])[+-]))",
+			"patterns": [
+				{
+					"match": "(\\G0[xX])(?:([0-9a-fA-F](?:(?:[0-9a-fA-F]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))*))?((?:(?<=[0-9a-fA-F])\\.|\\.(?=[0-9a-fA-F])))(?:([0-9a-fA-F](?:(?:[0-9a-fA-F]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))*))?(?:((?<!')([pP])(\\+)?(\\-)?((?-mix:(?:[0-9](?:(?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))*)))))?(?:([lLfF](?!\\w)))?((?:\\w(?<![0-9a-fA-FpP])\\w*)?(?!(?:['0-9a-zA-Z_\\.']|(?<=[eEpP])[+-])))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.hexadecimal.cpp"
+						},
+						"2": {
+							"name": "constant.numeric.hexadecimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"4": {
+							"name": "constant.numeric.hexadecimal.cpp"
+						},
+						"5": {
+							"name": "constant.numeric.hexadecimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"6": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"8": {
+							"name": "keyword.other.unit.exponent.hexadecimal.cpp"
+						},
+						"9": {
+							"name": "keyword.operator.plus.exponent.hexadecimal.cpp"
+						},
+						"10": {
+							"name": "keyword.operator.minus.exponent.hexadecimal.cpp"
+						},
+						"11": {
+							"name": "constant.numeric.exponent.hexadecimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"12": {
+							"name": "keyword.other.unit.suffix.floating-point.cpp"
+						},
+						"13": {
+							"name": "keyword.other.unit.user-defined.cpp"
 						}
-					]
+					}
 				},
-				"3": {
-					"name": "punctuation.separator.constant.numeric.cpp"
-				},
-				"4": {
-					"name": "constant.numeric.hexadecimal.cpp"
-				},
-				"5": {
-					"name": "constant.numeric.hexadecimal.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
+				{
+					"match": "(\\G(?=[0-9.])(?!0[xXbB]))(?:([0-9](?:(?:[0-9]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))*))?((?:(?<=[0-9])\\.|\\.(?=[0-9])))(?:([0-9](?:(?:[0-9]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))*))?(?:((?<!')([eE])(\\+)?(\\-)?((?-mix:(?:[0-9](?:(?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))*)))))?(?:([lLfF](?!\\w)))?((?:\\w(?<![0-9eE])\\w*)?(?!(?:['0-9a-zA-Z_\\.']|(?<=[eEpP])[+-])))",
+					"captures": {
+						"2": {
+							"name": "constant.numeric.decimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"4": {
+							"name": "constant.numeric.decimal.point.cpp"
+						},
+						"5": {
+							"name": "constant.numeric.decimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"6": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"8": {
+							"name": "keyword.other.unit.exponent.decimal.cpp"
+						},
+						"9": {
+							"name": "keyword.operator.plus.exponent.decimal.cpp"
+						},
+						"10": {
+							"name": "keyword.operator.minus.exponent.decimal.cpp"
+						},
+						"11": {
+							"name": "constant.numeric.exponent.decimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"12": {
+							"name": "keyword.other.unit.suffix.floating-point.cpp"
+						},
+						"13": {
+							"name": "keyword.other.unit.user-defined.cpp"
 						}
-					]
+					}
 				},
-				"6": {
-					"name": "punctuation.separator.constant.numeric.cpp"
-				},
-				"8": {
-					"name": "keyword.other.unit.exponent.hexadecimal.cpp"
-				},
-				"9": {
-					"name": "keyword.operator.plus.exponent.hexadecimal.cpp"
-				},
-				"10": {
-					"name": "keyword.operator.minus.exponent.hexadecimal.cpp"
-				},
-				"11": {
-					"name": "constant.numeric.exponent.hexadecimal.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
+				{
+					"match": "(\\G0[bB])([01](?:(?:[01]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))*)(?:((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w)))?((?:\\w(?<![0-9])\\w*)?(?!(?:['0-9a-zA-Z_\\.']|(?<=[eEpP])[+-])))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.binary.cpp"
+						},
+						"2": {
+							"name": "constant.numeric.binary.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"4": {
+							"name": "keyword.other.unit.suffix.integer.cpp"
+						},
+						"5": {
+							"name": "keyword.other.unit.user-defined.cpp"
 						}
-					]
+					}
 				},
-				"12": {
-					"name": "constant.numeric.decimal.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
+				{
+					"match": "(\\G0)((?:(?:[0-7]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))+)(?:((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w)))?((?:\\w(?<![0-9])\\w*)?(?!(?:['0-9a-zA-Z_\\.']|(?<=[eEpP])[+-])))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.octal.cpp"
+						},
+						"2": {
+							"name": "constant.numeric.octal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"4": {
+							"name": "keyword.other.unit.suffix.integer.cpp"
+						},
+						"5": {
+							"name": "keyword.other.unit.user-defined.cpp"
 						}
-					]
+					}
 				},
-				"13": {
-					"name": "punctuation.separator.constant.numeric.cpp"
-				},
-				"14": {
-					"name": "constant.numeric.decimal.point.cpp"
-				},
-				"15": {
-					"name": "constant.numeric.decimal.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
+				{
+					"match": "(\\G0[xX])([0-9a-fA-F](?:(?:[0-9a-fA-F]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))*)(?:((?<!')([pP])(\\+)?(\\-)?((?-mix:(?:[0-9](?:(?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))*)))))?(?:((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w)))?((?:\\w(?<![0-9a-fA-FpP])\\w*)?(?!(?:['0-9a-zA-Z_\\.']|(?<=[eEpP])[+-])))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.hexadecimal.cpp"
+						},
+						"2": {
+							"name": "constant.numeric.hexadecimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"5": {
+							"name": "keyword.other.unit.exponent.hexadecimal.cpp"
+						},
+						"6": {
+							"name": "keyword.operator.plus.exponent.hexadecimal.cpp"
+						},
+						"7": {
+							"name": "keyword.operator.minus.exponent.hexadecimal.cpp"
+						},
+						"8": {
+							"name": "constant.numeric.exponent.hexadecimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"9": {
+							"name": "keyword.other.unit.suffix.integer.cpp"
+						},
+						"10": {
+							"name": "keyword.other.unit.user-defined.cpp"
 						}
-					]
+					}
 				},
-				"16": {
-					"name": "punctuation.separator.constant.numeric.cpp"
-				},
-				"18": {
-					"name": "keyword.other.unit.exponent.decimal.cpp"
-				},
-				"19": {
-					"name": "keyword.operator.plus.exponent.decimal.cpp"
-				},
-				"20": {
-					"name": "keyword.operator.minus.exponent.decimal.cpp"
-				},
-				"21": {
-					"name": "constant.numeric.exponent.decimal.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
+				{
+					"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:(?:[0-9]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))*)(?:((?<!')([eE])(\\+)?(\\-)?((?-mix:(?:[0-9](?:(?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F]))))*)))))?(?:((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w)))?((?:\\w(?<![0-9eE])\\w*)?(?!(?:['0-9a-zA-Z_\\.']|(?<=[eEpP])[+-])))",
+					"captures": {
+						"2": {
+							"name": "constant.numeric.decimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"5": {
+							"name": "keyword.other.unit.exponent.decimal.cpp"
+						},
+						"6": {
+							"name": "keyword.operator.plus.exponent.decimal.cpp"
+						},
+						"7": {
+							"name": "keyword.operator.minus.exponent.decimal.cpp"
+						},
+						"8": {
+							"name": "constant.numeric.exponent.decimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"9": {
+							"name": "keyword.other.unit.suffix.integer.cpp"
+						},
+						"10": {
+							"name": "keyword.other.unit.user-defined.cpp"
 						}
-					]
+					}
 				},
-				"22": {
-					"name": "keyword.other.unit.suffix.floating-point.cpp"
-				},
-				"23": {
-					"name": "keyword.other.unit.binary.cpp"
-				},
-				"24": {
-					"name": "constant.numeric.binary.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
-						}
-					]
-				},
-				"25": {
-					"name": "punctuation.separator.constant.numeric.cpp"
-				},
-				"26": {
-					"name": "keyword.other.unit.octal.cpp"
-				},
-				"27": {
-					"name": "constant.numeric.octal.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
-						}
-					]
-				},
-				"28": {
-					"name": "punctuation.separator.constant.numeric.cpp"
-				},
-				"29": {
-					"name": "keyword.other.unit.hexadecimal.cpp"
-				},
-				"30": {
-					"name": "constant.numeric.hexadecimal.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
-						}
-					]
-				},
-				"31": {
-					"name": "punctuation.separator.constant.numeric.cpp"
-				},
-				"33": {
-					"name": "keyword.other.unit.exponent.hexadecimal.cpp"
-				},
-				"34": {
-					"name": "keyword.operator.plus.exponent.hexadecimal.cpp"
-				},
-				"35": {
-					"name": "keyword.operator.minus.exponent.hexadecimal.cpp"
-				},
-				"36": {
-					"name": "constant.numeric.exponent.hexadecimal.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
-						}
-					]
-				},
-				"37": {
-					"name": "constant.numeric.decimal.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
-						}
-					]
-				},
-				"38": {
-					"name": "punctuation.separator.constant.numeric.cpp"
-				},
-				"40": {
-					"name": "keyword.other.unit.exponent.decimal.cpp"
-				},
-				"41": {
-					"name": "keyword.operator.plus.exponent.decimal.cpp"
-				},
-				"42": {
-					"name": "keyword.operator.minus.exponent.decimal.cpp"
-				},
-				"43": {
-					"name": "constant.numeric.exponent.decimal.cpp",
-					"patterns": [
-						{
-							"include": "#literal_numeric_seperator"
-						}
-					]
-				},
-				"44": {
-					"name": "keyword.other.unit.suffix.integer.cpp"
-				},
-				"45": {
-					"name": "keyword.other.unit.user-defined.cpp"
+				{
+					"match": "(?:(?:['0-9a-zA-Z_\\.']|(?<=[eEpP])[+-]))+",
+					"name": "invalid.illegal.constant.numeric.cpp"
 				}
-			}
+			]
 		},
 		"language_constants": {
 			"match": "(?<!\\w)(?:NULL|true|false|nullptr)(?!\\w)",
@@ -584,8 +658,13 @@
 			"name": "storage.modifier.specifier.$0.cpp"
 		},
 		"access_control_keywords": {
-			"match": "(?<!\\w)(?:private|protected|public)\\s*:",
-			"name": "storage.type.modifier.access.control.$0.cpp"
+			"match": "(?<!\\w)((?:private|protected|public))\\s*(:)",
+			"captures": {
+				"2": {
+					"name": "colon.cpp"
+				}
+			},
+			"name": "storage.type.modifier.access.control.$1.cpp"
 		},
 		"exception_keywords": {
 			"match": "(?<!\\w)(?:throw|try|catch)(?!\\w)",
@@ -695,11 +774,8 @@
 			"end": "(?:(?<=\\})|(?=[;>\\[\\]=]))",
 			"patterns": [
 				{
-					"include": "#switch_conditional_parentheses"
-				},
-				{
 					"name": "meta.head.switch.cpp",
-					"begin": "\\G| ",
+					"begin": "\\G ?",
 					"end": "((?:\\{|(?=;)))",
 					"endCaptures": {
 						"1": {
@@ -816,7 +892,7 @@
 			"name": "comma.cpp punctuation.separator.template.argument.cpp"
 		},
 		"template_call_innards": {
-			"match": "<(?:[\\s<>:,\\w])*>\\s*",
+			"match": "(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*",
 			"captures": {
 				"0": {
 					"name": "meta.template.call.cpp",
@@ -953,7 +1029,7 @@
 			}
 		},
 		"scope_resolution": {
-			"match": "((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:<(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:(<(?:[\\s<>:,\\w])*>\\s*))?(::)",
+			"match": "((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:((?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*))?(::)",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -979,8 +1055,230 @@
 			},
 			"name": "meta.scope-resolution.cpp"
 		},
+		"qualified_type": {
+			"match": "\\s*(?<!\\w)(?=\\w)(?!(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|NULL|true|false|nullptr|const|static|volatile|register|restrict|extern|inline|constexpr|mutable|friend|explicit|virtual|final|override|volatile|const|noexcept|constexpr|mutable|constexpr|consteval|private|protected|public|if|elif|else|endif|ifdef|ifndef|define|undef|include|line|error|warning|pragma|_Pragma|defined|__has_include|__has_cpp_attribute|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|concept|requires|export|thread_local|atomic_cancel|atomic_commit|atomic_noexcept|co_await|co_return|co_yield|import|module|reflexpr|synchronized|audit|axiom|transaction_safe|transaction_safe_dynamic)(?![\\w])\\s*)(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*(?:(?:(?:short|signed|unsigned|long)|(?:class|struct|union|enum))\\s+)*(?:(((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:((?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*))?(::)))?\\s*(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?(?![\\w<:.])",
+			"captures": {
+				"0": {
+					"name": "entity.name.type.cpp meta.qualified_type.cpp",
+					"patterns": [
+						{
+							"match": "(?:class|struct|union|enum)",
+							"name": "storage.type.$0.cpp"
+						},
+						{
+							"include": "#function_type"
+						},
+						{
+							"include": "#storage_types"
+						},
+						{
+							"include": "#number_literal"
+						},
+						{
+							"include": "#string_context_c"
+						},
+						{
+							"include": "#comma"
+						}
+					]
+				},
+				"1": {
+					"patterns": [
+						{
+							"include": "#attributes"
+						}
+					]
+				},
+				"2": {
+					"name": "meta.scope-resolution.cpp"
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "#scope_resolution"
+						}
+					]
+				},
+				"4": {
+					"name": "entity.name.type.namespace.scope-resolution.cpp"
+				},
+				"5": {
+					"name": "meta.template.call.cpp",
+					"patterns": [
+						{
+							"include": "#template_call_context"
+						}
+					]
+				},
+				"6": {
+					"name": "punctuation.separator.namespace.access.cpp"
+				}
+			}
+		},
+		"type_alias": {
+			"match": "(using)\\s*(?!namespace)(\\s*(?<!\\w)(?=\\w)(?!(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|NULL|true|false|nullptr|const|static|volatile|register|restrict|extern|inline|constexpr|mutable|friend|explicit|virtual|final|override|volatile|const|noexcept|constexpr|mutable|constexpr|consteval|private|protected|public|if|elif|else|endif|ifdef|ifndef|define|undef|include|line|error|warning|pragma|_Pragma|defined|__has_include|__has_cpp_attribute|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|concept|requires|export|thread_local|atomic_cancel|atomic_commit|atomic_noexcept|co_await|co_return|co_yield|import|module|reflexpr|synchronized|audit|axiom|transaction_safe|transaction_safe_dynamic)(?![\\w])\\s*)(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*(?:(?:(?:short|signed|unsigned|long)|(?:class|struct|union|enum))\\s+)*(?:(((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:((?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*))?(::)))?\\s*(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?(?![\\w<:.]))\\s*(\\=)\\s*(typename)?\\s*((?:(?-mix:(?:(?<!\\w)(?:const|static|volatile|register|restrict|extern)(?!\\w)))\\s+)*)(?:(\\s*(?<!\\w)(?=\\w)(?!(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|NULL|true|false|nullptr|const|static|volatile|register|restrict|extern|inline|constexpr|mutable|friend|explicit|virtual|final|override|volatile|const|noexcept|constexpr|mutable|constexpr|consteval|private|protected|public|if|elif|else|endif|ifdef|ifndef|define|undef|include|line|error|warning|pragma|_Pragma|defined|__has_include|__has_cpp_attribute|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|concept|requires|export|thread_local|atomic_cancel|atomic_commit|atomic_noexcept|co_await|co_return|co_yield|import|module|reflexpr|synchronized|audit|axiom|transaction_safe|transaction_safe_dynamic)(?![\\w])\\s*)(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*(?:(?:(?:short|signed|unsigned|long)|(?:class|struct|union|enum))\\s+)*(?:(((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:((?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*))?(::)))?\\s*(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?(?![\\w<:.]))|(.+(?<!;)))(((?:\\*\\s*)*)((?:\\&\\s*?){0,2})\\s*)(?:(\\[)(\\w*)(\\])\\s*)?\\s*(?:(;)|\\n)",
+			"captures": {
+				"1": {
+					"name": "keyword.other.using.directive.cpp"
+				},
+				"2": {
+					"name": "entity.name.type.cpp meta.qualified_type.cpp",
+					"patterns": [
+						{
+							"match": "(?:class|struct|union|enum)",
+							"name": "storage.type.$0.cpp"
+						},
+						{
+							"include": "#function_type"
+						},
+						{
+							"include": "#storage_types"
+						},
+						{
+							"include": "#number_literal"
+						},
+						{
+							"include": "#string_context_c"
+						},
+						{
+							"include": "#comma"
+						}
+					]
+				},
+				"3": {
+					"patterns": [
+						{
+							"include": "#attributes"
+						}
+					]
+				},
+				"4": {
+					"name": "meta.scope-resolution.cpp"
+				},
+				"5": {
+					"patterns": [
+						{
+							"include": "#scope_resolution"
+						}
+					]
+				},
+				"6": {
+					"name": "entity.name.type.namespace.scope-resolution.cpp"
+				},
+				"7": {
+					"name": "meta.template.call.cpp",
+					"patterns": [
+						{
+							"include": "#template_call_context"
+						}
+					]
+				},
+				"8": {
+					"name": "punctuation.separator.namespace.access.cpp"
+				},
+				"9": {
+					"name": "keyword.operator.assignment.cpp"
+				},
+				"10": {
+					"name": "keyword.other.typename.cpp"
+				},
+				"11": {
+					"patterns": [
+						{
+							"include": "#storage_specifiers"
+						}
+					]
+				},
+				"12": {
+					"name": "entity.name.type.cpp meta.qualified_type.cpp",
+					"patterns": [
+						{
+							"match": "(?:class|struct|union|enum)",
+							"name": "storage.type.$0.cpp"
+						},
+						{
+							"include": "#function_type"
+						},
+						{
+							"include": "#storage_types"
+						},
+						{
+							"include": "#number_literal"
+						},
+						{
+							"include": "#string_context_c"
+						},
+						{
+							"include": "#comma"
+						}
+					]
+				},
+				"13": {
+					"patterns": [
+						{
+							"include": "#attributes"
+						}
+					]
+				},
+				"14": {
+					"name": "meta.scope-resolution.cpp"
+				},
+				"15": {
+					"patterns": [
+						{
+							"include": "#scope_resolution"
+						}
+					]
+				},
+				"16": {
+					"name": "entity.name.type.namespace.scope-resolution.cpp"
+				},
+				"17": {
+					"name": "meta.template.call.cpp",
+					"patterns": [
+						{
+							"include": "#template_call_context"
+						}
+					]
+				},
+				"18": {
+					"name": "punctuation.separator.namespace.access.cpp"
+				},
+				"19": {
+					"name": "meta.declaration.type.alias.value.unknown.cpp",
+					"patterns": [
+						{
+							"include": "#evaluation_context"
+						}
+					]
+				},
+				"21": {
+					"name": "storage.modifier.pointer.cpp"
+				},
+				"22": {
+					"name": "storage.modifier.reference.cpp"
+				},
+				"23": {
+					"name": "punctuation.definition.begin.bracket.square.cpp"
+				},
+				"24": {
+					"patterns": [
+						{
+							"include": "#evaluation_context"
+						}
+					]
+				},
+				"25": {
+					"name": "punctuation.definition.end.bracket.square.cpp"
+				},
+				"26": {
+					"name": "punctuation.terminator.statement.cpp"
+				}
+			},
+			"name": "meta.declaration.type.alias.cpp"
+		},
 		"struct_declare": {
-			"match": "(struct)\\s+((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))\\s+((?:\\*|&\\s*)*)((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))",
+			"match": "(struct)\\s+((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))\\s*(?:(((?:\\*\\s*)*)((?:\\&\\s*?){0,2})\\s*)|\\s+)((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))",
 			"captures": {
 				"1": {
 					"name": "storage.type.struct.declare.cpp"
@@ -988,25 +1286,19 @@
 				"2": {
 					"name": "entity.name.type.struct.cpp"
 				},
-				"3": {
-					"patterns": [
-						{
-							"match": "\\*",
-							"name": "keyword.operator.dereference.cpp"
-						},
-						{
-							"match": "&",
-							"name": "keyword.operator.reference.cpp"
-						}
-					]
-				},
 				"4": {
+					"name": "storage.modifier.pointer.cpp"
+				},
+				"5": {
+					"name": "storage.modifier.reference.cpp"
+				},
+				"6": {
 					"name": "variable.other.object.declare.cpp"
 				}
 			}
 		},
 		"parameter_struct": {
-			"match": "(struct)\\s+((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))\\s+((?:\\*|&\\s*)*)((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))?\\s*(?:\\[\\s*\\]\\s*)?(?=,|\\)|\\n)",
+			"match": "(struct)\\s+((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))\\s*(?:(((?:\\*\\s*)*)((?:\\&\\s*?){0,2})\\s*)|\\s+)((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))?\\s*(?:\\[\\s*\\]\\s*)?(?=,|\\)|\\n)",
 			"captures": {
 				"1": {
 					"name": "storage.type.struct.parameter.cpp"
@@ -1014,19 +1306,13 @@
 				"2": {
 					"name": "entity.name.type.struct.parameter.cpp"
 				},
-				"3": {
-					"patterns": [
-						{
-							"match": "\\*",
-							"name": "keyword.operator.dereference.cpp"
-						},
-						{
-							"match": "&",
-							"name": "keyword.operator.reference.cpp"
-						}
-					]
-				},
 				"4": {
+					"name": "storage.modifier.pointer.cpp"
+				},
+				"5": {
+					"name": "storage.modifier.reference.cpp"
+				},
+				"6": {
 					"name": "variable.other.object.declare.cpp"
 				}
 			}
@@ -1044,8 +1330,48 @@
 				}
 			]
 		},
+		"static_assert": {
+			"begin": "(static_assert|_Static_assert)\\s*(\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.static_assert.cpp"
+				},
+				"2": {
+					"name": "punctuation.section.arguments.begin.bracket.round.cpp"
+				}
+			},
+			"end": "(\\))",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.section.arguments.end.bracket.round.cpp"
+				}
+			},
+			"patterns": [
+				{
+					"name": "meta.static_assert.message.cpp",
+					"begin": "(,)\\s*(?=(?:L|u8|u|U\\s*\\\")?)",
+					"beginCaptures": {
+						"1": {
+							"name": "comma.cpp punctuation.separator.delimiter.cpp"
+						}
+					},
+					"end": "(?=\\))",
+					"patterns": [
+						{
+							"include": "#string_context"
+						},
+						{
+							"include": "#string_context_c"
+						}
+					]
+				},
+				{
+					"include": "#function_call_context_c"
+				}
+			]
+		},
 		"function_call": {
-			"begin": "(?<!\\w)(?!\\s*(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|auto|void|char|short|int|signed|unsigned|long|float|double|bool|wchar_t|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t|NULL|true|false|nullptr|class|struct|union|enum|const|static|volatile|register|restrict|extern|inline|constexpr|mutable|friend|explicit|virtual|volatile|const|noexcept|constexpr|mutable|constexpr|consteval|private|protected|public|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|concept|requires|export|thread_local|atomic_cancel|atomic_commit|atomic_noexcept|co_await|co_return|co_yield|import|module|reflexpr|synchronized)\\s*\\()((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:<(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:(<(?:[\\s<>:,\\w])*>\\s*))?(\\()",
+			"begin": "(?<!\\w)(?!\\s*(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|auto|void|char|short|int|signed|unsigned|long|float|double|bool|wchar_t|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t|NULL|true|false|nullptr|class|struct|union|enum|const|static|volatile|register|restrict|extern|inline|constexpr|mutable|friend|explicit|virtual|volatile|const|noexcept|constexpr|mutable|constexpr|consteval|private|protected|public|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|concept|requires|export|thread_local|atomic_cancel|atomic_commit|atomic_noexcept|co_await|co_return|co_yield|import|module|reflexpr|synchronized)\\s*\\()((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:((?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*))?(\\()",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -1078,6 +1404,32 @@
 			"patterns": [
 				{
 					"include": "#function_call_context_c"
+				}
+			]
+		},
+		"legacy_function_definition": {
+			"name": "meta.function.definition.parameters.cpp",
+			"begin": "(?!(?:(?:::|\\+\\+|\\-\\-|\\(\\)|\\[\\]|\\.|\\->|\\+\\+|\\-\\-|\\+|\\-|!|not|~|compl|\\*|&|sizeof|sizeof\\.\\.\\.|new|new\\[\\]|delete|delete\\[\\]|\\.\\*|\\->\\*|\\*|\\/|%|\\+|\\-|<<|>>|<=>|<|<=|>|>=|==|!=|not_eq|&|bitand|\\^|xor|\\||bitor|&&|and|\\|\\||or|\\?:|throw|=|\\+=|\\-=|\\*=|\\/=|%=|<<=|>>=|&=|and_eq|\\^=|xor_eq|\\|=|or_eq|,|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast)|(?:throw|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default))\\s*\\()((?:(?:(?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*|::))+|(?<=operator)(?:\\+\\+|\\-\\-|\\(\\)|\\[\\]|\\->|\\+\\+|\\-\\-|\\+|\\-|!|~|\\*|&|new|new\\[\\]|delete|delete\\[\\]|\\->\\*|\\*|\\/|%|\\+|\\-|<<|>>|<=>|<|<=|>|>=|==|!=|&|\\^|\\||&&|\\|\\||=|\\+=|\\-=|\\*=|\\/=|%=|<<=|>>=|&=|\\^=|\\|=|,)))\\s*(\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "entity.name.function.cpp"
+				},
+				"2": {
+					"name": "punctuation.section.parameters.begin.bracket.round.cpp"
+				}
+			},
+			"end": "(\\)|:)",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.section.parameters.end.bracket.round.cpp"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#probably_a_parameter"
+				},
+				{
+					"include": "#function_context_c"
 				}
 			]
 		},
@@ -1148,8 +1500,7 @@
 					"name": "keyword.operator.cpp"
 				},
 				{
-					"match": "=",
-					"name": "keyword.operator.assignment.cpp"
+					"include": "#assignment_operator"
 				},
 				{
 					"match": "%|\\*|/|-|\\+",
@@ -1186,6 +1537,117 @@
 				}
 			]
 		},
+		"function_pointer": {
+			"begin": "(\\s*(?<!\\w)(?=\\w)(?!(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|NULL|true|false|nullptr|const|static|volatile|register|restrict|extern|inline|constexpr|mutable|friend|explicit|virtual|final|override|volatile|const|noexcept|constexpr|mutable|constexpr|consteval|private|protected|public|if|elif|else|endif|ifdef|ifndef|define|undef|include|line|error|warning|pragma|_Pragma|defined|__has_include|__has_cpp_attribute|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|concept|requires|export|thread_local|atomic_cancel|atomic_commit|atomic_noexcept|co_await|co_return|co_yield|import|module|reflexpr|synchronized|audit|axiom|transaction_safe|transaction_safe_dynamic)(?![\\w])\\s*)(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*(?:(?:(?:short|signed|unsigned|long)|(?:class|struct|union|enum))\\s+)*(?:(((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:((?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*))?(::)))?\\s*(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?(?![\\w<:.]))\\s*(((?:\\*\\s*)*)((?:\\&\\s*?){0,2})\\s*)(\\()(\\*)\\s*((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)?\\s*(?:(\\[)(\\w*)(\\])\\s*)*(\\))\\s*(\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "entity.name.type.cpp meta.qualified_type.cpp",
+					"patterns": [
+						{
+							"match": "(?:class|struct|union|enum)",
+							"name": "storage.type.$0.cpp"
+						},
+						{
+							"include": "#function_type"
+						},
+						{
+							"include": "#storage_types"
+						},
+						{
+							"include": "#number_literal"
+						},
+						{
+							"include": "#string_context_c"
+						},
+						{
+							"include": "#comma"
+						}
+					]
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#attributes"
+						}
+					]
+				},
+				"3": {
+					"name": "meta.scope-resolution.cpp"
+				},
+				"4": {
+					"patterns": [
+						{
+							"include": "#scope_resolution"
+						}
+					]
+				},
+				"5": {
+					"name": "entity.name.type.namespace.scope-resolution.cpp"
+				},
+				"6": {
+					"name": "meta.template.call.cpp",
+					"patterns": [
+						{
+							"include": "#template_call_context"
+						}
+					]
+				},
+				"7": {
+					"name": "punctuation.separator.namespace.access.cpp"
+				},
+				"9": {
+					"name": "storage.modifier.pointer.cpp"
+				},
+				"10": {
+					"name": "storage.modifier.reference.cpp"
+				},
+				"11": {
+					"name": "punctuation.section.parens.begin.bracket.round.function.pointer.cpp"
+				},
+				"12": {
+					"name": "punctuation.definition.function.pointer.dereference.cpp"
+				},
+				"13": {
+					"name": "variable.other.definition.pointer.function.cpp"
+				},
+				"14": {
+					"name": "punctuation.definition.begin.bracket.square.cpp"
+				},
+				"15": {
+					"patterns": [
+						{
+							"include": "#evaluation_context"
+						}
+					]
+				},
+				"16": {
+					"name": "punctuation.definition.end.bracket.square.cpp"
+				},
+				"17": {
+					"name": "punctuation.section.parens.end.bracket.round.function.pointer.cpp"
+				},
+				"18": {
+					"name": "punctuation.section.parameters.begin.bracket.round.function.pointer.cpp"
+				}
+			},
+			"end": "(\\))\\s*(?=[{=,);]|\\n)(?!\\()",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.section.parameters.end.bracket.round.function.pointer.cpp"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#parameter_struct"
+				},
+				{
+					"include": "#probably_a_parameter"
+				},
+				{
+					"include": "#function_context_c"
+				}
+			]
+		},
 		"probably_a_parameter": {
 			"match": "(?:((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?==))|((?<=\\w |\\*\\/|[&*>\\]\\)]|\\.\\.\\.)\\s*(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?=(?:\\[\\]\\s*)?(?:,|\\)))))",
 			"captures": {
@@ -1199,7 +1661,7 @@
 		},
 		"operator_overload": {
 			"name": "meta.function.definition.parameters.operator-overload.cpp",
-			"begin": "(operator)((?:\\s*(?:\\+\\+|\\-\\-|\\(\\)|\\[\\]|\\->|\\+\\+|\\-\\-|\\+|\\-|!|~|\\*|&|\\->\\*|\\*|\\/|%|\\+|\\-|<<|>>|<=>|<|<=|>|>=|==|!=|&|\\^|\\||&&|\\|\\||=|\\+=|\\-=|\\*=|\\/=|%=|<<=|>>=|&=|\\^=|\\|=|,)|\\s+(?:(?:new|new\\[\\]|delete|delete\\[\\])|(?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:<(?:[\\s<>:,\\w])*>\\s*)))?::)*(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:&)?)))\\s*(\\()",
+			"begin": "(operator)((?:\\s*(?:\\+\\+|\\-\\-|\\(\\)|\\[\\]|\\->|\\+\\+|\\-\\-|\\+|\\-|!|~|\\*|&|\\->\\*|\\*|\\/|%|\\+|\\-|<<|>>|<=>|<|<=|>|>=|==|!=|&|\\^|\\||&&|\\|\\||=|\\+=|\\-=|\\*=|\\/=|%=|<<=|>>=|&=|\\^=|\\|=|,)|\\s+(?:(?:new|new\\[\\]|delete|delete\\[\\])|(?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:&)?)))\\s*(\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.operator.overload.cpp"
@@ -1350,7 +1812,7 @@
 		},
 		"using_namespace": {
 			"name": "meta.using-namespace.cpp",
-			"begin": "(?<!\\w)(using)\\s+(namespace)\\s+(?:((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:<(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*))?((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))(?=;|\\n)",
+			"begin": "(?<!\\w)(using)\\s+(namespace)\\s+(?:((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*))?((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))(?=;|\\n)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.using.directive.cpp"
@@ -1378,7 +1840,7 @@
 		},
 		"namespace_block": {
 			"name": "meta.block.namespace.cpp",
-			"begin": "((?<!\\w)(namespace)\\s+(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:<(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)\\s*(?:((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))|(?=\\{)))",
+			"begin": "((?<!\\w)(namespace)(?:(?:\\s+|((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))|(?=\\{|\\n))(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)\\s*(?:(?:((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))|(?=\\{))|\\n))",
 			"beginCaptures": {
 				"1": {
 					"name": "meta.head.namespace.cpp"
@@ -1396,11 +1858,18 @@
 				"4": {
 					"patterns": [
 						{
-							"include": "#scope_resolution"
+							"include": "#attributes"
 						}
 					]
 				},
 				"5": {
+					"patterns": [
+						{
+							"include": "#scope_resolution"
+						}
+					]
+				},
+				"6": {
 					"name": "entity.name.type.namespace.cpp"
 				}
 			},
@@ -1408,7 +1877,7 @@
 			"patterns": [
 				{
 					"name": "meta.head.namespace.cpp",
-					"begin": "\\G| ",
+					"begin": "\\G ?",
 					"end": "((?:\\{|(?=;)))",
 					"endCaptures": {
 						"1": {
@@ -1448,7 +1917,7 @@
 			"name": "variable.other.macro.argument.cpp"
 		},
 		"lambdas": {
-			"begin": "((?:(?<=[^\\s]|^)(?<![\\w\\]\\)\\[])|(?<=\\Wreturn|^return))\\s*(\\[(?!\\[))((?:.*\\[.*?\\].*?)*.*?)(\\]))",
+			"begin": "((?:(?<=[^\\s]|^)(?<![\\w\\]\\)\\[\\*])|(?<=\\Wreturn|^return))\\s*(\\[(?!\\[))((?:.*\\[.*?\\].*?)*.*?)(\\]))",
 			"beginCaptures": {
 				"2": {
 					"name": "punctuation.definition.capture.begin.lambda.cpp"
@@ -1538,9 +2007,45 @@
 			"match": "(?<!\\w)[a-zA-Z_](?:\\w)*_t(?!\\w)",
 			"name": "support.type.posix-reserved.cpp"
 		},
+		"enumerator_list": {
+			"match": "((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))\\s*(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*(?:(\\=)\\s*(.+?)\\s*)?(?:(?:((?:[,;]|\\n))|(?=\\}))|(?=(?:\\/\\/|\\/\\*)))",
+			"captures": {
+				"1": {
+					"name": "variable.other.enummember.cpp"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#attributes"
+						}
+					]
+				},
+				"3": {
+					"name": "keyword.operator.assignment.cpp"
+				},
+				"4": {
+					"patterns": [
+						{
+							"include": "#evaluation_context"
+						}
+					]
+				},
+				"5": {
+					"patterns": [
+						{
+							"include": "#comma"
+						},
+						{
+							"include": "#semicolon"
+						}
+					]
+				}
+			},
+			"name": "meta.enum.definition.cpp"
+		},
 		"enum_block": {
 			"name": "meta.block.enum.cpp",
-			"begin": "((enum)\\s+(?:(class|struct)(?:(?:\\s+|((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))|(?={)))?(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))?(?:\\s*(:)\\s*(?:(((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:<(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:(<(?:[\\s<>:,\\w])*>\\s*))?(::)))?\\s*((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w)))?)",
+			"begin": "(((?<!\\w)enum(?!\\w))(?:\\s+(class|struct))?(?:(?:\\s+|((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))|(?={))\\s*((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))?(?:\\s*(:)\\s*(?:(((?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)((?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:((?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*))?(::)))?\\s*((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w)))?)",
 			"beginCaptures": {
 				"1": {
 					"name": "meta.head.enum.cpp"
@@ -1559,32 +2064,25 @@
 					]
 				},
 				"5": {
-					"patterns": [
-						{
-							"include": "#attributes"
-						}
-					]
-				},
-				"6": {
 					"name": "entity.name.type.enum.cpp"
 				},
-				"7": {
+				"6": {
 					"name": "colon.cpp punctuation.separator.type-specifier.cpp"
 				},
-				"8": {
+				"7": {
 					"name": "meta.scope-resolution.cpp"
 				},
-				"9": {
+				"8": {
 					"patterns": [
 						{
 							"include": "#scope_resolution"
 						}
 					]
 				},
-				"10": {
+				"9": {
 					"name": "entity.name.type.namespace.scope-resolution.cpp"
 				},
-				"11": {
+				"10": {
 					"name": "meta.template.call.cpp",
 					"patterns": [
 						{
@@ -1592,11 +2090,11 @@
 						}
 					]
 				},
-				"12": {
+				"11": {
 					"name": "punctuation.separator.namespace.access.cpp"
 				},
-				"13": {
-					"name": "storage.type.integral.$13.cpp"
+				"12": {
+					"name": "storage.type.integral.$12.cpp"
 				}
 			},
 			"end": "(?:(?:(?<=})\\s*(;)|(;))|(?=[;>\\[\\]=]))",
@@ -1611,7 +2109,7 @@
 			"patterns": [
 				{
 					"name": "meta.head.enum.cpp",
-					"begin": "\\G| ",
+					"begin": "\\G ?",
 					"end": "((?:\\{|(?=;)))",
 					"endCaptures": {
 						"1": {
@@ -1635,7 +2133,16 @@
 					},
 					"patterns": [
 						{
-							"include": "$base"
+							"include": "#enumerator_list"
+						},
+						{
+							"include": "#comments_context"
+						},
+						{
+							"include": "#comma"
+						},
+						{
+							"include": "#semicolon"
 						}
 					]
 				},
@@ -1662,7 +2169,11 @@
 					"name": "storage.type.modifier.access.$0.cpp"
 				},
 				{
-					"match": "(?<=private|protected|public|,|:)\\s*(?!(?:private|protected|public))((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))",
+					"match": "(?<!\\w)virtual(?!\\w)",
+					"name": "storage.type.modifier.virtual.cpp"
+				},
+				{
+					"match": "(?<=virtual|private|protected|public|,|:)\\s*(?!(?:(?:private|protected|public)|virtual))((?-mix:(?:\\s*(?<!\\w)(?=\\w)(?!(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|NULL|true|false|nullptr|const|static|volatile|register|restrict|extern|inline|constexpr|mutable|friend|explicit|virtual|final|override|volatile|const|noexcept|constexpr|mutable|constexpr|consteval|private|protected|public|if|elif|else|endif|ifdef|ifndef|define|undef|include|line|error|warning|pragma|_Pragma|defined|__has_include|__has_cpp_attribute|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|concept|requires|export|thread_local|atomic_cancel|atomic_commit|atomic_noexcept|co_await|co_return|co_yield|import|module|reflexpr|synchronized|audit|axiom|transaction_safe|transaction_safe_dynamic)(?![\\w])\\s*)(?:(?:(?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*(?:(?:(?:short|signed|unsigned|long)|(?:class|struct|union|enum))\\s+)*(?:(?:(?:(?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)(?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*))?(?:::)))?\\s*(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?(?![\\w<:.]))))",
 					"captures": {
 						"1": {
 							"name": "entity.name.type.inherited.cpp"
@@ -1673,7 +2184,7 @@
 		},
 		"class_block": {
 			"name": "meta.block.class.cpp",
-			"begin": "((((?<!\\w)class(?!\\w))(?:(?:\\s+|((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))|(?={))(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))?(?:\\s+(final)\\s*)?(?:\\s*(:)((?:\\s*(?:,)?\\s*(?:(?:private|protected|public))?\\s*(?:\\s*(?:,)?\\s*(?!(?:private|protected|public))(?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))+)*))?))",
+			"begin": "((((?<!\\w)class(?!\\w))(?:(?:\\s+|((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))|(?={))(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))?(?:\\s+(final)\\s*)?(?:\\s*(:)((?:\\s*(?:,)?\\s*(?:(?:private|protected|public))?\\s*(?:\\s*(?:,)?\\s*(?!(?:private|protected|public))(?-mix:(?:\\s*(?<!\\w)(?=\\w)(?!(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|NULL|true|false|nullptr|const|static|volatile|register|restrict|extern|inline|constexpr|mutable|friend|explicit|virtual|final|override|volatile|const|noexcept|constexpr|mutable|constexpr|consteval|private|protected|public|if|elif|else|endif|ifdef|ifndef|define|undef|include|line|error|warning|pragma|_Pragma|defined|__has_include|__has_cpp_attribute|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|concept|requires|export|thread_local|atomic_cancel|atomic_commit|atomic_noexcept|co_await|co_return|co_yield|import|module|reflexpr|synchronized|audit|axiom|transaction_safe|transaction_safe_dynamic)(?![\\w])\\s*)(?:(?:(?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*(?:(?:(?:short|signed|unsigned|long)|(?:class|struct|union|enum))\\s+)*(?:(?:(?:(?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)(?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*))?(?:::)))?\\s*(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?(?![\\w<:.]))))+)*))?))",
 			"beginCaptures": {
 				"1": {
 					"name": "meta.head.class.cpp"
@@ -1724,7 +2235,7 @@
 			"patterns": [
 				{
 					"name": "meta.head.class.cpp",
-					"begin": "\\G| ",
+					"begin": "\\G ?",
 					"end": "((?:\\{|(?=;)))",
 					"endCaptures": {
 						"1": {
@@ -1757,6 +2268,9 @@
 					},
 					"patterns": [
 						{
+							"include": "#function_pointer"
+						},
+						{
 							"include": "#constructor_context"
 						},
 						{
@@ -1778,7 +2292,7 @@
 		},
 		"struct_block": {
 			"name": "meta.block.struct.cpp",
-			"begin": "((((?<!\\w)struct(?!\\w))(?:(?:\\s+|((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))|(?={))(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))?(?:\\s+(final)\\s*)?(?:\\s*(:)((?:\\s*(?:,)?\\s*(?:(?:private|protected|public))?\\s*(?:\\s*(?:,)?\\s*(?!(?:private|protected|public))(?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))+)*))?))",
+			"begin": "((((?<!\\w)struct(?!\\w))(?:(?:\\s+|((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))|(?={))(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))?(?:\\s+(final)\\s*)?(?:\\s*(:)((?:\\s*(?:,)?\\s*(?:(?:private|protected|public))?\\s*(?:\\s*(?:,)?\\s*(?!(?:private|protected|public))(?-mix:(?:\\s*(?<!\\w)(?=\\w)(?!(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|NULL|true|false|nullptr|const|static|volatile|register|restrict|extern|inline|constexpr|mutable|friend|explicit|virtual|final|override|volatile|const|noexcept|constexpr|mutable|constexpr|consteval|private|protected|public|if|elif|else|endif|ifdef|ifndef|define|undef|include|line|error|warning|pragma|_Pragma|defined|__has_include|__has_cpp_attribute|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|concept|requires|export|thread_local|atomic_cancel|atomic_commit|atomic_noexcept|co_await|co_return|co_yield|import|module|reflexpr|synchronized|audit|axiom|transaction_safe|transaction_safe_dynamic)(?![\\w])\\s*)(?:(?:(?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*(?:(?:(?:short|signed|unsigned|long)|(?:class|struct|union|enum))\\s+)*(?:(?:(?:(?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)(?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*))?(?:::)))?\\s*(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?(?![\\w<:.]))))+)*))?))",
 			"beginCaptures": {
 				"1": {
 					"name": "meta.head.struct.cpp"
@@ -1829,7 +2343,7 @@
 			"patterns": [
 				{
 					"name": "meta.head.struct.cpp",
-					"begin": "\\G| ",
+					"begin": "\\G ?",
 					"end": "((?:\\{|(?=;)))",
 					"endCaptures": {
 						"1": {
@@ -1862,6 +2376,9 @@
 					},
 					"patterns": [
 						{
+							"include": "#function_pointer"
+						},
+						{
 							"include": "#constructor_context"
 						},
 						{
@@ -1883,7 +2400,7 @@
 		},
 		"union_block": {
 			"name": "meta.block.union.cpp",
-			"begin": "((((?<!\\w)union(?!\\w))(?:(?:\\s+|((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))|(?={))(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))?(?:\\s+(final)\\s*)?(?:\\s*(:)((?:\\s*(?:,)?\\s*(?:(?:private|protected|public))?\\s*(?:\\s*(?:,)?\\s*(?!(?:private|protected|public))(?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))+)*))?))",
+			"begin": "((((?<!\\w)union(?!\\w))(?:(?:\\s+|((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))|(?={))(?:((?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*((?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?!\\w))?(?:\\s+(final)\\s*)?(?:\\s*(:)((?:\\s*(?:,)?\\s*(?:(?:private|protected|public))?\\s*(?:\\s*(?:,)?\\s*(?!(?:private|protected|public))(?-mix:(?:\\s*(?<!\\w)(?=\\w)(?!(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|NULL|true|false|nullptr|const|static|volatile|register|restrict|extern|inline|constexpr|mutable|friend|explicit|virtual|final|override|volatile|const|noexcept|constexpr|mutable|constexpr|consteval|private|protected|public|if|elif|else|endif|ifdef|ifndef|define|undef|include|line|error|warning|pragma|_Pragma|defined|__has_include|__has_cpp_attribute|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|concept|requires|export|thread_local|atomic_cancel|atomic_commit|atomic_noexcept|co_await|co_return|co_yield|import|module|reflexpr|synchronized|audit|axiom|transaction_safe|transaction_safe_dynamic)(?![\\w])\\s*)(?:(?:(?:(?:(?:\\[\\[).*?(?:\\]\\])|(?:__attribute\\(\\(|__attribute__\\(\\().*?(?:\\)\\)))|(?:__declspec\\().*?(?:\\)))(?!\\))))?\\s*(?:(?:(?:short|signed|unsigned|long)|(?:class|struct|union|enum))\\s+)*(?:(?:(?:(?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*\\s*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?::)*\\s*)(?:(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*)\\s*(?:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*))?(?:::)))?\\s*(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F]))(?:(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U000[0-9a-fA-F])))*(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?(?![\\w<:.]))))+)*))?))",
 			"beginCaptures": {
 				"1": {
 					"name": "meta.head.union.cpp"
@@ -1934,7 +2451,7 @@
 			"patterns": [
 				{
 					"name": "meta.head.union.cpp",
-					"begin": "\\G| ",
+					"begin": "\\G ?",
 					"end": "((?:\\{|(?=;)))",
 					"endCaptures": {
 						"1": {
@@ -1966,6 +2483,9 @@
 						}
 					},
 					"patterns": [
+						{
+							"include": "#function_pointer"
+						},
 						{
 							"include": "#constructor_context"
 						},
@@ -2009,7 +2529,7 @@
 			"patterns": [
 				{
 					"name": "meta.head.extern.cpp",
-					"begin": "\\G| ",
+					"begin": "\\G ?",
 					"end": "((?:\\{|(?=;)))",
 					"endCaptures": {
 						"1": {
@@ -2418,6 +2938,9 @@
 					"include": "#using_namespace"
 				},
 				{
+					"include": "#type_alias"
+				},
+				{
 					"include": "#namespace_block"
 				},
 				{
@@ -2595,7 +3118,7 @@
 			]
 		},
 		"function_call_c": {
-			"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|return|typeid|alignof|alignas|sizeof|and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq|alignof|alignas|constexpr|volatile|operator|(?:::)?new|(?:::)?delete)\\s*\\()\n(?=\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++\\s*(?-mix:(?:(?-mix:(?:<(?:[\\s<>:,\\w])*>\\s*)))?)\\(  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\\s*\\(\n)",
+			"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|return|typeid|alignof|alignas|sizeof|and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq|alignof|alignas|constexpr|volatile|operator|(?:::)?new|(?:::)?delete)\\s*\\()\n(?=\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++\\s*(?-mix:(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?)\\(  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\\s*\\(\n)",
 			"end": "(?<=\\))(?!\\w)",
 			"name": "meta.function-call.cpp",
 			"patterns": [
@@ -3886,30 +4409,7 @@
 					"include": "#vararg_ellipses"
 				},
 				{
-					"name": "meta.function.definition.parameters.cpp",
-					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|return|typeid|alignof|alignas|sizeof|and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq|alignof|alignas)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++ # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
-					"beginCaptures": {
-						"1": {
-							"name": "entity.name.function.cpp"
-						},
-						"2": {
-							"name": "punctuation.section.parameters.begin.bracket.round.cpp"
-						}
-					},
-					"end": "(?-mix:\\)|:)",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.section.parameters.end.bracket.round.cpp"
-						}
-					},
-					"patterns": [
-						{
-							"include": "#probably_a_parameter"
-						},
-						{
-							"include": "#function_context_c"
-						}
-					]
+					"include": "#legacy_function_definition"
 				},
 				{
 					"begin": "\\(",
@@ -3956,7 +4456,7 @@
 					"include": "#operators"
 				},
 				{
-					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|return|typeid|alignof|alignas|sizeof|and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq|alignof|alignas)\\s*\\()\n(\n(?:new)\\s*((?-mix:(?:(?-mix:(?:<(?:[\\s<>:,\\w])*>\\s*)))?)) # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
+					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|return|typeid|alignof|alignas|sizeof|and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq|alignof|alignas)\\s*\\()\n(\n(?:new)\\s*((?-mix:(?:(?-mix:(?:(?<!<)<(?!<)(?:[\\s<>:,\\w])*>\\s*)))?)) # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.wordlike.cpp memory.cpp keyword.operator.new.cpp"

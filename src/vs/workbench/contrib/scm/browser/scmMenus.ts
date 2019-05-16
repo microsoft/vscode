@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
-import { fillInContextMenuActions, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions, fillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/contrib/scm/common/scm';
 import { isSCMResource } from './scmUtil';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';

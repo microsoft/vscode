@@ -840,7 +840,7 @@ export class NextCommentThreadAction extends EditorAction {
 			id: 'editor.action.nextCommentThreadAction',
 			label: nls.localize('nextCommentThreadAction', "Go to Next Comment Thread"),
 			alias: 'Go to Next Comment Thread',
-			precondition: null,
+			precondition: undefined,
 		});
 	}
 

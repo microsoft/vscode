@@ -10,7 +10,7 @@ import { onDidChangeFullscreen, isFullscreen, getZoomFactor } from 'vs/base/brow
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { IUntitledResourceInput, pathsToEditors } from 'vs/workbench/common/editor';
+import { pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
@@ -425,7 +425,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					return []; // do not open any empty untitled file if we have backups to restore
 				}
 
-				return [<IUntitledResourceInput>{}];
+				return [Object.create(null)]; // open empty untitled file
 			});
 		}
 

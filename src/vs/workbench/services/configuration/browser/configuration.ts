@@ -666,7 +666,7 @@ class CachedFolderConfiguration extends Disposable implements IFolderConfigurati
 		private readonly configurationCache: IConfigurationCache
 	) {
 		super();
-		this.key = createSHA1(join(folder.path, configFolderRelativePath)).then(key => (<ConfigurationKey>{ type: 'folder', key }));
+		this.key = createSHA1(join(folder.path, configFolderRelativePath)).then(key => ({ type: 'folder', key }));
 		this.configurationModel = new ConfigurationModel();
 	}
 

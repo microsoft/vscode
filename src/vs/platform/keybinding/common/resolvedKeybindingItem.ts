@@ -10,7 +10,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 export class ResolvedKeybindingItem {
 	_resolvedKeybindingItemBrand: void;
 
-	public readonly resolvedKeybinding: ResolvedKeybinding | null;
+	public readonly resolvedKeybinding: ResolvedKeybinding | undefined;
 	public readonly keypressParts: string[];
 	public readonly bubble: boolean;
 	public readonly command: string | null;
@@ -18,7 +18,7 @@ export class ResolvedKeybindingItem {
 	public readonly when: ContextKeyExpr | undefined;
 	public readonly isDefault: boolean;
 
-	constructor(resolvedKeybinding: ResolvedKeybinding | null, command: string | null, commandArgs: any, when: ContextKeyExpr | undefined, isDefault: boolean) {
+	constructor(resolvedKeybinding: ResolvedKeybinding | undefined, command: string | null, commandArgs: any, when: ContextKeyExpr | undefined, isDefault: boolean) {
 		this.resolvedKeybinding = resolvedKeybinding;
 		this.keypressParts = resolvedKeybinding ? removeElementsAfterNulls(resolvedKeybinding.getDispatchParts()) : [];
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
