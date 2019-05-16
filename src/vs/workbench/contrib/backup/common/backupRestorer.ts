@@ -79,7 +79,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		// this is a (weak) strategy to find out if the untitled input had
 		// an associated file path or not by just looking at the path. and
 		// if so, we must ensure to restore the local resource it had.
-		if (resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
+		if (resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(resource.path)) {
 			return { resource: toLocalResource(resource, this.environmentService.configuration.remoteAuthority), options, forceUntitled: true };
 		}
 

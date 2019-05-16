@@ -234,8 +234,8 @@ export class SplitView extends Disposable {
 			});
 
 			const sashEventMapper = this.orientation === Orientation.VERTICAL
-				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY, alt: e.altKey } as ISashEvent)
-				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX, alt: e.altKey } as ISashEvent);
+				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY, alt: e.altKey })
+				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX, alt: e.altKey });
 
 			const onStart = Event.map(sash.onDidStart, sashEventMapper);
 			const onStartDisposable = onStart(this.onSashStart, this);

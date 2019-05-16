@@ -392,7 +392,7 @@ export class DebugService implements IDebugService {
 							return this.showError(err.message).then(() => false);
 						}
 						if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-							return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."))
+							return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."))
 								.then(() => false);
 						}
 

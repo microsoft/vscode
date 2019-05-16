@@ -9,7 +9,7 @@ import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { OS } from 'vs/base/common/platform';
 import { dispose, Disposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { CheckboxActionItem } from 'vs/base/browser/ui/checkbox/checkbox';
+import { CheckboxActionViewItem } from 'vs/base/browser/ui/checkbox/checkbox';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -372,12 +372,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 		this.actionBar = this._register(new ActionBar(this.actionsContainer, {
 			animated: false,
-			actionItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: Action) => {
 				if (action.id === this.sortByPrecedenceAction.id) {
-					return new CheckboxActionItem(null, action);
+					return new CheckboxActionViewItem(null, action);
 				}
 				if (action.id === this.recordKeysAction.id) {
-					return new CheckboxActionItem(null, action);
+					return new CheckboxActionViewItem(null, action);
 				}
 				return undefined;
 			}

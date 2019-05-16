@@ -10,7 +10,7 @@ import { IWindowsService, IWindowService, IURIToOpen, IOpenSettings, INewWindowO
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID, IExplorerService, resourceToFileOnDisk } from 'vs/workbench/contrib/files/common/files';
+import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
@@ -319,7 +319,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (providerDisposables.length === 0) {
 			registerEditorListener = true;
 
-			const provider = instantiationService.createInstance(FileOnDiskContentProvider);
+			const provider = instantiationService.createInstance(TextFileContentProvider);
 			providerDisposables.push(provider);
 			providerDisposables.push(textModelService.registerTextModelContentProvider(COMPARE_WITH_SAVED_SCHEMA, provider));
 		}
@@ -328,9 +328,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const uri = getResourceForCommand(resource, accessor.get(IListService), editorService);
 		if (uri && fileService.canHandleResource(uri)) {
 			const name = basename(uri);
-			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
+			const editorLabel = nls.localize('modifiedLabel', "{0} (in file) ↔ {1}", name, name);
 
-			editorService.openEditor({ leftResource: resourceToFileOnDisk(COMPARE_WITH_SAVED_SCHEMA, uri), rightResource: uri, label: editorLabel }).then(() => {
+			TextFileContentProvider.open(uri, COMPARE_WITH_SAVED_SCHEMA, editorLabel, editorService).then(() => {
 
 				// Dispose once no more diff editor is opened with the scheme
 				if (registerEditorListener) {

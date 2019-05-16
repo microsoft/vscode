@@ -44,7 +44,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { Schemas } from 'vs/base/common/network';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -172,7 +171,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private contextService: IWorkspaceContextService,
 		private environmentService: IWorkbenchEnvironmentService,
 		private outputChannelId: string,
-		private readonly configurationService: IConfigurationService,
 		taskSystemInfoResolver: TaskSystemInfoResovler,
 	) {
 
@@ -879,9 +877,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
 		}
-
-		// Conpty doesn't do linefeeds in an expected way. Force winpty unless the user has requested otherwise.
-		shellLaunchConfig.forceWinpty = !this.configurationService.getValue('terminal.integrated.windowsAllowConptyTasks');
 		return shellLaunchConfig;
 	}
 

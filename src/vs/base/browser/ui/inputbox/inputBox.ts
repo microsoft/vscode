@@ -150,7 +150,7 @@ export class InputBox extends Widget {
 		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
 		let wrapper = dom.append(this.element, $('.wrapper'));
-		this.input = <HTMLInputElement>dom.append(wrapper, $(tagName + '.input'));
+		this.input = dom.append(wrapper, $(tagName + '.input'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
 		this.input.setAttribute('spellcheck', 'false');
