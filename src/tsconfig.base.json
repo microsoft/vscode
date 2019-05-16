@@ -14,6 +14,7 @@
 		"strictNullChecks": true,
 		"forceConsistentCasingInFileNames": true,
 		"rootDir": ".",
+		"outDir": "out",
 		"baseUrl": ".",
 		"paths": {
 			"vs/*": [
