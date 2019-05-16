@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommandService, CommandsRegistry, ICommandHandlerDescription, ICommandEvent } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -15,7 +15,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	private readonly _disposables = new Map<string, IDisposable>();
 	private readonly _generateCommandsDocumentationRegistration: IDisposable;
 	private readonly _proxy: ExtHostCommandsShape;
-	private _onDidExecuteCommandListener: IDisposable;
+	private _onDidExecuteCommandListener?: IDisposable;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -80,19 +80,20 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	$registerCommandListener() {
-		this._onDidExecuteCommandListener = this._commandService.onDidExecuteCommand((command) => this.handleExecuteCommand(command));
+		if (!this._onDidExecuteCommandListener) {
+			this._onDidExecuteCommandListener = this._commandService.onDidExecuteCommand(command => this._proxy.$handleDidExecuteCommand(command));
+		}
 	}
 
 	$unregisterCommandListener() {
-		return this._onDidExecuteCommandListener.dispose();
+		if (this._onDidExecuteCommandListener) {
+			this._onDidExecuteCommandListener.dispose();
+			this._onDidExecuteCommandListener = undefined;
+		}
 	}
 
 	$getCommands(): Promise<string[]> {
 		return Promise.resolve(Object.keys(CommandsRegistry.getCommands()));
-	}
-
-	handleExecuteCommand(command: ICommandEvent) {
-		this._proxy.$handleDidExecuteCommand(command);
 	}
 }
 

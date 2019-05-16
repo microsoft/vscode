@@ -555,16 +555,22 @@ declare module 'vscode' {
 		 * @return Disposable which unregisters this command on disposal.
 		 */
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
+	}
 
-		export interface ICommandEvent {
-			commandId: string;
-			args: any[];
-		}
+	//#endregion
 
+	//#region Joh: onDidExecuteCommand
+
+	export interface CommandExecutionEvent {
+		command: string;
+		arguments: any[];
+	}
+
+	export namespace commands {
 		/**
 		 * An event that is emitted when a [command](#Command) is executed.
 		 */
-		export const onDidExecuteCommand: Event<ICommandEvent>;
+		export const onDidExecuteCommand: Event<CommandExecutionEvent>;
 	}
 
 	//#endregion

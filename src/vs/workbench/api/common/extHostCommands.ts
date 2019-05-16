@@ -19,7 +19,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
 
 interface CommandHandler {
 	callback: Function;
@@ -32,8 +31,9 @@ export interface ArgumentProcessor {
 }
 
 export class ExtHostCommands implements ExtHostCommandsShape {
-	private readonly _onDidExecuteCommand: Emitter<ICommandEvent>;
-	readonly onDidExecuteCommandEmitter: Event<ICommandEvent>;
+
+	private readonly _onDidExecuteCommand: Emitter<vscode.CommandExecutionEvent>;
+	readonly onDidExecuteCommand: Event<vscode.CommandExecutionEvent>;
 
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _proxy: MainThreadCommandsShape;
@@ -47,11 +47,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadCommands);
-		this._onDidExecuteCommand = new Emitter<ICommandEvent>({
+		this._onDidExecuteCommand = new Emitter<vscode.CommandExecutionEvent>({
 			onFirstListenerDidAdd: () => this._proxy.$registerCommandListener(),
 			onLastListenerRemove: () => this._proxy.$unregisterCommandListener(),
 		});
-		this.onDidExecuteCommandEmitter = this._onDidExecuteCommand.event;
+		this.onDidExecuteCommand = this._onDidExecuteCommand.event;
 		this._logService = logService;
 		this._converter = new CommandsConverter(this, heapService);
 		this._argumentProcessors = [
@@ -116,12 +116,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	onDidExecuteCommand(listener: (command: ICommandEvent) => any, thisArgs?: any, disposables?: IDisposable[]) {
-		return this.onDidExecuteCommandEmitter(listener, thisArgs, disposables);
-	}
-
 	$handleDidExecuteCommand(command: ICommandEvent): void {
-		this._onDidExecuteCommand.fire(command);
+		this._onDidExecuteCommand.fire({ command: command.commandId, arguments: command.args });
 	}
 
 	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
@@ -172,7 +168,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 		try {
 			const result = callback.apply(thisArg, args);
-			this._onDidExecuteCommand.fire({ commandId: id, args });
+			this._onDidExecuteCommand.fire({ command: id, arguments: args });
 			return Promise.resolve(result);
 		} catch (err) {
 			this._logService.error(err, id);
