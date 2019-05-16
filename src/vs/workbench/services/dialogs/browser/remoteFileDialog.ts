@@ -641,22 +641,12 @@ export class RemoteFileDialog {
 		return Promise.resolve(true);
 	}
 
-	private ensureTrailingSeparator(uri: URI): URI {
-		if (resources.hasTrailingPathSeparator(uri)) {
-			return uri;
-		} else {
-			const dir = resources.dirname(uri);
-			const base = resources.basename(uri) + this.separator;
-			return resources.joinPath(dir, base);
-		}
-	}
-
 	private async updateItems(newFolder: URI, force: boolean = false, trailing?: string) {
 		this.filePickBox.busy = true;
 		this.userEnteredPathSegment = trailing ? trailing : '';
 		this.autoCompletePathSegment = '';
 		const newValue = trailing ? this.pathFromUri(resources.joinPath(newFolder, trailing)) : this.pathFromUri(newFolder, true);
-		this.currentFolder = this.ensureTrailingSeparator(newFolder);
+		this.currentFolder = resources.addTrailingPathSeparator(newFolder, this.separator);
 		return this.createItems(this.currentFolder).then(items => {
 			this.filePickBox.items = items;
 			if (this.allowFolderSelection) {
@@ -721,7 +711,7 @@ export class RemoteFileDialog {
 	private createBackItem(currFolder: URI): FileQuickPickItem | null {
 		const parentFolder = resources.dirname(currFolder)!;
 		if (!resources.isEqual(currFolder, parentFolder, true)) {
-			return { label: '..', uri: this.ensureTrailingSeparator(parentFolder), isFolder: true };
+			return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
 		}
 		return null;
 	}
@@ -779,7 +769,7 @@ export class RemoteFileDialog {
 			const stat = await this.fileService.resolve(fullPath);
 			if (stat.isDirectory) {
 				filename = this.basenameWithTrailingSlash(fullPath);
-				fullPath = this.ensureTrailingSeparator(fullPath);
+				fullPath = resources.addTrailingPathSeparator(fullPath, this.separator);
 				return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
 			} else if (!stat.isDirectory && this.allowFileSelection && this.filterFile(fullPath)) {
 				return { label: filename, uri: fullPath, isFolder: false, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined) };
