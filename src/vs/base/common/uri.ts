@@ -100,6 +100,9 @@ const _queryStringSchemes = new Set<string>();
 _queryStringSchemes.add('http');
 _queryStringSchemes.add('https');
 _queryStringSchemes.add('ftp');
+_queryStringSchemes.add('HTTP');
+_queryStringSchemes.add('HTTPS');
+_queryStringSchemes.add('FTP');
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -609,8 +612,6 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 
 	let res = '';
 	let { scheme, authority, path, query, fragment } = uri;
-
-	scheme = scheme.toLowerCase();
 
 	if (scheme) {
 		res += scheme;
