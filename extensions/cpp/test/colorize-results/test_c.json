@@ -848,7 +848,7 @@
 	},
 	{
 		"c": "4",
-		"t": "source.c meta.block.c constant.numeric.c",
+		"t": "source.c meta.block.c constant.numeric.decimal.c",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -980,7 +980,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.c",
+		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.decimal.c",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1178,7 +1178,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.c",
+		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.decimal.c",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1387,7 +1387,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.c",
+		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.decimal.c",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1717,7 +1717,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.c",
+		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.decimal.c",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1860,7 +1860,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.c",
+		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.decimal.c",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -2223,7 +2223,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.c",
+		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.decimal.c",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -2388,7 +2388,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.c",
+		"t": "source.c meta.block.c meta.parens.block.c constant.numeric.decimal.c",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -2762,7 +2762,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.c meta.block.c constant.numeric.c",
+		"t": "source.c meta.block.c constant.numeric.decimal.c",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",

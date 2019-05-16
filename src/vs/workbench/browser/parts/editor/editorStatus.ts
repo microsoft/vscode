@@ -811,7 +811,7 @@ export class EditorStatus implements IStatusbarItem {
 		if (activeControl) {
 			const activeResource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
 			if (activeResource && activeResource.toString() === resource.toString()) {
-				return this.onEncodingChange(<IBaseEditor>activeControl); // only update if the encoding changed for the active resource
+				return this.onEncodingChange(activeControl); // only update if the encoding changed for the active resource
 			}
 		}
 	}
@@ -924,7 +924,7 @@ export class ChangeModeAction extends Action {
 				}
 			}
 
-			return <IQuickPickItem>{
+			return {
 				label: lang,
 				iconClasses: getIconClasses(this.modelService, this.modeService, fakeResource),
 				description
@@ -1021,9 +1021,9 @@ export class ChangeModeAction extends Action {
 
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			const id = this.modeService.getModeIdForLanguageName(lang.toLowerCase());
+			const id = withNullAsUndefined(this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
 
-			return <IQuickPickItem>{
+			return {
 				id,
 				label: lang,
 				description: (id === currentAssociation) ? nls.localize('currentAssociation', "Current Association") : undefined

@@ -7,14 +7,14 @@ import 'vs/css!./media/markers';
 
 import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import { IAction, IActionItem, Action } from 'vs/base/common/actions';
+import { IAction, IActionViewItem, Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation, MarkersModel } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersFilterActionItem, MarkersFilterAction, IMarkersFilterActionChangeEvent, IMarkerFilterController } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
+import { MarkersFilterActionViewItem, MarkersFilterAction, IMarkersFilterActionChangeEvent, IMarkerFilterController } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -34,7 +34,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Separator, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -74,7 +74,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private actions: IAction[];
 	private collapseAllAction: IAction;
 	private filterAction: MarkersFilterAction;
-	private filterInputActionItem: MarkersFilterActionItem;
+	private filterInputActionViewItem: MarkersFilterActionViewItem;
 
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
@@ -152,8 +152,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	public layout(dimension: dom.Dimension): void {
 		this.treeContainer.style.height = `${dimension.height}px`;
 		this.tree.layout(dimension.height, dimension.width);
-		if (this.filterInputActionItem) {
-			this.filterInputActionItem.toggleLayout(dimension.width < 1200);
+		if (this.filterInputActionViewItem) {
+			this.filterInputActionViewItem.toggleLayout(dimension.width < 1200);
 		}
 	}
 
@@ -166,8 +166,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	public focusFilter(): void {
-		if (this.filterInputActionItem) {
-			this.filterInputActionItem.focus();
+		if (this.filterInputActionViewItem) {
+			this.filterInputActionViewItem.focus();
 		}
 	}
 
@@ -358,8 +358,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		// move focus to input, whenever a key is pressed in the panel container
 		this._register(domEvent(parent, 'keydown')(e => {
-			if (this.filterInputActionItem && this.keybindingService.mightProducePrintableCharacter(new StandardKeyboardEvent(e))) {
-				this.filterInputActionItem.focus();
+			if (this.filterInputActionViewItem && this.keybindingService.mightProducePrintableCharacter(new StandardKeyboardEvent(e))) {
+				this.filterInputActionViewItem.focus();
 			}
 		}));
 
@@ -624,10 +624,10 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor!,
 			getActions: () => this.getMenuActions(element),
-			getActionItem: (action) => {
+			getActionViewItem: (action) => {
 				const keybinding = this.keybindingService.lookupKeybinding(action.id);
 				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel() });
 				}
 				return undefined;
 			},
@@ -671,12 +671,12 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return this.tree.getFocus()[0];
 	}
 
-	public getActionItem(action: IAction): IActionItem | undefined {
+	public getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === MarkersFilterAction.ID) {
-			this.filterInputActionItem = this.instantiationService.createInstance(MarkersFilterActionItem, this.filterAction, this);
-			return this.filterInputActionItem;
+			this.filterInputActionViewItem = this.instantiationService.createInstance(MarkersFilterActionViewItem, this.filterAction, this);
+			return this.filterInputActionViewItem;
 		}
-		return super.getActionItem(action);
+		return super.getActionViewItem(action);
 	}
 
 	getFilterOptions(): FilterOptions {

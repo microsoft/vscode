@@ -25,7 +25,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 	private bearingResolve: Promise<this | undefined>;
@@ -49,7 +48,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		return nls.localize('entryAriaLabel', "{0}, symbols picker", this.getLabel());
 	}
 
-	getDescription(): string | null {
+	getDescription(): string | undefined {
 		const containerName = this.bearing.containerName;
 		if (this.bearing.location.uri) {
 			if (containerName) {
@@ -59,7 +58,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			return this.labelService.getUriLabel(this.bearing.location.uri, { relative: true });
 		}
 
-		return withUndefinedAsNull(containerName);
+		return containerName;
 	}
 
 	getIcon(): string {

@@ -280,10 +280,11 @@ export class RemoteFileDialog {
 						// If the user has just entered more bad path, don't change anything
 						if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
 							this.filePickBox.validationMessage = undefined;
-							const valueUri = this.remoteUriFrom(this.trimTrailingSlash(this.filePickBox.value));
+							const filePickBoxUri = this.filePickBoxValue();
+							const valueUri = resources.removeTrailingPathSeparator(filePickBoxUri);
 							let updated: UpdateResult = UpdateResult.NotUpdated;
-							if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), valueUri, true)) {
-								updated = await this.tryUpdateItems(value, this.remoteUriFrom(this.filePickBox.value));
+							if (!resources.isEqual(resources.removeTrailingPathSeparator(this.currentFolder), valueUri, true)) {
+								updated = await this.tryUpdateItems(value, filePickBoxUri);
 							}
 							if (updated === UpdateResult.NotUpdated) {
 								this.setActiveItems(value);
@@ -331,55 +332,52 @@ export class RemoteFileDialog {
 		return this.pathAppend(this.currentFolder, this.userEnteredPathSegment);
 	}
 
+	private filePickBoxValue(): URI {
+		// The file pick box can't render everything, so we use the current folder to create the uri so that it is an existing path.
+		const directUri = this.remoteUriFrom(this.filePickBox.value);
+		const currentPath = this.pathFromUri(this.currentFolder);
+		if (equalsIgnoreCase(this.filePickBox.value, currentPath)) {
+			return this.currentFolder;
+		}
+		const currentDisplayUri = this.remoteUriFrom(currentPath);
+		const relativePath = resources.relativePath(currentDisplayUri, directUri);
+		const isSameRoot = (this.filePickBox.value.length > 1 && currentPath.length > 1) ? equalsIgnoreCase(this.filePickBox.value.substr(0, 2), currentPath.substr(0, 2)) : false;
+		if (relativePath && isSameRoot) {
+			return resources.joinPath(this.currentFolder, relativePath);
+		} else {
+			return directUri;
+		}
+	}
+
 	private async onDidAccept(): Promise<URI | undefined> {
+		let updateString: string;
+		let updateUri: URI;
+		if (this.filePickBox.activeItems.length === 1) {
+			updateUri = this.filePickBox.selectedItems[0].uri;
+			updateString = this.pathFromUri(updateUri);
+		} else {
+			updateString = this.filePickBox.value;
+			updateUri = this.filePickBoxValue();
+		}
+		// If the items have updated, don't try to resolve
+		if ((await this.tryUpdateItems(updateString, updateUri)) !== UpdateResult.NotUpdated) {
+			return;
+		}
+
 		this.filePickBox.busy = true;
 		let resolveValue: URI | undefined;
-		let navigateValue: URI | undefined;
-		let inputUri: URI | undefined;
-		let inputUriDirname: URI | undefined;
-		let stat: IFileStat | undefined;
-		let statDirname: IFileStat | undefined;
-		try {
-			inputUri = resources.removeTrailingPathSeparator(this.remoteUriFrom(this.filePickBox.value));
-			inputUriDirname = resources.dirname(inputUri);
-			statDirname = await this.fileService.resolve(inputUriDirname);
-			stat = await this.fileService.resolve(inputUri);
-		} catch (e) {
-			// do nothing
-		}
-
 		// Find resolve value
 		if (this.filePickBox.activeItems.length === 0) {
-			if (!this.requiresTrailing && resources.isEqual(this.currentFolder, inputUri, true)) {
-				resolveValue = inputUri;
-			} else if (statDirname && statDirname.isDirectory) {
-				resolveValue = inputUri;
-			} else if (stat && stat.isDirectory) {
-				navigateValue = inputUri;
-			}
+			resolveValue = this.filePickBoxValue();
 		} else if (this.filePickBox.activeItems.length === 1) {
-			const item = this.filePickBox.selectedItems[0];
-			if (item) {
-				if (!item.isFolder) {
-					resolveValue = item.uri;
-				} else {
-					navigateValue = item.uri;
-				}
-			}
+			resolveValue = this.filePickBox.selectedItems[0].uri;
 		}
-
-
-		if (navigateValue) {
-			// Try to navigate into the folder.
-			await this.updateItems(navigateValue, true, this.trailing);
-		} else {
-			if (resolveValue) {
-				resolveValue = this.addPostfix(resolveValue);
-			}
-			if (await this.validate(resolveValue)) {
-				this.filePickBox.busy = false;
-				return resolveValue;
-			}
+		if (resolveValue) {
+			resolveValue = this.addPostfix(resolveValue);
+		}
+		if (await this.validate(resolveValue)) {
+			this.filePickBox.busy = false;
+			return resolveValue;
 		}
 		this.filePickBox.busy = false;
 		return undefined;
@@ -415,7 +413,7 @@ export class RemoteFileDialog {
 				return UpdateResult.InvalidPath;
 			} else {
 				const inputUriDirname = resources.dirname(valueUri);
-				if (!resources.isEqual(this.remoteUriFrom(this.trimTrailingSlash(this.pathFromUri(this.currentFolder))), inputUriDirname, true)) {
+				if (!resources.isEqual(resources.removeTrailingPathSeparator(this.currentFolder), inputUriDirname, true)) {
 					let statWithoutTrailing: IFileStat | undefined;
 					try {
 						statWithoutTrailing = await this.fileService.resolve(inputUriDirname);
@@ -633,6 +631,16 @@ export class RemoteFileDialog {
 		return Promise.resolve(true);
 	}
 
+	private ensureTrailingSeparator(uri: URI): URI {
+		if (resources.hasTrailingPathSeparator(uri)) {
+			return uri;
+		} else {
+			const dir = resources.dirname(uri);
+			const base = resources.basename(uri) + this.labelService.getSeparator(uri.scheme, uri.authority);
+			return resources.joinPath(dir, base);
+		}
+	}
+
 	private async updateItems(newFolder: URI, force: boolean = false, trailing?: string) {
 		this.filePickBox.busy = true;
 		this.userEnteredPathSegment = trailing ? trailing : '';
@@ -640,7 +648,7 @@ export class RemoteFileDialog {
 		const newValue = trailing ? this.pathFromUri(resources.joinPath(newFolder, trailing)) : this.pathFromUri(newFolder, true);
 		const oldFolder = this.currentFolder;
 		const newFolderPath = this.pathFromUri(newFolder, true);
-		this.currentFolder = this.remoteUriFrom(newFolderPath);
+		this.currentFolder = this.ensureTrailingSeparator(newFolder);
 		return this.createItems(this.currentFolder).then(items => {
 			this.filePickBox.items = items;
 			if (this.allowFolderSelection) {
@@ -669,11 +677,11 @@ export class RemoteFileDialog {
 
 	private pathFromUri(uri: URI, endWithSeparator: boolean = false): string {
 		const sep = this.labelService.getSeparator(uri.scheme, uri.authority);
-		let result: string;
+		let result: string = uri.fsPath.replace(/\n/g, '');
 		if (sep === '/') {
-			result = uri.fsPath.replace(/\\/g, sep);
+			result = result.replace(/\\/g, sep);
 		} else {
-			result = uri.fsPath.replace(/\//g, sep);
+			result = result.replace(/\//g, sep);
 		}
 		if (endWithSeparator && !this.endsWithSlash(result)) {
 			result = result + sep;
@@ -743,7 +751,7 @@ export class RemoteFileDialog {
 	private createBackItem(currFolder: URI): FileQuickPickItem | null {
 		const parentFolder = resources.dirname(currFolder)!;
 		if (!resources.isEqual(currFolder, parentFolder, true)) {
-			return { label: '..', uri: resources.dirname(currFolder), isFolder: true };
+			return { label: '..', uri: this.ensureTrailingSeparator(parentFolder), isFolder: true };
 		}
 		return null;
 	}
@@ -801,6 +809,7 @@ export class RemoteFileDialog {
 			const stat = await this.fileService.resolve(fullPath);
 			if (stat.isDirectory) {
 				filename = this.basenameWithTrailingSlash(fullPath);
+				fullPath = this.ensureTrailingSeparator(fullPath);
 				return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
 			} else if (!stat.isDirectory && this.allowFileSelection && this.filterFile(fullPath)) {
 				return { label: filename, uri: fullPath, isFolder: false, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined) };

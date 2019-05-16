@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import * as modes from 'vs/editor/common/modes';
-import { ActionsOrientation, ActionItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, ActionViewItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Action, IActionRunner } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -29,9 +29,9 @@ import { assign } from 'vs/base/common/objects';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { ToggleReactionsAction, ReactionAction, ReactionActionItem } from './reactionsAction';
+import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from './reactionsAction';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
@@ -165,14 +165,14 @@ export class CommentNode extends Disposable {
 
 		if (actions.length) {
 			this.toolbar = new ToolBar(this._actionsToolbarContainer, this.contextMenuService, {
-				actionItemProvider: action => {
+				actionViewItemProvider: action => {
 					if (action.id === ToggleReactionsAction.ID) {
-						return new DropdownMenuActionItem(
+						return new DropdownMenuActionViewItem(
 							action,
 							(<ToggleReactionsAction>action).menuActions,
 							this.contextMenuService,
 							action => {
-								return this.actionItemProvider(action as Action);
+								return this.actionViewItemProvider(action as Action);
 							},
 							this.actionRunner!,
 							undefined,
@@ -180,7 +180,7 @@ export class CommentNode extends Disposable {
 							() => { return AnchorAlignment.RIGHT; }
 						);
 					}
-					return this.actionItemProvider(action as Action);
+					return this.actionViewItemProvider(action as Action);
 				},
 				orientation: ActionsOrientation.HORIZONTAL
 			});
@@ -191,7 +191,7 @@ export class CommentNode extends Disposable {
 		}
 	}
 
-	actionItemProvider(action: Action) {
+	actionViewItemProvider(action: Action) {
 		let options = {};
 		if (action.id === 'comment.delete' || action.id === 'comment.edit' || action.id === ToggleReactionsAction.ID) {
 			options = { label: false, icon: true };
@@ -200,19 +200,19 @@ export class CommentNode extends Disposable {
 		}
 
 		if (action.id === ReactionAction.ID) {
-			let item = new ReactionActionItem(action);
+			let item = new ReactionActionViewItem(action);
 			return item;
 		} else {
-			let item = new ActionItem({}, action, options);
+			let item = new ActionViewItem({}, action, options);
 			return item;
 		}
 	}
 
 	private createReactionPicker2(): ToggleReactionsAction {
-		let toggleReactionActionItem: DropdownMenuActionItem;
+		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
 		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
-			if (toggleReactionActionItem) {
-				toggleReactionActionItem.show();
+			if (toggleReactionActionViewItem) {
+				toggleReactionActionViewItem.show();
 			}
 		}, nls.localize('commentToggleReaction', "Toggle Reaction")));
 
@@ -235,15 +235,15 @@ export class CommentNode extends Disposable {
 
 		toggleReactionAction.menuActions = reactionMenuActions;
 
-		toggleReactionActionItem = new DropdownMenuActionItem(
+		toggleReactionActionViewItem = new DropdownMenuActionViewItem(
 			toggleReactionAction,
 			(<ToggleReactionsAction>toggleReactionAction).menuActions,
 			this.contextMenuService,
 			action => {
 				if (action.id === ToggleReactionsAction.ID) {
-					return toggleReactionActionItem;
+					return toggleReactionActionViewItem;
 				}
-				return this.actionItemProvider(action as Action);
+				return this.actionViewItemProvider(action as Action);
 			},
 			this.actionRunner!,
 			undefined,
@@ -255,10 +255,10 @@ export class CommentNode extends Disposable {
 	}
 
 	private createReactionPicker(): ToggleReactionsAction {
-		let toggleReactionActionItem: DropdownMenuActionItem;
+		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
 		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
-			if (toggleReactionActionItem) {
-				toggleReactionActionItem.show();
+			if (toggleReactionActionViewItem) {
+				toggleReactionActionViewItem.show();
 			}
 		}, nls.localize('commentAddReaction', "Add Reaction")));
 
@@ -281,15 +281,15 @@ export class CommentNode extends Disposable {
 
 		toggleReactionAction.menuActions = reactionMenuActions;
 
-		toggleReactionActionItem = new DropdownMenuActionItem(
+		toggleReactionActionViewItem = new DropdownMenuActionViewItem(
 			toggleReactionAction,
 			(<ToggleReactionsAction>toggleReactionAction).menuActions,
 			this.contextMenuService,
 			action => {
 				if (action.id === ToggleReactionsAction.ID) {
-					return toggleReactionActionItem;
+					return toggleReactionActionViewItem;
 				}
-				return this.actionItemProvider(action as Action);
+				return this.actionViewItemProvider(action as Action);
 			},
 			this.actionRunner!,
 			undefined,
@@ -303,14 +303,14 @@ export class CommentNode extends Disposable {
 	private createReactionsContainer(commentDetailsContainer: HTMLElement): void {
 		this._reactionActionsContainer = dom.append(commentDetailsContainer, dom.$('div.comment-reactions'));
 		this._reactionsActionBar = new ActionBar(this._reactionActionsContainer, {
-			actionItemProvider: action => {
+			actionViewItemProvider: action => {
 				if (action.id === ToggleReactionsAction.ID) {
-					return new DropdownMenuActionItem(
+					return new DropdownMenuActionViewItem(
 						action,
 						(<ToggleReactionsAction>action).menuActions,
 						this.contextMenuService,
 						action => {
-							return this.actionItemProvider(action as Action);
+							return this.actionViewItemProvider(action as Action);
 						},
 						this.actionRunner!,
 						undefined,
@@ -318,7 +318,7 @@ export class CommentNode extends Disposable {
 						() => { return AnchorAlignment.RIGHT; }
 					);
 				}
-				return this.actionItemProvider(action as Action);
+				return this.actionViewItemProvider(action as Action);
 			}
 		});
 		this._toDispose.push(this._reactionsActionBar);
