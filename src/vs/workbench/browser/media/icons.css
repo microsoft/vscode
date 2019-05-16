@@ -96,7 +96,9 @@ body[data-icon-theme^="icon-explorations-"] .search-view a[class^="action-"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .search-view .query-details .more,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Source Control: Git actions"] .icon,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Debug actions"] .icon,
-body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Extensions actions"] .icon {
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Extensions actions"] .icon,
+body[data-icon-theme^="icon-explorations-"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label,
+body[data-icon-theme^="icon-explorations-"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label {
 	background-image: none !important;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
@@ -329,4 +331,67 @@ body[data-icon-theme="icon-explorations-1"] .search-view .search-widget .toggle-
 
 body[data-icon-theme="icon-explorations-2"] .search-view .search-widget .toggle-replace-button.expand::before {
 	-webkit-mask-image: url("images/search/expand-alt2.svg");
+}
+
+/****************
+	Git
+****************/
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"] {
+	-webkit-mask-image: url("images/git/check-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"] {
+	-webkit-mask-image: url("images/git/check-alt2.svg");
+}
+
+/* Refresh */
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.refresh"] {
+	-webkit-mask-image: url("images/git/refresh-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.refresh"] {
+	-webkit-mask-image: url("images/git/refresh-alt2.svg");
+}
+
+/* Stage */
+body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.stageAll"],
+body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.stage"] {
+	-webkit-mask-image: url("images/git/stage-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.stageAll"],
+body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.stage"] {
+	-webkit-mask-image: url("images/git/stage-alt2.svg");
+}
+
+/* Unstage */
+body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.unstageAll"],
+body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.unstage"] {
+	-webkit-mask-image: url("images/git/unstage-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.unstageAll"],
+body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.unstage"] {
+	-webkit-mask-image: url("images/git/unstage-alt2.svg");
+}
+
+/* Discard */
+body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.cleanAll"],
+body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.clean"] {
+	-webkit-mask-image: url("images/git/clean-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.cleanAll"],
+body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.clean"] {
+	-webkit-mask-image: url("images/git/clean-alt2.svg");
+}
+
+/* Open File */
+body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.openFile2"] {
+	-webkit-mask-image: url("images/git/gotofile-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.openFile2"] {
+	-webkit-mask-image: url("images/git/gotofile-alt2.svg");
 }
