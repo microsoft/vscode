@@ -55,5 +55,5 @@ steps:
   continueOnError: true
   inputs:
     serviceConnection: 'rich-nav'
-    githubServiceConnection: 'VSCode'
+    githubServiceConnection: 'Microsoft'
     languages: 'typescript'
