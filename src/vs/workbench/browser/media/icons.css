@@ -81,7 +81,7 @@ body[data-icon-theme="icon-explorations-2"] .monaco-workbench .activitybar .mona
 }
 
 /****************
-	Explorer
+	Base
 ****************/
 
 body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header[aria-label="Open Editors Section"] > .actions .action-label.icon,
@@ -89,6 +89,11 @@ body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-h
 body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header > .actions .action-label.toolbar-toggle-more.icon,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label^="Explorer"] .icon,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Search actions"] .icon,
+body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before,
+body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .replace-container .monaco-action-bar .action-item .icon,
+body[data-icon-theme^="icon-explorations-"] .search-view a[class^="action-"],
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .search-view .query-details .more,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Source Control: Git actions"] .icon,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Debug actions"] .icon,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Extensions actions"] .icon {
@@ -98,6 +103,45 @@ body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .
 	-webkit-mask-position: center;
 	-webkit-mask-size: 16px;
 }
+
+/* Search expand */
+
+body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.collapse,
+body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.expand {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-image: none !important;
+}
+
+body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.collapse::before,
+body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.expand::before {
+	content: "";
+	width: 16px;
+	height: 16px;
+	background-color: var(--gray);
+	-webkit-mask-repeat: no-repeat;
+	-webkit-mask-position: center;
+	-webkit-mask-size: 16px;
+}
+
+/* For icons that are a custom checkbox and use focus */
+
+body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox {
+	background-image: none !important;
+}
+
+body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before {
+	content: "";
+	width: 16px;
+	height: 16px;
+	display: block;
+}
+
+/****************
+	Explorer
+****************/
 
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .flip-editor-layout {
 	-webkit-mask-image: url("images/explorer/layout-alt1.svg");
@@ -161,4 +205,128 @@ body[data-icon-theme="icon-explorations-1"] .monaco-toolbar .action-label.toolba
 
 body[data-icon-theme="icon-explorations-2"] .monaco-toolbar .action-label.toolbar-toggle-more {
 	-webkit-mask-image: url("images/explorer/more-alt2.svg");
+}
+
+/****************
+	Search
+****************/
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .search-action.refresh {
+	-webkit-mask-image: url("images/search/refresh-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .search-action.refresh {
+	-webkit-mask-image: url("images/search/refresh-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .search-action.clear-search-results {
+	-webkit-mask-image: url("images/search/clear-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .search-action.clear-search-results {
+	-webkit-mask-image: url("images/search/clear-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .search-action.collapse {
+	-webkit-mask-image: url("images/search/collapse-all-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .search-action.collapse {
+	-webkit-mask-image: url("images/search/collapse-all-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .search-action.cancel-search {
+	-webkit-mask-image: url("images/search/stop-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .search-action.cancel-search {
+	-webkit-mask-image: url("images/search/stop-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .search-view .search-widget .replace-container .monaco-action-bar .action-item .icon {
+	-webkit-mask-image: url("images/search/replace-all-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .search-view .search-widget .replace-container .monaco-action-bar .action-item .icon {
+	-webkit-mask-image: url("images/search/replace-all-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before {
+	-webkit-mask-image: url("images/search/exclude-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before {
+	-webkit-mask-image: url("images/search/exclude-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-custom-checkbox.monaco-case-sensitive::before {
+	-webkit-mask-image: url("images/search/case-sensitive-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-custom-checkbox.monaco-case-sensitive::before {
+	-webkit-mask-image: url("images/search/case-sensitive-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-custom-checkbox.monaco-whole-word::before {
+	-webkit-mask-image: url("images/search/whole-word-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-custom-checkbox.monaco-whole-word::before {
+	-webkit-mask-image: url("images/search/whole-word-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-custom-checkbox.monaco-regex::before {
+	-webkit-mask-image: url("images/search/regex-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-custom-checkbox.monaco-regex::before {
+	-webkit-mask-image: url("images/search/regex-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .search-view .action-replace {
+	-webkit-mask-image: url("images/search/replace-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .search-view .action-replace {
+	-webkit-mask-image: url("images/search/replace-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .search-view .action-replace-all {
+	-webkit-mask-image: url("images/search/replace-all-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .search-view .action-replace-all {
+	-webkit-mask-image: url("images/search/replace-all-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .search-view .action-remove {
+	-webkit-mask-image: url("images/search/remove-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .search-view .action-remove {
+	-webkit-mask-image: url("images/search/remove-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .search-view .query-details .more {
+	-webkit-mask-image: url("images/search/more-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .search-view .query-details .more {
+	-webkit-mask-image: url("images/search/more-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .search-view .search-widget .toggle-replace-button.collapse::before {
+	-webkit-mask-image: url("images/search/collapse-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .search-view .search-widget .toggle-replace-button.collapse::before {
+	-webkit-mask-image: url("images/search/collapse-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .search-view .search-widget .toggle-replace-button.expand::before {
+	-webkit-mask-image: url("images/search/expand-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .search-view .search-widget .toggle-replace-button.expand::before {
+	-webkit-mask-image: url("images/search/expand-alt2.svg");
 }
