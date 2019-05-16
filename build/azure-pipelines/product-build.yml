@@ -1,7 +1,8 @@
 resources:
   containers:
   - container: vscode-x64
-    image: joaomoreno/vscode-linux-build-agent:x64
+    endpoint: VSCodeHub
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
   - container: snapcraft
     image: snapcore/snapcraft
 

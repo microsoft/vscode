@@ -30,7 +30,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 	constructor(
 		private _xterm: Terminal
 	) {
-		this._xterm.on('key', key => this._onKey(key));
+		this._xterm.onKey(e => this._onKey(e.key));
 	}
 
 	public dispose(): void {

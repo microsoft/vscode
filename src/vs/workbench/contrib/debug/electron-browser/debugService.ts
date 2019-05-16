@@ -392,7 +392,7 @@ export class DebugService implements IDebugService {
 							return this.showError(err.message).then(() => false);
 						}
 						if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-							return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."))
+							return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."))
 								.then(() => false);
 						}
 
@@ -719,7 +719,7 @@ export class DebugService implements IDebugService {
 
 			// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
 			let taskStarted = false;
-			const promise = this.taskService.getActiveTasks().then(tasks => {
+			const promise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(tasks => {
 				if (tasks.filter(t => t._id === task._id).length) {
 					// task is already running - nothing to do.
 					return Promise.resolve(null);

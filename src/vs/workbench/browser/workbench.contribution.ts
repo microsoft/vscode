@@ -239,6 +239,11 @@ import { isMacintosh } from 'vs/base/common/platform';
 				'description': nls.localize('workbench.useExperimentalGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION
+			},
+			'workbench.simpleFileDialog.enable': {
+				'type': 'boolean',
+				'description': nls.localize('workbench.simpleFileDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
+				'default': false,
 			}
 		}
 	});

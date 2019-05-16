@@ -582,7 +582,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.revert();
 	}
 
-	getTelemetryDescriptor(): object {
+	getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = this.master.getTelemetryDescriptor();
 
 		return assign(descriptor, super.getTelemetryDescriptor());
@@ -636,8 +636,7 @@ export class SideBySideEditorInput extends EditorInput {
 				return false;
 			}
 
-			const otherDiffInput = <SideBySideEditorInput>otherInput;
-			return this.details.matches(otherDiffInput.details) && this.master.matches(otherDiffInput.master);
+			return this.details.matches(otherInput.details) && this.master.matches(otherInput.master);
 		}
 
 		return false;

@@ -234,7 +234,7 @@ export class CodeApplication extends Disposable {
 
 		ipc.on('vscode:fetchShellEnv', (event: Event) => {
 			const webContents = event.sender;
-			getShellEnvironment().then(shellEnv => {
+			getShellEnvironment(this.logService).then(shellEnv => {
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
 				}
@@ -678,7 +678,7 @@ export class CodeApplication extends Disposable {
 		historyMainService.onRecentlyOpenedChange(() => historyMainService.updateWindowsJumpList());
 
 		// Start shared process after a while
-		const sharedProcessSpawn = this._register(new RunOnceScheduler(() => getShellEnvironment().then(userEnv => this.sharedProcess.spawn(userEnv)), 3000));
+		const sharedProcessSpawn = this._register(new RunOnceScheduler(() => getShellEnvironment(this.logService).then(userEnv => this.sharedProcess.spawn(userEnv)), 3000));
 		sharedProcessSpawn.schedule();
 	}
 

@@ -21,7 +21,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator2, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';

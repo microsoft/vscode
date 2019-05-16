@@ -14,7 +14,7 @@ import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/act
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
-import { FocusSessionActionItem } from 'vs/workbench/contrib/debug/browser/debugActionItems';
+import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -27,7 +27,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { fillInActionBarActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
@@ -86,12 +86,12 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.activeActions = [];
 		this.actionBar = this._register(new ActionBar(actionBarContainer, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action: IAction) => {
 				if (action.id === FocusSessionAction.ID) {
-					return this.instantiationService.createInstance(FocusSessionActionItem, action);
+					return this.instantiationService.createInstance(FocusSessionActionViewItem, action);
 				}
 				if (action instanceof MenuItemAction) {
-					return new MenuItemActionItem(action, this.keybindingService, this.notificationService, contextMenuService);
+					return new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, contextMenuService);
 				}
 
 				return undefined;

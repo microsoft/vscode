@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.35.0",
-  "distro": "b9fb31b7caa6d9f506aa458342ab71183bc90b52",
+  "distro": "64154bcc07e6621913c55f0daa25bef184b758a6",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -23,7 +23,8 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
-    "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization"
+    "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
+    "web": "node scripts/code-web.js"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -51,7 +52,7 @@
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.13.0-beta3",
+    "vscode-xterm": "3.14.0-beta1",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"
   },
@@ -102,6 +103,7 @@
     "gulp-uglify": "^3.0.0",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",
+    "http-server": "^0.11.1",
     "husky": "^0.13.1",
     "innosetup-compiler": "^5.5.60",
     "is": "^3.1.0",
@@ -114,6 +116,7 @@
     "mkdirp": "^0.5.0",
     "mocha": "^2.2.5",
     "mocha-junit-reporter": "^1.17.0",
+    "opn": "^5.4.0",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
     "pump": "^1.0.1",

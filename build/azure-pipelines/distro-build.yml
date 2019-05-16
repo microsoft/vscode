@@ -10,13 +10,19 @@ steps:
   inputs:
     versionSpec: "10.15.1"
 
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
 - script: |
     set -e
 
     cat << EOF > ~/.netrc
     machine github.com
     login vscode
-    password $(VSCODE_MIXIN_PASSWORD)
+    password $(github-distro-mixin-password)
     EOF
 
     git config user.email "vscode@microsoft.com"

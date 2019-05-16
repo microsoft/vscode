@@ -132,13 +132,13 @@ export class ContextView extends Disposable {
 
 			ContextView.BUBBLE_UP_EVENTS.forEach(event => {
 				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
-					this.onDOMEvent(e, <HTMLElement>document.activeElement, false);
+					this.onDOMEvent(e, false);
 				}));
 			});
 
 			ContextView.BUBBLE_DOWN_EVENTS.forEach(event => {
 				toDisposeOnSetContainer.push(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
-					this.onDOMEvent(e, <HTMLElement>document.activeElement, true);
+					this.onDOMEvent(e, true);
 				}, true));
 			});
 
@@ -213,13 +213,11 @@ export class ContextView extends Disposable {
 				height: elementPosition.height
 			};
 		} else {
-			let realAnchor = <IAnchor>anchor;
-
 			around = {
-				top: realAnchor.y,
-				left: realAnchor.x,
-				width: realAnchor.width || 1,
-				height: realAnchor.height || 2
+				top: anchor.y,
+				left: anchor.x,
+				width: anchor.width || 1,
+				height: anchor.height || 2
 			};
 		}
 
@@ -277,7 +275,7 @@ export class ContextView extends Disposable {
 		return !!this.delegate;
 	}
 
-	private onDOMEvent(e: Event, element: HTMLElement, onCapture: boolean): void {
+	private onDOMEvent(e: Event, onCapture: boolean): void {
 		if (this.delegate) {
 			if (this.delegate.onDOMEvent) {
 				this.delegate.onDOMEvent(e, <HTMLElement>document.activeElement);
