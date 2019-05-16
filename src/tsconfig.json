@@ -1,6 +1,7 @@
 {
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": ".",
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
