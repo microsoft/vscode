@@ -1,0 +1,164 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+:root {
+	--blue: #00539c;
+	--gray: #424242;
+	--grayLight: #848484;
+	--green: #388a34;
+	--greenLight: #9cce9c;
+	--orange: #c27d1a;
+	--orangeLight: #ff8e00;
+	--purple: #652d90;
+	--red: #a31515;
+	--redLight: #e51400;
+	--yellow: #fc0;
+}
+
+:root .vs-dark {
+	--blue: #75beff;
+	--gray: #c5c5c5;
+	--grayLight: #848484;
+	--green: #89d185;
+	--greenLight: #9cce9c;
+	--orange: #e8ab53;
+	--orangeLight: #ff8e00;
+	--purple: #b180d7;
+	--red: #f48771;
+	--redLight: #e51400;
+	--yellow: #fc0;
+}
+
+/****************
+	ACTIVITY BAR
+****************/
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .activitybar .monaco-action-bar .action-label {
+	-webkit-mask-size: 24px !important;
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .activitybar .monaco-action-bar .action-label.explore {
+	-webkit-mask-image: url("images/activitybar/files-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .activitybar .monaco-action-bar .action-label.explore {
+	-webkit-mask-image: url("images/activitybar/files-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .activitybar .monaco-action-bar .action-label.search {
+	-webkit-mask-image: url("images/activitybar/search-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .activitybar .monaco-action-bar .action-label.search {
+	-webkit-mask-image: url("images/activitybar/search-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .activitybar .monaco-action-bar .action-label.scm {
+	-webkit-mask-image: url("images/activitybar/git-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .activitybar .monaco-action-bar .action-label.scm {
+	-webkit-mask-image: url("images/activitybar/git-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .activitybar .monaco-action-bar .action-label.debug {
+	-webkit-mask-image: url("images/activitybar/debug-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .activitybar .monaco-action-bar .action-label.debug {
+	-webkit-mask-image: url("images/activitybar/debug-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .activitybar .monaco-action-bar .action-label.extensions {
+	-webkit-mask-image: url("images/activitybar/extensions-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .activitybar .monaco-action-bar .action-label.extensions {
+	-webkit-mask-image: url("images/activitybar/extensions-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .activitybar .monaco-action-bar .action-label.update-activity {
+	-webkit-mask-image: url("images/activitybar/settings-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .activitybar .monaco-action-bar .action-label.update-activity {
+	-webkit-mask-image: url("images/activitybar/settings-alt2.svg");
+}
+
+/****************
+	Explorer
+****************/
+
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header[aria-label="Open Editors Section"] > .actions .action-label.icon,
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header > .actions .action-label.explorer-action.icon,
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header > .actions .action-label.toolbar-toggle-more.icon,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label^="Explorer"] .icon,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Search actions"] .icon,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Source Control: Git actions"] .icon,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Debug actions"] .icon,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Extensions actions"] .icon {
+	background-image: none !important;
+	background: var(--gray);
+	-webkit-mask-repeat: no-repeat;
+	-webkit-mask-position: center;
+	-webkit-mask-size: 16px;
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .flip-editor-layout {
+	-webkit-mask-image: url("images/explorer/layout-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .flip-editor-layout {
+	-webkit-mask-image: url("images/explorer/layout-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .save-all {
+	-webkit-mask-image: url("images/explorer/save-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .save-all {
+	-webkit-mask-image: url("images/explorer/save-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .explorer-viewlet .action-close-all-files {
+	-webkit-mask-image: url("images/explorer/close-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .explorer-viewlet .action-close-all-files {
+	-webkit-mask-image: url("images/explorer/close-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .explorer-action.new-file {
+	-webkit-mask-image: url("images/explorer/add-file-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .explorer-action.new-file {
+	-webkit-mask-image: url("images/explorer/add-file-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .explorer-action.new-folder {
+	-webkit-mask-image: url("images/explorer/add-folder-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .explorer-action.new-folder {
+	-webkit-mask-image: url("images/explorer/add-folder-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .explorer-action.refresh-explorer {
+	-webkit-mask-image: url("images/explorer/refresh-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .explorer-action.refresh-explorer {
+	-webkit-mask-image: url("images/explorer/refresh-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .explorer-action.collapse-explorer {
+	-webkit-mask-image: url("images/explorer/collapse-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .explorer-action.collapse-explorer {
+	-webkit-mask-image: url("images/explorer/collapse-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-toolbar .action-label.toolbar-toggle-more {
+	-webkit-mask-image: url("images/explorer/more-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-toolbar .action-label.toolbar-toggle-more {
+	-webkit-mask-image: url("images/explorer/more-alt2.svg");
+}
