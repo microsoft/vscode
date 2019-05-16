@@ -232,6 +232,7 @@ export function createApiFactory(
 				return extHostCommands.getCommands(filterInternal);
 			},
 			onDidExecuteCommand: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension);
 				return extHostCommands.onDidExecuteCommand(listener, thisArgs, disposables);
 			}),
 		};
