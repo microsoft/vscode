@@ -63,7 +63,7 @@ suite('URI', () => {
 		assert.equal(URI.from({ scheme: 'http', authority: '', path: 'my/path' }).toString(), 'http:/my/path');
 		assert.equal(URI.from({ scheme: 'http', authority: '', path: '/my/path' }).toString(), 'http:/my/path');
 		//http://a-test-site.com/#test=true
-		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(), 'http://a-test-site.com/?test%3Dtrue');
+		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: 'test=true' }).toString(), 'http://a-test-site.com/?test=true');
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(), 'http://a-test-site.com/#test%3Dtrue');
 	});
 
@@ -102,11 +102,11 @@ suite('URI', () => {
 
 	test('with, changes', () => {
 		assert.equal(URI.parse('before:some/file/path').with({ scheme: 'after' }).toString(), 'after:some/file/path');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTP', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTP:/api/files/test.me?t%3D1234');
-		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTPS', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTPS:/api/files/test.me?t%3D1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTP', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t=1234');
+		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'HTTPS', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t=1234');
 		assert.equal(URI.from({ scheme: 's' }).with({ scheme: 'boo', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'boo:/api/files/test.me?t%3D1234');
 	});
 
@@ -376,7 +376,7 @@ suite('URI', () => {
 		let uri = URI.parse('https://go.microsoft.com/fwlink/?LinkId=518008');
 		assert.equal(uri.query, 'LinkId=518008');
 		assert.equal(uri.toString(true), 'https://go.microsoft.com/fwlink/?LinkId=518008');
-		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId%3D518008');
+		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId=518008');
 
 		let uri2 = URI.parse(uri.toString());
 		assert.equal(uri2.query, 'LinkId=518008');
@@ -385,7 +385,7 @@ suite('URI', () => {
 		uri = URI.parse('https://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
 		assert.equal(uri.query, 'LinkId=518008&foö&ké¥=üü');
 		assert.equal(uri.toString(true), 'https://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
-		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId%3D518008%26fo%C3%B6%26k%C3%A9%C2%A5%3D%C3%BC%C3%BC');
+		assert.equal(uri.toString(), 'https://go.microsoft.com/fwlink/?LinkId=518008&fo%C3%B6&k%C3%A9%C2%A5=%C3%BC%C3%BC');
 
 		uri2 = URI.parse(uri.toString());
 		assert.equal(uri2.query, 'LinkId=518008&foö&ké¥=üü');
@@ -424,6 +424,17 @@ suite('URI', () => {
 		input = 'http://localhost:3000/foo?bar=baz';
 		uri = URI.parse(input);
 		assert.equal(uri.toString(true), input);
+	});
+
+	test('Support URL specific encodings (query component) #25852', function () {
+		let input = 'http://example.com/over/there?name=ferret';
+		assert.equal(input, URI.parse(input).toString());
+
+		input = 'http://example.com/over/there?name=ferret&foo=bar';
+		assert.equal(input, URI.parse(input).toString());
+
+		input = 'attp://example.com/over/there?name=ferret';
+		assert.equal('attp://example.com/over/there?name%3Dferret', URI.parse(input).toString());
 	});
 
 	test('URI - (de)serialize', function () {

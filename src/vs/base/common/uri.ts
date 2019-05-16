@@ -96,6 +96,11 @@ const _empty = '';
 const _slash = '/';
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 
+const _queryStringSchemes = new Set<string>();
+_queryStringSchemes.add('http');
+_queryStringSchemes.add('https');
+_queryStringSchemes.add('ftp');
+
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
  * This class is a simple parser which creates the basic component parts
@@ -487,7 +492,7 @@ const encodeTable: { [ch: number]: string } = {
 	[CharCode.Space]: '%20',
 };
 
-function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): string {
+function encodeURIComponentFast(uriComponent: string, isPath: boolean, isQueryString: boolean): string {
 	let res: string | undefined = undefined;
 	let nativeEncodePos = -1;
 
@@ -503,7 +508,8 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): stri
 			|| code === CharCode.Period
 			|| code === CharCode.Underline
 			|| code === CharCode.Tilde
-			|| (allowSlash && code === CharCode.Slash)
+			|| (isPath && code === CharCode.Slash) // path => allow slash AS-IS
+			|| (isQueryString && (code === CharCode.Equals || code === CharCode.Ampersand || code === CharCode.Semicolon)) // query string => allow &=;
 		) {
 			// check if we are delaying native encode
 			if (nativeEncodePos !== -1) {
@@ -603,6 +609,9 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 
 	let res = '';
 	let { scheme, authority, path, query, fragment } = uri;
+
+	scheme = scheme.toLowerCase();
+
 	if (scheme) {
 		res += scheme;
 		res += ':';
@@ -619,22 +628,22 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 			authority = authority.substr(idx + 1);
 			idx = userinfo.indexOf(':');
 			if (idx === -1) {
-				res += encoder(userinfo, false);
+				res += encoder(userinfo, false, false);
 			} else {
 				// <user>:<pass>@<auth>
-				res += encoder(userinfo.substr(0, idx), false);
+				res += encoder(userinfo.substr(0, idx), false, false);
 				res += ':';
-				res += encoder(userinfo.substr(idx + 1), false);
+				res += encoder(userinfo.substr(idx + 1), false, false);
 			}
 			res += '@';
 		}
 		authority = authority.toLowerCase();
 		idx = authority.indexOf(':');
 		if (idx === -1) {
-			res += encoder(authority, false);
+			res += encoder(authority, false, false);
 		} else {
 			// <auth>:<port>
-			res += encoder(authority.substr(0, idx), false);
+			res += encoder(authority.substr(0, idx), false, false);
 			res += authority.substr(idx);
 		}
 	}
@@ -652,15 +661,15 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 			}
 		}
 		// encode the rest of the path
-		res += encoder(path, true);
+		res += encoder(path, true, false);
 	}
 	if (query) {
 		res += '?';
-		res += encoder(query, false);
+		res += encoder(query, false, _queryStringSchemes.has(scheme));
 	}
 	if (fragment) {
 		res += '#';
-		res += !skipEncoding ? encodeURIComponentFast(fragment, false) : fragment;
+		res += !skipEncoding ? encodeURIComponentFast(fragment, false, false) : fragment;
 	}
 	return res;
 }
