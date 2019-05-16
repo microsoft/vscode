@@ -51,7 +51,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	getResource() {
-		return withNullAsUndefined(toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER }));
+		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
 	}
 
 	getAriaLabel(): string {
