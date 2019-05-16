@@ -97,7 +97,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				x = elementPosition.left;
 				y = elementPosition.top + elementPosition.height;
 			} else {
-				const pos = <{ x: number; y: number; }>anchor;
+				const pos: { x: number; y: number; } = anchor;
 				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
 				y = pos.y;
 			}

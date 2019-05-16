@@ -11,7 +11,7 @@ import * as strings from 'vs/base/common/strings';
 import { Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IAction } from 'vs/base/common/actions';
@@ -399,7 +399,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Toolbar
 		this.toolBar = this._register(new ToolBar(titleActionsContainer, this.contextMenuService, {
-			actionItemProvider: action => this.actionItemProvider(action),
+			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment()
@@ -432,11 +432,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.titleLabel.updateStyles();
 	}
 
-	protected actionItemProvider(action: IAction): IActionItem | undefined {
+	protected actionViewItemProvider(action: IAction): IActionViewItem | undefined {
 
 		// Check Active Composite
 		if (this.activeComposite) {
-			return this.activeComposite.getActionItem(action);
+			return this.activeComposite.getActionViewItem(action);
 		}
 
 		return undefined;

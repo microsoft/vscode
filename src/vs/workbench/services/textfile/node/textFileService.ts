@@ -11,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IFileStatWithMetadata, ICreateFileOptions, FileOperationError, FileOperationResult, IFileStreamContent, IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { exists, stat, chmod, rimraf } from 'vs/base/node/pfs';
+import { exists, stat, chmod, rimraf, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
@@ -26,7 +26,6 @@ import { VSBufferReadable, VSBuffer, VSBufferReadableStream } from 'vs/base/comm
 import { Readable } from 'stream';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/fileConstants';
 import { ITextSnapshot } from 'vs/editor/common/model';
 
 export class NodeTextFileService extends TextFileService {

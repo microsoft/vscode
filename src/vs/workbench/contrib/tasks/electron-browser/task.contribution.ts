@@ -2012,7 +2012,7 @@ class TaskService extends Disposable implements ITaskService {
 			Severity.Info,
 			nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
 			[{
-				label: nls.localize('TaskService.notAgain', 'Don\'t Show Again'),
+				label: nls.localize('TaskService.notAgain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
 					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);

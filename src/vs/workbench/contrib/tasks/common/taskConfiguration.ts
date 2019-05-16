@@ -95,7 +95,7 @@ export interface PresentationOptionsConfig {
 	 * Controls whether the problems panel is revealed when running this task or not.
 	 * Defaults to `RevealKind.Never`.
 	 */
-	revealProblem?: string;
+	revealProblems?: string;
 
 	/**
 	 * Controls whether the executed command is printed to the output window or terminal as well.
@@ -802,7 +802,7 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblem' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }];
+		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblems' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }];
 
 		interface PresentationOptionsShape extends LegacyCommandProperties {
 			presentation?: PresentationOptionsConfig;
@@ -811,7 +811,7 @@ namespace CommandConfiguration {
 		export function from(this: void, config: PresentationOptionsShape, context: ParseContext): Tasks.PresentationOptions | undefined {
 			let echo: boolean;
 			let reveal: Tasks.RevealKind;
-			let revealProblem: Tasks.RevealProblemKind;
+			let revealProblems: Tasks.RevealProblemKind;
 			let focus: boolean;
 			let panel: Tasks.PanelKind;
 			let showReuseMessage: boolean;
@@ -834,8 +834,8 @@ namespace CommandConfiguration {
 				if (Types.isString(presentation.reveal)) {
 					reveal = Tasks.RevealKind.fromString(presentation.reveal);
 				}
-				if (Types.isString(presentation.revealProblem)) {
-					revealProblem = Tasks.RevealProblemKind.fromString(presentation.revealProblem);
+				if (Types.isString(presentation.revealProblems)) {
+					revealProblems = Tasks.RevealProblemKind.fromString(presentation.revealProblems);
 				}
 				if (Types.isBoolean(presentation.focus)) {
 					focus = presentation.focus;
@@ -857,7 +857,7 @@ namespace CommandConfiguration {
 			if (!hasProps) {
 				return undefined;
 			}
-			return { echo: echo!, reveal: reveal!, revealProblem: revealProblem!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group };
+			return { echo: echo!, reveal: reveal!, revealProblems: revealProblems!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group };
 		}
 
 		export function assignProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions | undefined): Tasks.PresentationOptions | undefined {
@@ -870,7 +870,7 @@ namespace CommandConfiguration {
 
 		export function fillDefaults(value: Tasks.PresentationOptions, context: ParseContext): Tasks.PresentationOptions | undefined {
 			let defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblem: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false }, properties, context);
 		}
 
 		export function freeze(value: Tasks.PresentationOptions): Readonly<Tasks.PresentationOptions> | undefined {

@@ -15,7 +15,7 @@ import { ConfirmResult, IEditorInputWithOptions, CloseDirection, IEditorIdentifi
 import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -85,7 +85,7 @@ import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
-	return instantiationService.createInstance(FileEditorInput, resource, undefined);
+	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
 }
 
 export const TestEnvironmentService = new WorkbenchEnvironmentService(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
@@ -1093,7 +1093,7 @@ export class TestBackupFileService implements IBackupFileService {
 		throw new Error('not implemented');
 	}
 
-	public backupResource(_resource: URI, _content: ITextSnapshot): Promise<void> {
+	public backupResource<T extends object>(_resource: URI, _content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1108,7 +1108,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 	}
 
-	public resolveBackupContent(_backup: URI): Promise<ITextBufferFactory> {
+	public resolveBackupContent<T extends object>(_backup: URI): Promise<IResolvedBackup<T>> {
 		throw new Error('not implemented');
 	}
 

@@ -10,9 +10,10 @@ import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITermina
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import * as typeAheadAddon from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
+import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
 
 let Terminal: typeof XTermTerminal;
 
@@ -35,7 +36,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			// Enable xterm.js addons
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/search/search'));
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/webLinks/webLinks'));
-			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/winptyCompat/winptyCompat'));
 			Terminal.applyAddon(typeAheadAddon);
 			// Localize strings
 			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');
@@ -54,6 +54,10 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	}
 
 	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {
-		return new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
+		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
+	}
+
+	public getDefaultShell(p: Platform): string {
+		return getDefaultShell(p);
 	}
 }

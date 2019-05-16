@@ -20,8 +20,12 @@ export class CodeActionKind {
 		public readonly value: string
 	) { }
 
+	public equals(other: CodeActionKind): boolean {
+		return this.value === other.value;
+	}
+
 	public contains(other: CodeActionKind): boolean {
-		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
+		return this.equals(other) || startsWith(other.value, this.value + CodeActionKind.sep);
 	}
 
 	public intersects(other: CodeActionKind): boolean {

@@ -98,7 +98,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		});
 	}
 
-	protected _getDefaultShell(p: platform.Platform): string {
+	public getDefaultShell(p: platform.Platform): string {
 		return getDefaultShell(p);
 	}
 
@@ -117,7 +117,28 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		});
 	}
 
-	private _detectWindowsShells(): Promise<IQuickPickItem[]> {
+	/**
+	 * Get the executable file path of shell from registry.
+	 * @param shellName The shell name to get the executable file path
+	 * @returns `[]` or `[ 'path' ]`
+	 */
+	private async _getShellPathFromRegistry(shellName: string): Promise<string[]> {
+		const Registry = await import('vscode-windows-registry');
+
+		try {
+			const shellPath = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', `SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${shellName}.exe`, '');
+
+			if (shellPath === undefined) {
+				return [];
+			}
+
+			return [shellPath];
+		} catch (error) {
+			return [];
+		}
+	}
+
+	private async _detectWindowsShells(): Promise<IQuickPickItem[]> {
 		// Determine the correct System32 path. We want to point to Sysnative
 		// when the 32-bit version of VS Code is running on a 64-bit machine.
 		// The reason for this is because PowerShell's important PSReadline
@@ -134,6 +155,7 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		const expectedLocations = {
 			'Command Prompt': [`${system32Path}\\cmd.exe`],
 			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
+			'PowerShell Core': await this._getShellPathFromRegistry('pwsh'),
 			'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 			'Git Bash': [
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,

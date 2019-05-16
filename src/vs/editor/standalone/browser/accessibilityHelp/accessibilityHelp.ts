@@ -330,7 +330,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			id: 'editor.action.showAccessibilityHelp',
 			label: AccessibilityHelpNLS.showAccessibilityHelpAction,
 			alias: 'Show Accessibility Help',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: (browser.isIE ? KeyMod.CtrlCmd | KeyCode.F1 : KeyMod.Alt | KeyCode.F1),

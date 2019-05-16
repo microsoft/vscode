@@ -251,7 +251,7 @@ class ShowHoverAction extends EditorAction {
 				]
 			}, "Show Hover"),
 			alias: 'Show Hover',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I),

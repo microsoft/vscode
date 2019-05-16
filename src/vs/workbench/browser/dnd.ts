@@ -30,6 +30,7 @@ import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IRecentFile } from 'vs/platform/history/common/history';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -81,7 +82,12 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 				try {
 					const draggedEditors: ISerializedDraggedEditor[] = JSON.parse(rawEditorsData);
 					draggedEditors.forEach(draggedEditor => {
-						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : undefined, viewState: draggedEditor.viewState, isExternal: false });
+						resources.push({
+							resource: URI.parse(draggedEditor.resource),
+							backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : undefined,
+							viewState: withNullAsUndefined(draggedEditor.viewState),
+							isExternal: false
+						});
 					});
 				} catch (error) {
 					// Invalid transfer
@@ -240,7 +246,7 @@ export class ResourcesDropHandler {
 		return this.backupFileService.resolveBackupContent(droppedDirtyEditor.backupResource!).then(content => {
 
 			// Set the contents of to the resource to the target
-			return this.backupFileService.backupResource(droppedDirtyEditor.resource, content!.create(this.getDefaultEOL()).createSnapshot(true));
+			return this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
 		}).then(() => false, () => false /* ignore any error */);
 	}
 

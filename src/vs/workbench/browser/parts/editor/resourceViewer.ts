@@ -370,7 +370,7 @@ class InlineImageView {
 			dispose: () => combinedDisposable(disposables).dispose()
 		};
 
-		const cacheKey = descriptor.resource.toString();
+		const cacheKey = `${descriptor.resource.toString()}:${descriptor.etag}`;
 
 		let ctrlPressed = false;
 		let altPressed = false;
@@ -501,8 +501,8 @@ class InlineImageView {
 				return;
 			}
 
-			const isScrollWhellKeyPressed = platform.isMacintosh ? altPressed : ctrlPressed;
-			if (!isScrollWhellKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
+			const isScrollWheelKeyPressed = platform.isMacintosh ? altPressed : ctrlPressed;
+			if (!isScrollWheelKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
 				return;
 			}
 
@@ -516,7 +516,7 @@ class InlineImageView {
 			let delta = e.deltaY < 0 ? 1 : -1;
 
 			// Pinching should increase the scale
-			if (e.ctrlKey && !isScrollWhellKeyPressed) {
+			if (e.ctrlKey && !isScrollWheelKeyPressed) {
 				delta *= -1;
 			}
 			updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));

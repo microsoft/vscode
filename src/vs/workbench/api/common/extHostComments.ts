@@ -385,14 +385,18 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	}
 
 	get resource(): vscode.Uri {
-		return this._resource;
+		return this._uri;
+	}
+
+	get uri(): vscode.Uri {
+		return this._uri;
 	}
 
 	private _onDidUpdateCommentThread = new Emitter<void>();
 	readonly onDidUpdateCommentThread = this._onDidUpdateCommentThread.event;
 
 	set range(range: vscode.Range) {
-		if (range.isEqual(this._range)) {
+		if (!range.isEqual(this._range)) {
 			this._range = range;
 			this._onDidUpdateCommentThread.fire();
 		}
@@ -413,11 +417,11 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._onDidUpdateCommentThread.fire();
 	}
 
-	get comments(): (vscode.Comment & vscode.CommentLegacy)[] {
+	get comments(): vscode.Comment[] {
 		return this._comments;
 	}
 
-	set comments(newComments: (vscode.Comment & vscode.CommentLegacy)[]) {
+	set comments(newComments: vscode.Comment[]) {
 		this._comments = newComments;
 		this._onDidUpdateCommentThread.fire();
 	}
@@ -476,15 +480,15 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		private readonly _commandsConverter: CommandsConverter,
 		private _commentController: ExtHostCommentController,
 		private _id: string,
-		private _resource: vscode.Uri,
+		private _uri: vscode.Uri,
 		private _range: vscode.Range,
-		private _comments: (vscode.Comment & vscode.CommentLegacy)[]
+		private _comments: vscode.Comment[]
 	) {
 		this._proxy.$createCommentThread(
 			this._commentController.handle,
 			this.handle,
 			this._id,
-			this._resource,
+			this._uri,
 			extHostTypeConverter.Range.from(this._range)
 		);
 
@@ -513,7 +517,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this._commentController.handle,
 			this.handle,
 			this._id,
-			this._resource,
+			this._uri,
 			commentThreadRange,
 			label,
 			comments,
@@ -662,7 +666,7 @@ class ExtHostCommentController implements vscode.CommentController {
 		this._proxy.$registerCommentController(this.handle, _id, _label);
 	}
 
-	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range, comments: (vscode.Comment & vscode.CommentLegacy)[]): vscode.CommentThread {
+	createCommentThread(id: string, resource: vscode.Uri, range: vscode.Range, comments: vscode.Comment[]): vscode.CommentThread {
 		const commentThread = new ExtHostCommentThread(this._proxy, this._commandsConverter, this, id, resource, range, comments);
 		this._threads.set(commentThread.handle, commentThread);
 		return commentThread;
@@ -708,7 +712,7 @@ function convertToCommentThread(extensionId: ExtensionIdentifier, provider: vsco
 		threadId: vscodeCommentThread.id,
 		resource: vscodeCommentThread.resource.toString(),
 		range: extHostTypeConverter.Range.from(vscodeCommentThread.range),
-		comments: vscodeCommentThread.comments.map(comment => convertToComment(provider, comment as vscode.Comment & vscode.CommentLegacy, commandsConverter)),
+		comments: vscodeCommentThread.comments.map(comment => convertToComment(provider, comment as vscode.Comment, commandsConverter)),
 		collapsibleState: vscodeCommentThread.collapsibleState
 	};
 }
@@ -717,6 +721,7 @@ function convertFromCommentThread(commentThread: modes.CommentThread): vscode.Co
 	return {
 		id: commentThread.threadId!,
 		threadId: commentThread.threadId!,
+		uri: URI.parse(commentThread.resource!),
 		resource: URI.parse(commentThread.resource!),
 		range: extHostTypeConverter.Range.to(commentThread.range),
 		comments: commentThread.comments ? commentThread.comments.map(convertFromComment) : [],
@@ -725,7 +730,7 @@ function convertFromCommentThread(commentThread: modes.CommentThread): vscode.Co
 	} as vscode.CommentThread;
 }
 
-function convertFromComment(comment: modes.Comment): vscode.Comment & vscode.CommentLegacy {
+function convertFromComment(comment: modes.Comment): vscode.Comment {
 	let userIconPath: URI | undefined;
 	if (comment.userIconPath) {
 		try {
@@ -739,6 +744,10 @@ function convertFromComment(comment: modes.Comment): vscode.Comment & vscode.Com
 		id: comment.commentId,
 		commentId: comment.commentId,
 		body: extHostTypeConverter.MarkdownString.to(comment.body),
+		author: {
+			name: comment.userName,
+			iconPath: userIconPath
+		},
 		userName: comment.userName,
 		userIconPath: userIconPath,
 		canEdit: comment.canEdit,
@@ -754,13 +763,14 @@ function convertFromComment(comment: modes.Comment): vscode.Comment & vscode.Com
 	};
 }
 
-function convertToModeComment(commentController: ExtHostCommentController, vscodeComment: vscode.Comment & vscode.CommentLegacy, commandsConverter: CommandsConverter): modes.Comment {
-	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
+function convertToModeComment(commentController: ExtHostCommentController, vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
+	const iconPath = vscodeComment.author && vscodeComment.author.iconPath ? vscodeComment.author.iconPath.toString() :
+		(vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar);
 
 	return {
 		commentId: vscodeComment.id || vscodeComment.commentId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
-		userName: vscodeComment.userName,
+		userName: vscodeComment.author ? vscodeComment.author.name : vscodeComment.userName,
 		userIconPath: iconPath,
 		isDraft: vscodeComment.isDraft,
 		selectCommand: vscodeComment.selectCommand ? commandsConverter.toInternal(vscodeComment.selectCommand) : undefined,
@@ -771,7 +781,7 @@ function convertToModeComment(commentController: ExtHostCommentController, vscod
 	};
 }
 
-function convertToComment(provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, vscodeComment: vscode.Comment & vscode.CommentLegacy, commandsConverter: CommandsConverter): modes.Comment {
+function convertToComment(provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
 	const canEdit = !!(provider as vscode.DocumentCommentProvider).editComment && vscodeComment.canEdit;
 	const canDelete = !!(provider as vscode.DocumentCommentProvider).deleteComment && vscodeComment.canDelete;
 	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;

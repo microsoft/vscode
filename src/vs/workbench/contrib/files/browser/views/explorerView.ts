@@ -35,7 +35,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -511,8 +511,10 @@ export class ExplorerView extends ViewletPanel {
 			return;
 		}
 
-		// Expand all stats in the parent chain
-		let item: ExplorerItem | undefined = this.explorerService.roots.filter(i => isEqualOrParent(resource, i.resource))[0];
+		// Expand all stats in the parent chain.
+		let item: ExplorerItem | undefined = this.explorerService.roots.filter(i => isEqualOrParent(resource, i.resource))
+			// Take the root that is the closest to the stat #72299
+			.sort((first, second) => second.resource.path.length - first.resource.path.length)[0];
 
 		while (item && item.resource.toString() !== resource.toString()) {
 			await this.tree.expand(item);

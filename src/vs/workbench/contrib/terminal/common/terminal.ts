@@ -58,6 +58,7 @@ export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
+export const SHELL_PATH_INVALID_EXIT_CODE = -1;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
@@ -112,7 +113,7 @@ export interface ITerminalConfigHelper {
 	/**
 	 * Merges the default shell path and args into the provided launch configuration
 	 */
-	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride?: platform.Platform): void;
+	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, platformOverride?: platform.Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 	checkWorkspaceShellPermissions(osOverride?: platform.OperatingSystem): boolean;
@@ -253,6 +254,7 @@ export interface ITerminalService {
 	findPrevious(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
+	getDefaultShell(p: platform.Platform): string;
 	selectDefaultWindowsShell(): Promise<string | undefined>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
@@ -687,7 +689,6 @@ export const enum ProcessState {
 	// was run.
 	KILLED_BY_PROCESS
 }
-
 
 export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly terminalId: number;

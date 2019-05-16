@@ -154,14 +154,14 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	setInput(newInput: PreferencesEditorInput, options: SettingsEditorOptions, token: CancellationToken): Promise<void> {
+	setInput(newInput: EditorInput, options: SettingsEditorOptions, token: CancellationToken): Promise<void> {
 		this.defaultSettingsEditorContextKey.set(true);
 		this.defaultSettingsJSONEditorContextKey.set(true);
 		if (options && options.query) {
 			this.focusSearch(options.query);
 		}
 
-		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput, options, token));
+		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput as PreferencesEditorInput, options, token));
 	}
 
 	layout(dimension: DOM.Dimension): void {

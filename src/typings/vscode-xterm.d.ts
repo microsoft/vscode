@@ -102,17 +102,6 @@ declare module 'vscode-xterm' {
 		experimentalCharAtlas?: 'none' | 'static' | 'dynamic';
 
 		/**
-		 * (EXPERIMENTAL) Defines which implementation to use for buffer lines.
-		 *
-		 * - 'JsArray': The default/stable implementation.
-		 * - 'TypedArray': The new experimental implementation based on TypedArrays that is expected to
-		 *   significantly boost performance and memory consumption. Use at your own risk.
-		 *
-		 * @deprecated This option will be removed in the future.
-		 */
-		experimentalBufferLineImpl?: 'JsArray' | 'TypedArray';
-
-		/**
 		 * The font size used to render text.
 		 */
 		fontSize?: number;
@@ -199,6 +188,18 @@ declare module 'vscode-xterm' {
 		 * The color theme of the terminal.
 		 */
 		theme?: ITheme;
+
+		/**
+		 * Whether "Windows mode" is enabled. Because Windows backends winpty and
+		 * conpty operate by doing line wrapping on their side, xterm.js does not
+		 * have access to wrapped lines. When Windows mode is enabled the following
+		 * changes will be in effect:
+		 *
+		 * - Reflow is disabled.
+		 * - Lines are assumed to be wrapped if the last character of the line is
+		 *   not whitespace.
+		 */
+		windowsMode?: boolean;
 	}
 
 	/**
@@ -306,6 +307,14 @@ declare module 'vscode-xterm' {
 		dispose(): void;
 	}
 
+	/**
+	 * An event that can be listened to.
+	 * @returns an `IDisposable` to stop listening.
+	 */
+	export interface IEvent<T> {
+		(listener: (e: T) => any): IDisposable;
+	}
+
 	export interface IMarker extends IDisposable {
 		readonly id: number;
 		readonly isDisposed: boolean;
@@ -325,28 +334,32 @@ declare module 'vscode-xterm' {
 		/**
 		 * The element containing the terminal.
 		 */
-		element: HTMLElement;
+		readonly element: HTMLElement;
 
 		/**
 		 * The textarea that accepts input for the terminal.
 		 */
-		textarea: HTMLTextAreaElement;
+		readonly textarea: HTMLTextAreaElement;
 
 		/**
-		 * The number of rows in the terminal's viewport.
+		 * The number of rows in the terminal's viewport. Use
+		 * `ITerminalOptions.rows` to set this in the constructor and
+		 * `Terminal.resize` for when the terminal exists.
 		 */
-		rows: number;
+		readonly rows: number;
 
 		/**
-		 * The number of columns in the terminal's viewport.
+		 * The number of columns in the terminal's viewport. Use
+		 * `ITerminalOptions.cols` to set this in the constructor and
+		 * `Terminal.resize` for when the terminal exists.
 		 */
-		cols: number;
+		readonly cols: number;
 
 		/**
 		 * (EXPERIMENTAL) Get all markers registered against the buffer. If the alt
 		 * buffer is active this will always return [].
 		 */
-		markers: IMarker[];
+		readonly markers: ReadonlyArray<IMarker>;
 
 		/**
 		 * Natural language strings that can be localized.
@@ -359,6 +372,70 @@ declare module 'vscode-xterm' {
 		 * @param options An object containing a set of options.
 		 */
 		constructor(options?: ITerminalOptions);
+
+		/**
+		 * Adds an event listener for the cursor moves.
+		 * @returns an `IDisposable` to stop listening.
+		 */
+		onCursorMove: IEvent<void>;
+
+		/**
+		 * Adds an event listener for when a data event fires. This happens for
+		 * example when the user types or pastes into the terminal. The event value
+		 * is whatever `string` results, in a typical setup, this should be passed
+		 * on to the backing pty.
+		 * @returns an `IDisposable` to stop listening.
+		 */
+		onData: IEvent<string>;
+
+		/**
+		 * Adds an event listener for a key is pressed. The event value contains the
+		 * string that will be sent in the data event as well as the DOM event that
+		 * triggered it.
+		 * @returns an `IDisposable` to stop listening.
+		 */
+		onKey: IEvent<{ key: string, domEvent: KeyboardEvent }>;
+
+		/**
+		 * Adds an event listener for when a line feed is added.
+		 * @returns an `IDisposable` to stop listening.
+		 */
+		onLineFeed: IEvent<void>;
+
+		/**
+		 * Adds an event listener for when a scroll occurs. The  event value is the
+		 * new position of the viewport.
+		 * @returns an `IDisposable` to stop listening.
+		 */
+		onScroll: IEvent<number>;
+
+		/**
+		 * Adds an event listener for when a selection change occurs.
+		 * @returns an `IDisposable` to stop listening.
+		 */
+		onSelectionChange: IEvent<void>;
+
+		/**
+		 * Adds an event listener for when rows are rendered. The event value
+		 * contains the start row and end rows of the rendered area (ranges from `0`
+		 * to `Terminal.rows - 1`).
+		 * @returns an `IDisposable` to stop listening.
+		 */
+		onRender: IEvent<{ start: number, end: number }>;
+
+		/**
+		 * Adds an event listener for when the terminal is resized. The event value
+		 * contains the new size.
+		 * @returns an `IDisposable` to stop listening.
+		 */
+		onResize: IEvent<{ cols: number, rows: number }>;
+
+		/**
+		 * Adds an event listener for when an OSC 0 or OSC 2 title change occurs.
+		 * The event value is the new title.
+		 * @returns an `IDisposable` to stop listening.
+		 */
+		onTitleChange: IEvent<string>;
 
 		/**
 		 * Unfocus the terminal.
@@ -374,54 +451,63 @@ declare module 'vscode-xterm' {
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
+		 * @deprecated use `Terminal.onEvent(listener)` instead.
 		 */
 		on(type: 'blur' | 'focus' | 'linefeed' | 'selection', listener: () => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
+		 * @deprecated use `Terminal.onEvent(listener)` instead.
 		 */
 		on(type: 'data', listener: (...args: any[]) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
+		 * @deprecated use `Terminal.onEvent(listener)` instead.
 		 */
 		on(type: 'key', listener: (key: string, event: KeyboardEvent) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
+		 * @deprecated use `Terminal.onEvent(listener)` instead.
 		 */
 		on(type: 'keypress' | 'keydown', listener: (event: KeyboardEvent) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
+		 * @deprecated use `Terminal.onEvent(listener)` instead.
 		 */
 		on(type: 'refresh', listener: (data: { start: number, end: number }) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
+		 * @deprecated use `Terminal.onEvent(listener)` instead.
 		 */
 		on(type: 'resize', listener: (data: { cols: number, rows: number }) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
+		 * @deprecated use `Terminal.onEvent(listener)` instead.
 		 */
 		on(type: 'scroll', listener: (ydisp: number) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
+		 * @deprecated use `Terminal.onEvent(listener)` instead.
 		 */
 		on(type: 'title', listener: (title: string) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
+		 * @deprecated use `Terminal.onEvent(listener)` instead.
 		 */
 		on(type: string, listener: (...args: any[]) => void): void;
 
@@ -429,6 +515,7 @@ declare module 'vscode-xterm' {
 		 * Deregisters an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
+		 * @deprecated use `Terminal.onEvent(listener).dispose()` instead.
 		 */
 		off(type: 'blur' | 'focus' | 'linefeed' | 'selection' | 'data' | 'key' | 'keypress' | 'keydown' | 'refresh' | 'resize' | 'scroll' | 'title' | string, listener: (...args: any[]) => void): void;
 
@@ -446,11 +533,14 @@ declare module 'vscode-xterm' {
 		 * be used to conveniently remove the event listener.
 		 * @param type The type of event.
 		 * @param handler The event handler.
+		 * @deprecated use `Terminal.onEvent(listener)` instead.
 		 */
 		addDisposableListener(type: string, handler: (...args: any[]) => void): IDisposable;
 
 		/**
-		 * Resizes the terminal.
+		 * Resizes the terminal. It's best practice to debounce calls to resize,
+		 * this will help ensure that the pty can respond to the resize event
+		 * before another one occurs.
 		 * @param x The number of columns to resize to.
 		 * @param y The number of rows to resize to.
 		 */
@@ -476,10 +566,34 @@ declare module 'vscode-xterm' {
 		 * should be processed by the terminal and what keys should not.
 		 * @param customKeyEventHandler The custom KeyboardEvent handler to attach.
 		 * This is a function that takes a KeyboardEvent, allowing consumers to stop
-		 * propogation and/or prevent the default action. The function returns
+		 * propagation and/or prevent the default action. The function returns
 		 * whether the event should be processed by xterm.js.
 		 */
 		attachCustomKeyEventHandler(customKeyEventHandler: (event: KeyboardEvent) => boolean): void;
+
+		/**
+		 * (EXPERIMENTAL) Adds a handler for CSI escape sequences.
+		 * @param flag The flag should be one-character string, which specifies the
+		 * final character (e.g "m" for SGR) of the CSI sequence.
+		 * @param callback The function to handle the escape sequence. The callback
+		 * is called with the numerical params, as well as the special characters
+		 * (e.g. "$" for DECSCPP). Return true if the sequence was handled; false if
+		 * we should try a previous handler (set by addCsiHandler or setCsiHandler).
+		 * The most recently-added handler is tried first.
+		 * @return An IDisposable you can call to remove this handler.
+		 */
+		addCsiHandler(flag: string, callback: (params: number[], collect: string) => boolean): IDisposable;
+
+		/**
+		 * (EXPERIMENTAL) Adds a handler for OSC escape sequences.
+		 * @param ident The number (first parameter) of the sequence.
+		 * @param callback The function to handle the escape sequence. The callback
+		 * is called with OSC data string. Return true if the sequence was handled;
+		 * false if we should try a previous handler (set by addOscHandler or
+		 * setOscHandler). The most recently-added handler is tried first.
+		 * @return An IDisposable you can call to remove this handler.
+		 */
+		addOscHandler(ident: number, callback: (data: string) => boolean): IDisposable;
 
 		/**
 		 * (EXPERIMENTAL) Registers a link matcher, allowing custom link patterns to
@@ -762,10 +876,8 @@ declare module 'vscode-xterm' {
 
 		handler(text: string): void;
 
-		/**
-		 * Emit an event on the terminal.
-		 */
-		emit(type: string, data: any): void;
+		_onScroll: IEventEmitter2<number>;
+		_onKey: IEventEmitter2<{ key: string }>;
 
 		charMeasure?: { height: number, width: number };
 
@@ -773,6 +885,10 @@ declare module 'vscode-xterm' {
 			_renderLayers: any[];
 			onIntersectionChange: any;
 		};
+	}
+
+	interface IEventEmitter2<T> {
+		fire(e: T): void;
 	}
 
 	interface ISearchOptions {
@@ -794,7 +910,6 @@ declare module 'vscode-xterm' {
 		_core: TerminalCore;
 
 		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
-		winptyCompatInit(): void;
 
 		/**
 		 * Find the next instance of the term, then scroll to and select it. If it

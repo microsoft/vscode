@@ -17,7 +17,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, Platform } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { timeout } from 'vs/base/common/async';
@@ -106,6 +106,7 @@ export abstract class TerminalService implements ITerminalService {
 
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
+	public abstract getDefaultShell(platform: Platform): string;
 	public abstract selectDefaultWindowsShell(): Promise<string | undefined>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
@@ -426,6 +427,9 @@ export abstract class TerminalService implements ITerminalService {
 			return Promise.resolve(null);
 		}
 		const current = potentialPaths.shift();
+		if (current! === '') {
+			return this._validateShellPaths(label, potentialPaths);
+		}
 		return this._fileService.exists(URI.file(current!)).then(exists => {
 			if (!exists) {
 				return this._validateShellPaths(label, potentialPaths);
