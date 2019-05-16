@@ -7,9 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as rimraf from 'rimraf';
 import BufferSyncSupport from './features/bufferSyncSupport';
-import * as electron from './utils/electron';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
 import { TypeScriptServer, TypeScriptServerSpawner } from './tsServer/server';
@@ -348,7 +346,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 			this.serviceExited(!this.isRestarting);
 			this.isRestarting = false;
-			rimraf.sync(electron.getRootTempDir());
 		});
 
 		handle.onReaderError(error => this.error('ReaderError', error));

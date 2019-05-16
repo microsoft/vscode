@@ -9,7 +9,7 @@ import fs = require('fs');
 import cp = require('child_process');
 
 
-export const getRootTempDir = (() => {
+const getRootTempDir = (() => {
 	let dir: string | undefined;
 	return () => {
 		if (!dir) {
@@ -22,8 +22,21 @@ export const getRootTempDir = (() => {
 	};
 })();
 
+export const getInstanceDir = (() => {
+	let dir: string | undefined;
+	return () => {
+		if (!dir) {
+			dir = path.join(getRootTempDir(), temp.makeRandomHexString(20));
+		}
+		if (!fs.existsSync(dir)) {
+			fs.mkdirSync(dir);
+		}
+		return dir;
+	};
+})();
+
 export function getTempFile(prefix: string): string {
-	return path.join(getRootTempDir(), `${prefix}-${temp.makeRandomHexString(20)}.tmp`);
+	return path.join(getInstanceDir(), `${prefix}-${temp.makeRandomHexString(20)}.tmp`);
 }
 
 function generatePatchedEnv(env: any, modulePath: string): any {
