@@ -514,7 +514,7 @@ export class SearchView extends ViewletPanel {
 			return;
 		}
 
-		const progressRunner = this.progressService.show(100);
+		const progressRunner = this.progressService.show(100); //
 
 		const occurrences = this.viewModel.searchResult.count();
 		const fileCount = this.viewModel.searchResult.fileCount();
@@ -641,7 +641,7 @@ export class SearchView extends ViewletPanel {
 			{
 				identityProvider,
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel),
-				dnd: this.instantiationService.createInstance(SearchDND),
+				dnd: this.instantiationService.createInstance(SearchDND), //
 				multipleSelectionSupport: false
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));

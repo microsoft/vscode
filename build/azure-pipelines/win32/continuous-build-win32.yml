@@ -51,3 +51,9 @@ steps:
     testResultsFiles: '*-results.xml'
     searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
   condition: succeededOrFailed()
+- task: RichCodeNavIndexer@0
+  continueOnError: true
+  inputs:
+    serviceConnection: 'rich-nav'
+    githubServiceConnection: 'VSCode'
+    languages: 'typescript'
