@@ -404,7 +404,7 @@ export class RemoteFileDialog {
 			}
 			await this.updateItems(newDir, true);
 			return UpdateResult.Updated;
-		} else if (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true))) {
+		} else if (!resources.isEqual(this.currentFolder, valueUri, true) && (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true)))) {
 			let stat: IFileStat | undefined;
 			try {
 				stat = await this.fileService.resolve(valueUri);
