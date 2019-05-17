@@ -80,7 +80,10 @@ body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .
 body[data-icon-theme^="icon-explorations-"] .monaco-tl-twistie.collapsible:not(.loading),
 body[data-icon-theme^="icon-explorations-"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
 body[data-icon-theme^="icon-explorations-"] .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
+body[data-icon-theme^="icon-explorations-"] .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-tl-twistie.collapsible.collapsed:not(.loading),
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
 	background-image: none !important;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
@@ -1136,8 +1139,9 @@ body[data-icon-theme="icon-explorations-2"] .monaco-editor .suggest-widget .mona
 	Breadcrumbs
 ****************/
 
-body[data-icon-theme^="icon-explorations-"] .monaco-workbench .breadcrumbs-control .symbol-icon.file::before {
-	top: -4px;
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .breadcrumbs-control .symbol-icon::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .monaco-breadcrumb-item .symbol-icon {
+	top: -2px;
 }
 
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .symbol-icon {
@@ -1468,13 +1472,31 @@ body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible:not(.
 }
 
 body[data-icon-theme="icon-explorations-1"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
+body[data-icon-theme="icon-explorations-1"] .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	-webkit-mask-image: url("images/tree/collapse-alt1.svg")
 }
 
 body[data-icon-theme="icon-explorations-2"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
+body[data-icon-theme="icon-explorations-2"] .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	-webkit-mask-image: url("images/tree/collapse-alt2.svg")
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
+	-webkit-mask-image: url("images/tree/close-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
+	-webkit-mask-image: url("images/tree/close-alt2.svg")
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action {
+	-webkit-mask-image: url("images/tree/dirty-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action {
+	-webkit-mask-image: url("images/tree/dirty-alt2.svg")
 }
