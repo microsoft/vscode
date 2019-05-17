@@ -18,7 +18,7 @@ try {
 
 	const dtsUri = `https://raw.githubusercontent.com/microsoft/vscode/${tag}/src/vs/vscode.d.ts`;
 	const outPath = path.resolve(process.cwd(), 'vscode-DefinitelyTyped/types/vscode/index.d.ts');
-	cp.execSync(`curl ${dtsUri} -O ${outPath}`);
+	cp.execSync(`curl ${dtsUri} --output ${outPath}`);
 
 	updateDTSFile(outPath, tag);
 

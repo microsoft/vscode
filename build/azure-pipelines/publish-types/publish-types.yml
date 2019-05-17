@@ -23,7 +23,7 @@ steps:
     git config user.email "vscode@microsoft.com"
     git config user.name "VSCode"
 
-    git clone https://github.com/octref/vscode-DefinitelyTyped.git --depth=1 -b vscode
+    git clone https://github.com/octref/vscode-DefinitelyTyped.git --depth=1
 
     cd vscode-DefinitelyTyped
 
