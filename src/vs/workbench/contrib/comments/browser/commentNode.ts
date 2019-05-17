@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as modes from 'vs/editor/common/modes';
 import { ActionsOrientation, ActionViewItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Action, IActionRunner } from 'vs/base/common/actions';
+import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -35,6 +35,9 @@ import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from '.
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
@@ -85,6 +88,7 @@ export class CommentNode extends Disposable {
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
 		@IDialogService private dialogService: IDialogService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
@@ -139,7 +143,7 @@ export class CommentNode extends Disposable {
 	}
 
 	private createActionsToolbar() {
-		const actions: Action[] = [];
+		const actions: IAction[] = [];
 
 		let reactionGroup = this.commentService.getReactionGroup(this.owner);
 		if (reactionGroup && reactionGroup.length) {
@@ -162,6 +166,10 @@ export class CommentNode extends Disposable {
 			this._deleteAction = this.createDeleteAction();
 			actions.push(this._deleteAction);
 		}
+
+		let commentMenus = this.commentService.getCommentMenus(this.owner);
+		let titleActions = commentMenus.getCommentTitleActions(this.comment);
+		actions.push(...titleActions);
 
 		if (actions.length) {
 			this.toolbar = new ToolBar(this._actionsToolbarContainer, this.contextMenuService, {
@@ -187,6 +195,7 @@ export class CommentNode extends Disposable {
 
 			this.registerActionBarListeners(this._actionsToolbarContainer);
 			this.toolbar.setActions(actions, [])();
+			this.toolbar.context = this.comment;
 			this._toDispose.push(this.toolbar);
 		}
 	}
@@ -196,11 +205,14 @@ export class CommentNode extends Disposable {
 		if (action.id === 'comment.delete' || action.id === 'comment.edit' || action.id === ToggleReactionsAction.ID) {
 			options = { label: false, icon: true };
 		} else {
-			options = { label: true, icon: true };
+			options = { label: false, icon: true };
 		}
 
 		if (action.id === ReactionAction.ID) {
 			let item = new ReactionActionViewItem(action);
+			return item;
+		} else if (action instanceof MenuItemAction) {
+			let item = new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 			return item;
 		} else {
 			let item = new ActionViewItem({}, action, options);
@@ -514,37 +526,41 @@ export class CommentNode extends Disposable {
 
 	private createEditAction(commentDetailsContainer: HTMLElement): Action {
 		return new Action('comment.edit', nls.localize('label.edit', "Edit"), 'octicon octicon-pencil', true, () => {
-			this.isEditing = true;
-			this._body.classList.add('hidden');
-			this._commentEditContainer = dom.append(commentDetailsContainer, dom.$('.edit-container'));
-			this.createCommentEditor();
-
-			this._errorEditingContainer = dom.append(this._commentEditContainer, dom.$('.validation-error.hidden'));
-			const formActions = dom.append(this._commentEditContainer, dom.$('.form-actions'));
-
-			const cancelEditButton = new Button(formActions);
-			cancelEditButton.label = nls.localize('label.cancel', "Cancel");
-			this._toDispose.push(attachButtonStyler(cancelEditButton, this.themeService));
-
-			this._toDispose.push(cancelEditButton.onDidClick(_ => {
-				this.removeCommentEditor();
-			}));
-
-			this._updateCommentButton = new Button(formActions);
-			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
-			this._toDispose.push(attachButtonStyler(this._updateCommentButton, this.themeService));
-
-			this._toDispose.push(this._updateCommentButton.onDidClick(_ => {
-				this.editComment();
-			}));
-
-			this._commentEditorDisposables.push(this._commentEditor!.onDidChangeModelContent(_ => {
-				this._updateCommentButton.enabled = !!this._commentEditor!.getValue();
-			}));
-
-			this._editAction.enabled = false;
-			return Promise.resolve();
+			return this.editCommentAction(commentDetailsContainer);
 		});
+	}
+
+	private editCommentAction(commentDetailsContainer: HTMLElement) {
+		this.isEditing = true;
+		this._body.classList.add('hidden');
+		this._commentEditContainer = dom.append(commentDetailsContainer, dom.$('.edit-container'));
+		this.createCommentEditor();
+
+		this._errorEditingContainer = dom.append(this._commentEditContainer, dom.$('.validation-error.hidden'));
+		const formActions = dom.append(this._commentEditContainer, dom.$('.form-actions'));
+
+		const cancelEditButton = new Button(formActions);
+		cancelEditButton.label = nls.localize('label.cancel', "Cancel");
+		this._toDispose.push(attachButtonStyler(cancelEditButton, this.themeService));
+
+		this._toDispose.push(cancelEditButton.onDidClick(_ => {
+			this.removeCommentEditor();
+		}));
+
+		this._updateCommentButton = new Button(formActions);
+		this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
+		this._toDispose.push(attachButtonStyler(this._updateCommentButton, this.themeService));
+
+		this._toDispose.push(this._updateCommentButton.onDidClick(_ => {
+			this.editComment();
+		}));
+
+		this._commentEditorDisposables.push(this._commentEditor!.onDidChangeModelContent(_ => {
+			this._updateCommentButton.enabled = !!this._commentEditor!.getValue();
+		}));
+
+		this._editAction.enabled = false;
+		return Promise.resolve();
 	}
 
 	private registerActionBarListeners(actionsContainer: HTMLElement): void {

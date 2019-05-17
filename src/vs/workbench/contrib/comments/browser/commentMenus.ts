@@ -30,25 +30,23 @@ export class CommentMenus implements IDisposable {
 	}
 
 	getCommentThreadTitleActions(commentThread: CommentThread2): IAction[] {
-		return this.getActions(MenuId.CommentThreadTitle, commentThread).primary;
+		return this.getActions(MenuId.CommentThreadTitle).primary;
 	}
 
 	getCommentThreadActions(commentThread: CommentThread2): IAction[] {
-		return [];
+		return this.getActions(MenuId.CommentThreadActions).primary;
 	}
 
 	getCommentTitleActions(comment: Comment): IAction[] {
-		return [];
+		return this.getActions(MenuId.CommentTitle).primary;
 	}
 
 	getCommentActions(comment: Comment): IAction[] {
-		return [];
+		return this.getActions(MenuId.CommentActions).primary;
 	}
 
-
-	private getActions(menuId: MenuId, thread: CommentThread2) {
+	private getActions(menuId: MenuId) {
 		const contextKeyService = this.contextKeyService.createScoped();
-		// contextKeyService.createKey('commentThread', thread.threadId);
 
 		const menu = this.menuService.createMenu(menuId, contextKeyService);
 		const primary: IAction[] = [];

@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionViewItem, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
@@ -39,9 +39,14 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
+const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-up';
 const COMMENT_SCHEME = 'comment';
 
 
@@ -101,7 +106,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		@IModelService private modelService: IModelService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private openerService: IOpenerService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@INotificationService private notificationService: INotificationService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super(editor, { keepEditorSelection: true });
 		this._resizeObserver = null;
@@ -202,7 +210,18 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.createThreadLabel();
 
 		const actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
-		this._actionbarWidget = new ActionBar(actionsContainer, {});
+		this._actionbarWidget = new ActionBar(actionsContainer, {
+			actionViewItemProvider: (action: IAction) => {
+				if (action instanceof MenuItemAction) {
+					let item = new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					return item;
+				} else {
+					let item = new ActionViewItem({}, action, { label: false, icon: true });
+					return item;
+				}
+			}
+		});
+
 		this._disposables.push(this._actionbarWidget);
 
 		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => this.collapse());
@@ -698,6 +717,25 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				}));
 			});
 		}
+
+		let actions = this._commentMenus.getCommentThreadActions(commentThread);
+
+		actions.forEach(action => {
+			const button = new Button(container);
+			this._disposables.push(attachButtonStyler(button, this.themeService));
+
+			button.label = action.label;
+
+			this._disposables.push(button.onDidClick(async () => {
+				action.run({
+					thread: this._commentThread,
+					text: this._commentEditor.getValue(),
+					$mid: 8
+				});
+
+				this.hideReplyArea();
+			}));
+		});
 	}
 
 	private createNewCommentNode(comment: modes.Comment): CommentNode {
@@ -847,6 +885,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			dom.addClass(this._commentForm, 'expand');
 			this._commentEditor.focus();
 		}
+	}
+
+	private hideReplyArea() {
+		this._commentEditor.setValue('');
+		this._pendingComment = '';
+		if (dom.hasClass(this._commentForm, 'expand')) {
+			dom.removeClass(this._commentForm, 'expand');
+		}
+		this._commentEditor.getDomNode()!.style.outline = '';
+		this._error.textContent = '';
+		dom.addClass(this._error, 'hidden');
 	}
 
 	private createReplyButton() {
