@@ -35,7 +35,7 @@ export class CodeActionSet {
 	public readonly actions: readonly CodeAction[];
 
 	public constructor(actions: readonly CodeAction[]) {
-		this.actions = mergeSort(Array.from(actions), CodeActionSet.codeActionsComparator);
+		this.actions = mergeSort([...actions], CodeActionSet.codeActionsComparator);
 	}
 
 	public get hasAutoFix() {
