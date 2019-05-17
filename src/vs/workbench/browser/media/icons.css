@@ -83,7 +83,9 @@ body[data-icon-theme^="icon-explorations-"] .file-icon-themable-tree .monaco-tre
 body[data-icon-theme^="icon-explorations-"] .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-tl-twistie.collapsible.collapsed:not(.loading),
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action,
-body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.splitEditor"],
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openChange"] {
 	background-image: none !important;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
@@ -1499,4 +1501,33 @@ body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .co
 
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action {
 	-webkit-mask-image: url("images/tree/dirty-alt2.svg")
+}
+
+/****************
+	Tree
+****************/
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.splitEditor"] {
+	-webkit-mask-image: url("images/editor/split-horizontal-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.splitEditor"] {
+	-webkit-mask-image: url("images/editor/split-horizontal-alt2.svg")
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"] {
+	-webkit-mask-image: url("images/editor/split-vertical-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"] {
+	-webkit-mask-image: url("images/editor/split-vertical-alt2.svg")
+}
+
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openChange"] {
+	-webkit-mask-image: url("images/editor/open-change-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openChange"] {
+	-webkit-mask-image: url("images/editor/open-change-alt2.svg")
 }
