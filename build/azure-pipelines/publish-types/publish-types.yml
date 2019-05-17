@@ -20,9 +20,6 @@ steps:
   displayName: Check version
 
 - bash: |
-    git config user.email "vscode@microsoft.com"
-    git config user.name "VSCode"
-
     git clone https://github.com/octref/vscode-DefinitelyTyped.git --depth=1
 
     cd vscode-DefinitelyTyped
@@ -35,8 +32,15 @@ steps:
 
     node build/azure-pipelines/publish-types/update-types.js
 
-    TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
-    git commit -am 'VS Code $TAG_VERSION Extension API'
-    git push origin master
+    cd vscode-DefinitelyTyped
 
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+
+    TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
+
+    git add -A
+    git status
+    git commit -m 'VS Code $TAG_VERSION Extension API'
+    git push origin master
   displayName: Update vscode-DefinitelyTyped
