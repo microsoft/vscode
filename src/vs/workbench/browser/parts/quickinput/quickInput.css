@@ -119,6 +119,7 @@
 
 .quick-input-list {
 	line-height: 22px;
+	margin-top: 6px;
 }
 
 .quick-input-list .monaco-list {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionItem } from 'vs/base/common/actions';
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 
 export interface IComposite {
 
@@ -35,7 +35,7 @@ export interface IComposite {
 	/**
 	 * Returns the action item for a specific action.
 	 */
-	getActionItem(action: IAction): IActionItem | undefined;
+	getActionViewItem(action: IAction): IActionViewItem | undefined;
 
 	/**
 	 * Returns the underlying control of this composite.

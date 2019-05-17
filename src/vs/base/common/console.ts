@@ -79,7 +79,7 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string | undefined): ISt
 				uri: URI.file(matches[1]),
 				line: Number(matches[2]),
 				column: Number(matches[3])
-			} as IStackFrame;
+			};
 		}
 	}
 

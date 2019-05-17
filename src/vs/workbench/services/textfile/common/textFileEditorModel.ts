@@ -72,7 +72,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private bufferSavedVersionId: number;
 	private blockModelContentChange: boolean;
 
-	private lastResolvedDiskStat: IFileStatWithMetadata;
+	private lastResolvedFileStat: IFileStatWithMetadata;
 
 	private autoSaveAfterMillies?: number;
 	private autoSaveAfterMilliesEnabled: boolean;
@@ -228,11 +228,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Only fill in model metadata if resource matches
 			let meta: IBackupMetaData | undefined = undefined;
-			if (isEqual(target, this.resource) && this.lastResolvedDiskStat) {
+			if (isEqual(target, this.resource) && this.lastResolvedFileStat) {
 				meta = {
-					mtime: this.lastResolvedDiskStat.mtime,
-					size: this.lastResolvedDiskStat.size,
-					etag: this.lastResolvedDiskStat.etag,
+					mtime: this.lastResolvedFileStat.mtime,
+					size: this.lastResolvedFileStat.size,
+					etag: this.lastResolvedFileStat.etag,
 					orphaned: this.inOrphanMode
 				};
 			}
@@ -345,8 +345,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		let etag: string | undefined;
 		if (forceReadFromDisk) {
 			etag = ETAG_DISABLED; // disable ETag if we enforce to read from disk
-		} else if (this.lastResolvedDiskStat) {
-			etag = this.lastResolvedDiskStat.etag; // otherwise respect etag to support caching
+		} else if (this.lastResolvedFileStat) {
+			etag = this.lastResolvedFileStat.etag; // otherwise respect etag to support caching
 		}
 
 		// Ensure to track the versionId before doing a long running operation
@@ -402,7 +402,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.logService.trace('load() - resolved content', this.resource);
 
 		// Update our resolved disk stat model
-		this.updateLastResolvedDiskStat({
+		this.updateLastResolvedFileStat({
 			resource: this.resource,
 			name: content.name,
 			mtime: content.mtime,
@@ -720,12 +720,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save to Disk
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
 			this.logService.trace(`doSave(${versionId}) - before write()`, this.resource);
-			return this.saveSequentializer.setPending(newVersionId, this.textFileService.write(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
+			return this.saveSequentializer.setPending(newVersionId, this.textFileService.write(this.lastResolvedFileStat.resource, this.createSnapshot(), {
 				overwriteReadonly: options.overwriteReadonly,
 				overwriteEncoding: options.overwriteEncoding,
-				mtime: this.lastResolvedDiskStat.mtime,
+				mtime: this.lastResolvedFileStat.mtime,
 				encoding: this.getEncoding(),
-				etag: this.lastResolvedDiskStat.etag,
+				etag: this.lastResolvedFileStat.etag,
 				writeElevated: options.writeElevated
 			}).then(stat => {
 				this.logService.trace(`doSave(${versionId}) - after write()`, this.resource);
@@ -739,7 +739,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				}
 
 				// Updated resolved stat with updated stat
-				this.updateLastResolvedDiskStat(stat);
+				this.updateLastResolvedFileStat(stat);
 
 				// Cancel any content change event promises as they are no longer valid
 				this.contentChangeEventScheduler.cancel();
@@ -857,14 +857,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return Promise.resolve();
 		}
 
-		return this.saveSequentializer.setPending(versionId, this.textFileService.write(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
-			mtime: this.lastResolvedDiskStat.mtime,
+		return this.saveSequentializer.setPending(versionId, this.textFileService.write(this.lastResolvedFileStat.resource, this.createSnapshot(), {
+			mtime: this.lastResolvedFileStat.mtime,
 			encoding: this.getEncoding(),
-			etag: this.lastResolvedDiskStat.etag
+			etag: this.lastResolvedFileStat.etag
 		}).then(stat => {
 
 			// Updated resolved stat with updated stat since touching it might have changed mtime
-			this.updateLastResolvedDiskStat(stat);
+			this.updateLastResolvedFileStat(stat);
 
 			// Emit File Saved Event
 			this._onDidStateChange.fire(StateChange.SAVED);
@@ -907,18 +907,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private updateLastResolvedDiskStat(newVersionOnDiskStat: IFileStatWithMetadata): void {
+	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
 
 		// First resolve - just take
-		if (!this.lastResolvedDiskStat) {
-			this.lastResolvedDiskStat = newVersionOnDiskStat;
+		if (!this.lastResolvedFileStat) {
+			this.lastResolvedFileStat = newFileStat;
 		}
 
 		// Subsequent resolve - make sure that we only assign it if the mtime is equal or has advanced.
 		// This prevents race conditions from loading and saving. If a save comes in late after a revert
 		// was called, the mtime could be out of sync.
-		else if (this.lastResolvedDiskStat.mtime <= newVersionOnDiskStat.mtime) {
-			this.lastResolvedDiskStat = newVersionOnDiskStat;
+		else if (this.lastResolvedFileStat.mtime <= newFileStat.mtime) {
+			this.lastResolvedFileStat = newFileStat;
 		}
 	}
 
@@ -1027,7 +1027,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	isReadonly(): boolean {
-		return !!(this.lastResolvedDiskStat && this.lastResolvedDiskStat.isReadonly);
+		return !!(this.lastResolvedFileStat && this.lastResolvedFileStat.isReadonly);
 	}
 
 	isDisposed(): boolean {
@@ -1039,7 +1039,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	getStat(): IFileStatWithMetadata {
-		return this.lastResolvedDiskStat;
+		return this.lastResolvedFileStat;
 	}
 
 	dispose(): void {

@@ -24,10 +24,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
-import { fillInContextMenuActions, ContextAwareMenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IAction, Action, IActionViewItem, ActionRunner } from 'vs/base/common/actions';
+import { fillInContextMenuActions, ContextAwareMenuEntryActionViewItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { SCMMenus } from './scmMenus';
-import { ActionBar, IActionItemProvider, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionViewItemProvider, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { isSCMResource } from './scmUtil';
 import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -94,7 +94,7 @@ class StatusBarAction extends Action {
 	}
 }
 
-class StatusBarActionItem extends ActionItem {
+class StatusBarActionViewItem extends ActionViewItem {
 
 	constructor(action: StatusBarAction) {
 		super(null, action, {});
@@ -160,7 +160,7 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer);
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
-		const actionBar = new ActionBar(provider, { actionItemProvider: a => new StatusBarActionItem(a as StatusBarAction) });
+		const actionBar = new ActionBar(provider, { actionViewItemProvider: a => new StatusBarActionViewItem(a as StatusBarAction) });
 		const disposable = Disposable.None;
 		const templateDisposable = combinedDisposable([actionBar, badgeStyler]);
 
@@ -366,7 +366,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
 
 	constructor(
-		private actionItemProvider: IActionItemProvider,
+		private actionViewItemProvider: IActionViewItemProvider,
 		private themeService: IThemeService,
 		private menus: SCMMenus
 	) { }
@@ -375,7 +375,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
 		const actionsContainer = append(element, $('.actions'));
-		const actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
+		const actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider });
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer);
 		const styler = attachBadgeStyler(count, this.themeService);
@@ -454,7 +454,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 
 	constructor(
 		private labels: ResourceLabels,
-		private actionItemProvider: IActionItemProvider,
+		private actionViewItemProvider: IActionViewItemProvider,
 		private getSelectedResources: () => ISCMResource[],
 		private themeService: IThemeService,
 		private menus: SCMMenus
@@ -466,7 +466,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		const fileLabel = this.labels.create(name);
 		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
-			actionItemProvider: this.actionItemProvider,
+			actionViewItemProvider: this.actionViewItemProvider,
 			actionRunner: new MultipleSelectionActionRunner(this.getSelectedResources)
 		});
 
@@ -827,14 +827,14 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const delegate = new ProviderListDelegate();
 
-		const actionItemProvider = (action: IAction) => this.getActionItem(action);
+		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this.disposables.push(this.listLabels);
 
 		const renderers = [
-			new ResourceGroupRenderer(actionItemProvider, this.themeService, this.menus),
-			new ResourceRenderer(this.listLabels, actionItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
+			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
+			new ResourceRenderer(this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
 		];
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
@@ -918,12 +918,12 @@ export class RepositoryPanel extends ViewletPanel {
 		return this.menus.getTitleSecondaryActions();
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
 			return undefined;
 		}
 
-		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		return new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 	}
 
 	getActionsContext(): any {
@@ -1227,12 +1227,12 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		}
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
 			return undefined;
 		}
 
-		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		return new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 	}
 
 	getActions(): IAction[] {

@@ -67,7 +67,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 			// If both are text models, return textdiffeditor model
 			if (modifiedEditorModel instanceof BaseTextEditorModel && originalEditorModel instanceof BaseTextEditorModel) {
-				return new TextDiffEditorModel(<BaseTextEditorModel>originalEditorModel, <BaseTextEditorModel>modifiedEditorModel);
+				return new TextDiffEditorModel(originalEditorModel, modifiedEditorModel);
 			}
 
 			// Otherwise return normal diff model

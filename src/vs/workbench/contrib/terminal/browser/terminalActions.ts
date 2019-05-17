@@ -8,7 +8,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
-import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -726,7 +726,7 @@ export class SwitchTerminalAction extends Action {
 	}
 }
 
-export class SwitchTerminalActionItem extends SelectActionItem {
+export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	constructor(
 		action: IAction,

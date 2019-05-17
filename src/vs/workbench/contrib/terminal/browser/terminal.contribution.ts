@@ -273,11 +273,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.experimentalRefreshOnResume', "An experimental setting that will refresh the terminal renderer when the system is resumed."),
 			type: 'boolean',
 			default: false
-		},
-		'terminal.integrated.windowsAllowConptyTasks': {
-			markdownDescription: nls.localize('terminal.integrated.windowsAllowConptyTasks', "Works in conjunction with the `#terminal.integrated.windowsEnableConpty#` setting. Both must be enabled for tasks to use conpty. Defaults to `false`."),
-			type: 'boolean',
-			default: false
 		}
 	}
 });
@@ -507,7 +502,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, Fi
 
 const sendSequenceTerminalCommand = new SendSequenceTerminalCommand({
 	id: SendSequenceTerminalCommand.ID,
-	precondition: null,
+	precondition: undefined,
 	description: {
 		description: `Send Custom Sequence To Terminal`,
 		args: [{

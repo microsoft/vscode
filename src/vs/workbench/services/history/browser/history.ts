@@ -958,7 +958,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	getLastActiveFile(filterByScheme: string): URI | undefined {
 		const history = this.getHistory();
 		for (const input of history) {
-			let resource: URI | null;
+			let resource: URI | undefined;
 			if (input instanceof EditorInput) {
 				resource = toResource(input, { filterByScheme });
 			} else {
