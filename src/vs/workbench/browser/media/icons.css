@@ -91,6 +91,7 @@ body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Search actions"] .icon,
 body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before,
+body[data-icon-theme^="icon-explorations-"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude::before,
 body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .replace-container .monaco-action-bar .action-item .icon,
 body[data-icon-theme^="icon-explorations-"] .search-view a[class^="action-"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .search-view .query-details .more,
@@ -107,7 +108,9 @@ body[data-icon-theme^="icon-explorations-"] .debug-viewlet .debug-breakpoints .b
 body[data-icon-theme^="icon-explorations-"] .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage,
 body[data-icon-theme^="icon-explorations-"] .extension-ratings > .star,
 body[data-icon-theme^="icon-explorations-"] .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count > .octicon,
-body[data-icon-theme^="icon-explorations-"] .extension-editor > .header > .details > .subtitle .octicon {
+body[data-icon-theme^="icon-explorations-"] .extension-editor > .header > .details > .subtitle .octicon,
+body[data-icon-theme^="icon-explorations-"] .monaco-toolbar .action-label.toolbar-toggle-more,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
 	background-image: none !important;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
@@ -138,12 +141,14 @@ body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-
 
 /* For icons that are a custom checkbox and use focus */
 
-body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox {
+body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox,
+body[data-icon-theme^="icon-explorations-"] markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
 	background-image: none !important;
 }
 
 body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before {
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before,
+body[data-icon-theme^="icon-explorations-"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude::before {
 	content: "";
 	width: 16px;
 	height: 16px;
@@ -262,11 +267,13 @@ body[data-icon-theme="icon-explorations-2"] .search-view .search-widget .replace
 	-webkit-mask-image: url("images/search/replace-all-alt2.svg");
 }
 
-body[data-icon-theme="icon-explorations-1"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before {
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before,
+body[data-icon-theme="icon-explorations-1"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude::before {
 	-webkit-mask-image: url("images/search/exclude-alt1.svg");
 }
 
-body[data-icon-theme="icon-explorations-2"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before {
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before,
+body[data-icon-theme="icon-explorations-2"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude::before {
 	-webkit-mask-image: url("images/search/exclude-alt2.svg");
 }
 
@@ -700,7 +707,7 @@ body[data-icon-theme="icon-explorations-2"] .debug-function-breakpoint-disabled 
 }
 
 /****************
-	Debug
+	Extensions
 ****************/
 
 body[data-icon-theme="icon-explorations-1"] .monaco-action-bar .action-item .action-label.clear-extensions {
@@ -782,4 +789,122 @@ body[data-icon-theme="icon-explorations-1"] .extensions-viewlet > .extensions .e
 
 body[data-icon-theme="icon-explorations-2"] .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-item .action-label.extension-action.manage {
 	-webkit-mask-image: url("images/extensions/gear-alt2.svg");
+}
+
+/****************
+	Panels
+****************/
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .hide-panel-action,
+.hc-black .monaco-workbench .hide-panel-action {
+	-webkit-mask-image: url("images/panel/close-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .hide-panel-action,
+.hc-black .monaco-workbench .hide-panel-action {
+	-webkit-mask-image: url("images/panel/close-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .maximize-panel-action {
+	-webkit-mask-image: url("images/panel/up-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .maximize-panel-action {
+	-webkit-mask-image: url("images/panel/up-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .minimize-panel-action {
+	-webkit-mask-image: url("images/panel/down-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .minimize-panel-action {
+	-webkit-mask-image: url("images/panel/down-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-tree-action.collapse-all {
+	-webkit-mask-image: url("images/panel/collapse-all-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-tree-action.collapse-all {
+	-webkit-mask-image: url("images/panel/collapse-all-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .output-action.open-log-file {
+	-webkit-mask-image: url("images/panel/gotofile-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .output-action.open-log-file {
+	-webkit-mask-image: url("images/panel/gotofile-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .output-action.open-log-file {
+	-webkit-mask-image: url("images/panel/gotofile-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .output-action.open-log-file {
+	-webkit-mask-image: url("images/panel/gotofile-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .output-action.output-scroll-unlock {
+	-webkit-mask-image: url("images/panel/output-unlock-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .output-action.output-scroll-unlock {
+	-webkit-mask-image: url("images/panel/output-unlock-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .output-action.output-scroll-lock {
+	-webkit-mask-image: url("images/panel/output-lock-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .output-action.output-scroll-lock {
+	-webkit-mask-image: url("images/panel/output-lock-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .output-action.clear-output {
+	-webkit-mask-image: url("images/panel/clear-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .output-action.clear-output {
+	-webkit-mask-image: url("images/panel/clear-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .debug-action.clear-repl {
+	-webkit-mask-image: url("images/panel/clear-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .debug-action.clear-repl {
+	-webkit-mask-image: url("images/panel/clear-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .terminal-action.kill {
+	-webkit-mask-image: url("images/panel/kill-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .terminal-action.kill {
+	-webkit-mask-image: url("images/panel/kill-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .terminal-action.split {
+	-webkit-mask-image: url("images/panel/split-horizontal-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .terminal-action.split {
+	-webkit-mask-image: url("images/panel/split-horizontal-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .panel.right .terminal-action.split {
+	-webkit-mask-image: url("images/panel/split-vertical-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .panel.right .terminal-action.split {
+	-webkit-mask-image: url("images/panel/split-vertical-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .terminal-action.new {
+	-webkit-mask-image: url("images/panel/add-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .terminal-action.new {
+	-webkit-mask-image: url("images/panel/add-alt2.svg");
 }

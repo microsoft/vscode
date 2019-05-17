@@ -43,7 +43,7 @@ const PERSISTED_ICON_THEME_STORAGE_KEY = 'iconThemeData';
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
-const DEFAULT_ICON_THEME_SETTING_VALUE = 'vs-seti';
+const DEFAULT_ICON_THEME_SETTING_VALUE = 'icon-explorations-1';
 const fileIconsEnabledClass = 'file-icons-enabled';
 
 const colorThemeRulesClassName = 'contributedColorTheme';
