@@ -199,7 +199,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		container.appendChild(this._bodyElement);
 
 		dom.addDisposableListener(this._bodyElement, dom.EventType.FOCUS_IN, e => {
-			this.commentService.setActiveCommentThread(this._commentThread);
+			this.commentService.onDidChangeActiveCommentThread(this._commentThread);
 		});
 	}
 
@@ -243,7 +243,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			} else {
 				const deleteCommand = (this._commentThread as modes.CommentThread2).deleteCommand;
 				if (deleteCommand) {
-					this.commentService.setActiveCommentThread(this._commentThread);
+					this.commentService.onDidChangeActiveCommentThread(this._commentThread);
 					return this.commandService.executeCommand(deleteCommand.id, ...(deleteCommand.arguments || []));
 				} else if (this._commentEditor.getValue() === '') {
 					this.dispose();
@@ -475,7 +475,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				uri: this._commentEditor.getModel()!.uri,
 				value: this._commentEditor.getValue()
 			};
-			this.commentService.setActiveCommentThread(this._commentThread);
+			this.commentService.onDidChangeActiveCommentThread(this._commentThread);
 		}));
 
 		this._commentThreadDisposables.push(this._commentEditor.getModel()!.onDidChangeContent(() => {
@@ -687,7 +687,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					uri: this._commentEditor.getModel()!.uri,
 					value: this._commentEditor.getValue()
 				};
-				this.commentService.setActiveCommentThread(this._commentThread);
+				this.commentService.onDidChangeActiveCommentThread(this._commentThread);
 				await this.commandService.executeCommand(acceptInputCommand.id, ...(acceptInputCommand.arguments || []));
 			}));
 
@@ -712,7 +712,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 						uri: this._commentEditor.getModel()!.uri,
 						value: this._commentEditor.getValue()
 					};
-					this.commentService.setActiveCommentThread(this._commentThread);
+					this.commentService.onDidChangeActiveCommentThread(this._commentThread);
 					await this.commandService.executeCommand(command.id, ...(command.arguments || []));
 				}));
 			});
@@ -783,7 +783,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 						uri: this._commentEditor.getModel()!.uri,
 						value: this._commentEditor.getValue()
 					};
-					this.commentService.setActiveCommentThread(this._commentThread);
+					this.commentService.onDidChangeActiveCommentThread(this._commentThread);
 					let commandId = commentThread.acceptInputCommand.id;
 					let args = commentThread.acceptInputCommand.arguments || [];
 

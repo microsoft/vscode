@@ -15,8 +15,8 @@ import { assign } from 'vs/base/common/objects';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContext } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -40,9 +40,7 @@ export interface ICommentService {
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
-	readonly onDidChangeActiveCommentThread: Event<CommentThread | null>;
 	readonly onDidChangeActiveCommentingRange: Event<{ range: Range, commentingRangesInfo: CommentingRanges }>;
-	readonly onDidChangeInput: Event<string>;
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string>;
 	readonly contextKeyService: IContextKeyService;
@@ -72,8 +70,7 @@ export interface ICommentService {
 	deleteReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	getReactionGroup(owner: string): CommentReaction[] | undefined;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread2, comment: Comment, reaction: CommentReaction): Promise<void>;
-	setActiveCommentThread(commentThread: CommentThread | null): void;
-	setInput(input: string): void;
+	onDidChangeActiveCommentThread(commentThread: CommentThread | null): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -94,11 +91,6 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentThreads: Emitter<ICommentThreadChangedEvent> = this._register(new Emitter<ICommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
-	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
-	readonly onDidChangeActiveCommentThread: Event<CommentThread | null> = this._onDidChangeActiveCommentThread.event;
-
-	private readonly _onDidChangeInput: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidChangeInput: Event<string> = this._onDidChangeInput.event;
 	private readonly _onDidChangeActiveCommentingRange: Emitter<{
 		range: Range, commentingRangesInfo:
 		CommentingRanges
@@ -112,6 +104,9 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private _commentControls = new Map<string, MainThreadCommentController>();
 	private _commentMenus = new Map<string, CommentMenus>();
+
+	private _activeThreadIsEmpty: IContextKey<boolean>;
+
 	contextKeyService: IContextKeyService;
 
 	constructor(
@@ -120,14 +115,11 @@ export class CommentService extends Disposable implements ICommentService {
 	) {
 		super();
 		this.contextKeyService = contextKeyService.createScoped();
+		this._activeThreadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this.contextKeyService);
 	}
 
-	setActiveCommentThread(commentThread: CommentThread | null) {
-		this._onDidChangeActiveCommentThread.fire(commentThread);
-	}
-
-	setInput(input: string) {
-		this._onDidChangeInput.fire(input);
+	onDidChangeActiveCommentThread(commentThread: CommentThread | null) {
+		this._activeThreadIsEmpty.set(!!commentThread && !!commentThread.comments && !!commentThread.comments.length);
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {

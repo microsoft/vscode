@@ -25,8 +25,6 @@ import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'v
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Emitter, Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 
 export class MainThreadDocumentCommentProvider implements modes.DocumentCommentProvider {
 	private readonly _proxy: ExtHostCommentsShape;
@@ -450,12 +448,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _handlers = new Map<number, string>();
 	private _commentControllers = new Map<number, MainThreadCommentController>();
 
-	private _activeCommentThread?: MainThreadCommentThread;
-	private _input?: modes.CommentInput;
 	private _openPanelListener: IDisposable | null;
-
-	private _commentThreadEmpty: IContextKey<boolean>;
-	private _commentEmpty: IContextKey<boolean>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -469,35 +462,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._disposables = [];
 		this._activeCommentThreadDisposables = [];
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
-
-		this._commentThreadEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(_commentService.contextKeyService);
-		this._commentEmpty = CommentContextKeys.commentIsEmpty.bindTo(_commentService.contextKeyService);
-		this._commentThreadEmpty.set(true);
-		this._commentEmpty.set(true);
-
-		this._disposables.push(this._commentService.onDidChangeActiveCommentThread(async thread => {
-			let handle = (thread as MainThreadCommentThread).controllerHandle;
-			let controller = this._commentControllers.get(handle);
-
-			if (!controller) {
-				return;
-			}
-
-			this._activeCommentThreadDisposables = dispose(this._activeCommentThreadDisposables);
-			this._activeCommentThread = thread as MainThreadCommentThread;
-			controller.activeCommentThread = this._activeCommentThread;
-
-			this._commentThreadEmpty.set(controller.activeCommentThread.comments!.length === 0);
-
-			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
-				this._input = input;
-				this._proxy.$onCommentWidgetInputChange(handle, URI.parse(this._activeCommentThread!.resource), this._activeCommentThread!.range, this._input ? this._input.value : undefined);
-				this._commentEmpty.set(this._input ? true : this._input!.value.length === 0);
-			}));
-
-			await this._proxy.$onActiveCommentThreadChange(controller.handle, controller.activeCommentThread.commentThreadHandle);
-			await this._proxy.$onCommentWidgetInputChange(controller.handle, URI.parse(this._activeCommentThread!.resource), this._activeCommentThread.range, this._input ? this._input.value : undefined);
-		}));
 	}
 
 	$registerCommentController(handle: number, id: string, label: string): void {

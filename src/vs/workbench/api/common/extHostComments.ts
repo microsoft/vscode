@@ -126,17 +126,6 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		return Promise.resolve(commentControllerHandle);
 	}
 
-	$onActiveCommentThreadChange(commentControllerHandle: number, threadHandle: number): Promise<number | undefined> {
-		const commentController = this._commentControllers.get(commentControllerHandle);
-
-		if (!commentController) {
-			return Promise.resolve(undefined);
-		}
-
-		commentController.$onActiveCommentThreadChange(threadHandle);
-		return Promise.resolve(threadHandle);
-	}
-
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined> {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
@@ -644,15 +633,6 @@ class ExtHostCommentController implements vscode.CommentController {
 	}
 
 	public inputBox: ExtHostCommentInputBox | undefined;
-	private _activeCommentThread: ExtHostCommentThread | undefined;
-
-	public get activeCommentThread(): ExtHostCommentThread | undefined {
-		if (this._activeCommentThread && this._activeCommentThread.isDisposed) {
-			this._activeCommentThread = undefined;
-		}
-
-		return this._activeCommentThread;
-	}
 
 	public activeCommentingRange?: vscode.Range;
 
@@ -714,10 +694,6 @@ class ExtHostCommentController implements vscode.CommentController {
 		} else {
 			this.inputBox.setInput(URI.revive(uriComponents), extHostTypeConverter.Range.to(range), input);
 		}
-	}
-
-	$onActiveCommentThreadChange(threadHandle: number) {
-		this._activeCommentThread = this.getCommentThread(threadHandle);
 	}
 
 	getCommentThread(handle: number) {
