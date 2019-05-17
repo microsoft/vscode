@@ -76,8 +76,11 @@ body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-lis
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .action-label,
 body[data-icon-theme^="icon-explorations-"] .markers-panel .marker-icon,
-body[data-icon-theme^="icon-explorations-"] .markers-panel .marker-icon,
-body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
+body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix,
+body[data-icon-theme^="icon-explorations-"] .monaco-tl-twistie.collapsible:not(.loading),
+body[data-icon-theme^="icon-explorations-"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
+body[data-icon-theme^="icon-explorations-"] .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	background-image: none !important;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
@@ -145,7 +148,8 @@ body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-
 }
 
 body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.collapse::before,
-body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.expand::before {
+body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.expand::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header::before {
 	content: "";
 	width: 16px;
 	height: 16px;
@@ -158,7 +162,8 @@ body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-
 /* For icons that are a custom checkbox and use focus */
 
 body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox,
-body[data-icon-theme^="icon-explorations-"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
+body[data-icon-theme^="icon-explorations-"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude,
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header {
 	background-image: none !important;
 }
 
@@ -1438,4 +1443,38 @@ body[data-icon-theme="icon-explorations-2"] .monaco-workbench > .notifications-c
 
 body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .marker-icon {
 	min-width: 16px;
+}
+
+/****************
+	Tree
+****************/
+
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header::before {
+	position: absolute;
+	left: 2px;
+	top: 2px;
+}
+
+body[data-icon-theme="icon-explorations-1"] .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before,
+body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header.expanded::before,
+body[data-icon-theme="icon-explorations-1"] .monaco-tl-twistie.collapsible:not(.loading) {
+	-webkit-mask-image: url("images/tree/expand-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before,
+body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header.expanded::before,
+body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible:not(.loading) {
+	-webkit-mask-image: url("images/tree/expand-alt2.svg")
+}
+
+body[data-icon-theme="icon-explorations-1"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
+body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header::before,
+body[data-icon-theme="icon-explorations-1"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
+	-webkit-mask-image: url("images/tree/collapse-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
+body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header::before,
+body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
+	-webkit-mask-image: url("images/tree/collapse-alt2.svg")
 }
