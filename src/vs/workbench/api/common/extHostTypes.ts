@@ -2297,6 +2297,12 @@ export enum CommentThreadCollapsibleState {
 	 */
 	Expanded = 1
 }
+
+export enum CommentMode {
+	Editing = 0,
+	Preview = 1
+}
+
 //#endregion
 
 @es5ClassCompat

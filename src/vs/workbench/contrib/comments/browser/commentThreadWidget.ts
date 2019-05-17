@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -38,6 +38,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
@@ -86,6 +87,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return this._draftMode;
 	}
 
+	private _commentMenus: CommentMenus;
+
 	constructor(
 		editor: ICodeEditor,
 		private _owner: string,
@@ -107,6 +110,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadDisposables = [];
 		this._submitActionsDisposables = [];
 		this._formActions = null;
+		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 		this.create();
 
 		this._styleElement = dom.createStyleSheet(this.domNode);
@@ -203,7 +207,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => this.collapse());
 
-		this._actionbarWidget.push(this._collapseAction, { label: false, icon: true });
+		let secondaryActions: IAction[] = [];
+		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
+			secondaryActions = this._commentMenus.getCommentThreadTitleActions(this._commentThread as modes.CommentThread2);
+		}
+
+		this._actionbarWidget.push([...secondaryActions, this._collapseAction], { label: false, icon: true });
+		this._actionbarWidget.context = this._commentThread;
 	}
 
 	public collapse(): Promise<void> {
@@ -245,7 +255,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	async update(commentThread: modes.CommentThread | modes.CommentThread2, replaceTemplate: boolean = false) {
+	async update(commentThread: modes.CommentThread | modes.CommentThread2) {
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
 
@@ -294,26 +304,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
-		this.createThreadLabel(replaceTemplate);
-
-		if (replaceTemplate) {
-			// since we are replacing the old comment thread, we need to rebind the listeners.
-			this._commentThreadDisposables.forEach(global => global.dispose());
-			this._commentThreadDisposables = [];
-		}
-
-		if (replaceTemplate) {
-			this.createTextModelListener();
-		}
+		this.createThreadLabel();
 
 		if (this._formActions && this._commentEditor.hasModel()) {
 			dom.clearNode(this._formActions);
 			const model = this._commentEditor.getModel();
 			this.createCommentWidgetActions2(this._formActions, model);
-
-			if (replaceTemplate) {
-				this.createCommentWidgetActionsListener(this._formActions, model);
-			}
 		}
 
 		// Move comment glyph widget and show position if the line has changed.
@@ -368,7 +364,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentEditor.layout({ height: 5 * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
 
-	display(lineNumber: number, fromTemplate: boolean = false) {
+	display(lineNumber: number) {
 		this._commentGlyph = new CommentGlyphWidget(this.editor, lineNumber);
 
 		this._disposables.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
@@ -426,9 +422,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._formActions = dom.append(this._commentForm, dom.$('.form-actions'));
 		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
 			this.createCommentWidgetActions2(this._formActions, model);
-			if (!fromTemplate) {
-				this.createCommentWidgetActionsListener(this._formActions, model);
-			}
+			this.createCommentWidgetActionsListener(this._formActions, model);
 		} else {
 			this.createCommentWidgetActions(this._formActions, model);
 		}
@@ -827,14 +821,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	private createThreadLabel(replaceTemplate: boolean = false) {
+	private createThreadLabel() {
 		let label: string | undefined;
 		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
 			label = (this._commentThread as modes.CommentThread2).label;
 		}
 
-		if (label === undefined && !replaceTemplate) {
-			// if it's for replacing the comment thread template, the comment thread widget title can be undefined as extensions may set it later
+		if (label === undefined) {
 			if (this._commentThread.comments && this._commentThread.comments.length) {
 				const participantsList = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
 				label = nls.localize('commentThreadParticipants', "Participants: {0}", participantsList);
@@ -847,7 +840,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._headingLabel.innerHTML = strings.escape(label);
 			this._headingLabel.setAttribute('aria-label', label);
 		}
-
 	}
 
 	private expandReplyArea() {

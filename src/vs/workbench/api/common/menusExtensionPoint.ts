@@ -45,6 +45,10 @@ namespace schema {
 			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
+			case 'commentThread/title': return MenuId.CommentThreadTitle;
+			case 'commentThread/actions': return MenuId.CommentThreadActions;
+			case 'comment/title': return MenuId.CommentTitle;
+			case 'comment/actions': return MenuId.CommentActions;
 		}
 
 		return undefined;
@@ -182,7 +186,27 @@ namespace schema {
 				description: localize('view.itemContext', "The contributed view item context menu"),
 				type: 'array',
 				items: menuItem
-			}
+			},
+			'commentThread/title': {
+				description: localize('commentThread.title', "The contributed comment thread title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'commentThread/actions': {
+				description: localize('commentThread.actions', "The contributed comment thread actions"),
+				type: 'array',
+				items: menuItem
+			},
+			'comment/title': {
+				description: localize('comment.title', "The contributed comment title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'comment/actions': {
+				description: localize('comment.actions', "The contributed comment actions"),
+				type: 'array',
+				items: menuItem
+			},
 		}
 	};
 

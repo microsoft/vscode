@@ -1350,6 +1350,14 @@ export interface CommentReaction {
 /**
  * @internal
  */
+export enum CommentMode {
+	Editing = 0,
+	Preview = 1
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly commentId: string;
 	readonly body: IMarkdownString;
@@ -1363,6 +1371,7 @@ export interface Comment {
 	readonly isDraft?: boolean;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
+	readonly mode?: CommentMode;
 }
 
 /**
