@@ -176,28 +176,46 @@ export function isAbsolutePath(resource: URI): boolean {
 /**
  * Returns true if the URI path has a trailing path separator
  */
-export function hasTrailingPathSeparator(resource: URI): boolean {
+export function hasTrailingPathSeparator(resource: URI, sep: string = paths.sep): boolean {
 	if (resource.scheme === Schemas.file) {
 		const fsp = originalFSPath(resource);
-		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === paths.sep;
+		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === sep;
 	} else {
 		const p = resource.path;
 		return p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash; // ignore the slash at offset 0
 	}
 }
 
-
 /**
- * Removes a trailing path seperator, if theres one.
+ * Removes a trailing path separator, if there's one.
  * Important: Doesn't remove the first slash, it would make the URI invalid
  */
-export function removeTrailingPathSeparator(resource: URI): URI {
-	if (hasTrailingPathSeparator(resource)) {
+export function removeTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
+	if (hasTrailingPathSeparator(resource, sep)) {
 		return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
 	}
 	return resource;
 }
 
+/**
+ * Adds a trailing path separator to the URI if there isn't one already.
+ * For example, c:\ would be unchanged, but c:\users would become c:\users\
+ */
+export function addTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
+	let isRootSep: boolean = false;
+	if (resource.scheme === Schemas.file) {
+		const fsp = originalFSPath(resource);
+		isRootSep = ((fsp !== undefined) && (fsp.length === extpath.getRoot(fsp).length) && (fsp[fsp.length - 1] === sep));
+	} else {
+		sep = '/';
+		const p = resource.path;
+		isRootSep = p.length === 1 && p.charCodeAt(p.length - 1) === CharCode.Slash;
+	}
+	if (!isRootSep && !hasTrailingPathSeparator(resource, sep)) {
+		return resource.with({ path: resource.path + '/' });
+	}
+	return resource;
+}
 
 /**
  * Returns a relative path between two URIs. If the URIs don't have the same schema or authority, `undefined` is returned.

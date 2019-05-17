@@ -36,7 +36,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			// Enable xterm.js addons
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/search/search'));
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/webLinks/webLinks'));
-			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/winptyCompat/winptyCompat'));
 			Terminal.applyAddon(typeAheadAddon);
 			// Localize strings
 			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');
@@ -55,7 +54,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	}
 
 	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {
-		return new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
+		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
 	}
 
 	public getDefaultShell(p: Platform): string {

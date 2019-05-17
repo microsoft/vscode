@@ -23,7 +23,7 @@ import 'vs/css!./media/searchview';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as nls from 'vs/nls';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -682,7 +682,7 @@ export class SearchView extends ViewletPanel {
 		}));
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch>): void {
+	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch | null>): void {
 		if (!e.element) {
 			return;
 		}

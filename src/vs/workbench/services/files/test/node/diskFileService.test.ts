@@ -1523,6 +1523,10 @@ suite('Disk File Service', () => {
 	});
 
 	test('watch - file - rename file', done => {
+		if (isWindows) {
+			return done(); // watch tests are flaky on other platforms
+		}
+
 		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
 		const toWatchRenamed = URI.file(join(testDir, 'index-watch1-renamed.html'));
 		writeFileSync(toWatch.fsPath, 'Init');

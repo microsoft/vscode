@@ -19,7 +19,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { TextEdit, WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -65,6 +65,10 @@ export class SimpleModel implements IResolvedTextEditorModel {
 
 	public get textEditorModel(): ITextModel {
 		return this.model;
+	}
+
+	public createSnapshot(): ITextSnapshot {
+		return this.model.createSnapshot();
 	}
 
 	public isReadonly(): boolean {
@@ -348,7 +352,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 			if (!keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
+				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
 				for (const resolvedKeybinding of resolvedKeybindings) {

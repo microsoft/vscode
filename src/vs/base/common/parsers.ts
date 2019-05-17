@@ -79,7 +79,7 @@ export abstract class Parser {
 		this._problemReporter.fatal(message);
 	}
 
-	protected static merge<T>(destination: T, source: T, overwrite: boolean): void {
+	protected static merge<T extends object>(destination: T, source: T, overwrite: boolean): void {
 		Object.keys(source).forEach((key: string) => {
 			const destValue = destination[key];
 			const sourceValue = source[key];

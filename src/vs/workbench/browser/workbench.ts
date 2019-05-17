@@ -14,7 +14,7 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
@@ -263,7 +263,11 @@ export class Workbench extends Layout {
 		]);
 
 		addClasses(this.container, ...workbenchClasses);
-		addClasses(document.body, platformClass); // used by our fonts
+		addClass(document.body, platformClass); // used by our fonts
+
+		if (isWeb) {
+			addClass(document.body, 'web');
+		}
 
 		// Apply font aliasing
 		this.setFontAliasing(configurationService);
