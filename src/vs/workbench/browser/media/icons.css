@@ -67,7 +67,18 @@ body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.panel > .tit
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .symbol-icon::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-list-container .notification-list-item-icon,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench > .notifications-center > .notifications-center-header .clear-all-notifications-action,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench > .notifications-center > .notifications-center-header .hide-all-notifications-action,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .clear-notification-action,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .action-label,
+body[data-icon-theme^="icon-explorations-"] .markers-panel-action-filter>.markers-panel-filter-controls>.markers-panel-filter-filesExclude,
+body[data-icon-theme^="icon-explorations-"] .markers-panel .marker-icon,
+body[data-icon-theme^="icon-explorations-"] .markers-panel .marker-icon,
+body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
 	background-image: none !important;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
@@ -1333,12 +1344,99 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .lightbulb-glyph {
 	-webkit-mask-size: 16px;
 }
 
-body[data-icon-theme="icon-explorations-1"] .monaco-editor .lightbulb-glyph {
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .lightbulb-glyph,
+body[data-icon-theme="icon-explorations-1"] .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
 	-webkit-mask-image: url("images/intellisense/lightbulb-alt1.svg");
 	background-color: var(--yellow);
 }
 
-body[data-icon-theme="icon-explorations-2"] .monaco-editor .lightbulb-glyph {
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .lightbulb-glyph,
+body[data-icon-theme="icon-explorations-2"] .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
 	-webkit-mask-image: url("images/intellisense/lightbulb-alt2.svg");
 	background-color: var(--yellow);
+}
+
+/****************
+	Notifications
+****************/
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info,
+body[data-icon-theme="icon-explorations-1"] .markers-panel .marker-icon.info {
+	-webkit-mask-image: url("images/notifications/info-alt1.svg");
+	background: var(--blue);
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info,
+body[data-icon-theme="icon-explorations-2"] .markers-panel .marker-icon.info {
+	-webkit-mask-image: url("images/notifications/info-alt2.svg");
+	background: var(--blue);
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning,
+body[data-icon-theme="icon-explorations-1"] .markers-panel .marker-icon.warning {
+	-webkit-mask-image: url("images/notifications/warning-alt1.svg");
+	background: var(--yellow);
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning,
+body[data-icon-theme="icon-explorations-2"] .markers-panel .marker-icon.warning {
+	-webkit-mask-image: url("images/notifications/warning-alt2.svg");
+	background: var(--yellow);
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error,
+body[data-icon-theme="icon-explorations-1"] .markers-panel .marker-icon.error {
+	-webkit-mask-image: url("images/notifications/error-alt1.svg");
+	background: var(--redLight);
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error,
+body[data-icon-theme="icon-explorations-2"] .markers-panel .marker-icon.error {
+	-webkit-mask-image: url("images/notifications/error-alt2.svg");
+	background: var(--redLight);
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .clear-notification-action {
+	-webkit-mask-image: url("images/notifications/close-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .clear-notification-action {
+	-webkit-mask-image: url("images/notifications/close-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action {
+	-webkit-mask-image: url("images/notifications/up-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action {
+	-webkit-mask-image: url("images/notifications/up-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action {
+	-webkit-mask-image: url("images/notifications/down-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action {
+	-webkit-mask-image: url("images/notifications/down-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .configure-notification-action {
+	-webkit-mask-image: url("images/notifications/configure-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .configure-notification-action {
+	-webkit-mask-image: url("images/notifications/configure-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench > .notifications-center > .notifications-center-header .clear-all-notifications-action {
+	-webkit-mask-image: url("images/notifications/closeall-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench > .notifications-center > .notifications-center-header .clear-all-notifications-action {
+	-webkit-mask-image: url("images/notifications/closeall-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench > .notifications-center > .notifications-center-header .hide-all-notifications-action {
+	-webkit-mask-image: url("images/notifications/down-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench > .notifications-center > .notifications-center-header .hide-all-notifications-action {
+	-webkit-mask-image: url("images/notifications/down-alt2.svg");
+}
+
+body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .marker-icon {
+	min-width: 16px;
 }
