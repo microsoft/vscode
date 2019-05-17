@@ -14,7 +14,7 @@ try {
 		.toString()
 		.trim();
 
-	if (isValidTag(tag)) {
+	if (!isValidTag(tag)) {
 		throw Error(`Invalid tag ${tag}`);
 	}
 } catch (err) {
