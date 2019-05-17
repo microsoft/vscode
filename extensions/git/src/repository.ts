@@ -1156,7 +1156,7 @@ export class Repository implements Disposable {
 				}
 
 				// https://git-scm.com/docs/git-check-ignore#git-check-ignore--z
-				const child = this.repository.stream(['check-ignore', '-z', '--stdin'], { stdio: [null, null, null] });
+				const child = this.repository.stream(['check-ignore', '-v', '-z', '--stdin'], { stdio: [null, null, null] });
 				child.stdin.end(filePaths.join('\0'), 'utf8');
 
 				const onExit = (exitCode: number) => {
@@ -1164,8 +1164,7 @@ export class Repository implements Disposable {
 						// nothing ignored
 						resolve(new Set<string>());
 					} else if (exitCode === 0) {
-						// paths are separated by the null-character
-						resolve(new Set<string>(data.split('\0')));
+						resolve(new Set<string>(this.parseIgnoreCheck(data)));
 					} else {
 						if (/ is in submodule /.test(stderr)) {
 							reject(new GitError({ stdout: data, stderr, exitCode, gitErrorCode: GitErrorCodes.IsInSubmodule }));
@@ -1191,6 +1190,23 @@ export class Repository implements Disposable {
 				child.on('exit', onExit);
 			});
 		});
+	}
+
+	// Parses output of `git check-ignore -v -z` and returns only those paths
+	// that are actually ignored by git.
+	// Matches to a negative pattern (starting with '!') are filtered out.
+	// See also https://git-scm.com/docs/git-check-ignore#_output.
+	private parseIgnoreCheck(raw: string): string[] {
+		const ignored = [];
+		const elements = raw.split('\0');
+		for (let i = 0; i < elements.length; i += 4) {
+			const pattern = elements[i + 2];
+			const path = elements[i + 3];
+			if (pattern && !pattern.startsWith('!')) {
+				ignored.push(path);
+			}
+		}
+		return ignored;
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
