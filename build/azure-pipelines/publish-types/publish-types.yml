@@ -1,0 +1,41 @@
+# Publish @types/vscode for each release
+
+trigger:
+  branches:
+    include: ['octref/devops-publish-types', 'refs/tags/*']
+
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+
+- bash: git clone https://github.com/octref/vscode-DefinitelyTyped.git
+  displayName: Clone vscode-DefinitelyTyped
+
+- bash: |
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+
+    git remote add dt https://github.com/DefinitelyTyped/DefinitelyTyped.git
+    git fetch dt
+    git checkout vscode
+    git rebase dt/master
+
+    node build/azure-pipelines/publish-types/update-types.js
+
+    TAG_VERSION=git describe --tags `git rev-list --tags --max-count=1`
+    git commit -am 'VS Code $TAG_VERSION Extension API'
+    git push origin vscode
+
+  workingDirectory: vscode-DefinitelyTyped
+  displayName: Preapare vscode-DefinitelyTyped
+
+- bash: |
+    node build/azure-pipelines/publish-types/update-types.js
+  displayName: Update vscode-DefinitelyTyped
+
+- bash: |
+    TAG_VERSION=git describe --tags `git rev-list --tags --max-count=1`
+    git commit -am 'VS Code $TAG_VERSION Extension API'
+    git push origin vscode
+  displayName: Commit vscode-DefinitelyTyped
