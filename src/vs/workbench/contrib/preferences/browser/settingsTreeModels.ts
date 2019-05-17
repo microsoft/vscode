@@ -408,7 +408,7 @@ function wordifyKey(key: string): string {
 		.replace(/\.([a-z0-9])/g, (match, p1) => ` › ${p1.toUpperCase()}`) // Replace dot with spaced '>'
 		.replace(/([a-z0-9])([A-Z])/g, '$1 $2') // Camel case to spacing, fooBar => foo Bar
 		.replace(/^[a-z]/g, match => match.toUpperCase()) // Upper casing all first letters, foo => Foo
-		.replace(/\b\w+\b/g, match => { // Uper casing kown acronyms
+		.replace(/\b\w+\b/g, match => { // Upper casing known acronyms
 			return knownAcronyms.has(match.toLowerCase()) ?
 				match.toUpperCase() :
 				match;
