@@ -17,7 +17,7 @@ class InspectKeyMap extends EditorAction {
 			id: 'workbench.action.inspectKeyMappings',
 			label: nls.localize('workbench.action.inspectKeyMap', "Developer: Inspect Key Mappings"),
 			alias: 'Developer: Inspect Key Mappings',
-			precondition: null
+			precondition: undefined
 		});
 	}
 

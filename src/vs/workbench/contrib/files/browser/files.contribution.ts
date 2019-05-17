@@ -327,6 +327,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 4096,
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line.")
+		},
+		'files.simpleDialog.enable': {
+			'type': 'boolean',
+			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
+			'default': false,
 		}
 	}
 });

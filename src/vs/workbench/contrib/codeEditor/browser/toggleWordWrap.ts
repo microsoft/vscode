@@ -121,7 +121,7 @@ class ToggleWordWrapAction extends EditorAction {
 			id: TOGGLE_WORD_WRAP_ID,
 			label: nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"),
 			alias: 'View: Toggle Word Wrap',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.Alt | KeyCode.KEY_Z,

@@ -710,7 +710,7 @@ class EditorHistoryItemAccessorClass extends QuickOpenItemAccessorClass {
 	}
 
 	getItemDescription(entry: QuickOpenEntry): string | null {
-		return this.allowMatchOnDescription ? entry.getDescription() : null;
+		return this.allowMatchOnDescription ? types.withUndefinedAsNull(entry.getDescription()) : null;
 	}
 }
 
@@ -724,8 +724,8 @@ export class EditorHistoryEntryGroup extends QuickOpenEntryGroup {
 export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	private input: IEditorInput | IResourceInput;
 	private resource: URI | undefined;
-	private label: string | null;
-	private description: string | null;
+	private label: string | undefined;
+	private description?: string;
 	private dirty: boolean;
 
 	constructor(
@@ -744,8 +744,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 		if (input instanceof EditorInput) {
 			this.resource = resourceForEditorHistory(input, fileService);
-			this.label = input.getName();
-			this.description = input.getDescription();
+			this.label = types.withNullAsUndefined(input.getName());
+			this.description = types.withNullAsUndefined(input.getDescription());
 			this.dirty = input.isDirty();
 		} else {
 			const resourceInput = input as IResourceInput;
@@ -764,7 +764,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return this.dirty ? 'dirty' : '';
 	}
 
-	getLabel(): string | null {
+	getLabel(): string | undefined {
 		return this.label;
 	}
 
@@ -778,12 +778,12 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return nls.localize('entryAriaLabel', "{0}, recently opened", this.getLabel());
 	}
 
-	getDescription(): string | null {
+	getDescription(): string | undefined {
 		return this.description;
 	}
 
-	getResource(): URI | null {
-		return types.withUndefinedAsNull(this.resource);
+	getResource(): URI | undefined {
+		return this.resource;
 	}
 
 	getInput(): IEditorInput | IResourceInput {
@@ -848,7 +848,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 
 			return <IHistoryPickEntry>{
 				input: h,
-				iconClasses: getIconClasses(this.modelService, this.modeService, types.withNullAsUndefined(entry.getResource())),
+				iconClasses: getIconClasses(this.modelService, this.modeService, entry.getResource()),
 				label: entry.getLabel(),
 				description: entry.getDescription()
 			};

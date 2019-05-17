@@ -108,11 +108,9 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 			return true;
 		}
 
+		// Compare by properties
 		if (otherInput instanceof ResourceEditorInput) {
-			const otherResourceEditorInput = <ResourceEditorInput>otherInput;
-
-			// Compare by properties
-			return otherResourceEditorInput.resource.toString() === this.resource.toString();
+			return otherInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;

@@ -11,7 +11,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as objects from 'vs/base/common/objects';
-import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
@@ -28,7 +28,7 @@ const defaultOpts = {
 	inputActiveOptionBorder: Color.fromHex('#007ACC')
 };
 
-export class CheckboxActionItem extends BaseActionItem {
+export class CheckboxActionViewItem extends BaseActionViewItem {
 
 	private checkbox: Checkbox;
 	private disposables: IDisposable[] = [];

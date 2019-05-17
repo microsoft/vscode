@@ -177,8 +177,8 @@ export class SideBySideEditor extends BaseEditor {
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		const detailsEditor = this.doCreateEditor(<EditorInput>newInput.details, this.detailsEditorContainer);
-		const masterEditor = this.doCreateEditor(<EditorInput>newInput.master, this.masterEditorContainer);
+		const detailsEditor = this.doCreateEditor(newInput.details, this.detailsEditorContainer);
+		const masterEditor = this.doCreateEditor(newInput.master, this.masterEditorContainer);
 
 		return this.onEditorsCreated(detailsEditor, masterEditor, newInput.details, newInput.master, options, token);
 	}

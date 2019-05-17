@@ -11,7 +11,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar, ICompositeBarColors, DraggedCompositeIdentifier } from 'vs/workbench/browser/parts/compositeBarActions';
+import { CompositeActionViewItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionViewItem, ActivityAction, ICompositeBar, ICompositeBarColors, DraggedCompositeIdentifier } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Dimension, $, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -50,7 +50,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	private compositeSwitcherBar: ActionBar;
 	private compositeOverflowAction: CompositeOverflowActivityAction | null;
-	private compositeOverflowActionItem: CompositeOverflowActivityActionItem | undefined;
+	private compositeOverflowActionViewItem: CompositeOverflowActivityActionViewItem | undefined;
 
 	private model: CompositeBarModel;
 	private visibleComposites: string[];
@@ -93,12 +93,12 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
-			actionItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: Action) => {
 				if (action instanceof CompositeOverflowActivityAction) {
-					return this.compositeOverflowActionItem;
+					return this.compositeOverflowActionViewItem;
 				}
 				const item = this.model.findItem(action.id);
-				return item && this.instantiationService.createInstance(CompositeActionItem, action, item.pinnedAction, () => this.getContextMenuActions(), this.options.colors, this.options.icon, this);
+				return item && this.instantiationService.createInstance(CompositeActionViewItem, action, item.pinnedAction, () => this.getContextMenuActions(), this.options.colors, this.options.icon, this);
 			},
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
@@ -278,13 +278,13 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		} else {
 			if (this.dimension && this.dimension.height !== 0 && this.dimension.width !== 0) {
 				// Compute sizes only if visible. Otherwise the size measurment would be computed wrongly.
-				const currentItemsLength = this.compositeSwitcherBar.items.length;
+				const currentItemsLength = this.compositeSwitcherBar.viewItems.length;
 				this.compositeSwitcherBar.push(items.map(composite => composite.activityAction));
 				items.map((composite, index) => this.compositeSizeInBar.set(composite.id, this.options.orientation === ActionsOrientation.VERTICAL
 					? this.compositeSwitcherBar.getHeight(currentItemsLength + index)
 					: this.compositeSwitcherBar.getWidth(currentItemsLength + index)
 				));
-				items.forEach(() => this.compositeSwitcherBar.pull(this.compositeSwitcherBar.items.length - 1));
+				items.forEach(() => this.compositeSwitcherBar.pull(this.compositeSwitcherBar.viewItems.length - 1));
 			}
 		}
 	}
@@ -343,10 +343,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.compositeOverflowAction.dispose();
 			this.compositeOverflowAction = null;
 
-			if (this.compositeOverflowActionItem) {
-				this.compositeOverflowActionItem.dispose();
+			if (this.compositeOverflowActionViewItem) {
+				this.compositeOverflowActionViewItem.dispose();
 			}
-			this.compositeOverflowActionItem = undefined;
+			this.compositeOverflowActionViewItem = undefined;
 		}
 
 		// Pull out composites that overflow or got hidden
@@ -357,9 +357,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			}
 		});
 		compositesToRemove.reverse().forEach(index => {
-			const actionItem = this.compositeSwitcherBar.items[index];
+			const actionViewItem = this.compositeSwitcherBar.viewItems[index];
 			this.compositeSwitcherBar.pull(index);
-			actionItem.dispose();
+			actionViewItem.dispose();
 			this.visibleComposites.splice(index, 1);
 		});
 
@@ -368,9 +368,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			const currentIndex = this.visibleComposites.indexOf(compositeId);
 			if (newIndex !== currentIndex) {
 				if (currentIndex !== -1) {
-					const actionItem = this.compositeSwitcherBar.items[currentIndex];
+					const actionViewItem = this.compositeSwitcherBar.viewItems[currentIndex];
 					this.compositeSwitcherBar.pull(currentIndex);
-					actionItem.dispose();
+					actionViewItem.dispose();
 					this.visibleComposites.splice(currentIndex, 1);
 				}
 
@@ -382,12 +382,12 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Add overflow action as needed
 		if ((visibleCompositesChange && overflows) || this.compositeSwitcherBar.length() === 0) {
 			this.compositeOverflowAction = this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
-				if (this.compositeOverflowActionItem) {
-					this.compositeOverflowActionItem.showMenu();
+				if (this.compositeOverflowActionViewItem) {
+					this.compositeOverflowActionViewItem.showMenu();
 				}
 			});
-			this.compositeOverflowActionItem = this.instantiationService.createInstance(
-				CompositeOverflowActivityActionItem,
+			this.compositeOverflowActionViewItem = this.instantiationService.createInstance(
+				CompositeOverflowActivityActionViewItem,
 				this.compositeOverflowAction,
 				() => this.getOverflowingComposites(),
 				() => this.model.activeItem ? this.model.activeItem.id : undefined,

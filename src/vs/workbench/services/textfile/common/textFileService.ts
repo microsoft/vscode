@@ -740,14 +740,14 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private getFileModels(arg1?: URI | URI[]): ITextFileEditorModel[] {
 		if (Array.isArray(arg1)) {
 			const models: ITextFileEditorModel[] = [];
-			(<URI[]>arg1).forEach(resource => {
+			arg1.forEach(resource => {
 				models.push(...this.getFileModels(resource));
 			});
 
 			return models;
 		}
 
-		return this._models.getAll(<URI>arg1);
+		return this._models.getAll(arg1);
 	}
 
 	private getDirtyFileModels(resources?: URI | URI[]): ITextFileEditorModel[] {
