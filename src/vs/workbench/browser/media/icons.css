@@ -94,7 +94,8 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget 
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .expand::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collapse::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sidebyside-vertical {
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sidebyside-vertical,
+body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all {
 	background-image: none !important;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
