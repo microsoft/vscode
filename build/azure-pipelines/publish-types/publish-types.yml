@@ -17,7 +17,7 @@ steps:
     # Install build dependencies
     (cd build && yarn)
     node build/azure-pipelines/publish-types/check-version.js
-  displayName: vscode-DefinitelyTyped
+  displayName: Check version
 
 - bash: |
     git config user.email "vscode@microsoft.com"
@@ -35,7 +35,7 @@ steps:
 
     node build/azure-pipelines/publish-types/update-types.js
 
-    TAG_VERSION=git describe --tags `git rev-list --tags --max-count=1`
+    TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
     git commit -am 'VS Code $TAG_VERSION Extension API'
     git push origin master
 
