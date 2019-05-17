@@ -683,10 +683,6 @@ export class SearchView extends ViewletPanel {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch | null>): void {
-		// if (!e.element) {
-		// 	return;
-		// }
-
 		if (!this.contextMenu) {
 			this.contextMenu = this._register(this.menuService.createMenu(MenuId.SearchContext, this.contextKeyService));
 		}
@@ -1327,8 +1323,6 @@ export class SearchView extends ViewletPanel {
 				// Indicate as status to ARIA
 				aria.status(message);
 
-				//dom.hide(this.resultsElement);
-
 				const messageEl = this.clearMessage();
 				const p = dom.append(messageEl, $('p', undefined, message));
 
@@ -1358,12 +1352,12 @@ export class SearchView extends ViewletPanel {
 
 					const learnMoreLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.learnMore', "Learn More")));
 					this.addClickEvents(learnMoreLink, this.onLearnMore);
-					this.reLayout();
 				}
 
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					this.showSearchWithoutFolderMessage();
 				}
+				this.reLayout();
 			} else {
 				this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
 
