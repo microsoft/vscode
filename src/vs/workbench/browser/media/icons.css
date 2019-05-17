@@ -85,7 +85,15 @@ body[data-icon-theme^="icon-explorations-"] .monaco-tl-twistie.collapsible.colla
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.splitEditor"],
-body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openChange"] {
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openChange"],
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace-all::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .previous::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .next::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .close-fw::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .expand::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collapse::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before {
 	background-image: none !important;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
@@ -145,7 +153,15 @@ body[data-icon-theme="icon-explorations-2"] .monaco-workbench .activitybar .mona
 /* Search expand */
 
 body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.collapse,
-body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.expand {
+body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.expand,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace-all,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .previous,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .next,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .close-fw,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .expand,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collapse,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -154,7 +170,15 @@ body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-
 
 body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.collapse::before,
 body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.expand::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header::before {
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace-all::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .previous::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .next::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .close-fw::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .expand::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collapse::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before {
 	content: "";
 	width: 16px;
 	height: 16px;
@@ -1464,43 +1488,43 @@ body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-h
 body[data-icon-theme="icon-explorations-1"] .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header.expanded::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-tl-twistie.collapsible:not(.loading) {
-	-webkit-mask-image: url("images/tree/expand-alt1.svg")
+	-webkit-mask-image: url("images/tree/expand-alt1.svg");
 }
 
 body[data-icon-theme="icon-explorations-2"] .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header.expanded::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible:not(.loading) {
-	-webkit-mask-image: url("images/tree/expand-alt2.svg")
+	-webkit-mask-image: url("images/tree/expand-alt2.svg");
 }
 
 body[data-icon-theme="icon-explorations-1"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
-	-webkit-mask-image: url("images/tree/collapse-alt1.svg")
+	-webkit-mask-image: url("images/tree/collapse-alt1.svg");
 }
 
 body[data-icon-theme="icon-explorations-2"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
-	-webkit-mask-image: url("images/tree/collapse-alt2.svg")
+	-webkit-mask-image: url("images/tree/collapse-alt2.svg");
 }
 
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
-	-webkit-mask-image: url("images/tree/close-alt1.svg")
+	-webkit-mask-image: url("images/tree/close-alt1.svg");
 }
 
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
-	-webkit-mask-image: url("images/tree/close-alt2.svg")
+	-webkit-mask-image: url("images/tree/close-alt2.svg");
 }
 
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action {
-	-webkit-mask-image: url("images/tree/dirty-alt1.svg")
+	-webkit-mask-image: url("images/tree/dirty-alt1.svg");
 }
 
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action {
-	-webkit-mask-image: url("images/tree/dirty-alt2.svg")
+	-webkit-mask-image: url("images/tree/dirty-alt2.svg");
 }
 
 /****************
@@ -1508,26 +1532,89 @@ body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .co
 ****************/
 
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.splitEditor"] {
-	-webkit-mask-image: url("images/editor/split-horizontal-alt1.svg")
+	-webkit-mask-image: url("images/editor/split-horizontal-alt1.svg");
 }
 
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.splitEditor"] {
-	-webkit-mask-image: url("images/editor/split-horizontal-alt2.svg")
+	-webkit-mask-image: url("images/editor/split-horizontal-alt2.svg");
 }
 
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"] {
-	-webkit-mask-image: url("images/editor/split-vertical-alt1.svg")
+	-webkit-mask-image: url("images/editor/split-vertical-alt1.svg");
 }
 
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"] {
-	-webkit-mask-image: url("images/editor/split-vertical-alt2.svg")
+	-webkit-mask-image: url("images/editor/split-vertical-alt2.svg");
 }
 
-
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openChange"] {
-	-webkit-mask-image: url("images/editor/open-change-alt1.svg")
+	-webkit-mask-image: url("images/editor/open-change-alt1.svg");
 }
 
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openChange"] {
-	-webkit-mask-image: url("images/editor/open-change-alt2.svg")
+	-webkit-mask-image: url("images/editor/open-change-alt2.svg");
+}
+
+/****************
+	Find
+****************/
+
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .find-widget .previous::before {
+	-webkit-mask-image: url("images/find/previous-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .find-widget .previous::before {
+	-webkit-mask-image: url("images/find/previous-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .find-widget .next::before {
+	-webkit-mask-image: url("images/find/next-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .find-widget .next::before {
+	-webkit-mask-image: url("images/find/next-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .find-widget .close-fw::before {
+	-webkit-mask-image: url("images/find/close-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .find-widget .close-fw::before {
+	-webkit-mask-image: url("images/find/close-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .find-widget .monaco-checkbox .label::before {
+	-webkit-mask-image: url("images/find/selection-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .find-widget .monaco-checkbox .label::before {
+	-webkit-mask-image: url("images/find/selection-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .find-widget .replace::before {
+	-webkit-mask-image: url("images/find/replace-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .find-widget .replace::before {
+	-webkit-mask-image: url("images/find/replace-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .find-widget .replace-all::before {
+	-webkit-mask-image: url("images/find/replace-all-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .find-widget .replace-all::before {
+	-webkit-mask-image: url("images/find/replace-all-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .find-widget .expand::before {
+	-webkit-mask-image: url("images/find/expand-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .find-widget .expand::before {
+	-webkit-mask-image: url("images/find/expand-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .find-widget .collapse::before {
+	-webkit-mask-image: url("images/find/collapse-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .find-widget .collapse::before {
+	-webkit-mask-image: url("images/find/collapse-alt2.svg");
 }
