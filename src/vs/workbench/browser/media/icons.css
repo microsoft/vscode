@@ -75,7 +75,6 @@ body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-lis
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .action-label,
-body[data-icon-theme^="icon-explorations-"] .markers-panel-action-filter>.markers-panel-filter-controls>.markers-panel-filter-filesExclude,
 body[data-icon-theme^="icon-explorations-"] .markers-panel .marker-icon,
 body[data-icon-theme^="icon-explorations-"] .markers-panel .marker-icon,
 body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
@@ -159,7 +158,7 @@ body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-
 /* For icons that are a custom checkbox and use focus */
 
 body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox,
-body[data-icon-theme^="icon-explorations-"] markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
+body[data-icon-theme^="icon-explorations-"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
 	background-image: none !important;
 }
 
