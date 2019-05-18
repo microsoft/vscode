@@ -40,10 +40,10 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-up';
@@ -213,7 +213,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._actionbarWidget = new ActionBar(actionsContainer, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof MenuItemAction) {
-					let item = new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					let item = new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 					return item;
 				} else {
 					let item = new ActionViewItem({}, action, { label: false, icon: true });
