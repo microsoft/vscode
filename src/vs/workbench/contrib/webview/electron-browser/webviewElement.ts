@@ -552,20 +552,12 @@ export class WebviewElement extends Disposable implements Webview {
 		}
 
 		this._contentOptions = value;
-		this._send('content', {
-			contents: this._contents,
-			options: this._contentOptions,
-			state: this._state
-		});
+		this.doUpdateContent();
 	}
 
 	public set contents(value: string) {
 		this._contents = value;
-		this._send('content', {
-			contents: value,
-			options: this._contentOptions,
-			state: this._state
-		});
+		this.doUpdateContent();
 	}
 
 	public update(value: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
@@ -574,6 +566,10 @@ export class WebviewElement extends Disposable implements Webview {
 		}
 		this._contents = value;
 		this._contentOptions = options;
+		this.doUpdateContent();
+	}
+
+	private doUpdateContent() {
 		this._send('content', {
 			contents: this._contents,
 			options: this._contentOptions,
