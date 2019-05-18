@@ -36,7 +36,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
@@ -193,9 +193,14 @@ export class CommentNode extends Disposable {
 				orientation: ActionsOrientation.HORIZONTAL
 			});
 
+			this.toolbar.context = {
+				thread: this.commentThread,
+				commentUniqueId: this.comment.uniqueIdInThread,
+				$mid: 9
+			};
+
 			this.registerActionBarListeners(this._actionsToolbarContainer);
 			this.toolbar.setActions(actions, [])();
-			this.toolbar.context = this.comment;
 			this._toDispose.push(this.toolbar);
 		}
 	}
@@ -212,7 +217,7 @@ export class CommentNode extends Disposable {
 			let item = new ReactionActionViewItem(action);
 			return item;
 		} else if (action instanceof MenuItemAction) {
-			let item = new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+			let item = new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 			return item;
 		} else {
 			let item = new ActionViewItem({}, action, options);
@@ -431,7 +436,9 @@ export class CommentNode extends Disposable {
 
 	private removeCommentEditor() {
 		this.isEditing = false;
-		this._editAction.enabled = true;
+		if (this._editAction) {
+			this._editAction.enabled = true;
+		}
 		this._body.classList.remove('hidden');
 
 		this._commentEditorModel.dispose();
@@ -520,6 +527,44 @@ export class CommentNode extends Disposable {
 					}
 				}
 			});
+		});
+	}
+
+	public switchToEditMode() {
+		if (this.isEditing) {
+			return;
+		}
+
+		this.isEditing = true;
+		this._body.classList.add('hidden');
+		this._commentEditContainer = dom.append(this._commentDetailsContainer, dom.$('.edit-container'));
+		this.createCommentEditor();
+
+		this._errorEditingContainer = dom.append(this._commentEditContainer, dom.$('.validation-error.hidden'));
+		const formActions = dom.append(this._commentEditContainer, dom.$('.form-actions'));
+
+		let menus = this.commentService.getCommentMenus(this.owner);
+		let actions = menus.getCommentActions(this.comment);
+
+		actions.forEach(action => {
+			let button = new Button(formActions);
+			this._toDispose.push(attachButtonStyler(button, this.themeService));
+
+			button.label = action.label;
+
+			this._toDispose.push(button.onDidClick(async () => {
+				let text = this._commentEditor!.getValue();
+
+				action.run({
+					thread: this.commentThread,
+					commentUniqueId: this.comment.uniqueIdInThread,
+					text: text,
+					$mid: 10
+				});
+
+				// this.hideReplyArea();
+				this.removeCommentEditor();
+			}));
 		});
 	}
 
@@ -624,6 +669,14 @@ export class CommentNode extends Disposable {
 
 		if (this.comment.commentReactions && this.comment.commentReactions.length) {
 			this.createReactionsContainer(this._commentDetailsContainer);
+		}
+
+		if (this.comment.mode !== undefined) {
+			if (this.comment.mode === modes.CommentMode.Editing) {
+				this.switchToEditMode();
+			} else {
+				this.removeCommentEditor();
+			}
 		}
 	}
 

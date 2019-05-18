@@ -86,6 +86,53 @@ export class ExtHostComments implements ExtHostCommentsShape {
 						thread: commentThread,
 						text: arg.text
 					};
+				} else if (arg && arg.$mid === 9) {
+					const commentController = this._commentControllers.get(arg.thread.commentControlHandle);
+
+					if (!commentController) {
+						return arg;
+					}
+
+					const commentThread = commentController.getCommentThread(arg.thread.commentThreadHandle);
+
+					if (!commentThread) {
+						return arg;
+					}
+
+					let commentUniqueId = arg.commentUniqueId;
+
+					let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+
+					if (!comment) {
+						return arg;
+					}
+
+					return comment;
+
+				} else if (arg && arg.$mid === 10) {
+					const commentController = this._commentControllers.get(arg.thread.commentControlHandle);
+
+					if (!commentController) {
+						return arg;
+					}
+
+					const commentThread = commentController.getCommentThread(arg.thread.commentThreadHandle);
+
+					if (!commentThread) {
+						return arg;
+					}
+
+					let body = arg.text;
+					let commentUniqueId = arg.commentUniqueId;
+
+					let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+
+					if (!comment) {
+						return arg;
+					}
+
+					comment.body = body;
+					return comment;
 				}
 
 				return arg;
@@ -572,6 +619,18 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		return undefined;
 	}
 
+	getCommentByUniqueId(uniqueId: number): vscode.Comment | undefined {
+		for (let key of this._commentsMap) {
+			let comment = key[0];
+			let id = key[1];
+			if (uniqueId === id) {
+				return comment;
+			}
+		}
+
+		return;
+	}
+
 	dispose() {
 		this._localDisposables.forEach(disposable => disposable.dispose());
 		this._proxy.$deleteCommentThread(
@@ -787,6 +846,7 @@ function convertToModeComment2(thread: ExtHostCommentThread, commentController: 
 
 	return {
 		commentId: vscodeComment.id || vscodeComment.commentId,
+		mode: vscodeComment.mode,
 		uniqueIdInThread: commentUniqueId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 		userName: vscodeComment.author ? vscodeComment.author.name : vscodeComment.userName,
