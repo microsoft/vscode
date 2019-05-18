@@ -128,10 +128,11 @@ export const SortOrderConfiguration = {
 	MIXED: 'mixed',
 	FILES_FIRST: 'filesFirst',
 	TYPE: 'type',
-	MODIFIED: 'modified'
+	MODIFIED: 'modified',
+	BARREL_FIRST: 'barrelFirst'
 };
 
-export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';
+export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified' | 'barrelFirst';
 
 export class TextFileContentProvider implements ITextModelContentProvider {
 	private fileWatcherDisposable: IDisposable | undefined;

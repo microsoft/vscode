@@ -29,7 +29,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
+import { compareFileExtensions, compareFileNames, compareFileNamesForBarrel } from 'vs/base/common/comparers';
 import { fillResourceDataTransfers, CodeDataTransfers, extractResources } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
@@ -418,6 +418,9 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 				}
 
 				return compareFileNames(statA.name, statB.name);
+
+			case 'barrelFirst':
+				return compareFileNamesForBarrel(statA.name, statB.name);
 
 			default: /* 'default', 'mixed', 'filesFirst' */
 				return compareFileNames(statA.name, statB.name);

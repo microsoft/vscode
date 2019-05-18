@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareFileNames, compareFileExtensions, setFileNameComparer } from 'vs/base/common/comparers';
+import { compareFileNames, compareFileExtensions, setFileNameComparer, compareFileNamesForBarrel } from 'vs/base/common/comparers';
 import * as assert from 'assert';
 import { IdleValue } from 'vs/base/common/async';
 
@@ -31,6 +31,41 @@ suite('Comparers', () => {
 		assert(compareFileNames('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
 		assert(compareFileNames('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
 		assert(compareFileNames('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order even when they are multiple digits long');
+		assert(compareFileNames('index.ts', 'abc.txt', false) > 0, 'filenames should be in alphabetical order');
+		assert(compareFileNames('abc.txt', 'index.ts', false) < 0, 'filenames should be in alphabetical order');
+		assert(compareFileNames('index.js', 'index.ts', false) < 0, 'filenames should be in alphabetical order');
+		assert(compareFileNames('index.ts', 'index.js', false) > 0, 'filenames should be in alphabetical order');
+		assert(compareFileNames('index', 'index.ts', false) < 0, 'filenames should be in alphabetical order');
+		assert(compareFileNames('index', 'index.', false) < 0, 'filenames should be in alphabetical order');
+	});
+
+	test('compareFileNamesForBarrel', () => {
+
+		// Setup Intl
+		setFileNameComparer(new IdleValue(() => {
+			const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+			return {
+				collator: collator,
+				collatorIsNumeric: collator.resolvedOptions().numeric
+			};
+		}));
+
+		assert(compareFileNamesForBarrel(null, null) === 0, 'null should be equal. Default sort order should be performed for non-barrel files.');
+		assert(compareFileNamesForBarrel(null, 'abc') < 0, 'null should be come before real values. Default sort order should be performed for non-barrel files.');
+		assert(compareFileNamesForBarrel('', '') === 0, 'empty should be equal. Default sort order should be performed for non-barrel files.');
+		assert(compareFileNamesForBarrel('abc', 'abc') === 0, 'equal names should be equal. Default sort order should be performed for non-barrel files.');
+		assert(compareFileNamesForBarrel('.abc', '.abc') === 0, 'equal full names should be equal. Default sort order should be performed for non-barrel files.');
+		assert(compareFileNamesForBarrel('.env', '.env.example') < 0, 'filenames with extensions should come after those without. Default sort order should be performed for non-barrel files.');
+		assert(compareFileNamesForBarrel('.env.example', '.gitattributes') < 0, 'filenames starting with dots and with extensions should still sort properly. Default sort order should be performed for non-barrel files.');
+		assert(compareFileNamesForBarrel('1', '1') === 0, 'numerically equal full names should be equal. Default sort order should be performed for non-barrel files.');
+		assert(compareFileNamesForBarrel('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal. Default sort order should be performed for non-barrel files.');
+		assert(compareFileNamesForBarrel('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order. Default sort order should be performed for non-barrel files.');
+		assert(compareFileNamesForBarrel('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order even when they are multiple digits long. Default sort order should be performed for non-barrel files.');
+		assert(compareFileNamesForBarrel('index.ts', 'abc.txt', false) < 0, 'index files should come first using barrelFirst setting');
+		assert(compareFileNamesForBarrel('index.js', 'index.ts', false) < 0, 'index files should come first and be sorted alphabetically by extension suing barrelFirst setting');
+		assert(compareFileNamesForBarrel('index.ts', 'index.js', false) > 0, 'index files should come first and be sorted alphabetically by extension suing barrelFirst setting');
+		assert(compareFileNamesForBarrel('index', 'index.ts', false) < 0, 'index files should come first and be sorted alphabetically by extension suing barrelFirst setting');
+		assert(compareFileNamesForBarrel('index', 'index.', false) < 0, 'index files should come first and be sorted alphabetically by extension suing barrelFirst setting');
 	});
 
 	test('compareFileExtensions', () => {

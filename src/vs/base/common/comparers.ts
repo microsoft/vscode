@@ -13,6 +13,15 @@ export function setFileNameComparer(collator: IdleValue<{ collator: Intl.Collato
 	intlFileNameCollator = collator;
 }
 
+export function compareFileNamesForBarrel(one: string | null, other: string | null, caseSensitive = false) {
+	const defaultSortResult = compareFileNames(one, other, caseSensitive);
+	const oneStartsWithIndex = one && one.indexOf('index') === 0;
+	const otherStartsWithIndex = other && other.indexOf('index') === 0;
+	const oneBeforeOther = oneStartsWithIndex && !otherStartsWithIndex;
+	const otherBeforeOne = otherStartsWithIndex && !oneStartsWithIndex;
+	return oneBeforeOther ? -1 : otherBeforeOne ? 1 : defaultSortResult;
+}
+
 export function compareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
 	if (intlFileNameCollator) {
 		const a = one || '';
