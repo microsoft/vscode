@@ -441,7 +441,10 @@ export class CommentNode extends Disposable {
 		}
 		this._body.classList.remove('hidden');
 
-		this._commentEditorModel.dispose();
+		if (this._commentEditorModel) {
+			this._commentEditorModel.dispose();
+		}
+
 		this._commentEditorDisposables.forEach(dispose => dispose.dispose());
 		this._commentEditorDisposables = [];
 		if (this._commentEditor) {
@@ -539,9 +542,16 @@ export class CommentNode extends Disposable {
 		this._body.classList.add('hidden');
 		this._commentEditContainer = dom.append(this._commentDetailsContainer, dom.$('.edit-container'));
 		this.createCommentEditor();
-
 		this._errorEditingContainer = dom.append(this._commentEditContainer, dom.$('.validation-error.hidden'));
 		const formActions = dom.append(this._commentEditContainer, dom.$('.form-actions'));
+
+		// const cancelEditButton = new Button(formActions);
+		// cancelEditButton.label = nls.localize('label.cancel', "Cancel");
+		// this._toDispose.push(attachButtonStyler(cancelEditButton, this.themeService));
+
+		// this._toDispose.push(cancelEditButton.onDidClick(_ => {
+		// 	this.removeCommentEditor();
+		// }));
 
 		let menus = this.commentService.getCommentMenus(this.owner);
 		let actions = menus.getCommentActions(this.comment);
@@ -641,6 +651,14 @@ export class CommentNode extends Disposable {
 			this._body.appendChild(this._md);
 		}
 
+		if (newComment.mode !== undefined && newComment.mode !== this.comment.mode) {
+			if (newComment.mode === modes.CommentMode.Editing) {
+				this.switchToEditMode();
+			} else {
+				this.removeCommentEditor();
+			}
+		}
+
 		const shouldUpdateActions = newComment.editCommand !== this.comment.editCommand || newComment.deleteCommand !== this.comment.deleteCommand;
 		this.comment = newComment;
 
@@ -669,14 +687,6 @@ export class CommentNode extends Disposable {
 
 		if (this.comment.commentReactions && this.comment.commentReactions.length) {
 			this.createReactionsContainer(this._commentDetailsContainer);
-		}
-
-		if (this.comment.mode !== undefined) {
-			if (this.comment.mode === modes.CommentMode.Editing) {
-				this.switchToEditMode();
-			} else {
-				this.removeCommentEditor();
-			}
 		}
 	}
 
