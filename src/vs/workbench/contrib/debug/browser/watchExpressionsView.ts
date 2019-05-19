@@ -103,7 +103,10 @@ export class WatchExpressionsView extends ViewletPanel {
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
-			if (e instanceof Expression && e.name) {
+			if (!e) {
+				this.tree.updateChildren(this.tree.getInput(), false);
+			}
+			else if (e instanceof Expression && e.name) {
 				this.tree.rerender(e);
 			}
 		}));
