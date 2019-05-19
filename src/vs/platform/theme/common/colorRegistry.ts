@@ -285,6 +285,11 @@ export const editorHintBorder = registerColor('editorHint.border', { dark: null,
 export const editorBackground = registerColor('editor.background', { light: '#fffffe', dark: '#1E1E1E', hc: Color.black }, nls.localize('editorBackground', "Editor background color."));
 
 /**
+ * Active editor background color.
+ */
+export const editorActiveBackground = registerColor('editor.activeBackground', { light: editorBackground, dark: editorBackground, hc: editorBackground }, nls.localize('editorActiveBackground', "Active editor background color."));
+
+/**
  * Editor foreground color.
  */
 export const editorForeground = registerColor('editor.foreground', { light: '#333333', dark: '#BBBBBB', hc: Color.white }, nls.localize('editorForeground', "Editor default foreground color."));
@@ -485,6 +490,3 @@ colorRegistry.onDidChangeSchema(() => {
 });
 
 // setTimeout(_ => console.log(colorRegistry.toString()), 5000);
-
-
-

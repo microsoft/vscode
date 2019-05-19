@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
-import { activeContrastBorder, editorBackground, editorForeground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, editorBackground, editorActiveBackground, editorForeground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 /**
@@ -36,6 +36,7 @@ export const editorBracketMatchBorder = registerColor('editorBracketMatch.border
 export const editorOverviewRulerBorder = registerColor('editorOverviewRuler.border', { dark: '#7f7f7f4d', light: '#7f7f7f4d', hc: '#7f7f7f4d' }, nls.localize('editorOverviewRulerBorder', 'Color of the overview ruler border.'));
 
 export const editorGutter = registerColor('editorGutter.background', { dark: editorBackground, light: editorBackground, hc: editorBackground }, nls.localize('editorGutter', 'Background color of the editor gutter. The gutter contains the glyph margins and the line numbers.'));
+export const editorActiveGutter = registerColor(`editorGutter.activeBackground`, { dark: editorActiveBackground, light: editorActiveBackground, hc: editorActiveBackground }, nls.localize('editorActiveGutter', 'Background color of the active editor gutter. The gutter contains the glyph margins and the line numbers.'));
 
 export const editorUnnecessaryCodeBorder = registerColor('editorUnnecessaryCode.border', { dark: null, light: null, hc: Color.fromHex('#fff').transparent(0.8) }, nls.localize('unnecessaryCodeBorder', 'Border color of unnecessary (unused) source code in the editor.'));
 export const editorUnnecessaryCodeOpacity = registerColor('editorUnnecessaryCode.opacity', { dark: Color.fromHex('#000a'), light: Color.fromHex('#0007'), hc: null }, nls.localize('unnecessaryCodeOpacity', 'Opacity of unnecessary (unused) source code in the editor. For example, "#000000c0" will render the code with 75% opacity. For high contrast themes, use the  \'editorUnnecessaryCode.border\' theme color to underline unnecessary code instead of fading it out.'));
@@ -53,6 +54,12 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor, .monaco-editor-background, .monaco-editor .inputarea.ime-input { background-color: ${background}; }`);
 	}
 
+	// background color for a focused (active) editor group
+	const activeBackground = theme.getColor(editorActiveBackground);
+	if (activeBackground) {
+		collector.addRule(`.editor-group-container.active .monaco-editor, .editor-group-container.active .monaco-editor-background, 		.editor-group-container.active .monaco-editor .inputarea.ime-input { background-color: ${activeBackground}; }`);
+	}
+
 	const foreground = theme.getColor(editorForeground);
 	if (foreground) {
 		collector.addRule(`.monaco-editor, .monaco-editor .inputarea.ime-input { color: ${foreground}; }`);
@@ -61,6 +68,12 @@ registerThemingParticipant((theme, collector) => {
 	const gutter = theme.getColor(editorGutter);
 	if (gutter) {
 		collector.addRule(`.monaco-editor .margin { background-color: ${gutter}; }`);
+	}
+
+	// background color for the active editor gutter. It defaults to the current active editor background, if no active gutter background is provided
+	const activeGutter = theme.getColor(editorActiveGutter);
+	if (activeGutter) {
+		collector.addRule(`.editor-group-container.active .monaco-editor .margin { background-color: ${activeGutter}; }`);
 	}
 
 	const rangeHighlight = theme.getColor(editorRangeHighlight);
