@@ -251,7 +251,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		// Prevent the monaco-scrollable-element from scrolling
 		// https://github.com/Microsoft/vscode/issues/44181
 		domEvent(this.scrollableElement.getDomNode(), 'scroll')
-			(e => (e.target as HTMLElement).scrollTop = 0, null, this.disposables);
+			(e => ((e.target as HTMLElement).scrollTop = (e.target as HTMLElement).scrollLeft = 0), null, this.disposables);
 
 		Event.map(domEvent(this.domNode, 'dragover'), e => this.toDragEvent(e))(this.onDragOver, this, this.disposables);
 		Event.map(domEvent(this.domNode, 'drop'), e => this.toDragEvent(e))(this.onDrop, this, this.disposables);

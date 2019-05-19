@@ -109,7 +109,10 @@ export class VariablesView extends ViewletPanel {
 			}
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
-			if (e instanceof Variable) {
+			if (!e) {
+				this.tree.updateChildren(this.tree.getInput(), false);
+			}
+			else if (e instanceof Variable) {
 				this.tree.rerender(e);
 			}
 		}));
