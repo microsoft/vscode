@@ -46,6 +46,7 @@ export interface ICommentService {
 	removeWorkspaceComments(owner: string): void;
 	registerCommentController(owner: string, commentControl: MainThreadCommentController): void;
 	unregisterCommentController(owner: string): void;
+	getCommentController(owner: string): MainThreadCommentController | undefined;
 	createCommentThreadTemplate(owner: string, resource: URI, range: Range): void;
 	getCommentMenus(owner: string): CommentMenus;
 	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider): void;
@@ -127,6 +128,10 @@ export class CommentService extends Disposable implements ICommentService {
 	unregisterCommentController(owner: string): void {
 		this._commentControls.delete(owner);
 		this._onDidDeleteDataProvider.fire(owner);
+	}
+
+	getCommentController(owner: string): MainThreadCommentController | undefined {
+		return this._commentControls.get(owner);
 	}
 
 	createCommentThreadTemplate(owner: string, resource: URI, range: Range): void {

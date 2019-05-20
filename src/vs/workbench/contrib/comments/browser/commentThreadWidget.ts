@@ -420,7 +420,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			extensionId: this.extensionId,
 			commentThreadId: this.commentThread.threadId
 		});
-		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md?${params}`);
+
+		let resource = URI.parse(`${COMMENT_SCHEME}://${this.extensionId}/commentinput-${modeId}.md?${params}`); // TODO. Remove params once extensions adopt authority.
+		let commentController = this.commentService.getCommentController(this.owner);
+		if (commentController) {
+			resource = resource.with({ authority: commentController.id });
+		}
+
 		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.createByFilepathOrFirstLine(resource.path), resource, false);
 		this._disposables.push(model);
 		this._commentEditor.setModel(model);
