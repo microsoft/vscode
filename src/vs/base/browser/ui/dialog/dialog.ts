@@ -15,7 +15,7 @@ import { ButtonGroup, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
@@ -242,10 +242,6 @@ export class Dialog extends Disposable {
 				buttonMap.reverse();
 				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
 			}
-		} else if (isWindows) {
-
-		} else {
-
 		}
 		return buttonMap;
 	}
