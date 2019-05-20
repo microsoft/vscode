@@ -25,6 +25,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
@@ -573,13 +574,7 @@ export interface ITerminalSettings {
 		osxExec: string,
 		linuxExec: string
 	};
-	integrated: {
-		shell: {
-			osx: string,
-			windows: string,
-			linux: string
-		}
-	};
+	integrated: ITerminalConfiguration;
 }
 
 export interface IConfigurationManager {

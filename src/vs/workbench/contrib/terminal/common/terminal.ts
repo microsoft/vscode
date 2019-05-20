@@ -64,9 +64,9 @@ export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '50
 
 export interface ITerminalConfiguration {
 	shell: {
-		linux: string;
-		osx: string;
-		windows: string;
+		linux: string | null;
+		osx: string | null;
+		windows: string | null;
 	};
 	shellArgs: {
 		linux: string[];
