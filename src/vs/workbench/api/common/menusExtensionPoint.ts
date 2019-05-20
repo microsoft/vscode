@@ -21,6 +21,7 @@ namespace schema {
 	export interface IUserFriendlyMenuItem {
 		command: string;
 		alt?: string;
+		precondition?: string;
 		when?: string;
 		group?: string;
 	}
@@ -74,6 +75,10 @@ namespace schema {
 				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'alt'));
 				return false;
 			}
+			if (item.precondition && typeof item.precondition !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'precondition'));
+				return false;
+			}
 			if (item.when && typeof item.when !== 'string') {
 				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
 				return false;
@@ -96,6 +101,10 @@ namespace schema {
 			},
 			alt: {
 				description: localize('vscode.extension.contributes.menuItem.alt', 'Identifier of an alternative command to execute. The command must be declared in the \'commands\'-section'),
+				type: 'string'
+			},
+			precondition: {
+				description: localize('vscode.extension.contributes.menuItem.precondition', 'Condition which must be true to enable this item'),
 				type: 'string'
 			},
 			when: {
@@ -399,6 +408,14 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 					} else {
 						group = item.group;
 					}
+				}
+
+				if (item.precondition) {
+					command.precondition = ContextKeyExpr.deserialize(item.precondition);
+				}
+
+				if (alt && item.precondition) {
+					alt.precondition = command.precondition;
 				}
 
 				const registration = MenuRegistry.appendMenuItem(menu, {
