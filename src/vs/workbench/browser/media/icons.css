@@ -96,6 +96,7 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collaps
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sidebyside-vertical,
 body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more,
 body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-bar .action-item > .clear-input,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindingsFile"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="settings.switchToJSON"],
@@ -165,6 +166,13 @@ body[data-icon-theme="icon-explorations-1"] .monaco-workbench .activitybar .mona
 }
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .activitybar .monaco-action-bar .action-label.update-activity {
 	-webkit-mask-image: url("images/activitybar/settings-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-label.toggle-more {
+	-webkit-mask-image: url("images/activitybar/more-alt1.svg");
+}
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-label.toggle-more {
+	-webkit-mask-image: url("images/activitybar/more-alt2.svg");
 }
 
 /* Search expand */
@@ -1774,4 +1782,14 @@ body[data-icon-theme="icon-explorations-1"] .keybindings-editor .monaco-action-b
 
 body[data-icon-theme="icon-explorations-2"] .keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence::before {
 	-webkit-mask-image: url("images/misc/precedence-alt2.svg")
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
+	-webkit-mask-image: url("images/misc/more-alt1.svg");
+	background: var(--gray) !important;
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
+	-webkit-mask-image: url("images/misc/more-alt2.svg");
+	background: var(--gray) !important;
 }
