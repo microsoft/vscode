@@ -558,7 +558,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		this.logger.trace(`[storage ${this.name}] open(${path}, retryOnBusy: ${retryOnBusy})`);
 
 		return this.doConnect(path).then(undefined, error => {
-			this.logger.error(`[storage ${this.name}] open(): Unable to open DB due to ${error}`);
+			this.logger.error(`[storage ${this.name}] open(): Unable to open DB due to ${JSON.stringify(error)}`);
 
 			// SQLITE_BUSY should only arise if another process is locking the same DB we want
 			// to open at that time. This typically never happens because a DB connection is
