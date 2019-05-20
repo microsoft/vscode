@@ -8976,7 +8976,7 @@ declare module 'vscode' {
 		 * The range the comment thread is located within the document. The thread icon will be shown
 		 * at the first line of the range.
 		 */
-		readonly range: Range;
+		range: Range;
 
 		/**
 		 * The ordered comments of the thread.
