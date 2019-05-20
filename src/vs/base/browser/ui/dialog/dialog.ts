@@ -30,6 +30,11 @@ export interface IDialogStyles extends IButtonStyles {
 	dialogBorder?: Color;
 }
 
+interface ButtonMapEntry {
+	label: string;
+	index: number;
+}
+
 export class Dialog extends Disposable {
 	private element: HTMLElement | undefined;
 	private modal: HTMLElement | undefined;
@@ -230,8 +235,8 @@ export class Dialog extends Disposable {
 		}
 	}
 
-	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): { label: string, index: number }[] {
-		const buttonMap: { label: string, index: number }[] = [];
+	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
+		const buttonMap: ButtonMapEntry[] = [];
 		// Maps each button to its current label and old index so that when we move them around it's not a problem
 		buttons.forEach((button, index) => {
 			buttonMap.push({ label: button, index: index });
