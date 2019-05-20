@@ -96,6 +96,8 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collaps
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sidebyside-vertical,
 body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindingsFile"],
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="settings.switchToJSON"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showSource"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label.file-icon[title^="Preview"]::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showPreviewToSide"],
@@ -1708,4 +1710,14 @@ body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .co
 
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showSource"]{
 	-webkit-mask-image: url("images/misc/gotofile-alt2.svg")
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindingsFile"],
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="settings.switchToJSON"]{
+	-webkit-mask-image: url("images/misc/json-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindingsFile"],
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="settings.switchToJSON"]{
+	-webkit-mask-image: url("images/misc/json-alt2.svg")
 }
