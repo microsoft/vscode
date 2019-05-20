@@ -5,7 +5,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -13,14 +13,9 @@ import { Comment, CommentThread2 } from 'vs/editor/common/modes';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class CommentMenus implements IDisposable {
-	private titleMenu: IMenu;
-	private titleActions: IAction[] = [];
-
-	private readonly disposables: IDisposable[] = [];
-
 	constructor(
 		controller: MainThreadCommentController,
-		private contextKeyService: IContextKeyService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
@@ -29,25 +24,23 @@ export class CommentMenus implements IDisposable {
 		commentControllerKey.set(controller.contextValue);
 	}
 
-	getCommentThreadTitleActions(commentThread: CommentThread2): IAction[] {
-		return this.getActions(MenuId.CommentThreadTitle).primary;
+	getCommentThreadTitleActions(commentThread: CommentThread2, contextKeyService: IContextKeyService): IAction[] {
+		return this.getActions(MenuId.CommentThreadTitle, contextKeyService).primary;
 	}
 
-	getCommentThreadActions(commentThread: CommentThread2): IAction[] {
-		return this.getActions(MenuId.CommentThreadActions).primary;
+	getCommentThreadActions(commentThread: CommentThread2, contextKeyService: IContextKeyService): IAction[] {
+		return this.getActions(MenuId.CommentThreadActions, contextKeyService).primary;
 	}
 
-	getCommentTitleActions(comment: Comment): IAction[] {
-		return this.getActions(MenuId.CommentTitle).primary;
+	getCommentTitleActions(comment: Comment, contextKeyService: IContextKeyService): IAction[] {
+		return this.getActions(MenuId.CommentTitle, contextKeyService).primary;
 	}
 
-	getCommentActions(comment: Comment): IAction[] {
-		return this.getActions(MenuId.CommentActions).primary;
+	getCommentActions(comment: Comment, contextKeyService: IContextKeyService): IAction[] {
+		return this.getActions(MenuId.CommentActions, contextKeyService).primary;
 	}
 
-	private getActions(menuId: MenuId) {
-		const contextKeyService = this.contextKeyService.createScoped();
-
+	private getActions(menuId: MenuId, contextKeyService: IContextKeyService) {
 		const menu = this.menuService.createMenu(menuId, contextKeyService);
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
@@ -56,10 +49,7 @@ export class CommentMenus implements IDisposable {
 		fillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => true);
 
 		menu.dispose();
-		contextKeyService.dispose();
-
 		return result;
-
 	}
 
 	dispose(): void {

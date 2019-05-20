@@ -15,8 +15,6 @@ import { assign } from 'vs/base/common/objects';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -43,7 +41,6 @@ export interface ICommentService {
 	readonly onDidChangeActiveCommentingRange: Event<{ range: Range, commentingRangesInfo: CommentingRanges }>;
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string>;
-	readonly contextKeyService: IContextKeyService;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
 	setWorkspaceComments(owner: string, commentsByResource: CommentThread[] | CommentThread2[]): void;
 	removeWorkspaceComments(owner: string): void;
@@ -70,7 +67,6 @@ export interface ICommentService {
 	deleteReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	getReactionGroup(owner: string): CommentReaction[] | undefined;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread2, comment: Comment, reaction: CommentReaction): Promise<void>;
-	onDidChangeActiveCommentThread(commentThread: CommentThread | null): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -105,21 +101,10 @@ export class CommentService extends Disposable implements ICommentService {
 	private _commentControls = new Map<string, MainThreadCommentController>();
 	private _commentMenus = new Map<string, CommentMenus>();
 
-	private _activeThreadIsEmpty: IContextKey<boolean>;
-
-	contextKeyService: IContextKeyService;
-
 	constructor(
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
-		this.contextKeyService = contextKeyService.createScoped();
-		this._activeThreadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this.contextKeyService);
-	}
-
-	onDidChangeActiveCommentThread(commentThread: CommentThread | null) {
-		this._activeThreadIsEmpty.set(!!commentThread && !!commentThread.comments && !!commentThread.comments.length);
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {
@@ -161,7 +146,7 @@ export class CommentService extends Disposable implements ICommentService {
 
 		let controller = this._commentControls.get(owner);
 
-		let menu = this.instantiationService.createInstance(CommentMenus, controller!, this.contextKeyService);
+		let menu = this.instantiationService.createInstance(CommentMenus, controller!);
 		this._commentMenus.set(owner, menu);
 		return menu;
 	}

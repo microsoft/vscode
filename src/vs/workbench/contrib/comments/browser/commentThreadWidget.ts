@@ -44,6 +44,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-up';
@@ -76,6 +78,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _styleElement: HTMLStyleElement;
 	private _formActions: HTMLElement | null;
 	private _error: HTMLElement;
+	private _contextKeyService: IContextKeyService;
+	private _threadIsEmpty: IContextKey<boolean>;
 
 	public get owner(): string {
 		return this._owner;
@@ -109,9 +113,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		@IOpenerService private openerService: IOpenerService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@INotificationService private notificationService: INotificationService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editor, { keepEditorSelection: true });
+		this._contextKeyService = contextKeyService.createScoped(this.domNode);
+		this._threadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this._contextKeyService);
+		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
+
 		this._resizeObserver = null;
 		this._isExpanded = _commentThread.collapsibleState ? _commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded : undefined;
 		this._globalToDispose = [];
@@ -197,10 +206,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(this._bodyElement);
-
-		dom.addDisposableListener(this._bodyElement, dom.EventType.FOCUS_IN, e => {
-			this.commentService.onDidChangeActiveCommentThread(this._commentThread);
-		});
 	}
 
 	protected _fillHead(container: HTMLElement): void {
@@ -228,7 +233,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		let secondaryActions: IAction[] = [];
 		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
-			secondaryActions = this._commentMenus.getCommentThreadTitleActions(this._commentThread as modes.CommentThread2);
+			secondaryActions = this._commentMenus.getCommentThreadTitleActions(this._commentThread as modes.CommentThread2, this._contextKeyService);
 		}
 
 		this._actionbarWidget.push([...secondaryActions, this._collapseAction], { label: false, icon: true });
@@ -243,7 +248,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			} else {
 				const deleteCommand = (this._commentThread as modes.CommentThread2).deleteCommand;
 				if (deleteCommand) {
-					this.commentService.onDidChangeActiveCommentThread(this._commentThread);
 					return this.commandService.executeCommand(deleteCommand.id, ...(deleteCommand.arguments || []));
 				} else if (this._commentEditor.getValue() === '') {
 					this.dispose();
@@ -277,6 +281,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	async update(commentThread: modes.CommentThread | modes.CommentThread2) {
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
+		this._threadIsEmpty.set(!newCommentsLen);
 
 		let commentElementsToDel: CommentNode[] = [];
 		let commentElementsToDelIndex: number[] = [];
@@ -475,7 +480,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				uri: this._commentEditor.getModel()!.uri,
 				value: this._commentEditor.getValue()
 			};
-			this.commentService.onDidChangeActiveCommentThread(this._commentThread);
 		}));
 
 		this._commentThreadDisposables.push(this._commentEditor.getModel()!.onDidChangeContent(() => {
@@ -687,7 +691,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					uri: this._commentEditor.getModel()!.uri,
 					value: this._commentEditor.getValue()
 				};
-				this.commentService.onDidChangeActiveCommentThread(this._commentThread);
 				await this.commandService.executeCommand(acceptInputCommand.id, ...(acceptInputCommand.arguments || []));
 			}));
 
@@ -712,13 +715,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 						uri: this._commentEditor.getModel()!.uri,
 						value: this._commentEditor.getValue()
 					};
-					this.commentService.onDidChangeActiveCommentThread(this._commentThread);
 					await this.commandService.executeCommand(command.id, ...(command.arguments || []));
 				}));
 			});
 		}
 
-		let actions = this._commentMenus.getCommentThreadActions(commentThread);
+		let actions = this._commentMenus.getCommentThreadActions(commentThread, this._contextKeyService);
 
 		actions.forEach(action => {
 			const button = new Button(container);
@@ -783,7 +785,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 						uri: this._commentEditor.getModel()!.uri,
 						value: this._commentEditor.getValue()
 					};
-					this.commentService.onDidChangeActiveCommentThread(this._commentThread);
 					let commandId = commentThread.acceptInputCommand.id;
 					let args = commentThread.acceptInputCommand.arguments || [];
 

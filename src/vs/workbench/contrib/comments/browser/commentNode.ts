@@ -38,6 +38,7 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
@@ -60,6 +61,7 @@ export class CommentNode extends Disposable {
 	private _updateCommentButton: Button;
 	private _errorEditingContainer: HTMLElement;
 	private _isPendingLabel: HTMLElement;
+	private _contextKeyService: IContextKeyService;
 
 	private _deleteAction: Action;
 	protected actionRunner?: IActionRunner;
@@ -90,11 +92,13 @@ export class CommentNode extends Disposable {
 		@IDialogService private dialogService: IDialogService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@INotificationService private notificationService: INotificationService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
 		this._domNode = dom.$('div.review-comment');
+		this._contextKeyService = contextKeyService.createScoped(this._domNode);
 		this._domNode.tabIndex = 0;
 		const avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
 		if (comment.userIconPath) {
@@ -168,7 +172,7 @@ export class CommentNode extends Disposable {
 		}
 
 		let commentMenus = this.commentService.getCommentMenus(this.owner);
-		let titleActions = commentMenus.getCommentTitleActions(this.comment);
+		let titleActions = commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
 		actions.push(...titleActions);
 
 		if (actions.length) {
@@ -408,14 +412,12 @@ export class CommentNode extends Disposable {
 				uri: this._commentEditor.getModel()!.uri,
 				value: this.comment.body.value
 			};
-			this.commentService.onDidChangeActiveCommentThread(commentThread);
 
 			this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 				commentThread.input = {
 					uri: this._commentEditor!.getModel()!.uri,
 					value: this.comment.body.value
 				};
-				this.commentService.onDidChangeActiveCommentThread(commentThread);
 			}));
 
 			this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
@@ -472,7 +474,6 @@ export class CommentNode extends Disposable {
 					uri: this._commentEditor.getModel()!.uri,
 					value: newBody
 				};
-				this.commentService.onDidChangeActiveCommentThread(commentThread);
 				let commandId = this.comment.editCommand.id;
 				let args = this.comment.editCommand.arguments || [];
 
@@ -554,7 +555,7 @@ export class CommentNode extends Disposable {
 		// }));
 
 		let menus = this.commentService.getCommentMenus(this.owner);
-		let actions = menus.getCommentActions(this.comment);
+		let actions = menus.getCommentActions(this.comment, this._contextKeyService);
 
 		actions.forEach(action => {
 			let button = new Button(formActions);
