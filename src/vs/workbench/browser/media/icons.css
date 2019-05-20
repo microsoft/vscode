@@ -97,7 +97,6 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sidebyside-vertical,
 body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all,
 body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-bar .action-item > .clear-input,
-body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-bar .action-item > .record-keys,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindingsFile"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="settings.switchToJSON"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showSource"],
@@ -196,7 +195,8 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget 
 body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .close-fw::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .expand::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collapse::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before {
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before,
+body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-bar .action-item > .monaco-custom-checkbox::before {
 	content: "";
 	width: 16px;
 	height: 16px;
@@ -210,7 +210,8 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-
 
 body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox,
 body[data-icon-theme^="icon-explorations-"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude,
-body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header {
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header,
+body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-bar .action-item > .monaco-custom-checkbox {
 	background-image: none !important;
 }
 
@@ -678,12 +679,21 @@ body[data-icon-theme="icon-explorations-2"] .monaco-editor .debug-breakpoint-col
 	background: var(--redLight) !important;
 }
 
-body[data-icon-theme="icon-explorations-1"] .debug-breakpoint-disabled.icon,
+body[data-icon-theme="icon-explorations-1"] .debug-breakpoint-disabled.icon {
+	-webkit-mask-image: url("images/debug/breakpoint-unverified-alt1.svg");
+	background: var(--grayLight);
+}
+body[data-icon-theme="icon-explorations-2"] .debug-breakpoint-disabled.icon {
+	-webkit-mask-image: url("images/debug/breakpoint-unverified-alt2.svg");
+	background: var(--grayLight);
+}
+
+body[data-icon-theme="icon-explorations-1"] .debug-breakpoint-unverified,
 body[data-icon-theme="icon-explorations-1"] .monaco-editor .debug-breakpoint-column.debug-breakpoint-disabled-column::before {
 	-webkit-mask-image: url("images/debug/breakpoint-alt1.svg");
 	background: var(--grayLight);
 }
-body[data-icon-theme="icon-explorations-2"] .debug-breakpoint-disabled.icon,
+body[data-icon-theme="icon-explorations-2"] .debug-breakpoint-unverified,
 body[data-icon-theme="icon-explorations-2"] .monaco-editor .debug-breakpoint-column.debug-breakpoint-disabled-column::before {
 	-webkit-mask-image: url("images/debug/breakpoint-alt2.svg");
 	background: var(--grayLight);
@@ -1738,11 +1748,15 @@ body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .co
 	-webkit-mask-image: url("images/misc/json-alt2.svg")
 }
 
-body[data-icon-theme="icon-explorations-1"] .keybindings-editor .monaco-action-bar .action-item > .record-keys {
+body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-bar .action-item > .monaco-custom-checkbox::before {
+	display: block;
+}
+
+body[data-icon-theme="icon-explorations-1"] .keybindings-editor .monaco-action-bar .action-item > .record-keys::before {
 	-webkit-mask-image: url("images/misc/keyboard-alt1.svg")
 }
 
-body[data-icon-theme="icon-explorations-2"] .keybindings-editor .monaco-action-bar .action-item > .record-keys {
+body[data-icon-theme="icon-explorations-2"] .keybindings-editor .monaco-action-bar .action-item > .record-keys::before {
 	-webkit-mask-image: url("images/misc/keyboard-alt2.svg")
 }
 
@@ -1752,4 +1766,12 @@ body[data-icon-theme="icon-explorations-1"] .keybindings-editor .monaco-action-b
 
 body[data-icon-theme="icon-explorations-2"] .keybindings-editor .monaco-action-bar .action-item > .clear-input {
 	-webkit-mask-image: url("images/misc/clear-alt2.svg")
+}
+
+body[data-icon-theme="icon-explorations-1"] .keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence::before {
+	-webkit-mask-image: url("images/misc/precedence-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .keybindings-editor .monaco-action-bar .action-item > .sort-by-precedence::before {
+	-webkit-mask-image: url("images/misc/precedence-alt2.svg")
 }
