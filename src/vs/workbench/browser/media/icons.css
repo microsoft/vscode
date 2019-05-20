@@ -96,6 +96,8 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collaps
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sidebyside-vertical,
 body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all,
+body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-bar .action-item > .clear-input,
+body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-bar .action-item > .record-keys,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindingsFile"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="settings.switchToJSON"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showSource"],
@@ -859,6 +861,7 @@ body[data-icon-theme^="icon-explorations-"] .extension-editor > .header > .detai
 	left: 14px;
 	top: 0;
 }
+
 body[data-icon-theme="icon-explorations-1"] .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count > .octicon,
 body[data-icon-theme="icon-explorations-1"] .extension-editor > .header > .details > .subtitle .octicon {
 	-webkit-mask-image: url("images/extensions/download-alt1.svg");
@@ -1733,4 +1736,20 @@ body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .co
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindingsFile"],
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="settings.switchToJSON"]{
 	-webkit-mask-image: url("images/misc/json-alt2.svg")
+}
+
+body[data-icon-theme="icon-explorations-1"] .keybindings-editor .monaco-action-bar .action-item > .record-keys {
+	-webkit-mask-image: url("images/misc/keyboard-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .keybindings-editor .monaco-action-bar .action-item > .record-keys {
+	-webkit-mask-image: url("images/misc/keyboard-alt2.svg")
+}
+
+body[data-icon-theme="icon-explorations-1"] .keybindings-editor .monaco-action-bar .action-item > .clear-input {
+	-webkit-mask-image: url("images/misc/clear-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .keybindings-editor .monaco-action-bar .action-item > .clear-input {
+	-webkit-mask-image: url("images/misc/clear-alt2.svg")
 }
