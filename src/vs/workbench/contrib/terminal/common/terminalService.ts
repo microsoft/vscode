@@ -41,7 +41,7 @@ export abstract class TerminalService implements ITerminalService {
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 	public get terminalTabs(): ITerminalTab[] { return this._terminalTabs; }
 
-	private readonly _onActiveTabChanged = new Emitter<void>();
+	protected readonly _onActiveTabChanged = new Emitter<void>();
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
 	protected readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
 	public get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
@@ -104,6 +104,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _getWslPath(path: string): Promise<string>;
 	protected abstract _getWindowsBuildNumber(): number;
 
+	public abstract refreshActiveTab(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract getDefaultShell(platform: Platform): string;
