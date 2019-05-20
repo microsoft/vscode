@@ -1,0 +1,42 @@
+# Publish @types/vscode for each release
+
+trigger:
+  branches:
+    include: ['refs/tags/*']
+
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.10.1"
+
+- bash: |
+    # Install build dependencies
+    (cd build && yarn)
+    node build/azure-pipelines/publish-types/check-version.js
+  displayName: Check version
+
+- bash: |
+    git config --global user.email "vscode@microsoft.com"
+    git config --global user.name "VSCode"
+
+    git clone https://github.com/DefinitelyTyped/DefinitelyTyped.git
+    node build/azure-pipelines/publish-types/update-types.js
+
+    TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
+
+    cd DefinitelyTyped
+
+    git diff --color | cat
+    git add -A
+    git status
+    git commit -m "VS Code $TAG_VERSION Extension API"
+    git push origin master
+
+    git remote add vscode https://$(GITHUB_TOKEN)@github.com/octref/vscode-DefinitelyTyped.git
+    git push -f vscode master
+
+  displayName: Update vscode-DefinitelyTyped
