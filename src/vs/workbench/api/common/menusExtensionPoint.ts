@@ -438,7 +438,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 					command.precondition = ContextKeyExpr.deserialize(item.precondition);
 				}
 
-				if (item.alt && alt && item.precondition) {
+				if (alt && item.precondition) {
 					alt.precondition = command.precondition;
 				}
 
