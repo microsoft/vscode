@@ -36,7 +36,7 @@ steps:
     git commit -m "VS Code $TAG_VERSION Extension API"
     git push origin master
 
-    git remote add vscode https://${GITHUB_TOKEN}@github.com/octref/vscode-DefinitelyTyped.git
+    git remote add vscode https://$(GITHUB_TOKEN)@github.com/octref/vscode-DefinitelyTyped.git
     git push -f vscode master
 
   displayName: Update vscode-DefinitelyTyped
