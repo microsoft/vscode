@@ -17,7 +17,7 @@ try {
 		.trim();
 
 	const dtsUri = `https://raw.githubusercontent.com/microsoft/vscode/${tag}/src/vs/vscode.d.ts`;
-	const outPath = path.resolve(process.cwd(), 'vscode-DefinitelyTyped/types/vscode/index.d.ts');
+	const outPath = path.resolve(process.cwd(), 'DefinitelyTyped/types/vscode/index.d.ts');
 	cp.execSync(`curl ${dtsUri} --output ${outPath}`);
 
 	updateDTSFile(outPath, tag);
@@ -48,8 +48,11 @@ function getNewFileContent(content: string, tag: string) {
 }
 
 function getNewFileHeader(tag: string) {
+	const [major, minor] = tag.split('.');
+	const shorttag = `${major}.${minor}`;
+
 	const header = [
-		`// Type definitions for Visual Studio Code ${tag}`,
+		`// Type definitions for Visual Studio Code ${shorttag}`,
 		`// Project: https://github.com/microsoft/vscode`,
 		`// Definitions by: Visual Studio Code Team, Microsoft <https://github.com/Microsoft>`,
 		`// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped`,
@@ -61,7 +64,7 @@ function getNewFileHeader(tag: string) {
 		` *--------------------------------------------------------------------------------------------*/`,
 		``,
 		`/**`,
-		` * Type Definition for Visual Studio Code ${tag} Extension API`,
+		` * Type Definition for Visual Studio Code ${shorttag} Extension API`,
 		` * See https://code.visualstudio.com/api for more information`,
 		` */`
 	].join('\n');
