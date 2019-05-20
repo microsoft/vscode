@@ -96,6 +96,11 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collaps
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sidebyside-vertical,
 body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.nextChange"],
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openFile"],
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="toggle.diff.ignoreTrimWhitespace"],
 body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action,
@@ -428,11 +433,13 @@ body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part > .title > .
 }
 
 /* Stage */
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="git.stageChange"],
 body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.stageAll"],
 body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.stage"] {
 	-webkit-mask-image: url("images/git/stage-alt1.svg");
 }
 
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="git.stageChange"],
 body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.stageAll"],
 body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.stage"] {
 	-webkit-mask-image: url("images/git/stage-alt2.svg");
@@ -450,22 +457,57 @@ body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .res
 }
 
 /* Discard */
+
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="git.revertChange"],
 body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.cleanAll"],
 body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.clean"] {
 	-webkit-mask-image: url("images/git/clean-alt1.svg");
 }
 
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="git.revertChange"],
 body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title="git.cleanAll"],
 body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.clean"] {
 	-webkit-mask-image: url("images/git/clean-alt2.svg");
 }
 
 /* Open File */
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openFile"],
 body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.openFile2"] {
 	-webkit-mask-image: url("images/git/gotofile-alt1.svg");
 }
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openFile"],
 body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.openFile2"] {
 	-webkit-mask-image: url("images/git/gotofile-alt2.svg");
+}
+
+/* Chevrons */
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.nextChange"],
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.dirtydiff.next"] {
+	-webkit-mask-image: url("images/git/next-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.nextChange"],
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.dirtydiff.next"] {
+	-webkit-mask-image: url("images/git/next-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.dirtydiff.previous"] {
+	-webkit-mask-image: url("images/git/previous-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.dirtydiff.previous"] {
+	-webkit-mask-image: url("images/git/previous-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="toggle.diff.ignoreTrimWhitespace"]{
+	-webkit-mask-image: url("images/git/whitespace-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="toggle.diff.ignoreTrimWhitespace"]{
+	-webkit-mask-image: url("images/git/whitespace-alt2.svg");
 }
 
 /****************
