@@ -96,6 +96,9 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collaps
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sidebyside-vertical,
 body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showSource"],
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label.file-icon[title^="Preview"]::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showPreviewToSide"],
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.nextChange"],
@@ -1675,4 +1678,34 @@ body[data-icon-theme="icon-explorations-1"] .monaco-editor .find-widget .collaps
 }
 body[data-icon-theme="icon-explorations-2"] .monaco-editor .find-widget .collapse::before {
 	-webkit-mask-image: url("images/find/collapse-alt2.svg");
+}
+
+/****************
+	Misc
+****************/
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showPreviewToSide"]{
+	-webkit-mask-image: url("images/misc/preview-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showPreviewToSide"]{
+	-webkit-mask-image: url("images/misc/preview-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label.file-icon[title^="Preview"]::before{
+	-webkit-mask-image: url("images/misc/preview-icon-alt1.svg");
+	-webkit-mask-position: left center;
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label.file-icon[title^="Preview"]::before{
+	-webkit-mask-image: url("images/misc/preview-icon-alt2.svg");
+	-webkit-mask-position: left center;
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showSource"]{
+	-webkit-mask-image: url("images/misc/gotofile-alt1.svg")
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showSource"]{
+	-webkit-mask-image: url("images/misc/gotofile-alt2.svg")
 }
