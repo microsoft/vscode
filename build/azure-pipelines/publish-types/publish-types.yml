@@ -2,7 +2,7 @@
 
 trigger:
   branches:
-    include: ['octref/devops-publish-types', 'refs/tags/*']
+    include: ['refs/tags/*']
 
 steps:
 - task: NodeTool@0
