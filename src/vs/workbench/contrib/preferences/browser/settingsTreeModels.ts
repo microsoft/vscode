@@ -405,10 +405,10 @@ export function settingKeyToDisplayFormat(key: string, groupId = ''): { category
 
 function wordifyKey(key: string): string {
 	return key
-		.replace(/\.([a-z])/g, (match, p1) => ` › ${p1.toUpperCase()}`)
-		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()) // foo => Foo
-		.replace(/\b\w+\b/g, match => {
+		.replace(/\.([a-z0-9])/g, (match, p1) => ` › ${p1.toUpperCase()}`) // Replace dot with spaced '>'
+		.replace(/([a-z0-9])([A-Z])/g, '$1 $2') // Camel case to spacing, fooBar => foo Bar
+		.replace(/^[a-z]/g, match => match.toUpperCase()) // Upper casing all first letters, foo => Foo
+		.replace(/\b\w+\b/g, match => { // Upper casing known acronyms
 			return knownAcronyms.has(match.toLowerCase()) ?
 				match.toUpperCase() :
 				match;

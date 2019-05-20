@@ -11,17 +11,6 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 import { PluginManager } from './utils/plugins';
 
-declare module './protocol' {
-	interface SelectionRange {
-		textSpan: Proto.TextSpan;
-		parent?: SelectionRange;
-	}
-
-	interface SelectionRangeResponse extends Proto.Response {
-		body?: ReadonlyArray<SelectionRange>;
-	}
-}
-
 export namespace ServerResponse {
 
 	export class Cancelled {
@@ -65,7 +54,7 @@ export interface TypeScriptRequestTypes {
 	'quickinfo': [Proto.FileLocationRequestArgs, Proto.QuickInfoResponse];
 	'references': [Proto.FileLocationRequestArgs, Proto.ReferencesResponse];
 	'rename': [Proto.RenameRequestArgs, Proto.RenameResponse];
-	'selectionRange': [Proto.FileRequestArgs & { locations: Proto.Location[] }, Proto.SelectionRangeResponse];
+	'selectionRange': [Proto.SelectionRangeRequestArgs, Proto.SelectionRangeResponse];
 	'signatureHelp': [Proto.SignatureHelpRequestArgs, Proto.SignatureHelpResponse];
 	'typeDefinition': [Proto.FileLocationRequestArgs, Proto.TypeDefinitionResponse];
 }
