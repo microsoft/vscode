@@ -258,7 +258,7 @@ export class OpenEditor implements IEditorIdentifier {
 		return this.editor.isDirty();
 	}
 
-	public getResource(): URI | null {
+	public getResource(): URI | undefined {
 		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
 	}
 }

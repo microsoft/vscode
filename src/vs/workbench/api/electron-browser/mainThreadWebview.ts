@@ -182,7 +182,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 	public $setHtml(handle: WebviewPanelHandle | WebviewInsetHandle, value: string): void {
 		if (typeof handle === 'number') {
-			this.getWebviewElement(handle).contents = value;
+			this.getWebviewElement(handle).html = value;
 		} else {
 			const webview = this.getWebview(handle);
 			webview.html = value;

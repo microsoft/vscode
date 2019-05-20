@@ -25,7 +25,6 @@ import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { getBackgroundColor } from 'vs/code/electron-main/theme';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { endsWith } from 'vs/base/common/strings';
 
 export interface IWindowCreationOptions {
@@ -690,34 +689,25 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private restoreWindowState(state?: IWindowState): IWindowState {
 		if (state) {
 			try {
-				state = withNullAsUndefined(this.validateWindowState(state));
+				state = this.validateWindowState(state);
 			} catch (err) {
 				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
 		}
-
-		if (!state) {
-			state = defaultWindowState();
-		}
-
-		return state;
+		return state || defaultWindowState();
 	}
 
-	private validateWindowState(state: IWindowState): IWindowState | null {
-		if (!state) {
-			return null;
-		}
-
+	private validateWindowState(state: IWindowState): IWindowState | undefined {
 		if (typeof state.x !== 'number'
 			|| typeof state.y !== 'number'
 			|| typeof state.width !== 'number'
 			|| typeof state.height !== 'number'
 		) {
-			return null;
+			return undefined;
 		}
 
 		if (state.width <= 0 || state.height <= 0) {
-			return null;
+			return undefined;
 		}
 
 		const displays = screen.getAllDisplays();
@@ -793,7 +783,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return state;
 		}
 
-		return null;
+		return undefined;
 	}
 
 	private getWorkingArea(display: Display): Rectangle | undefined {

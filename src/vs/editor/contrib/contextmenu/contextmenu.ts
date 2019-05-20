@@ -228,7 +228,7 @@ class ShowContextMenu extends EditorAction {
 			id: 'editor.action.showContextMenu',
 			label: nls.localize('action.showContextMenu.label', "Show Editor Context Menu"),
 			alias: 'Show Editor Context Menu',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.Shift | KeyCode.F10,
