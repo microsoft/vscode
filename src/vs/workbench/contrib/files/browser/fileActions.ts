@@ -108,23 +108,6 @@ export class NewFileAction extends Action {
 	}
 }
 
-export class ShowTestDialogAction extends Action {
-	public static readonly ID = 'workbench.action.showTestDialog';
-	public static readonly LABEL = nls.localize('showTestDialog', "Show Test Dialog");
-
-	constructor(
-		id: string,
-		label: string,
-		@IDialogService private readonly dialogService: IDialogService
-	) {
-		super(id, label);
-	}
-
-	public run(): Promise<any> {
-		return this.dialogService.show(Severity.Warning, 'Testing dialog?', ['Cancel', '1', '2', '3', 'Yes', 'No', 'Maybe', '7'], { cancelId: 0 });
-	}
-}
-
 /* New Folder */
 export class NewFolderAction extends Action {
 	static readonly ID = 'workbench.files.action.createFolderFromExplorer';
