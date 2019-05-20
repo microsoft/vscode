@@ -95,7 +95,10 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .expand:
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collapse::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sidebyside-vertical,
-body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all {
+body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
 	background-image: none !important;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
@@ -1515,19 +1518,25 @@ body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible.colla
 	-webkit-mask-image: url("images/tree/collapse-alt2.svg");
 }
 
-body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
 	-webkit-mask-image: url("images/tree/close-alt1.svg");
 }
 
-body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
 	-webkit-mask-image: url("images/tree/close-alt2.svg");
 }
 
-body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action {
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action,
+body[data-icon-theme="icon-explorations-1"] .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action {
 	-webkit-mask-image: url("images/tree/dirty-alt1.svg");
 }
 
-body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action {
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action,
+body[data-icon-theme="icon-explorations-2"] .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action {
 	-webkit-mask-image: url("images/tree/dirty-alt2.svg");
 }
 
