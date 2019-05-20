@@ -846,6 +846,19 @@ body[data-icon-theme^="icon-explorations-"] .extension-editor > .header > .detai
 	-webkit-mask-size: 16px;
 }
 
+body[data-icon-theme^="icon-explorations-"] .extension-editor > .header > .details > .subtitle > span:not(:first-child):not(:empty) {
+	position: relative;
+}
+
+body[data-icon-theme^="icon-explorations-"] .extension-editor > .header > .details > .subtitle > .install > .count {
+	margin-left: 22px;
+}
+
+body[data-icon-theme^="icon-explorations-"] .extension-editor > .header > .details > .subtitle .octicon {
+	position: absolute;
+	left: 14px;
+	top: 0;
+}
 body[data-icon-theme="icon-explorations-1"] .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count > .octicon,
 body[data-icon-theme="icon-explorations-1"] .extension-editor > .header > .details > .subtitle .octicon {
 	-webkit-mask-image: url("images/extensions/download-alt1.svg");
