@@ -88,6 +88,9 @@ export class TerminalLinkHandler {
 		this._gitDiffPostImagePattern = /^\+\+\+ b\/(\S*)/;
 
 		this._tooltipCallback = (e: MouseEvent) => {
+			if (!this._widgetManager) {
+				return;
+			}
 			if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
 				const target = (e.target as HTMLElement);
 				this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
@@ -115,7 +118,11 @@ export class TerminalLinkHandler {
 		const options: ILinkMatcherOptions = {
 			matchIndex,
 			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => this._widgetManager.closeMessage(),
+			leaveCallback: () => {
+				if (this._widgetManager) {
+					this._widgetManager.closeMessage();
+				}
+			},
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: CUSTOM_LINK_PRIORITY
 		};
