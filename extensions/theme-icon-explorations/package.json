@@ -1,0 +1,23 @@
+{
+	"name": "vscode-icon-explorations",
+	"private": true,
+	"version": "1.0.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"iconThemes": [
+			{
+				"id": "icon-explorations-1",
+				"label": "VS Code Icon Explorations: Outline",
+				"path": "../theme-seti/icons/vs-seti-icon-theme.json"
+			},
+			{
+				"id": "icon-explorations-2",
+				"label": "VS Code Icon Explorations: Solid",
+				"path": "../theme-seti/icons/vs-seti-icon-theme.json"
+			}
+		]
+	}
+}
