@@ -724,6 +724,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		actions.forEach(action => {
 			const button = new Button(container);
+			button.enabled = action.enabled;
 			this._disposables.push(attachButtonStyler(button, this.themeService));
 
 			button.label = action.label;
