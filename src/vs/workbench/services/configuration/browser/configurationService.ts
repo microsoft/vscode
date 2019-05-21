@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as assert from 'vs/base/common/assert';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue, Barrier } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { isLinux } from 'vs/base/common/platform';
 import { ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -60,6 +59,9 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 	private configurationEditingService: ConfigurationEditingService;
 	private jsonEditingService: JSONEditingService;
+
+	private cyclicDependencyReady: Function;
+	private cyclicDependency = new Promise<void>(resolve => this.cyclicDependencyReady = resolve);
 
 	constructor(
 		{ userSettingsResource, remoteAuthority, configurationCache }: { userSettingsResource?: URI, remoteAuthority?: string, configurationCache: IConfigurationCache },
@@ -131,8 +133,9 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	public updateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): Promise<void> {
-		assert.ok(this.jsonEditingService, 'Workbench is not initialized yet');
-		return Promise.resolve(this.workspaceEditingQueue.queue(() => this.doUpdateFolders(foldersToAdd, foldersToRemove, index)));
+		return this.cyclicDependency.then(() => {
+			return this.workspaceEditingQueue.queue(() => this.doUpdateFolders(foldersToAdd, foldersToRemove, index));
+		});
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
@@ -178,8 +181,9 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		if (foldersToAdd.length) {
 
 			// Recompute current workspace folders if we have folders to add
-			const workspaceConfigFolder = dirname(this.getWorkspace().configuration!);
-			currentWorkspaceFolders = toWorkspaceFolders(newStoredFolders, workspaceConfigFolder);
+			const workspaceConfigPath = this.getWorkspace().configuration!;
+			const workspaceConfigFolder = dirname(workspaceConfigPath);
+			currentWorkspaceFolders = toWorkspaceFolders(newStoredFolders, workspaceConfigPath);
 			const currentWorkspaceFolderUris = currentWorkspaceFolders.map(folder => folder.uri);
 
 			const storedFoldersToAdd: IStoredWorkspaceFolder[] = [];
@@ -214,8 +218,10 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	private setFolders(folders: IStoredWorkspaceFolder[]): Promise<void> {
-		return this.workspaceConfiguration.setFolders(folders, this.jsonEditingService)
-			.then(() => this.onWorkspaceConfigurationChanged());
+		return this.cyclicDependency.then(() => {
+			return this.workspaceConfiguration.setFolders(folders, this.jsonEditingService)
+				.then(() => this.onWorkspaceConfigurationChanged());
+		});
 	}
 
 	private contains(resources: URI[], toCheck: URI): boolean {
@@ -250,11 +256,12 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError: boolean): Promise<void>;
 	updateValue(key: string, value: any, arg3?: any, arg4?: any, donotNotifyError?: any): Promise<void> {
-		assert.ok(this.configurationEditingService, 'Workbench is not initialized yet');
-		const overrides = isConfigurationOverrides(arg3) ? arg3 : undefined;
-		const target = this.deriveConfigurationTarget(key, value, overrides, overrides ? arg4 : arg3);
-		return target ? this.writeConfigurationValue(key, value, target, overrides, donotNotifyError)
-			: Promise.resolve();
+		return this.cyclicDependency.then(() => {
+			const overrides = isConfigurationOverrides(arg3) ? arg3 : undefined;
+			const target = this.deriveConfigurationTarget(key, value, overrides, overrides ? arg4 : arg3);
+			return target ? this.writeConfigurationValue(key, value, target, overrides, donotNotifyError)
+				: Promise.resolve();
+		});
 	}
 
 	reloadConfiguration(folder?: IWorkspaceFolder, key?: string): Promise<void> {
@@ -299,6 +306,12 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
 		this.configurationEditingService = instantiationService.createInstance(ConfigurationEditingService);
 		this.jsonEditingService = instantiationService.createInstance(JSONEditingService);
+
+		if (this.cyclicDependencyReady) {
+			this.cyclicDependencyReady();
+		} else {
+			this.cyclicDependency = Promise.resolve(undefined);
+		}
 	}
 
 	private createWorkspace(arg: IWorkspaceInitializationPayload): Promise<Workspace> {
@@ -317,7 +330,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		return this.workspaceConfiguration.load({ id: workspaceIdentifier.id, configPath: workspaceIdentifier.configPath })
 			.then(() => {
 				const workspaceConfigPath = workspaceIdentifier.configPath;
-				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), dirname(workspaceConfigPath));
+				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), workspaceConfigPath);
 				const workspaceId = workspaceIdentifier.id;
 				const workspace = new Workspace(workspaceId, workspaceFolders, workspaceConfigPath);
 				if (this.workspaceConfiguration.loaded) {
@@ -328,16 +341,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	private createSingleFolderWorkspace(singleFolder: ISingleFolderWorkspaceInitializationPayload): Promise<Workspace> {
-		const folder = singleFolder.folder;
-
-		let configuredFolders: IStoredWorkspaceFolder[];
-		if (folder.scheme === 'file') {
-			configuredFolders = [{ path: folder.fsPath }];
-		} else {
-			configuredFolders = [{ uri: folder.toString() }];
-		}
-
-		const workspace = new Workspace(singleFolder.id, toWorkspaceFolders(configuredFolders));
+		const workspace = new Workspace(singleFolder.id, [toWorkspaceFolder(singleFolder.folder)]);
 		this.releaseWorkspaceBarrier(); // Release barrier as workspace is complete because it is single folder.
 		return Promise.resolve(workspace);
 	}
@@ -392,7 +396,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	private compareFolders(currentFolders: IWorkspaceFolder[], newFolders: IWorkspaceFolder[]): IWorkspaceFoldersChangeEvent {
-		const result = { added: [], removed: [], changed: [] } as IWorkspaceFoldersChangeEvent;
+		const result: IWorkspaceFoldersChangeEvent = { added: [], removed: [], changed: [] };
 		result.added = newFolders.filter(newFolder => !currentFolders.some(currentFolder => newFolder.uri.toString() === currentFolder.uri.toString()));
 		for (let currentIndex = 0; currentIndex < currentFolders.length; currentIndex++) {
 			let currentFolder = currentFolders[currentIndex];
@@ -546,7 +550,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private onWorkspaceConfigurationChanged(): Promise<void> {
 		if (this.workspace && this.workspace.configuration && this._configuration) {
 			const workspaceConfigurationChangeEvent = this._configuration.compareAndUpdateWorkspaceConfiguration(this.workspaceConfiguration.getConfiguration());
-			let configuredFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), dirname(this.workspace.configuration));
+			let configuredFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), this.workspace.configuration);
 			const changes = this.compareFolders(this.workspace.folders, configuredFolders);
 			if (changes.added.length || changes.removed.length || changes.changed.length) {
 				this.workspace.folders = configuredFolders;

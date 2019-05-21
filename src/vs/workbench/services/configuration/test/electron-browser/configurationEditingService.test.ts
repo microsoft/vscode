@@ -14,11 +14,10 @@ import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
 import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -34,10 +33,10 @@ import { URI } from 'vs/base/common/uri';
 import { createHash } from 'crypto';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { ConfigurationFileService } from 'vs/workbench/services/configuration/node/configurationFileService';
@@ -110,14 +109,8 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);
-			const fileService = new FileService2(new NullLogService());
+			const fileService = new FileService(new NullLogService());
 			fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-			fileService.setLegacyService(new LegacyFileService(
-				fileService,
-				workspaceService,
-				TestEnvironmentService,
-				new TestTextResourceConfigurationService(),
-			));
 			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));

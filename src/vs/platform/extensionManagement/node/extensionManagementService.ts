@@ -343,13 +343,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			return Promise.reject(new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Unable to install because, the extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
 		}
 
-		if (this.remote) {
-			const manifest = await this.galleryService.getManifest(extension, CancellationToken.None);
-			if (manifest && isUIExtension(manifest, [], this.configurationService) && !isLanguagePackExtension(manifest)) {
-				return Promise.reject(new Error(nls.localize('notSupportedUIExtension', "Can't install extension {0} since UI Extensions are not supported", extension.identifier.id)));
-			}
-		}
-
 		return compatibleExtension;
 	}
 

@@ -16,7 +16,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer, IExtensionsViewState } from 'vs/workbench/contrib/extensions/electron-browser/extensionsList';
-import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
+import { IExtension, IExtensionsWorkbenchService, ExtensionState } from '../common/extensions';
 import { Query } from '../common/extensionQuery';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -41,13 +41,11 @@ import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAction } from 'vs/base/common/actions';
-import { ExtensionType, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import product from 'vs/platform/product/node/product';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -97,7 +95,7 @@ export class ExtensionsListView extends ViewletPanel {
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IExperimentService private readonly experimentService: IExperimentService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
+		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 		this.server = options.server;
@@ -340,7 +338,21 @@ export class ExtensionsListView extends ViewletPanel {
 					const isE1Running = running1 && this.extensionManagementServerService.getExtensionManagementServer(running1.extensionLocation) === e1.server;
 					const running2 = runningExtensionsById.get(ExtensionIdentifier.toKey(e2.identifier.id));
 					const isE2Running = running2 && this.extensionManagementServerService.getExtensionManagementServer(running2.extensionLocation) === e2.server;
-					if ((isE1Running && isE2Running) || (!isE1Running && !isE2Running)) {
+					if ((isE1Running && isE2Running)) {
+						return e1.displayName.localeCompare(e2.displayName);
+					}
+					const isE1LanguagePackExtension = e1.local && isLanguagePackExtension(e1.local.manifest);
+					const isE2LanguagePackExtension = e2.local && isLanguagePackExtension(e2.local.manifest);
+					if (!isE1Running && !isE2Running) {
+						if (isE1LanguagePackExtension) {
+							return -1;
+						}
+						if (isE2LanguagePackExtension) {
+							return 1;
+						}
+						return e1.displayName.localeCompare(e2.displayName);
+					}
+					if ((isE1Running && isE2LanguagePackExtension) || (isE2Running && isE1LanguagePackExtension)) {
 						return e1.displayName.localeCompare(e2.displayName);
 					}
 					return isE1Running ? -1 : 1;
@@ -816,18 +828,11 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 }
 
-function getViewTitleForServer(viewTitle: string, server: IExtensionManagementServer, labelService: ILabelService, workbenchEnvironmentService: IWorkbenchEnvironmentService): string {
-	const serverLabel = workbenchEnvironmentService.configuration.remoteAuthority === server.authority ? labelService.getHostLabel(REMOTE_HOST_SCHEME, server.authority) || server.label : server.label;
-	if (viewTitle && workbenchEnvironmentService.configuration.remoteAuthority) {
-		return `${serverLabel} - ${viewTitle}`;
-	}
-	return viewTitle ? viewTitle : serverLabel;
-}
-
 export class ServerExtensionsView extends ExtensionsListView {
 
 	constructor(
 		server: IExtensionManagementServer,
+		onDidChangeTitle: Event<string>,
 		options: ExtensionsListViewOptions,
 		@INotificationService notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -844,15 +849,11 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IExperimentService experimentService: IExperimentService,
 		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@ILabelService labelService: ILabelService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService
 	) {
-		const viewTitle = options.title;
-		options.title = getViewTitleForServer(viewTitle, server, labelService, workbenchEnvironmentService);
 		options.server = server;
 		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, modeService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService);
-		this.disposables.push(labelService.onDidChangeFormatters(() => this.updateTitle(getViewTitleForServer(viewTitle, server, labelService, workbenchEnvironmentService))));
+		this.disposables.push(onDidChangeTitle(title => this.updateTitle(title)));
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
@@ -993,6 +994,12 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 
 	private getRecommendationsToInstall(): Promise<IExtensionRecommendation[]> {
 		return this.tipsService.getWorkspaceRecommendations()
-			.then(recommendations => recommendations.filter(({ extensionId }) => !this.extensionsWorkbenchService.local.some(i => areSameExtensions({ id: extensionId }, i.identifier))));
+			.then(recommendations => recommendations.filter(({ extensionId }) => {
+				const extension = this.extensionsWorkbenchService.local.filter(i => areSameExtensions({ id: extensionId }, i.identifier))[0];
+				if (!extension || !extension.local || extension.state !== ExtensionState.Installed) {
+					return true;
+				}
+				return isUIExtension(extension.local.manifest, this.configurationService) ? extension.server !== this.extensionManagementServerService.localExtensionManagementServer : extension.server !== this.extensionManagementServerService.remoteExtensionManagementServer;
+			}));
 	}
 }

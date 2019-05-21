@@ -478,6 +478,14 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	1
 ));
 
+Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+	SearchPanel,
+	PANEL_ID,
+	nls.localize('name', "Search"),
+	'search',
+	10
+));
+
 class RegisterSearchViewContribution implements IWorkbenchContribution {
 
 	constructor(

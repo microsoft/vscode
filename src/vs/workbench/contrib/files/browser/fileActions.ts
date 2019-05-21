@@ -17,7 +17,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, AutoSaveConfiguration } from 'vs/platform/files/common/files';
-import { toResource, ITextEditor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -155,7 +155,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	}
 }
 
-function deleteFiles(serviceAccesor: ServicesAccessor, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
+function deleteFiles(textFileService: ITextFileService, dialogService: IDialogService, configurationService: IConfigurationService, fileService: IFileService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
 	let primaryButton: string;
 	if (useTrash) {
 		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
@@ -164,10 +164,6 @@ function deleteFiles(serviceAccesor: ServicesAccessor, elements: ExplorerItem[],
 	}
 
 	const distinctElements = resources.distinctParents(elements, e => e.resource);
-	const textFileService = serviceAccesor.get(ITextFileService);
-	const dialogService = serviceAccesor.get(IDialogService);
-	const configurationService = serviceAccesor.get(IConfigurationService);
-	const fileService = serviceAccesor.get(IFileService);
 
 	// Handle dirty
 	let confirmDirtyPromise: Promise<boolean> = Promise.resolve(true);
@@ -285,7 +281,7 @@ function deleteFiles(serviceAccesor: ServicesAccessor, elements: ExplorerItem[],
 
 								skipConfirm = true;
 
-								return deleteFiles(serviceAccesor, elements, useTrash, skipConfirm);
+								return deleteFiles(textFileService, dialogService, configurationService, fileService, elements, useTrash, skipConfirm);
 							}
 
 							return Promise.resolve();
@@ -345,64 +341,6 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 	return directories.length > 0 && files.length > 0;
 }
 
-let pasteShouldMove = false;
-// Paste File/Folder
-class PasteFileAction extends Action {
-
-	public static readonly ID = 'filesExplorer.paste';
-
-	constructor(
-		private element: ExplorerItem,
-		@IFileService private fileService: IFileService,
-		@INotificationService private notificationService: INotificationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IExplorerService private readonly explorerService: IExplorerService
-	) {
-		super(PasteFileAction.ID, PASTE_FILE_LABEL);
-
-		if (!this.element) {
-			this.element = this.explorerService.roots[0];
-		}
-	}
-
-	public run(fileToPaste: URI): Promise<any> {
-
-		// Check if target is ancestor of pasted folder
-		if (this.element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(this.element.resource, fileToPaste, !isLinux /* ignorecase */)) {
-			throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
-		}
-
-		return this.fileService.resolve(fileToPaste).then(fileToPasteStat => {
-
-			// Find target
-			let target: ExplorerItem;
-			if (this.element.resource.toString() === fileToPaste.toString()) {
-				target = this.element.parent!;
-			} else {
-				target = this.element.isDirectory ? this.element : this.element.parent!;
-			}
-
-			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
-
-			// Copy File
-			const promise = pasteShouldMove ? this.fileService.move(fileToPaste, targetFile) : this.fileService.copy(fileToPaste, targetFile);
-			return promise.then<ITextEditor | undefined>(stat => {
-				if (pasteShouldMove) {
-					// Cut is done. Make sure to clear cut state.
-					this.explorerService.setToCopy([], false);
-				}
-				if (!stat.isDirectory) {
-					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } })
-						.then(types.withNullAsUndefined);
-				}
-
-				return undefined;
-			}, e => onError(this.notificationService, e));
-		}, error => {
-			onError(this.notificationService, new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
-		});
-	}
-}
 
 export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwirte: boolean }): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
@@ -922,7 +860,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 	) { }
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
-		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.create('text/plain'), resource);
+		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource.path), resource);
 
 		return Promise.resolve(model);
 	}
@@ -1058,7 +996,7 @@ export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
 	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat!];
 
-	return deleteFiles(accessor, stats, true);
+	return deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, true);
 };
 
 export const deleteFileHandler = (accessor: ServicesAccessor) => {
@@ -1069,9 +1007,10 @@ export const deleteFileHandler = (accessor: ServicesAccessor) => {
 	const explorerContext = getContext(listService.lastFocusedList);
 	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat!];
 
-	return deleteFiles(accessor, stats, false);
+	return deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, false);
 };
 
+let pasteShouldMove = false;
 export const copyFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
 	if (!listService.lastFocusedList) {
@@ -1101,16 +1040,50 @@ export const cutFileHandler = (accessor: ServicesAccessor) => {
 };
 
 export const pasteFileHandler = (accessor: ServicesAccessor) => {
-	const instantiationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const clipboardService = accessor.get(IClipboardService);
-	if (!listService.lastFocusedList) {
-		return Promise.resolve();
-	}
-	const explorerContext = getContext(listService.lastFocusedList);
+	const explorerService = accessor.get(IExplorerService);
+	const fileService = accessor.get(IFileService);
+	const notificationService = accessor.get(INotificationService);
+	const editorService = accessor.get(IEditorService);
 
-	return sequence(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
-		const pasteFileAction = instantiationService.createInstance(PasteFileAction, explorerContext.stat);
-		return () => pasteFileAction.run(toCopy);
-	}));
+	if (listService.lastFocusedList) {
+		const explorerContext = getContext(listService.lastFocusedList);
+		const toPaste = resources.distinctParents(clipboardService.readResources(), r => r);
+		const element = explorerContext.stat || explorerService.roots[0];
+
+		// Check if target is ancestor of pasted folder
+		sequence(toPaste.map(fileToPaste => () => {
+
+			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste, !isLinux /* ignorecase */)) {
+				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
+			}
+
+			return fileService.resolve(fileToPaste).then(fileToPasteStat => {
+
+				// Find target
+				let target: ExplorerItem;
+				if (element.resource.toString() === fileToPaste.toString()) {
+					target = element.parent!;
+				} else {
+					target = element.isDirectory ? element : element.parent!;
+				}
+
+				const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
+
+				// Copy File
+				return pasteShouldMove ? fileService.move(fileToPaste, targetFile) : fileService.copy(fileToPaste, targetFile);
+			}, error => {
+				onError(notificationService, new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
+			});
+		})).then((stat) => {
+			if (pasteShouldMove) {
+				// Cut is done. Make sure to clear cut state.
+				explorerService.setToCopy([], false);
+			}
+			if (stat.length === 1 && !stat[0].isDirectory) {
+				editorService.openEditor({ resource: stat[0].resource, options: { pinned: true, preserveFocus: true } }).then(undefined, onUnexpectedError);
+			}
+		});
+	}
 };

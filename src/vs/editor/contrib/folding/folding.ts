@@ -503,7 +503,7 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 			id: 'editor.unfold',
 			label: nls.localize('unfoldAction.label', "Unfold"),
 			alias: 'Unfold',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
@@ -567,7 +567,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 			id: 'editor.unfoldRecursively',
 			label: nls.localize('unFoldRecursivelyAction.label', "Unfold Recursively"),
 			alias: 'Unfold Recursively',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET),
@@ -588,7 +588,7 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 			id: 'editor.fold',
 			label: nls.localize('foldAction.label', "Fold"),
 			alias: 'Fold',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET,
@@ -652,7 +652,7 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 			id: 'editor.foldRecursively',
 			label: nls.localize('foldRecursivelyAction.label', "Fold Recursively"),
 			alias: 'Fold Recursively',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET),
@@ -674,7 +674,7 @@ class FoldAllBlockCommentsAction extends FoldingAction<void> {
 			id: 'editor.foldAllBlockComments',
 			label: nls.localize('foldAllBlockComments.label', "Fold All Block Comments"),
 			alias: 'Fold All Block Comments',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_SLASH),
@@ -707,7 +707,7 @@ class FoldAllRegionsAction extends FoldingAction<void> {
 			id: 'editor.foldAllMarkerRegions',
 			label: nls.localize('foldAllMarkerRegions.label', "Fold All Regions"),
 			alias: 'Fold All Regions',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_8),
@@ -740,7 +740,7 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 			id: 'editor.unfoldAllMarkerRegions',
 			label: nls.localize('unfoldAllMarkerRegions.label', "Unfold All Regions"),
 			alias: 'Unfold All Regions',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_9),
@@ -773,7 +773,7 @@ class FoldAllAction extends FoldingAction<void> {
 			id: 'editor.foldAll',
 			label: nls.localize('foldAllAction.label', "Fold All"),
 			alias: 'Fold All',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_0),
@@ -794,7 +794,7 @@ class UnfoldAllAction extends FoldingAction<void> {
 			id: 'editor.unfoldAll',
 			label: nls.localize('unfoldAllAction.label', "Unfold All"),
 			alias: 'Unfold All',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_J),
@@ -838,7 +838,7 @@ for (let i = 1; i <= 7; i++) {
 			id: FoldLevelAction.ID(i),
 			label: nls.localize('foldLevelAction.label', "Fold Level {0}", i),
 			alias: `Fold Level ${i}`,
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | (KeyCode.KEY_0 + i)),

@@ -11,10 +11,10 @@ import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { toResource, IUntitledResourceInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, IUntitledResourceInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IPathData, IRunKeybindingInWindowRequest } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -26,7 +26,7 @@ import { ipcRenderer as ipc, webFrame, crashReporter, Event } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -43,6 +43,8 @@ import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessi
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { isEqual } from 'vs/base/common/resources';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -88,7 +90,8 @@ export class ElectronWindow extends Disposable {
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super();
 
@@ -228,11 +231,10 @@ export class ElectronWindow extends Disposable {
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.environmentService.configuration.filesToWait;
 		if (filesToWait) {
-			const resourcesToWaitFor = coalesce(filesToWait.paths.map(p => p.fileUri));
 			const waitMarkerFile = filesToWait.waitMarkerFileUri;
-			const listenerDispose = this.editorService.onDidCloseEditor(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
+			const resourcesToWaitFor = coalesce(filesToWait.paths.map(p => p.fileUri));
 
-			this._register(listenerDispose);
+			this._register(this.trackClosedWaitFiles(waitMarkerFile, resourcesToWaitFor));
 		}
 	}
 
@@ -254,17 +256,6 @@ export class ElectronWindow extends Disposable {
 		const visibleEditors = this.editorService.visibleControls.length;
 		if (visibleEditors === 0) {
 			this.windowService.closeWindow();
-		}
-	}
-
-	private onEditorClosed(listenerDispose: IDisposable, resourcesToWaitFor: URI[], waitMarkerFile: URI): void {
-
-		// In wait mode, listen to changes to the editors and wait until the files
-		// are closed that the user wants to wait for. When this happens we delete
-		// the wait marker file to signal to the outside that editing is done.
-		if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
-			listenerDispose.dispose();
-			this.fileService.del(waitMarkerFile);
 		}
 	}
 
@@ -468,20 +459,16 @@ export class ElectronWindow extends Disposable {
 		this.workspaceEditingService.addFolders(foldersToAdd);
 	}
 
-	private onOpenFiles(request: IOpenFileRequest): void {
+	private async onOpenFiles(request: IOpenFileRequest): Promise<void> {
 		const inputs: IResourceEditor[] = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
-		if (!diffMode && request.filesToOpen) {
-			inputs.push(...this.toInputs(request.filesToOpen, false));
-		}
-
-		if (!diffMode && request.filesToCreate) {
-			inputs.push(...this.toInputs(request.filesToCreate, true));
+		if (!diffMode && request.filesToOpenOrCreate) {
+			inputs.push(...(await pathsToEditors(request.filesToOpenOrCreate, this.fileService)));
 		}
 
 		if (diffMode && request.filesToDiff) {
-			inputs.push(...this.toInputs(request.filesToDiff, false));
+			inputs.push(...(await pathsToEditors(request.filesToDiff, this.fileService)));
 		}
 
 		if (inputs.length) {
@@ -492,15 +479,50 @@ export class ElectronWindow extends Disposable {
 			// In wait mode, listen to changes to the editors and wait until the files
 			// are closed that the user wants to wait for. When this happens we delete
 			// the wait marker file to signal to the outside that editing is done.
-			const resourcesToWaitFor = request.filesToWait.paths.map(p => URI.revive(p.fileUri));
 			const waitMarkerFile = URI.revive(request.filesToWait.waitMarkerFileUri);
-			const unbind = this.editorService.onDidCloseEditor(() => {
-				if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
-					unbind.dispose();
-					this.fileService.del(waitMarkerFile);
+			const resourcesToWaitFor = coalesce(request.filesToWait.paths.map(p => URI.revive(p.fileUri)));
+			this.trackClosedWaitFiles(waitMarkerFile, resourcesToWaitFor);
+		}
+	}
+
+	private trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): IDisposable {
+		const listener = this.editorService.onDidCloseEditor(async () => {
+			// In wait mode, listen to changes to the editors and wait until the files
+			// are closed that the user wants to wait for. When this happens we delete
+			// the wait marker file to signal to the outside that editing is done.
+			if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
+				// If auto save is configured with the default delay (1s) it is possible
+				// to close the editor while the save still continues in the background. As such
+				// we have to also check if the files to wait for are dirty and if so wait
+				// for them to get saved before deleting the wait marker file.
+				const dirtyFilesToWait = this.textFileService.getDirty(resourcesToWaitFor);
+				if (dirtyFilesToWait.length > 0) {
+					await Promise.all(dirtyFilesToWait.map(async dirtyFileToWait => await this.joinResourceSaved(dirtyFileToWait)));
+				}
+
+				listener.dispose();
+				await this.fileService.del(waitMarkerFile);
+			}
+		});
+
+		return listener;
+	}
+
+	private joinResourceSaved(resource: URI): Promise<void> {
+		return new Promise(resolve => {
+			if (!this.textFileService.isDirty(resource)) {
+				return resolve(); // return early if resource is not dirty
+			}
+
+			// Otherwise resolve promise when resource is saved
+			const listener = this.textFileService.models.onModelSaved(e => {
+				if (isEqual(resource, e.resource)) {
+					listener.dispose();
+
+					resolve();
 				}
 			});
-		}
+		});
 	}
 
 	private openResources(resources: Array<IResourceInput | IUntitledResourceInput>, diffMode: boolean): void {
@@ -518,27 +540,6 @@ export class ElectronWindow extends Disposable {
 
 			// Otherwise open all
 			return this.editorService.openEditors(resources);
-		});
-	}
-
-	private toInputs(paths: IPathData[], isNew: boolean): IResourceEditor[] {
-		return paths.map(p => {
-			const resource = URI.revive(p.fileUri);
-			let input: IResourceInput | IUntitledResourceInput;
-			if (isNew) {
-				input = { filePath: resource!.fsPath, options: { pinned: true } };
-			} else {
-				input = { resource, options: { pinned: true } };
-			}
-
-			if (!isNew && typeof p.lineNumber === 'number' && typeof p.columnNumber === 'number') {
-				input.options!.selection = {
-					startLineNumber: p.lineNumber,
-					startColumn: p.columnNumber
-				};
-			}
-
-			return input;
 		});
 	}
 

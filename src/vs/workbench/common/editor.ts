@@ -5,11 +5,11 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
-import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,6 +17,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IPathData } from 'vs/platform/windows/common/windows';
+import { coalesce } from 'vs/base/common/arrays';
 
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -141,7 +144,7 @@ export interface IEditorControl extends ICompositeControl { }
 
 export interface IFileInputFactory {
 
-	createFileInput(resource: URI, encoding: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileInput(resource: URI, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
 	isFileInput(obj: any): obj is IFileEditorInput;
 }
@@ -198,19 +201,15 @@ export interface IEditorInputFactory {
 export interface IUntitledResourceInput extends IBaseResourceInput {
 
 	/**
-	 * Optional resource. If the resource is not provided a new untitled file is created.
+	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
+	 * Otherwise the untitled editor will have an associated path and use that when saving.
 	 */
 	resource?: URI;
 
 	/**
-	 * Optional file path. Using the file resource will associate the file to the untitled resource.
-	 */
-	filePath?: string;
-
-	/**
 	 * Optional language of the untitled resource.
 	 */
-	language?: string;
+	mode?: string;
 
 	/**
 	 * Optional contents of the untitled resource.
@@ -506,18 +505,34 @@ export interface IEncodingSupport {
 	setEncoding(encoding: string, mode: EncodingMode): void;
 }
 
+export interface IModeSupport {
+
+	/**
+	 * Sets the language mode of the input.
+	 */
+	setMode(mode: string): void;
+}
+
 /**
  * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
  * to register this kind of input to the platform.
  */
-export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
+export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeSupport {
 
+	/**
+	 * Gets the resource this editor is about.
+	 */
 	getResource(): URI;
 
 	/**
-	 * Sets the preferred encodingt to use for this input.
+	 * Sets the preferred encoding to use for this input.
 	 */
 	setPreferredEncoding(encoding: string): void;
+
+	/**
+	 * Sets the preferred language mode to use for this input.
+	 */
+	setPreferredMode(mode: string): void;
 
 	/**
 	 * Forces this file input to open as binary instead of text.
@@ -567,7 +582,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.revert();
 	}
 
-	getTelemetryDescriptor(): object {
+	getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = this.master.getTelemetryDescriptor();
 
 		return assign(descriptor, super.getTelemetryDescriptor());
@@ -621,8 +636,7 @@ export class SideBySideEditorInput extends EditorInput {
 				return false;
 			}
 
-			const otherDiffInput = <SideBySideEditorInput>otherInput;
-			return this.details.matches(otherDiffInput.details) && this.master.matches(otherDiffInput.master);
+			return this.details.matches(otherInput.details) && this.master.matches(otherInput.master);
 		}
 
 		return false;
@@ -988,9 +1002,9 @@ export interface IResourceOptions {
 	filterByScheme?: string | string[];
 }
 
-export function toResource(editor: IEditorInput | null | undefined, options?: IResourceOptions): URI | null {
+export function toResource(editor: IEditorInput | undefined, options?: IResourceOptions): URI | undefined {
 	if (!editor) {
-		return null;
+		return undefined;
 	}
 
 	if (options && options.supportSideBySide && editor instanceof SideBySideEditorInput) {
@@ -999,7 +1013,7 @@ export function toResource(editor: IEditorInput | null | undefined, options?: IR
 
 	const resource = editor.getResource();
 	if (!resource || !options || !options.filterByScheme) {
-		return withUndefinedAsNull(resource);
+		return resource;
 	}
 
 	if (Array.isArray(options.filterByScheme) && options.filterByScheme.some(scheme => resource.scheme === scheme)) {
@@ -1010,7 +1024,7 @@ export function toResource(editor: IEditorInput | null | undefined, options?: IR
 		return resource;
 	}
 
-	return null;
+	return undefined;
 }
 
 export const enum CloseDirection {
@@ -1078,3 +1092,37 @@ export const Extensions = {
 };
 
 Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
+
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceInput | IUntitledResourceInput)[]> {
+	if (!paths || !paths.length) {
+		return [];
+	}
+
+	const editors = await Promise.all(paths.map(async path => {
+		const resource = URI.revive(path.fileUri);
+		if (!resource || !fileService.canHandleResource(resource)) {
+			return;
+		}
+
+		const exists = (typeof path.exists === 'boolean') ? path.exists : await fileService.exists(resource);
+
+		const options: ITextEditorOptions = { pinned: true };
+		if (exists && typeof path.lineNumber === 'number') {
+			options.selection = {
+				startLineNumber: path.lineNumber,
+				startColumn: path.columnNumber || 1
+			};
+		}
+
+		let input: IResourceInput | IUntitledResourceInput;
+		if (!exists) {
+			input = { resource, options, forceUntitled: true };
+		} else {
+			input = { resource, options, forceFile: true };
+		}
+
+		return input;
+	}));
+
+	return coalesce(editors);
+}

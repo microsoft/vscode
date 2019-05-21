@@ -49,12 +49,21 @@ export interface IBaseResourceInput {
 	 * looking at the scheme of the resource(s).
 	 */
 	readonly forceFile?: boolean;
+
+	/**
+	 * Hint to indicate that this input should be treated as a
+	 * untitled file.
+	 *
+	 * Without this hint, the editor service will make a guess by
+	 * looking at the scheme of the resource(s).
+	 */
+	readonly forceUntitled?: boolean;
 }
 
 export interface IResourceInput extends IBaseResourceInput {
 
 	/**
-	 * The resource URL of the resource to open.
+	 * The resource URI of the resource to open.
 	 */
 	resource: URI;
 
@@ -62,6 +71,12 @@ export interface IResourceInput extends IBaseResourceInput {
 	 * The encoding of the text input if known.
 	 */
 	readonly encoding?: string;
+
+	/**
+	 * The identifier of the language mode of the text input
+	 * if known to use when displaying the contents.
+	 */
+	readonly mode?: string;
 }
 
 export interface IEditorOptions {

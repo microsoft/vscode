@@ -17,7 +17,7 @@ import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { originalFSPath, dirname as resourcesDirname, isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { originalFSPath, isEqualOrParent, joinPath } from 'vs/base/common/resources';
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
@@ -61,7 +61,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 
 	private isWorkspacePath(uri: URI): boolean {
-		return this.isInsideWorkspacesHome(uri) || hasWorkspaceFileExtension(uri.path);
+		return this.isInsideWorkspacesHome(uri) || hasWorkspaceFileExtension(uri);
 	}
 
 	private doResolveWorkspace(path: URI, contents: string): IResolvedWorkspace | null {
@@ -71,7 +71,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 			return {
 				id: workspaceIdentifier.id,
 				configPath: workspaceIdentifier.configPath,
-				folders: toWorkspaceFolders(workspace.folders, resourcesDirname(path)),
+				folders: toWorkspaceFolders(workspace.folders, workspaceIdentifier.configPath),
 				remoteAuthority: workspace.remoteAuthority
 			};
 		} catch (error) {

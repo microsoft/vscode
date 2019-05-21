@@ -96,6 +96,14 @@
       {
         "fileMatch": "/.vscode/extensions.json",
         "url": "vscode://schemas/extensions"
+      },
+      {
+        "fileMatch": "/.devcontainer/devcontainer.json",
+        "url": "./schemas/devContainer.schema.json"
+      },
+      {
+        "fileMatch": "/.devcontainer.json",
+        "url": "./schemas/devContainer.schema.json"
       }
     ]
   },

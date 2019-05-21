@@ -83,6 +83,7 @@ export interface IExtensionsWorkbenchService {
 	_serviceBrand: any;
 	onChange: Event<IExtension | undefined>;
 	local: IExtension[];
+	installed: IExtension[];
 	outdated: IExtension[];
 	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;

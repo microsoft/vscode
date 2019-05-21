@@ -1214,12 +1214,24 @@ export interface Command {
 /**
  * @internal
  */
+export interface CommentThreadTemplate {
+	controllerHandle: number;
+	label: string;
+	acceptInputCommand?: Command;
+	additionalCommands?: Command[];
+	deleteCommand?: Command;
+}
+
+/**
+ * @internal
+ */
 export interface CommentInfo {
 	extensionId?: string;
 	threads: CommentThread[];
 	commentingRanges?: (IRange[] | CommentingRanges);
 	reply?: Command;
 	draftMode?: DraftMode;
+	template?: CommentThreadTemplate;
 }
 
 /**
@@ -1270,6 +1282,7 @@ export interface CommentInput {
  */
 export interface CommentThread2 {
 	commentThreadHandle: number;
+	controllerHandle: number;
 	extensionId?: string;
 	threadId: string | null;
 	resource: string | null;
@@ -1288,6 +1301,7 @@ export interface CommentThread2 {
 	onDidChangeRange: Event<IRange>;
 	onDidChangeLabel: Event<string>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	isDisposed: boolean;
 }
 
 /**
@@ -1297,8 +1311,7 @@ export interface CommentThread2 {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
-	newCommentThreadCommand?: Command;
-	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => Promise<void>;
+	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => Promise<CommentThread | undefined>;
 }
 
 /**
@@ -1312,6 +1325,7 @@ export interface CommentThread {
 	comments: Comment[] | undefined;
 	collapsibleState?: CommentThreadCollapsibleState;
 	reply?: Command;
+	isDisposed?: boolean;
 }
 
 /**

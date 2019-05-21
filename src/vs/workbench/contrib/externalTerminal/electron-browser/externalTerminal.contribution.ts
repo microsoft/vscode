@@ -94,7 +94,7 @@ CommandsRegistry.registerCommand({
 			const directoriesToOpen = distinct(stats.filter(data => data.success).map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : paths.dirname(stat!.resource.fsPath)));
 			return directoriesToOpen.map(dir => {
 				if (configurationService.getValue<IExternalTerminalConfiguration>().terminal.explorerKind === 'integrated') {
-					const instance = integratedTerminalService.createTerminal({ cwd: dir }, true);
+					const instance = integratedTerminalService.createTerminal({ cwd: dir });
 					if (instance && (resources.length === 1 || !resource || dir === resource.fsPath || dir === paths.dirname(resource.fsPath))) {
 						integratedTerminalService.setActiveInstance(instance);
 						integratedTerminalService.showPanel(true);

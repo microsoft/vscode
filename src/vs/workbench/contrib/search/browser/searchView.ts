@@ -23,7 +23,7 @@ import 'vs/css!./media/searchview';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as nls from 'vs/nls';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -682,11 +682,7 @@ export class SearchView extends ViewletPanel {
 		}));
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch>): void {
-		if (!e.element) {
-			return;
-		}
-
+	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch | null>): void {
 		if (!this.contextMenu) {
 			this.contextMenu = this._register(this.menuService.createMenu(MenuId.SearchContext, this.contextKeyService));
 		}
@@ -1327,8 +1323,6 @@ export class SearchView extends ViewletPanel {
 				// Indicate as status to ARIA
 				aria.status(message);
 
-				dom.hide(this.resultsElement);
-
 				const messageEl = this.clearMessage();
 				const p = dom.append(messageEl, $('p', undefined, message));
 
@@ -1363,6 +1357,7 @@ export class SearchView extends ViewletPanel {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					this.showSearchWithoutFolderMessage();
 				}
+				this.reLayout();
 			} else {
 				this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
 

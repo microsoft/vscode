@@ -46,6 +46,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -441,7 +442,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IWindowService private windowService: IWindowService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService
 	) {
 		this.toDispose = [];
 
@@ -604,6 +606,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent, true);
+		if (this.environmentService.configuration.remoteAuthority) {
+			if (droppedResources.some(r => r.resource.authority !== this.environmentService.configuration.remoteAuthority)) {
+				return Promise.resolve();
+			}
+		}
 
 		// Check for dropped external files to be folders
 		return this.fileService.resolveAll(droppedResources).then(result => {

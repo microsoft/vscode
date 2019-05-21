@@ -209,6 +209,10 @@ export class TypeScriptServerSpawner {
 			args.push('--noGetErrOnBackgroundUpdate');
 		}
 
+		if (apiVersion.gte(API.v345)) {
+			args.push('--validateDefaultNpmLocation');
+		}
+
 		return { args, cancellationPipeName, tsServerLogFile };
 	}
 
@@ -250,7 +254,7 @@ export class TypeScriptServer extends Disposable {
 		private readonly _tracer: Tracer,
 	) {
 		super();
-		this._reader = this._register(new Reader<Proto.Response>(this._childProcess.stdout));
+		this._reader = this._register(new Reader<Proto.Response>(this._childProcess.stdout!));
 		this._reader.onData(msg => this.dispatchMessage(msg));
 		this._childProcess.on('exit', code => this.handleExit(code));
 		this._childProcess.on('error', error => this.handleError(error));
@@ -270,7 +274,7 @@ export class TypeScriptServer extends Disposable {
 	public get tsServerLogFile() { return this._tsServerLogFile; }
 
 	public write(serverRequest: Proto.Request) {
-		this._childProcess.stdin.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
+		this._childProcess.stdin!.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
 	}
 
 	public dispose() {

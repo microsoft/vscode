@@ -266,7 +266,7 @@ export class WorkbenchList<T> extends List<T> {
 				...computeStyles(themeService.getTheme(), defaultListStyles),
 				...workbenchListOptions,
 				horizontalScrolling
-			} as IListOptions<T>
+			}
 		);
 
 		this.disposables.push(workbenchListOptionsDisposable);
@@ -348,7 +348,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 				...computeStyles(themeService.getTheme(), defaultListStyles),
 				...workbenchListOptions,
 				horizontalScrolling
-			} as IListOptions<T>
+			}
 		);
 
 		this.disposables = [workbenchListOptionsDisposable];
@@ -689,7 +689,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		super();
 
 		this.options = {
-			...<IResourceResultsNavigationOptions2>{
+			...{
 				openOnSelection: true
 			},
 			...(options || {})

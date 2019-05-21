@@ -34,6 +34,7 @@ import { IEditorInput, IEditor } from 'vs/workbench/common/editor';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -42,18 +43,21 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IProgressService2 progressService: IProgressService2
 	) {
 		super();
 
-		this.registerViews();
+		progressService.withProgress({ location: ProgressLocation.Explorer }, () => workspaceContextService.getCompleteWorkspace()).finally(() => {
+			this.registerViews();
 
-		this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
-		this.updateOpenEditorsVisibility();
+			this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
+			this.updateOpenEditorsVisibility();
 
-		this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.registerViews()));
-		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+			this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.registerViews()));
+			this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
+			this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+		});
 	}
 
 	private registerViews(): void {

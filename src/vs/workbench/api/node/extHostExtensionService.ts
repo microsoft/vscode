@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createApiFactory, IExtensionApiFactory } from 'vs/workbench/api/node/extHost.api.impl';
 import { NodeModuleRequireInterceptor, VSCodeNodeModuleFactory, KeytarNodeModuleFactory, OpenNodeModuleFactory } from 'vs/workbench/api/node/extHostRequireInterceptor';
-import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostExtensionServiceShape, IEnvironment, IInitData, IMainContext, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ActivatedExtension, EmptyExtension, ExtensionActivatedByAPI, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionContext, IExtensionModule, HostExtension } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
@@ -24,7 +24,6 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
-import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -34,6 +33,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
+import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/workbench/api/common/extHostTypes';
 
 interface ITestRunner {
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
@@ -62,6 +62,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _mainThreadExtensionsProxy: MainThreadExtensionServiceShape;
 
 	private readonly _almostReadyToRunExtensions: Barrier;
+	private readonly _readyToStartExtensionHost: Barrier;
 	private readonly _readyToRunExtensions: Barrier;
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _storage: ExtHostStorage;
@@ -98,6 +99,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._mainThreadExtensionsProxy = this._extHostContext.getProxy(MainContext.MainThreadExtensionService);
 
 		this._almostReadyToRunExtensions = new Barrier();
+		this._readyToStartExtensionHost = new Barrier();
 		this._readyToRunExtensions = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._storage = new ExtHostStorage(this._extHostContext);
@@ -166,7 +168,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			this._almostReadyToRunExtensions.open();
 
 			await this._extHostWorkspace.waitForInitializeCall();
-			this._readyToRunExtensions.open();
+			this._readyToStartExtensionHost.open();
 		} catch (err) {
 			errors.onUnexpectedError(err);
 		}
@@ -360,7 +362,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				storagePath: this._storagePath.workspaceValue(extensionDescription),
 				globalStoragePath: this._storagePath.globalValue(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
-				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier)
+				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier),
+				executionContext: this._initData.remoteAuthority ? ExtensionExecutionContext.Remote : ExtensionExecutionContext.Local
 			});
 		});
 	}
@@ -576,7 +579,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		}
 		this._started = true;
 
-		return this._readyToRunExtensions.wait()
+		return this._readyToStartExtensionHost.wait()
+			.then(() => this._readyToRunExtensions.open())
 			.then(() => this._handleEagerExtensions())
 			.then(() => this._handleExtensionTests())
 			.then(() => {
@@ -595,7 +599,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	// -- called by main thread
 
-	public async $resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority> {
+	public async $resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			throw new Error(`Not an authority that can be resolved!`);
@@ -607,15 +611,32 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 		const resolver = this._resolvers[authorityPrefix];
 		if (!resolver) {
-			throw new Error(`No resolver available for ${authorityPrefix}`);
+			throw new Error(`No remote extension installed to resolve ${authorityPrefix}.`);
 		}
 
-		const result = await resolver.resolve(remoteAuthority);
-		return {
-			authority: remoteAuthority,
-			host: result.host,
-			port: result.port,
-		};
+		try {
+			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
+			return {
+				type: 'ok',
+				value: {
+					authority: remoteAuthority,
+					host: result.host,
+					port: result.port,
+				}
+			};
+		} catch (err) {
+			if (err instanceof RemoteAuthorityResolverError) {
+				return {
+					type: 'error',
+					error: {
+						code: err._code,
+						message: err._message,
+						detail: err._detail
+					}
+				};
+			}
+			throw err;
+		}
 	}
 
 	public $startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
@@ -675,7 +696,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		let buff = VSBuffer.alloc(size);
 		let value = Math.random() % 256;
 		for (let i = 0; i < size; i++) {
-			buff.writeUint8(value, i);
+			buff.writeUInt8(value, i);
 		}
 		return buff;
 	}

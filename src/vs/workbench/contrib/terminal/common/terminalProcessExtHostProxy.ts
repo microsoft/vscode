@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalProcessExtHostProxy, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import * as nls from 'vs/nls';
+
+let hasReceivedResponse: boolean = false;
 
 export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	private _disposables: IDisposable[] = [];
@@ -43,10 +47,19 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 		activeWorkspaceRootUri: URI,
 		cols: number,
 		rows: number,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		configHelper: ITerminalConfigHelper,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IRemoteAgentService readonly remoteAgentService: IRemoteAgentService
 	) {
-		this._terminalService.requestExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows);
-		setTimeout(() => this._onProcessTitleChanged.fire('Starting...'), 0);
+		remoteAgentService.getEnvironment().then(env => {
+			if (!env) {
+				throw new Error('Could not fetch environment');
+			}
+			this._terminalService.requestExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper.checkWorkspaceShellPermissions(env.os));
+		});
+		if (!hasReceivedResponse) {
+			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
+		}
 	}
 
 	public dispose(): void {
@@ -59,6 +72,7 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	}
 
 	public emitTitle(title: string): void {
+		hasReceivedResponse = true;
 		this._onProcessTitleChanged.fire(title);
 	}
 

@@ -41,6 +41,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 interface IEditorInputLabel {
 	name: string;
@@ -83,8 +84,9 @@ export class TabsTitleControl extends TitleControl {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService, fileService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService, fileService, labelService);
 	}
 
 	protected create(parent: HTMLElement): void {
@@ -357,6 +359,12 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	updateEditorLabel(editor: IEditorInput): void {
+
+		// Update all labels to account for changes to tab labels
+		this.updateEditorLabels();
+	}
+
+	updateEditorLabels(): void {
 
 		// A change to a label requires to recompute all labels
 		this.computeTabLabels();

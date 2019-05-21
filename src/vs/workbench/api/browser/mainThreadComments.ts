@@ -184,14 +184,22 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	private _onDidChangeCollasibleState = new Emitter<modes.CommentThreadCollapsibleState | undefined>();
 	public onDidChangeCollasibleState = this._onDidChangeCollasibleState.event;
 
+	private _isDisposed: boolean;
+
+	get isDisposed(): boolean {
+		return this._isDisposed;
+	}
+
 	constructor(
 		public commentThreadHandle: number,
-		public controller: MainThreadCommentController,
+		public controllerHandle: number,
 		public extensionId: string,
 		public threadId: string,
 		public resource: string,
 		private _range: IRange
-	) { }
+	) {
+		this._isDisposed = false;
+	}
 
 	batchUpdate(
 		range: IRange,
@@ -210,12 +218,21 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		this._collapsibleState = collapsibleState;
 	}
 
-	dispose() { }
+	dispose() {
+		this._isDisposed = true;
+		this._onDidChangeAcceptInputCommand.dispose();
+		this._onDidChangeAdditionalCommands.dispose();
+		this._onDidChangeCollasibleState.dispose();
+		this._onDidChangeComments.dispose();
+		this._onDidChangeInput.dispose();
+		this._onDidChangeLabel.dispose();
+		this._onDidChangeRange.dispose();
+	}
 
 	toJSON(): any {
 		return {
 			$mid: 7,
-			commentControlHandle: this.controller.handle,
+			commentControlHandle: this.controllerHandle,
 			commentThreadHandle: this.commentThreadHandle,
 		};
 	}
@@ -273,7 +290,7 @@ export class MainThreadCommentController {
 	): modes.CommentThread2 {
 		let thread = new MainThreadCommentThread(
 			commentThreadHandle,
-			this,
+			this.handle,
 			'',
 			threadId,
 			URI.revive(resource).toString(),
@@ -281,12 +298,18 @@ export class MainThreadCommentController {
 		);
 
 		this._threads.set(commentThreadHandle, thread);
-		this._commentService.updateComments(this._uniqueId, {
-			added: [thread],
-			removed: [],
-			changed: [],
-			draftMode: modes.DraftMode.NotSupported
-		});
+
+		// As we create comment thread from template and then restore from the newly created maint thread comment thread,
+		// we postpone the update event to avoid duplication.
+		// This can be actually removed once we are on the new API.
+		setTimeout(() => {
+			this._commentService.updateComments(this._uniqueId, {
+				added: [thread],
+				removed: [],
+				changed: [],
+				draftMode: modes.DraftMode.NotSupported
+			});
+		}, 0);
 
 		return thread;
 	}
@@ -362,10 +385,23 @@ export class MainThreadCommentController {
 			commentingRanges: commentingRanges ?
 				{
 					resource: resource, ranges: commentingRanges, newCommentThreadCallback: async (uri: UriComponents, range: IRange) => {
-						await this._proxy.$createNewCommentWidgetCallback(this.handle, uri, range, token);
+						let threadHandle = await this._proxy.$createNewCommentWidgetCallback(this.handle, uri, range, token);
+
+						if (threadHandle !== undefined) {
+							return this.getKnownThread(threadHandle);
+						}
+
+						return;
 					}
 				} : [],
-			draftMode: modes.DraftMode.NotSupported
+			draftMode: modes.DraftMode.NotSupported,
+			template: this._features.commentThreadTemplate ? {
+				controllerHandle: this.handle,
+				label: this._features.commentThreadTemplate.label,
+				acceptInputCommand: this._features.commentThreadTemplate.acceptInputCommand,
+				additionalCommands: this._features.commentThreadTemplate.additionalCommands,
+				deleteCommand: this._features.commentThreadTemplate.deleteCommand
+			} : undefined
 		};
 	}
 
@@ -389,6 +425,28 @@ export class MainThreadCommentController {
 		}
 
 		return ret;
+	}
+
+	getCommentThreadFromTemplate(resource: UriComponents, range: IRange): MainThreadCommentThread {
+		let thread = new MainThreadCommentThread(
+			-1,
+			this.handle,
+			'',
+			'',
+			URI.revive(resource).toString(),
+			range
+		);
+
+		let template = this._features.commentThreadTemplate;
+
+		if (template) {
+			thread.acceptInputCommand = template.acceptInputCommand;
+			thread.additionalCommands = template.additionalCommands;
+			thread.deleteCommand = template.deleteCommand;
+			thread.label = template.label;
+		}
+
+		return thread;
 	}
 
 	toJSON(): any {
@@ -426,7 +484,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._activeCommentThreadDisposables = [];
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
 		this._disposables.push(this._commentService.onDidChangeActiveCommentThread(async thread => {
-			let controller = (thread as MainThreadCommentThread).controller;
+			let handle = (thread as MainThreadCommentThread).controllerHandle;
+			let controller = this._commentControllers.get(handle);
 
 			if (!controller) {
 				return;
@@ -438,10 +497,11 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
 				this._input = input;
-				this._proxy.$onCommentWidgetInputChange(controller.handle, this._input ? this._input.value : undefined);
+				this._proxy.$onCommentWidgetInputChange(handle, URI.parse(this._activeCommentThread!.resource), this._activeCommentThread!.range, this._input ? this._input.value : undefined);
 			}));
 
-			await this._proxy.$onCommentWidgetInputChange(controller.handle, this._input ? this._input.value : undefined);
+			await this._proxy.$onActiveCommentThreadChange(controller.handle, controller.activeCommentThread.commentThreadHandle);
+			await this._proxy.$onCommentWidgetInputChange(controller.handle, URI.parse(this._activeCommentThread!.resource), this._activeCommentThread.range, this._input ? this._input.value : undefined);
 		}));
 	}
 

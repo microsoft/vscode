@@ -30,7 +30,6 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { CompletionItemKind, completionKindToCssClass } from 'vs/editor/common/modes';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
@@ -545,10 +544,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			return;
 		}
 
-		item.resolve(CancellationToken.None).then(() => {
-			this.onDidSelectEmitter.fire({ item, index, model: completionModel });
-			this.editor.focus();
-		});
+		this.onDidSelectEmitter.fire({ item, index, model: completionModel });
+		this.editor.focus();
 	}
 
 	private _getSuggestionAriaAlertLabel(item: CompletionItem): string {

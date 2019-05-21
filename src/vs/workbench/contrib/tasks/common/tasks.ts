@@ -228,7 +228,7 @@ export interface PresentationOptions {
 	 * Controls whether the problems pane is revealed when running this task or not.
 	 * Defaults to `RevealProblemKind.Never`.
 	 */
-	revealProblem: RevealProblemKind;
+	revealProblems: RevealProblemKind;
 
 	/**
 	 * Controls whether the command associated with the task is echoed
@@ -266,7 +266,7 @@ export interface PresentationOptions {
 
 export namespace PresentationOptions {
 	export const defaults: PresentationOptions = {
-		echo: true, reveal: RevealKind.Always, revealProblem: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, revealProblems: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
 	};
 }
 

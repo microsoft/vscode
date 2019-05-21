@@ -248,8 +248,8 @@ export class TextMateService extends Disposable implements ITextMateService {
 					return null;
 				}
 				try {
-					const content = await this._fileService.resolveContent(location, { encoding: 'utf8' });
-					return parseRawGrammar(content.value, location.path);
+					const content = await this._fileService.readFile(location);
+					return parseRawGrammar(content.value.toString(), location.path);
 				} catch (e) {
 					this._logService.error(`Unable to load and parse grammar for scope ${scopeName} from ${location}`, e);
 					return null;

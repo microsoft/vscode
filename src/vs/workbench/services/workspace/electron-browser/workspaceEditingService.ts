@@ -244,7 +244,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	async createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> {
-		if (path && !this.isValidTargetWorkspacePath(path)) {
+		if (path && !await this.isValidTargetWorkspacePath(path)) {
 			return Promise.reject(null);
 		}
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
@@ -258,7 +258,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	async saveAndEnterWorkspace(path: URI): Promise<void> {
-		if (!this.isValidTargetWorkspacePath(path)) {
+		if (!await this.isValidTargetWorkspacePath(path)) {
 			return Promise.reject(null);
 		}
 		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
@@ -298,8 +298,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Read the contents of the workspace file, update it to new location and save it.
-		const raw = await this.fileService.resolveContent(configPathURI);
-		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value, configPathURI, targetConfigPathURI);
+		const raw = await this.fileService.readFile(configPathURI);
+		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, targetConfigPathURI);
 		await this.textFileService.create(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
 	}
 

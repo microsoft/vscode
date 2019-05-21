@@ -116,7 +116,6 @@ import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
-import 'vs/workbench/services/files/node/remoteFileService';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
 import 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -183,7 +182,7 @@ import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 //#region --- workbench contributions
 
 // Workspace File Watching
-import 'vs/workbench/services/files2/common/workspaceWatcher';
+import 'vs/workbench/services/files/common/workspaceWatcher';
 
 // Telemetry
 import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';

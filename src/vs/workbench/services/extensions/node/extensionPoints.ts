@@ -251,7 +251,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * This routine makes the following assumptions:
 	 * The root element is an object literal
 	 */
-	private static _replaceNLStrings<T>(nlsConfig: NlsConfiguration, literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string } | null, log: ILog, messageScope: string): void {
+	private static _replaceNLStrings<T extends object>(nlsConfig: NlsConfiguration, literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string } | null, log: ILog, messageScope: string): void {
 		function processEntry(obj: any, key: string | number, command?: boolean) {
 			let value = obj[key];
 			if (types.isString(value)) {

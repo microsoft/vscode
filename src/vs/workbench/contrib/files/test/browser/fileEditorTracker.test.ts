@@ -9,8 +9,8 @@ import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestTextFileService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITextFileService, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileChangesEvent, FileChangeType, IFileService, snapshotToString } from 'vs/platform/files/common/files';
+import { ITextFileService, IResolvedTextFileEditorModel, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { timeout } from 'vs/base/common/async';
 

@@ -10,7 +10,7 @@ import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, Model
 import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Workspace, toWorkspaceFolders, IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Workspace, toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 suite('Snippet Variables Resolver', function () {
 
@@ -328,11 +328,12 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', undefined);
 
 		// single folder workspace without config
-		workspace = new Workspace('', toWorkspaceFolders([{ path: '/folderName' }]));
+		workspace = new Workspace('', [toWorkspaceFolder(URI.file('/folderName'))]);
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'folderName');
 
 		// workspace with config
-		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }]), URI.file('testWorkspace.code-workspace'));
+		const workspaceConfigPath = URI.file('testWorkspace.code-workspace');
+		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }], workspaceConfigPath), workspaceConfigPath);
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'testWorkspace');
 	});
 });

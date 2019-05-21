@@ -7,7 +7,7 @@ import 'vs/css!./media/progressService2';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress } from 'vs/platform/progress/common/progress';
+import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { timeout } from 'vs/base/common/async';
@@ -20,6 +20,9 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
 import { attachDialogStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventHelper } from 'vs/base/browser/dom';
 
 export class ProgressService2 implements IProgressService2 {
 
@@ -34,7 +37,8 @@ export class ProgressService2 implements IProgressService2 {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) { }
 
 	withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
@@ -50,7 +54,7 @@ export class ProgressService2 implements IProgressService2 {
 
 		switch (location) {
 			case ProgressLocation.Notification:
-				return this._withNotificationProgress(options, task, onDidCancel);
+				return this._withNotificationProgress({ ...options, location: ProgressLocation.Notification }, task, onDidCancel);
 			case ProgressLocation.Window:
 				return this._withWindowProgress(options, task);
 			case ProgressLocation.Explorer:
@@ -134,7 +138,7 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
+	private _withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressNotificationOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
 		const toDispose: IDisposable[] = [];
 
 		const createNotification = (message: string | undefined, increment?: number): INotificationHandle | undefined => {
@@ -142,7 +146,7 @@ export class ProgressService2 implements IProgressService2 {
 				return undefined; // we need a message at least
 			}
 
-			const actions: INotificationActions = { primary: [] };
+			const actions: INotificationActions = { primary: options.primaryActions || [], secondary: options.secondaryActions || [] };
 			if (options.cancellable) {
 				const cancelAction = new class extends Action {
 					constructor() {
@@ -276,6 +280,10 @@ export class ProgressService2 implements IProgressService2 {
 
 	private _withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressOptions, task: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
 		const disposables: IDisposable[] = [];
+		const allowableCommands = [
+			'workbench.action.quit',
+			'workbench.action.reloadWindow'
+		];
 
 		let dialog: Dialog;
 
@@ -284,14 +292,24 @@ export class ProgressService2 implements IProgressService2 {
 				this._layoutService.container,
 				message,
 				[options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss")],
-				{ type: 'pending' }
+				{
+					type: 'pending',
+					keyEventProcessor: (event: StandardKeyboardEvent) => {
+						const resolved = this._keybindingService.softDispatch(event, this._layoutService.container);
+						if (resolved && resolved.commandId) {
+							if (allowableCommands.indexOf(resolved.commandId) === -1) {
+								EventHelper.stop(event, true);
+							}
+						}
+					}
+				}
 			);
 
 			disposables.push(dialog);
 			disposables.push(attachDialogStyler(dialog, this._themeService));
 
 			dialog.show().then(() => {
-				if (options.cancellable && typeof onDidCancel === 'function') {
+				if (typeof onDidCancel === 'function') {
 					onDidCancel();
 				}
 

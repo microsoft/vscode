@@ -40,7 +40,7 @@ import { IRPCProtocol, createExtHostContextProxyIdentifier as createExtId, creat
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ResolvedAuthority, RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
 import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
@@ -65,6 +65,7 @@ export interface IStaticWorkspaceData {
 	id: string;
 	name: string;
 	configuration?: UriComponents | null;
+	isUntitled?: boolean | null;
 }
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
@@ -117,11 +118,19 @@ export interface MainThreadCommandsShape extends IDisposable {
 	$getCommands(): Promise<string[]>;
 }
 
+export interface CommentThreadTemplate {
+	label: string;
+	acceptInputCommand?: modes.Command;
+	additionalCommands?: modes.Command[];
+	deleteCommand?: modes.Command;
+}
+
 export interface CommentProviderFeatures {
 	startDraftLabel?: string;
 	deleteDraftLabel?: string;
 	finishDraftLabel?: string;
 	reactionGroup?: modes.CommentReaction[];
+	commentThreadTemplate?: CommentThreadTemplate;
 }
 
 export interface MainThreadCommentsShape extends IDisposable {
@@ -375,7 +384,7 @@ export interface MainThreadOutputServiceShape extends IDisposable {
 
 export interface MainThreadProgressShape extends IDisposable {
 
-	$startProgress(handle: number, options: IProgressOptions): void;
+	$startProgress(handle: number, options: IProgressOptions, extension?: IExtensionDescription): void;
 	$progressReport(handle: number, message: IProgressStep): void;
 	$progressEnd(handle: number): void;
 }
@@ -674,10 +683,8 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$acceptDAExit(handle: number, code: number | undefined, signal: string | undefined): void;
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, handle: number): Promise<void>;
 	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Promise<void>;
-	$registerDebugAdapterTrackerFactory(type: string, handle: number): Promise<any>;
 	$unregisterDebugConfigurationProvider(handle: number): void;
 	$unregisterDebugAdapterDescriptorFactory(handle: number): void;
-	$unregisterDebugAdapterTrackerFactory(handle: number): void;
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, parentSessionID: string | undefined): Promise<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
 	$appendDebugConsole(value: string): void;
@@ -686,9 +693,13 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Promise<void>;
 }
 
+export interface IOpenUriOptions {
+	readonly allowTunneling?: boolean;
+}
+
 export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): Promise<boolean>;
-	$openUri(uri: UriComponents): Promise<boolean>;
+	$openUri(uri: UriComponents, options: IOpenUriOptions): Promise<boolean>;
 }
 
 // -- extension host
@@ -804,8 +815,24 @@ export interface ExtHostSearchShape {
 	$clearCache(cacheKey: string): Promise<void>;
 }
 
+export interface IResolveAuthorityErrorResult {
+	type: 'error';
+	error: {
+		message: string | undefined;
+		code: RemoteAuthorityResolverErrorCode;
+		detail: any;
+	};
+}
+
+export interface IResolveAuthorityOKResult {
+	type: 'ok';
+	value: ResolvedAuthority;
+}
+
+export type IResolveAuthorityResult = IResolveAuthorityErrorResult | IResolveAuthorityOKResult;
+
 export interface ExtHostExtensionServiceShape {
-	$resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority>;
+	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
 	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
 	$activateByEvent(activationEvent: string): Promise<void>;
 	$activate(extensionId: ExtensionIdentifier, activationEvent: string): Promise<boolean>;
@@ -1054,7 +1081,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
-	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents, cols: number, rows: number): void;
+	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, activeWorkspaceRootUri: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;
 	$acceptProcessShutdown(id: number, immediate: boolean): void;
@@ -1181,7 +1208,8 @@ export interface ExtHostProgressShape {
 export interface ExtHostCommentsShape {
 	$provideDocumentComments(handle: number, document: UriComponents): Promise<modes.CommentInfo | null>;
 	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Promise<modes.CommentThread | null>;
-	$onCommentWidgetInputChange(commentControllerHandle: number, input: string | undefined): Promise<number | undefined>;
+	$onCommentWidgetInputChange(commentControllerHandle: number, document: UriComponents, range: IRange, input: string | undefined): Promise<number | undefined>;
+	$onActiveCommentThreadChange(commentControllerHandle: number, threadHandle: number | undefined): Promise<number | undefined>;
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined>;
 	$provideReactionGroup(commentControllerHandle: number): Promise<modes.CommentReaction[] | undefined>;
 	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;

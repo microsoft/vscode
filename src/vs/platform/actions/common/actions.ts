@@ -18,21 +18,18 @@ export interface ILocalizedString {
 	original: string;
 }
 
-export interface IBaseCommandAction {
+export interface ICommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-}
-
-export interface ICommandAction extends IBaseCommandAction {
 	iconLocation?: { dark: URI; light?: URI; };
 	precondition?: ContextKeyExpr;
 	toggled?: ContextKeyExpr;
 }
 
-export interface ISerializableCommandAction extends IBaseCommandAction {
-	iconLocation?: { dark: UriComponents; light?: UriComponents; };
-}
+type Serialized<T> = { [K in keyof T]: T[K] extends URI ? UriComponents : Serialized<T[K]> };
+
+export type ISerializableCommandAction = Serialized<ICommandAction>;
 
 export interface IMenuItem {
 	command: ICommandAction;

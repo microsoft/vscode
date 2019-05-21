@@ -20,6 +20,7 @@ export interface IRemoteAgentService {
 	getConnection(): IRemoteAgentConnection | null;
 	getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null>;
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined>;
+	disableTelemetry(): Promise<void>;
 }
 
 export interface IRemoteAgentConnection {
