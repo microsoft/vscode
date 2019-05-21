@@ -46,10 +46,10 @@ namespace schema {
 			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
-			case 'commentThread/title': return MenuId.CommentThreadTitle;
-			case 'commentThread/actions': return MenuId.CommentThreadActions;
-			case 'comment/title': return MenuId.CommentTitle;
-			case 'comment/actions': return MenuId.CommentActions;
+			case 'comments/commentThread/title': return MenuId.CommentThreadTitle;
+			case 'comments/commentThread/actions': return MenuId.CommentThreadActions;
+			case 'comments/comment/title': return MenuId.CommentTitle;
+			case 'comments/comment/actions': return MenuId.CommentActions;
 		}
 
 		return undefined;
@@ -196,22 +196,22 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
-			'commentThread/title': {
+			'comments/commentThread/title': {
 				description: localize('commentThread.title', "The contributed comment thread title menu"),
 				type: 'array',
 				items: menuItem
 			},
-			'commentThread/actions': {
+			'comments/commentThread/actions': {
 				description: localize('commentThread.actions', "The contributed comment thread actions"),
 				type: 'array',
 				items: menuItem
 			},
-			'comment/title': {
+			'comments/comment/title': {
 				description: localize('comment.title', "The contributed comment title menu"),
 				type: 'array',
 				items: menuItem
 			},
-			'comment/actions': {
+			'comments/comment/actions': {
 				description: localize('comment.actions', "The contributed comment actions"),
 				type: 'array',
 				items: menuItem

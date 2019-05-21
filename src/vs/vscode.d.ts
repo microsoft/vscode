@@ -9098,7 +9098,7 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	namespace comment {
+	namespace comments {
 		/**
 		 * Creates a new [comment controller](#CommentController) instance.
 		 *

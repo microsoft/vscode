@@ -673,6 +673,8 @@ export function createApiFactory(
 			}
 		};
 
+		const comments = comment;
+
 		// namespace: debug
 		const debug: typeof vscode.debug = {
 			get activeDebugSession() {
@@ -756,6 +758,7 @@ export function createApiFactory(
 			languages,
 			scm,
 			comment,
+			comments,
 			tasks,
 			window,
 			workspace,
