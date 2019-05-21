@@ -45,7 +45,7 @@ export class MenubarControl extends Disposable {
 		'workbench.statusBar.visible',
 		'workbench.activityBar.visible',
 		'window.enableMenuBarMnemonics',
-		'window.disableMenuBarAltBehavior',
+		'window.disableCustomMenuBarAltBehavior',
 		'window.nativeTabs'
 	];
 
@@ -158,7 +158,7 @@ export class MenubarControl extends Disposable {
 	}
 
 	private get currentDisableMenuBarAltBehavior(): boolean {
-		let disableMenuBarAltBehavior = this.configurationService.getValue<boolean>('window.disableMenuBarAltBehavior');
+		let disableMenuBarAltBehavior = this.configurationService.getValue<boolean>('window.disableCustomMenuBarAltBehavior');
 		if (typeof disableMenuBarAltBehavior !== 'boolean') {
 			disableMenuBarAltBehavior = false;
 		}
