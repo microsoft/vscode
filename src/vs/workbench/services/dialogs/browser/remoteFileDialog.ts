@@ -279,9 +279,8 @@ export class RemoteFileDialog {
 						if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
 							this.filePickBox.validationMessage = undefined;
 							const filePickBoxUri = this.filePickBoxValue();
-							const valueUri = resources.removeTrailingPathSeparator(filePickBoxUri);
 							let updated: UpdateResult = UpdateResult.NotUpdated;
-							if (!resources.isEqual(resources.removeTrailingPathSeparator(this.currentFolder), valueUri, true)) {
+							if (!resources.isEqual(this.currentFolder, filePickBoxUri, true)) {
 								updated = await this.tryUpdateItems(value, filePickBoxUri);
 							}
 							if (updated === UpdateResult.NotUpdated) {
