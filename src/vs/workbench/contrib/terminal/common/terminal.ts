@@ -37,7 +37,6 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED = new RawContextKey
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
-export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
 // The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
@@ -64,9 +63,9 @@ export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '50
 
 export interface ITerminalConfiguration {
 	shell: {
-		linux: string;
-		osx: string;
-		windows: string;
+		linux: string | null;
+		osx: string | null;
+		windows: string | null;
 	};
 	shellArgs: {
 		linux: string[];
@@ -216,10 +215,8 @@ export interface ITerminalService {
 	/**
 	 * Creates a terminal.
 	 * @param shell The shell launch configuration to use.
-	 * @param wasNewTerminalAction Whether this was triggered by a new terminal action, if so a
-	 * default shell selection dialog may display.
 	 */
-	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	createTerminal(shell?: IShellLaunchConfig): ITerminalInstance;
 
 	/**
 	 * Creates a terminal renderer.
@@ -244,6 +241,12 @@ export interface ITerminalService {
 	setActiveTabToNext(): void;
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
+
+	/**
+	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
+	 * among other things.
+	 */
+	refreshActiveTab(): void;
 
 	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;

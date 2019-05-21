@@ -189,7 +189,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		if (this._isDisposed || !this._ptyProcess) {
 			return;
 		}
-		this._logService.trace('IPty#write', data);
+		this._logService.trace('IPty#write', `${data.length} characters`);
 		this._ptyProcess.write(data);
 	}
 

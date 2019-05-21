@@ -15,6 +15,7 @@ import { ButtonGroup, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export interface IDialogOptions {
 	cancelId?: number;
@@ -28,6 +29,11 @@ export interface IDialogStyles extends IButtonStyles {
 	dialogBackground?: Color;
 	dialogShadow?: Color;
 	dialogBorder?: Color;
+}
+
+interface ButtonMapEntry {
+	label: string;
+	index: number;
 }
 
 export class Dialog extends Disposable {
@@ -92,12 +98,13 @@ export class Dialog extends Disposable {
 
 			let focusedButton = 0;
 			this.buttonGroup = new ButtonGroup(this.buttonsContainer, this.buttons.length, { title: true });
+			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
 			this.buttonGroup.buttons.forEach((button, index) => {
-				button.label = mnemonicButtonLabel(this.buttons[index], true);
+				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 
 				this._register(button.onDidClick(e => {
 					EventHelper.stop(e);
-					resolve(index);
+					resolve(buttonMap[index].index);
 				}));
 			});
 
@@ -227,5 +234,23 @@ export class Dialog extends Disposable {
 			this.focusToReturn.focus();
 			this.focusToReturn = undefined;
 		}
+	}
+
+	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
+		const buttonMap: ButtonMapEntry[] = [];
+		// Maps each button to its current label and old index so that when we move them around it's not a problem
+		buttons.forEach((button, index) => {
+			buttonMap.push({ label: button, index: index });
+		});
+
+		if (isMacintosh) {
+			if (cancelId !== undefined) {
+				const cancelButton = buttonMap.splice(cancelId, 1)[0];
+				buttonMap.reverse();
+				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
+			}
+		}
+
+		return buttonMap;
 	}
 }

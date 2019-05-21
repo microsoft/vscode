@@ -3,21 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, IShellLaunchConfig, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalService as CommonTerminalService } from 'vs/workbench/contrib/terminal/common/terminalService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
@@ -36,7 +34,6 @@ export abstract class TerminalService extends CommonTerminalService implements I
 		@INotificationService notificationService: INotificationService,
 		@IDialogService dialogService: IDialogService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService private _environmentService: IWorkbenchEnvironmentService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService
@@ -52,7 +49,7 @@ export abstract class TerminalService extends CommonTerminalService implements I
 		return instance;
 	}
 
-	public createTerminal(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
+	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
 		const terminalTab = this._instantiationService.createInstance(TerminalTab,
 			this._terminalFocusContextKey,
 			this.configHelper,
@@ -68,72 +65,7 @@ export abstract class TerminalService extends CommonTerminalService implements I
 			this.setActiveInstanceByIndex(0);
 		}
 		this._onInstancesChanged.fire();
-		this._suggestShellChange(wasNewTerminalAction);
 		return instance;
-	}
-
-	private _suggestShellChange(wasNewTerminalAction?: boolean): void {
-		// Only suggest on Windows since $SHELL works great for macOS/Linux
-		if (!platform.isWindows) {
-			return;
-		}
-
-		if (this._environmentService.configuration.remoteAuthority) {
-			// Don't suggest if the opened workspace is remote
-			return;
-		}
-
-		// Only suggest when the terminal instance is being created by an explicit user action to
-		// launch a terminal, as opposed to something like tasks, debug, panel restore, etc.
-		if (!wasNewTerminalAction) {
-			return;
-		}
-
-		if (this._environmentService.configuration.remoteAuthority) {
-			// Don't suggest if the opened workspace is remote
-			return;
-		}
-
-		// Don't suggest if the user has explicitly opted out
-		const neverSuggest = this._storageService.getBoolean(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, StorageScope.GLOBAL, false);
-		if (neverSuggest) {
-			return;
-		}
-
-		// Never suggest if the setting is non-default already (ie. they set the setting manually)
-		if (this.configHelper.config.shell.windows !== this.getDefaultShell(platform.Platform.Windows)) {
-			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL);
-			return;
-		}
-
-		this._notificationService.prompt(
-			Severity.Info,
-			nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button."),
-			[{
-				label: nls.localize('customize', "Customize"),
-				run: () => {
-					this.selectDefaultWindowsShell().then(shell => {
-						if (!shell) {
-							return Promise.resolve(null);
-						}
-						// Launch a new instance with the newly selected shell
-						const instance = this.createTerminal({
-							executable: shell,
-							args: this.configHelper.config.shellArgs.windows
-						});
-						if (instance) {
-							this.setActiveInstance(instance);
-						}
-						return Promise.resolve(null);
-					});
-				}
-			},
-			{
-				label: nls.localize('never again', "Don't Show Again"),
-				isSecondary: true,
-				run: () => this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true, StorageScope.GLOBAL)
-			}]
-		);
 	}
 
 	public focusFindWidget(): Promise<void> {

@@ -98,6 +98,7 @@ function _getLangEnvVariable(locale?: string) {
 			es: 'ES',
 			fi: 'FI',
 			fr: 'FR',
+			hu: 'HU',
 			it: 'IT',
 			ja: 'JP',
 			ko: 'KR',

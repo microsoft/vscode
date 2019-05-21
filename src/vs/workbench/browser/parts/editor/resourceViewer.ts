@@ -513,12 +513,8 @@ class InlineImageView {
 				firstZoom();
 			}
 
-			let delta = e.deltaY < 0 ? 1 : -1;
+			let delta = e.deltaY > 0 ? 1 : -1;
 
-			// Pinching should increase the scale
-			if (e.ctrlKey && !isScrollWheelKeyPressed) {
-				delta *= -1;
-			}
 			updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
 		}));
 
