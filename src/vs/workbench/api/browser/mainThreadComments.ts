@@ -106,6 +106,16 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		this._onDidChangeLabel.fire(this._label);
 	}
 
+	private _contextValue: string | undefined;
+
+	get contextValue(): string | undefined {
+		return this._contextValue;
+	}
+
+	set contextValue(context: string | undefined) {
+		this._contextValue = context;
+	}
+
 	private _onDidChangeLabel = new Emitter<string>();
 	get onDidChangeLabel(): Event<string> { return this._onDidChangeLabel.event; }
 
@@ -204,6 +214,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	batchUpdate(
 		range: IRange,
 		label: string,
+		contextValue: string | undefined,
 		comments: modes.Comment[],
 		acceptInputCommand: modes.Command | undefined,
 		additionalCommands: modes.Command[],
@@ -211,6 +222,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		collapsibleState: modes.CommentThreadCollapsibleState) {
 		this._range = range;
 		this._label = label;
+		this._contextValue = contextValue;
 		this._comments = comments;
 		this._acceptInputCommand = acceptInputCommand;
 		this._additionalCommands = additionalCommands;
@@ -323,13 +335,14 @@ export class MainThreadCommentController {
 		resource: UriComponents,
 		range: IRange,
 		label: string,
+		contextValue: string | undefined,
 		comments: modes.Comment[],
 		acceptInputCommand: modes.Command | undefined,
 		additionalCommands: modes.Command[],
 		deleteCommand: modes.Command | undefined,
 		collapsibleState: modes.CommentThreadCollapsibleState): void {
 		let thread = this.getKnownThread(commentThreadHandle);
-		thread.batchUpdate(range, label, comments, acceptInputCommand, additionalCommands, deleteCommand, collapsibleState);
+		thread.batchUpdate(range, label, contextValue, comments, acceptInputCommand, additionalCommands, deleteCommand, collapsibleState);
 
 		this._commentService.updateComments(this._uniqueId, {
 			added: [],
@@ -521,6 +534,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		resource: UriComponents,
 		range: IRange,
 		label: string,
+		contextValue: string | undefined,
 		comments: modes.Comment[],
 		acceptInputCommand: modes.Command | undefined,
 		additionalCommands: modes.Command[],
@@ -532,7 +546,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			return undefined;
 		}
 
-		return provider.updateCommentThread(commentThreadHandle, threadId, resource, range, label, comments, acceptInputCommand, additionalCommands, deleteCommand, collapsibleState);
+		return provider.updateCommentThread(commentThreadHandle, threadId, resource, range, label, contextValue, comments, acceptInputCommand, additionalCommands, deleteCommand, collapsibleState);
 	}
 
 	$deleteCommentThread(handle: number, commentThreadHandle: number) {

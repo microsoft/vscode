@@ -38,7 +38,7 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
@@ -63,6 +63,7 @@ export class CommentNode extends Disposable {
 	private _errorEditingContainer: HTMLElement;
 	private _isPendingLabel: HTMLElement;
 	private _contextKeyService: IContextKeyService;
+	private _commentContextValue: IContextKey<string>;
 
 	private _deleteAction: Action;
 	protected actionRunner?: IActionRunner;
@@ -101,6 +102,8 @@ export class CommentNode extends Disposable {
 
 		this._domNode = dom.$('div.review-comment');
 		this._contextKeyService = contextKeyService.createScoped(this._domNode);
+		this._commentContextValue = this._contextKeyService.createKey('comment', comment.contextValue);
+
 		this._domNode.tabIndex = 0;
 		const avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
 		if (comment.userIconPath) {
@@ -688,6 +691,12 @@ export class CommentNode extends Disposable {
 
 		if (this.comment.commentReactions && this.comment.commentReactions.length) {
 			this.createReactionsContainer(this._commentDetailsContainer);
+		}
+
+		if (this.comment.contextValue) {
+			this._commentContextValue.set(this.comment.contextValue);
+		} else {
+			this._commentContextValue.reset();
 		}
 	}
 

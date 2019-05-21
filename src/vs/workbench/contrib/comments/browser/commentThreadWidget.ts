@@ -81,6 +81,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _error: HTMLElement;
 	private _contextKeyService: IContextKeyService;
 	private _threadIsEmpty: IContextKey<boolean>;
+	private _commentThreadContextValue: IContextKey<string>;
 	private _commentEditorIsEmpty: IContextKey<boolean>;
 	private _commentFormActions: CommentFormActions;
 
@@ -123,6 +124,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 		this._threadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this._contextKeyService);
 		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
+		this._commentThreadContextValue = contextKeyService.createKey('commentThread', _commentThread.contextValue);
 
 		this._resizeObserver = null;
 		this._isExpanded = _commentThread.collapsibleState ? _commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded : undefined;
@@ -380,6 +382,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			} else {
 				this.hide();
 			}
+		}
+
+		if (this._commentThread.contextValue) {
+			this._commentThreadContextValue.set(this._commentThread.contextValue);
+		} else {
+			this._commentThreadContextValue.reset();
 		}
 	}
 

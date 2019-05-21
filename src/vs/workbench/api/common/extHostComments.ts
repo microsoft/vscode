@@ -496,6 +496,17 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		this._onDidUpdateCommentThread.fire();
 	}
 
+	private _contextValue: string | undefined;
+
+	get contextValue(): string | undefined {
+		return this._contextValue;
+	}
+
+	set contextValue(context: string | undefined) {
+		this._contextValue = context;
+		this._onDidUpdateCommentThread.fire();
+	}
+
 	get comments(): vscode.Comment[] {
 		return this._comments;
 	}
@@ -592,6 +603,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	eventuallyUpdateCommentThread(): void {
 		const commentThreadRange = extHostTypeConverter.Range.from(this._range);
 		const label = this.label;
+		const contextValue = this.contextValue;
 		const comments = this._comments.map(cmt => { return convertToModeComment2(this, this._commentController, cmt, this._commandsConverter, this._commentsMap); });
 		const acceptInputCommand = this._acceptInputCommand ? this._commandsConverter.toInternal(this._acceptInputCommand) : undefined;
 		const additionalCommands = this._additionalCommands ? this._additionalCommands.map(x => this._commandsConverter.toInternal(x)) : [];
@@ -605,6 +617,7 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 			this._uri,
 			commentThreadRange,
 			label,
+			contextValue,
 			comments,
 			acceptInputCommand,
 			additionalCommands,
@@ -851,6 +864,7 @@ function convertToModeComment2(thread: ExtHostCommentThread, commentController: 
 	return {
 		commentId: vscodeComment.id || vscodeComment.commentId,
 		mode: vscodeComment.mode,
+		contextValue: vscodeComment.contextValue,
 		uniqueIdInThread: commentUniqueId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 		userName: vscodeComment.author ? vscodeComment.author.name : vscodeComment.userName,

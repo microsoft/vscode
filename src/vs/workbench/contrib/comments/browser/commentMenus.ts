@@ -42,6 +42,7 @@ export class CommentMenus implements IDisposable {
 
 	private getMenu(menuId: MenuId, contextKeyService: IContextKeyService): IMenu {
 		const menu = this.menuService.createMenu(menuId, contextKeyService);
+
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };

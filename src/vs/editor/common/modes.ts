@@ -1288,6 +1288,7 @@ export interface CommentThread2 {
 	resource: string | null;
 	range: IRange;
 	label: string;
+	contextValue: string | undefined;
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
@@ -1326,6 +1327,7 @@ export interface CommentThread {
 	collapsibleState?: CommentThreadCollapsibleState;
 	reply?: Command;
 	isDisposed?: boolean;
+	contextValue?: string;
 }
 
 /**
@@ -1364,6 +1366,7 @@ export interface Comment {
 	readonly body: IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;
+	readonly contextValue?: string;
 	readonly canEdit?: boolean;
 	readonly canDelete?: boolean;
 	readonly selectCommand?: Command;
