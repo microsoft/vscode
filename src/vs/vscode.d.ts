@@ -8958,8 +8958,18 @@ declare module 'vscode' {
 		Expanded = 1
 	}
 
+	/**
+	 * Comment mode of a [comment](#Comment)
+	 */
 	export enum CommentMode {
+		/**
+		 * Displays the comment editor
+		 */
 		Editing = 0,
+
+		/**
+		 * Displays the preview of the comment
+		 */
 		Preview = 1
 	}
 
@@ -9046,10 +9056,13 @@ declare module 'vscode' {
 		 */
 		body: string | MarkdownString;
 
+		/**
+		 * [Comment mode](#CommentMode) of the comment
+		 */
 		mode: CommentMode;
 
 		/**
-		 * The author information of the comment
+		 * The [author information](#CommentAuthorInformation) of the comment
 		 */
 		author: CommentAuthorInformation;
 
@@ -9080,9 +9093,18 @@ declare module 'vscode' {
 		label?: string;
 	}
 
+	/**
+	 * Command argument for actions registered in `comments/commentThread/actions`.
+	 */
 	export interface CommentReply {
+		/**
+		 * The active [comment thread](#CommentThread)
+		 */
 		thread: CommentThread;
 
+		/**
+		 * The value in the comment editor
+		 */
 		text: string;
 	}
 
@@ -9114,7 +9136,7 @@ declare module 'vscode' {
 		/**
 		 * Optional commenting range provider. Provide a list [ranges](#Range) which support commenting to any given resource uri.
 		 *
-		 * If not provided and `emptyCommentThreadFactory` exits, users can leave comments in any document opened in the editor.
+		 * If not provided, users can leave comments in any document opened in the editor.
 		 */
 		commentingRangeProvider?: CommentingRangeProvider;
 
@@ -9122,7 +9144,6 @@ declare module 'vscode' {
 		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
 		 * and Comments Panel once created.
 		 *
-		 * @param id An `id` for the comment thread.
 		 * @param resource The uri of the document the thread has been created on.
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
