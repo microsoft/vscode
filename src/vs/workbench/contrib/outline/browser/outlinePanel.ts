@@ -47,6 +47,7 @@ import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { ICommandHandler } from 'vs/platform/commands/common/commands';
 
 class RequestState {
 
@@ -290,6 +291,15 @@ export class OutlinePanel extends ViewletPanel {
 			this._tree.domFocus();
 			if (!this._tree.isDOMFocused()) {
 				this._domNode.focus();
+			}
+		}
+	}
+
+	private outlineCollapseAllCommand: ICommandHandler = accessor => {
+		const actions = this.getActions();
+		for (const action of actions) {
+			if (action.id === 'collapse') {
+				action.run();
 			}
 		}
 	}
