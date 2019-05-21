@@ -10,6 +10,7 @@ import { CompletionItem } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { CharCode } from 'vs/base/common/charCode';
+import { compareIgnoreCase } from 'vs/base/common/strings';
 
 type StrictCompletionItem = Required<CompletionItem>;
 
@@ -215,8 +216,13 @@ export class CompletionModel {
 					if (!match) {
 						continue; // NO match
 					}
-					item.score = anyScore(word, wordLow, 0, item.completion.label, item.labelLow, 0);
-					item.score[0] = match[0]; // use score from filterText
+					if (compareIgnoreCase(item.completion.filterText, item.completion.label) === 0) {
+						// filterText and label are actually the same -> use good highlights
+						item.score = match;
+					} else {
+						item.score = anyScore(word, wordLow, 0, item.completion.label, item.labelLow, 0);
+						item.score[0] = match[0]; // use score from filterText
+					}
 
 				} else {
 					// by default match `word` against the `label`
