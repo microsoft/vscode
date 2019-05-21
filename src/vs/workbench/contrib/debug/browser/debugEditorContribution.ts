@@ -717,43 +717,21 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private tokenizeViewPort(model: ITextModel): void {
 		this.editor.getVisibleRanges().forEach(visibleRange => {
 			model.tokenizeViewport(visibleRange.startLineNumber, visibleRange.endLineNumber);
-			for (let lineNumber = visibleRange.startLineNumber; lineNumber <= visibleRange.endLineNumber; ++lineNumber) {
-				const lineTokens = model.getLineTokens(lineNumber);
-				const lineContent = model.getLineContent(lineNumber);
-				for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
-					const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
-					const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
-					const tokenType = lineTokens.getStandardTokenType(tokenIndex);
-					const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
-
-					if (tokenType === StandardTokenType.Other) {
-						DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
-						const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
-
-						if (wordMatch && this.wordToLineNumbersMap) {
-							const word = wordMatch[0];
-							if (!this.wordToLineNumbersMap.has(word)) {
-								this.wordToLineNumbersMap.set(word, []);
-							}
-							this.wordToLineNumbersMap.get(word)!.push(new Position(lineNumber, tokenStartOffset));
-						}
-					}
-				}
-			}
+			this.tokenizeRange(model, visibleRange.startLineNumber, visibleRange.endLineNumber);
 		});
 	}
 
-	private tokenizeCompleteDocument(model: ITextModel): void {
-		// For every word in every line, map its ranges for fast lookup
-		for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
+	private tokenizeRange(model: ITextModel, start: number, end: number, isCompleteDocument?: boolean) {
+		for (let lineNumber = start, len = end; lineNumber <= len; ++lineNumber) {
 			const lineContent = model.getLineContent(lineNumber);
 
 			// If line is too long then skip the line
 			if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
 				continue;
 			}
-
-			model.forceTokenization(lineNumber);
+			if (isCompleteDocument) {
+				model.forceTokenization(lineNumber);
+			}
 			const lineTokens = model.getLineTokens(lineNumber);
 			for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
 				const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
@@ -777,6 +755,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}
 			}
 		}
+	}
+
+	private tokenizeCompleteDocument(model: ITextModel): void {
+		// For every word in every line, map its ranges for fast lookup
+		this.tokenizeRange(model, 1, model.getLineCount(), true);
 	}
 
 	private getWordToPositionsMap(): Map<string, Position[]> {
