@@ -130,7 +130,6 @@
     "tslint": "^5.16.0",
     "typescript": "3.4.5",
     "typescript-formatter": "7.1.0",
-    "typescript-tslint-plugin": "^0.0.7",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
