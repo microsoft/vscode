@@ -251,6 +251,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	private setActionBarActions(menu: IMenu): void {
 		const groups = menu.getActions({ shouldForwardArgs: true }).reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
+		this._actionbarWidget.clear();
 		this._actionbarWidget.push([...groups, this._collapseAction], { label: false, icon: true });
 	}
 

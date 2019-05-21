@@ -176,7 +176,6 @@ export class CommentNode extends Disposable {
 		this._toDispose.push(menu);
 		this._toDispose.push(menu.onDidChange(e => {
 			const contributedActions = menu.getActions({ shouldForwardArgs: true }).reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
-			// TODO ensure original actions are properly disposed
 			this.toolbar.setActions(contributedActions);
 		}));
 
