@@ -39,7 +39,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -80,6 +80,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _error: HTMLElement;
 	private _contextKeyService: IContextKeyService;
 	private _threadIsEmpty: IContextKey<boolean>;
+	private _commentEditorIsEmpty: IContextKey<boolean>;
+	private _commentThreadActionDisposables: IDisposable[] = [];
+	private _commentThreadActionButtons: HTMLElement[] = [];
 
 	public get owner(): string {
 		return this._owner;
@@ -231,13 +234,24 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => this.collapse());
 
-		let secondaryActions: IAction[] = [];
 		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
-			secondaryActions = this._commentMenus.getCommentThreadTitleActions(this._commentThread as modes.CommentThread2, this._contextKeyService);
+			const menu = this._commentMenus.getCommentThreadTitleActions(this._commentThread as modes.CommentThread2, this._contextKeyService);
+			this.setActionBarActions(menu);
+
+			this._disposables.push(menu);
+			this._disposables.push(menu.onDidChange(e => {
+				this.setActionBarActions(menu);
+			}));
+		} else {
+			this._actionbarWidget.push([this._collapseAction], { label: false, icon: true });
 		}
 
-		this._actionbarWidget.push([...secondaryActions, this._collapseAction], { label: false, icon: true });
 		this._actionbarWidget.context = this._commentThread;
+	}
+
+	private setActionBarActions(menu: IMenu): void {
+		const groups = menu.getActions({ shouldForwardArgs: true }).reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
+		this._actionbarWidget.push([...groups, this._collapseAction], { label: false, icon: true });
 	}
 
 	public collapse(): Promise<void> {
@@ -414,6 +428,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
 		this._commentForm = dom.append(this._bodyElement, dom.$('.comment-form'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions(), this._parentEditor, this);
+		this._commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
+		this._commentEditorIsEmpty.set(!this._pendingComment);
 
 		const modeId = generateUuid() + '-' + (hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID);
 		const params = JSON.stringify({
@@ -431,7 +447,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._disposables.push(model);
 		this._commentEditor.setModel(model);
 		this._disposables.push(this._commentEditor);
-		this._disposables.push(this._commentEditor.getModel()!.onDidChangeContent(() => this.setCommentEditorDecorations()));
+		this._disposables.push(this._commentEditor.getModel()!.onDidChangeContent(() => {
+			this.setCommentEditorDecorations();
+			this._commentEditorIsEmpty.set(!this._commentEditor.getValue());
+		}));
+
 		if ((this._commentThread as modes.CommentThread2).commentThreadHandle !== undefined) {
 			this.createTextModelListener();
 		}
@@ -726,25 +746,44 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			});
 		}
 
-		let actions = this._commentMenus.getCommentThreadActions(commentThread, this._contextKeyService);
+		const menu = this._commentMenus.getCommentThreadActions(commentThread, this._contextKeyService);
 
-		actions.forEach(action => {
-			const button = new Button(container);
-			button.enabled = action.enabled;
-			this._disposables.push(attachButtonStyler(button, this.themeService));
+		this._disposables.push(menu);
+		this._disposables.push(menu.onDidChange(() => {
+			this.createCommentThreadActions(container, menu);
+		}));
 
-			button.label = action.label;
+		this.createCommentThreadActions(container, menu);
+	}
 
-			this._disposables.push(button.onDidClick(async () => {
-				action.run({
-					thread: this._commentThread,
-					text: this._commentEditor.getValue(),
-					$mid: 8
-				});
+	private createCommentThreadActions(container: HTMLElement, menu: IMenu | undefined): void {
+		this._commentThreadActionDisposables.forEach(d => d.dispose());
+		this._commentThreadActionButtons.forEach(b => dom.removeNode(b));
+		this._commentThreadActionDisposables = [];
+		const groups = menu ? menu.getActions({ shouldForwardArgs: true }) : [];
+		for (const group of groups) {
+			const [, actions] = group;
 
-				this.hideReplyArea();
-			}));
-		});
+			actions.forEach(action => {
+				const button = new Button(container);
+				this._commentThreadActionButtons.push(button.element);
+				this._commentThreadActionDisposables.push(button);
+				button.enabled = action.enabled;
+				this._commentThreadActionDisposables.push(attachButtonStyler(button, this.themeService));
+
+				button.label = action.label;
+
+				this._commentThreadActionDisposables.push(button.onDidClick(async () => {
+					action.run({
+						thread: this._commentThread,
+						text: this._commentEditor.getValue(),
+						$mid: 8
+					});
+
+					this.hideReplyArea();
+				}));
+			});
+		}
 	}
 
 	private createNewCommentNode(comment: modes.Comment): CommentNode {

@@ -35,7 +35,7 @@ import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from '.
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -172,8 +172,16 @@ export class CommentNode extends Disposable {
 		}
 
 		let commentMenus = this.commentService.getCommentMenus(this.owner);
-		let titleActions = commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
-		actions.push(...titleActions);
+		const menu = commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
+		this._toDispose.push(menu);
+		this._toDispose.push(menu.onDidChange(e => {
+			const contributedActions = menu.getActions({ shouldForwardArgs: true }).reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
+			// TODO ensure original actions are properly disposed
+			this.toolbar.setActions(contributedActions);
+		}));
+
+		const contributedActions = menu.getActions({ shouldForwardArgs: true }).reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
+		actions.push(...contributedActions);
 
 		if (actions.length) {
 			this.toolbar = new ToolBar(this._actionsToolbarContainer, this.contextMenuService, {
@@ -555,28 +563,44 @@ export class CommentNode extends Disposable {
 		// }));
 
 		let menus = this.commentService.getCommentMenus(this.owner);
-		let actions = menus.getCommentActions(this.comment, this._contextKeyService);
+		const menu = menus.getCommentActions(this.comment, this._contextKeyService);
+		this._toDispose.push(menu);
+		this._toDispose.push(menu.onDidChange(() => {
+			this.createCommentActions(formActions, menu);
+		}));
 
-		actions.forEach(action => {
-			let button = new Button(formActions);
-			this._toDispose.push(attachButtonStyler(button, this.themeService));
+		// TODO fix disposal
+		// TODO is backcompat needed here
+		this.createCommentActions(formActions, menu);
 
-			button.label = action.label;
+	}
 
-			this._toDispose.push(button.onDidClick(async () => {
-				let text = this._commentEditor!.getValue();
+	private createCommentActions(container: HTMLElement, menu: IMenu): void {
+		const groups = menu ? menu.getActions({ shouldForwardArgs: true }) : [];
+		for (const group of groups) {
+			const [, actions] = group;
 
-				action.run({
-					thread: this.commentThread,
-					commentUniqueId: this.comment.uniqueIdInThread,
-					text: text,
-					$mid: 10
-				});
+			actions.forEach(action => {
+				let button = new Button(container);
+				this._toDispose.push(attachButtonStyler(button, this.themeService));
 
-				// this.hideReplyArea();
-				this.removeCommentEditor();
-			}));
-		});
+				button.label = action.label;
+
+				this._toDispose.push(button.onDidClick(async () => {
+					let text = this._commentEditor!.getValue();
+
+					action.run({
+						thread: this.commentThread,
+						commentUniqueId: this.comment.uniqueIdInThread,
+						text: text,
+						$mid: 10
+					});
+
+					// this.hideReplyArea();
+					this.removeCommentEditor();
+				}));
+			});
+		}
 	}
 
 	private createEditAction(commentDetailsContainer: HTMLElement): Action {
