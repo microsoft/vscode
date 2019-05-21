@@ -326,10 +326,8 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): void {
-		if (this._widget) {
-			const item = this._widget.getValue().getFocusedItem();
-			this._onDidSelectItem(item, !!keepAlternativeSuggestions, true);
-		}
+		const item = this._widget.getValue().getFocusedItem();
+		this._onDidSelectItem(item, !!keepAlternativeSuggestions, true);
 	}
 
 	acceptNextSuggestion() {
@@ -341,58 +339,40 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	cancelSuggestWidget(): void {
-		if (this._widget) {
-			this._model.cancel();
-			this._widget.getValue().hideWidget();
-		}
+		this._model.cancel();
+		this._widget.getValue().hideWidget();
 	}
 
 	selectNextSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectNext();
-		}
+		this._widget.getValue().selectNext();
 	}
 
 	selectNextPageSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectNextPage();
-		}
+		this._widget.getValue().selectNextPage();
 	}
 
 	selectLastSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectLast();
-		}
+		this._widget.getValue().selectLast();
 	}
 
 	selectPrevSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectPrevious();
-		}
+		this._widget.getValue().selectPrevious();
 	}
 
 	selectPrevPageSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectPreviousPage();
-		}
+		this._widget.getValue().selectPreviousPage();
 	}
 
 	selectFirstSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectFirst();
-		}
+		this._widget.getValue().selectFirst();
 	}
 
 	toggleSuggestionDetails(): void {
-		if (this._widget) {
-			this._widget.getValue().toggleDetails();
-		}
+		this._widget.getValue().toggleDetails();
 	}
 
 	toggleSuggestionFocus(): void {
-		if (this._widget) {
-			this._widget.getValue().toggleDetailsFocus();
-		}
+		this._widget.getValue().toggleDetailsFocus();
 	}
 }
 
