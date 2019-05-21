@@ -35,10 +35,11 @@ import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from '.
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { MenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
@@ -66,6 +67,7 @@ export class CommentNode extends Disposable {
 	private _deleteAction: Action;
 	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar;
+	private _commentFormActions: CommentFormActions;
 
 	private _onDidDelete = new Emitter<CommentNode>();
 
@@ -553,53 +555,28 @@ export class CommentNode extends Disposable {
 		this._errorEditingContainer = dom.append(this._commentEditContainer, dom.$('.validation-error.hidden'));
 		const formActions = dom.append(this._commentEditContainer, dom.$('.form-actions'));
 
-		// const cancelEditButton = new Button(formActions);
-		// cancelEditButton.label = nls.localize('label.cancel', "Cancel");
-		// this._toDispose.push(attachButtonStyler(cancelEditButton, this.themeService));
-
-		// this._toDispose.push(cancelEditButton.onDidClick(_ => {
-		// 	this.removeCommentEditor();
-		// }));
-
-		let menus = this.commentService.getCommentMenus(this.owner);
+		const menus = this.commentService.getCommentMenus(this.owner);
 		const menu = menus.getCommentActions(this.comment, this._contextKeyService);
+
 		this._toDispose.push(menu);
 		this._toDispose.push(menu.onDidChange(() => {
-			this.createCommentActions(formActions, menu);
+			this._commentFormActions.setActions(menu);
 		}));
 
-		// TODO fix disposal
-		// TODO is backcompat needed here
-		this.createCommentActions(formActions, menu);
+		this._commentFormActions = new CommentFormActions(formActions, (action: IAction): void => {
+			let text = this._commentEditor!.getValue();
 
-	}
-
-	private createCommentActions(container: HTMLElement, menu: IMenu): void {
-		const groups = menu ? menu.getActions({ shouldForwardArgs: true }) : [];
-		for (const group of groups) {
-			const [, actions] = group;
-
-			actions.forEach(action => {
-				let button = new Button(container);
-				this._toDispose.push(attachButtonStyler(button, this.themeService));
-
-				button.label = action.label;
-
-				this._toDispose.push(button.onDidClick(async () => {
-					let text = this._commentEditor!.getValue();
-
-					action.run({
-						thread: this.commentThread,
-						commentUniqueId: this.comment.uniqueIdInThread,
-						text: text,
-						$mid: 10
-					});
-
-					// this.hideReplyArea();
-					this.removeCommentEditor();
-				}));
+			action.run({
+				thread: this.commentThread,
+				commentUniqueId: this.comment.uniqueIdInThread,
+				text: text,
+				$mid: 10
 			});
-		}
+
+			this.removeCommentEditor();
+		}, this.themeService);
+
+		this._commentFormActions.setActions(menu);
 	}
 
 	private createEditAction(commentDetailsContainer: HTMLElement): Action {

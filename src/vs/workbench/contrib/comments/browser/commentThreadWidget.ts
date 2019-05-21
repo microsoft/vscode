@@ -46,6 +46,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-up';
@@ -81,8 +82,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _contextKeyService: IContextKeyService;
 	private _threadIsEmpty: IContextKey<boolean>;
 	private _commentEditorIsEmpty: IContextKey<boolean>;
-	private _commentThreadActionDisposables: IDisposable[] = [];
-	private _commentThreadActionButtons: HTMLElement[] = [];
+	private _commentFormActions: CommentFormActions;
 
 	public get owner(): string {
 		return this._owner;
@@ -751,40 +751,20 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._disposables.push(menu);
 		this._disposables.push(menu.onDidChange(() => {
-			this.createCommentThreadActions(container, menu);
+			this._commentFormActions.setActions(menu);
 		}));
 
-		this.createCommentThreadActions(container, menu);
-	}
-
-	private createCommentThreadActions(container: HTMLElement, menu: IMenu | undefined): void {
-		this._commentThreadActionDisposables.forEach(d => d.dispose());
-		this._commentThreadActionButtons.forEach(b => dom.removeNode(b));
-		this._commentThreadActionDisposables = [];
-		const groups = menu ? menu.getActions({ shouldForwardArgs: true }) : [];
-		for (const group of groups) {
-			const [, actions] = group;
-
-			actions.forEach(action => {
-				const button = new Button(container);
-				this._commentThreadActionButtons.push(button.element);
-				this._commentThreadActionDisposables.push(button);
-				button.enabled = action.enabled;
-				this._commentThreadActionDisposables.push(attachButtonStyler(button, this.themeService));
-
-				button.label = action.label;
-
-				this._commentThreadActionDisposables.push(button.onDidClick(async () => {
-					action.run({
-						thread: this._commentThread,
-						text: this._commentEditor.getValue(),
-						$mid: 8
-					});
-
-					this.hideReplyArea();
-				}));
+		this._commentFormActions = new CommentFormActions(container, (action: IAction) => {
+			action.run({
+				thread: this._commentThread,
+				text: this._commentEditor.getValue(),
+				$mid: 8
 			});
-		}
+
+			this.hideReplyArea();
+		}, this.themeService);
+
+		this._commentFormActions.setActions(menu);
 	}
 
 	private createNewCommentNode(comment: modes.Comment): CommentNode {
