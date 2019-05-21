@@ -8990,6 +8990,26 @@ declare module 'vscode' {
 		collapsibleState: CommentThreadCollapsibleState;
 
 		/**
+		 * Context value of the comment thread. This can be used to contribute thread specific actions.
+		 * For example, a comment thread is given a context value as `editable`. When contributing actions to `comments/commentThread/title`
+		 * using `menus` extension point, you can specify context value for key `commentThread` in `when` expression like `commentThread == editable`.
+		 * ```
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"comments/commentThread/title": [
+		 *				{
+		 *					"command": "extension.deleteCommentThread",
+		 *					"when": "commentThread == editable"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show action `extension.deleteCommentThread` only for comment threads with `contextValue` is `editable`.
+		 */
+		contextValue?: string;
+
+		/**
 		 * The optional human-readable label describing the [Comment Thread](#CommentThread)
 		 */
 		label?: string;
@@ -9032,6 +9052,26 @@ declare module 'vscode' {
 		 * The author information of the comment
 		 */
 		author: CommentAuthorInformation;
+
+		/**
+		 * Context value of the comment. This can be used to contribute comment specific actions.
+		 * For example, a comment is given a context value as `editable`. When contributing actions to `comments/comment/title`
+		 * using `menus` extension point, you can specify context value for key `comment` in `when` expression like `comment == editable`.
+		 * ```
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"comments/comment/title": [
+		 *				{
+		 *					"command": "extension.deleteComment",
+		 *					"when": "comment == editable"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show action `extension.deleteComment` only for comments with `contextValue` is `editable`.
+		 */
+		contextValue?: string;
 
 		/**
 		 * Optional label describing the [Comment](#Comment)
