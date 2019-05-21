@@ -35,6 +35,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -85,7 +86,7 @@ export class ToggleTerminalAction extends TogglePanelAction {
 		if (this.terminalService.terminalInstances.length === 0) {
 			// If there is not yet an instance attempt to create it here so that we can suggest a
 			// new shell on Windows (and not do so when the panel is restored on reload).
-			const newTerminalInstance = this.terminalService.createTerminal(undefined, true);
+			const newTerminalInstance = this.terminalService.createTerminal(undefined);
 			const toDispose = newTerminalInstance.onProcessIdReady(() => {
 				newTerminalInstance.focus();
 				toDispose.dispose();
@@ -329,7 +330,7 @@ export class CreateNewTerminalAction extends Action {
 		if (folders.length <= 1) {
 			// Allow terminal service to handle the path when there is only a
 			// single root
-			instancePromise = Promise.resolve(this.terminalService.createTerminal(undefined, true));
+			instancePromise = Promise.resolve(this.terminalService.createTerminal(undefined));
 		} else {
 			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
@@ -339,7 +340,7 @@ export class CreateNewTerminalAction extends Action {
 					// Don't create the instance if the workspace picker was canceled
 					return null;
 				}
-				return this.terminalService.createTerminal({ cwd: workspace.uri }, true);
+				return this.terminalService.createTerminal({ cwd: workspace.uri });
 			});
 		}
 
@@ -366,7 +367,7 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 	}
 
 	public run(event?: any): Promise<any> {
-		const instance = this.terminalService.createTerminal(undefined, true);
+		const instance = this.terminalService.createTerminal(undefined);
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
@@ -720,6 +721,14 @@ export class SwitchTerminalAction extends Action {
 		if (!item || !item.split) {
 			return Promise.resolve(null);
 		}
+		if (item === SwitchTerminalActionViewItem.SEPARATOR) {
+			this.terminalService.refreshActiveTab();
+			return Promise.resolve(null);
+		}
+		if (item === SelectDefaultShellWindowsTerminalAction.LABEL) {
+			this.terminalService.refreshActiveTab();
+			return this.terminalService.selectDefaultWindowsShell();
+		}
 		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveTabByIndex(selectedTabIndex);
 		return this.terminalService.showPanel(true);
@@ -728,11 +737,14 @@ export class SwitchTerminalAction extends Action {
 
 export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
+	public static readonly SEPARATOR = '─────────';
+
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@IThemeService themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService
+		@IContextViewService contextViewService: IContextViewService,
+		@IWorkbenchEnvironmentService private workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		super(null, action, terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }), terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.') });
 
@@ -743,7 +755,13 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	}
 
 	private _updateItems(): void {
-		this.setOptions(this.terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }), this.terminalService.activeTabIndex);
+		const items = this.terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
+		let enableSelectDefaultShell = this.workbenchEnvironmentService.configuration.remoteAuthority ? false : isWindows;
+		if (enableSelectDefaultShell) {
+			items.push({ text: SwitchTerminalActionViewItem.SEPARATOR });
+			items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
+		}
+		this.setOptions(items, this.terminalService.activeTabIndex);
 	}
 }
 

@@ -31,57 +31,8 @@ import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
 import { Event } from 'vs/base/common/event';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IdleValue } from 'vs/base/common/async';
-import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { isObject } from 'vs/base/common/types';
-
-class AcceptOnCharacterOracle {
-
-	private _disposables: IDisposable[] = [];
-
-	private _active?: {
-		readonly acceptCharacters: CharacterSet;
-		readonly item: ISelectedSuggestion;
-	};
-
-	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (selected: ISelectedSuggestion) => any) {
-
-		this._disposables.push(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
-		this._disposables.push(widget.onDidFocus(this._onItem, this));
-		this._disposables.push(widget.onDidHide(this.reset, this));
-
-		this._disposables.push(editor.onWillType(text => {
-			if (this._active) {
-				const ch = text.charCodeAt(text.length - 1);
-				if (this._active.acceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
-					accept(this._active.item);
-				}
-			}
-		}));
-	}
-
-	private _onItem(selected: ISelectedSuggestion | undefined): void {
-		if (!selected || !isNonEmptyArray(selected.item.completion.commitCharacters)) {
-			this.reset();
-			return;
-		}
-
-		const acceptCharacters = new CharacterSet();
-		for (const ch of selected.item.completion.commitCharacters) {
-			if (ch.length > 0) {
-				acceptCharacters.add(ch.charCodeAt(0));
-			}
-		}
-		this._active = { acceptCharacters, item: selected };
-	}
-
-	reset(): void {
-		this._active = undefined;
-	}
-
-	dispose() {
-		dispose(this._disposables);
-	}
-}
+import { CommitCharacterController } from './suggestCommitCharacters';
 
 export class SuggestController implements IEditorContribution {
 
@@ -116,12 +67,12 @@ export class SuggestController implements IEditorContribution {
 			this._toDispose.push(widget.onDidSelect(item => this._onDidSelectItem(item, false, true), this));
 
 			// Wire up logic to accept a suggestion on certain characters
-			const autoAcceptOracle = new AcceptOnCharacterOracle(this._editor, widget, item => this._onDidSelectItem(item, false, true));
+			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._onDidSelectItem(item, false, true));
 			this._toDispose.push(
-				autoAcceptOracle,
+				commitCharacterController,
 				this._model.onDidSuggest(e => {
 					if (e.completionModel.items.length === 0) {
-						autoAcceptOracle.reset();
+						commitCharacterController.reset();
 					}
 				})
 			);

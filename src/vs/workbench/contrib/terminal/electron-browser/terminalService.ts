@@ -20,7 +20,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ipcRenderer as ipc } from 'electron';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { coalesce } from 'vs/base/common/arrays';
@@ -45,11 +44,10 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		@INotificationService notificationService: INotificationService,
 		@IDialogService dialogService: IDialogService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
-		super(contextKeyService, panelService, layoutService, lifecycleService, storageService, notificationService, dialogService, instantiationService, environmentService, extensionService, fileService, remoteAgentService);
+		super(contextKeyService, panelService, layoutService, lifecycleService, storageService, notificationService, dialogService, instantiationService, extensionService, fileService, remoteAgentService);
 
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, linuxDistro);
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
@@ -100,6 +98,11 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 
 	public getDefaultShell(p: platform.Platform): string {
 		return getDefaultShell(p);
+	}
+
+	public refreshActiveTab(): void {
+		// Fire active instances changed
+		this._onActiveTabChanged.fire();
 	}
 
 	public selectDefaultWindowsShell(): Promise<string | undefined> {
