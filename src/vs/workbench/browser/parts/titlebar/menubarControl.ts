@@ -518,21 +518,20 @@ export class MenubarControl extends Disposable {
 				for (let action of actions) {
 					this.insertActionsBefore(action, target);
 					if (action instanceof SubmenuItemAction) {
-						if (!this.menus[mnemonicMenuLabel(action.label)]) {
-							this.menus[mnemonicMenuLabel(action.label)] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
-							const submenu = this.menus[mnemonicMenuLabel(action.label)];
+						if (!this.menus[action.item.submenu]) {
+							this.menus[action.item.submenu] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
+							const submenu = this.menus[action.item.submenu];
 							this._register(submenu!.onDidChange(() => {
 								const actions: IAction[] = [];
 								updateActions(menu, actions, topLevelTitle);
 								this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[topLevelTitle]) });
-							}));
+							}, this));
 						}
 
-						const submenu = this.menus[mnemonicMenuLabel(action.label)]!;
+						const submenu = this.menus[action.item.submenu]!;
 						const submenuActions: SubmenuAction[] = [];
 						updateActions(submenu, submenuActions, topLevelTitle);
 						target.push(new SubmenuAction(mnemonicMenuLabel(action.label), submenuActions));
-						submenu.dispose();
 					} else {
 						action.label = mnemonicMenuLabel(this.calculateActionLabel(action));
 						target.push(action);
