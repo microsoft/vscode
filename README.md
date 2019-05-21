@@ -32,6 +32,11 @@ please see the document [How to Contribute](https://github.com/Microsoft/vscode/
 * [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
 * [Contributing to translations](https://aka.ms/vscodeloc)
 
+Are you completely new to contributing to GitHub? Take a look at these resources on common terminology and developer workflow
+* [GitHub Glossary](https://help.github.com/en/articles/github-glossary) - Learn all the version control terminology
+* [Understanding issues](https://guides.github.com/features/issues/) - Determine how to find issues and their labeling
+* [What are PRs/Pull Requests](https://help.github.com/en/articles/about-pull-requests) - Understand how to open up a new issue 
+
 Please also see our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Feedback
