@@ -451,6 +451,10 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 	readonly handle = ExtHostCommentThread._handlePool++;
 	public commentHandle: number = 0;
 
+	set threadId(id: string) {
+		this._id = id;
+	}
+
 	get threadId(): string {
 		return this._id!;
 	}
