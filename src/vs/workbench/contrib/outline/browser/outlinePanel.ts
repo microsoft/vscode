@@ -47,7 +47,7 @@ import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
+import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 class RequestState {
 
@@ -274,6 +274,11 @@ export class OutlinePanel extends ViewletPanel {
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
 		this._disposables.push(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
 		this._disposables.push(this.onDidBlur(_ => this._contextKeyFocused.set(false)));
+
+		CommandsRegistry.registerCommand({
+			id: 'outline.collapseAll',
+			handler: this.outlineCollapseAllCommand
+		});
 	}
 
 	dispose(): void {
