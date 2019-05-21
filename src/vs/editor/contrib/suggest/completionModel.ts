@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore, FuzzyScorer, FuzzyScore } from 'vs/base/common/filters';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScorer, FuzzyScore } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
 import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionItem } from './suggest';
@@ -220,7 +220,9 @@ export class CompletionModel {
 						// filterText and label are actually the same -> use good highlights
 						item.score = match;
 					} else {
-						item.score = anyScore(word, wordLow, 0, item.completion.label, item.labelLow, 0);
+						// re-run the scorer on the label in the hope of a result BUT use the rank
+						// of the filterText-match
+						item.score = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, false) || FuzzyScore.Default;
 						item.score[0] = match[0]; // use score from filterText
 					}
 
