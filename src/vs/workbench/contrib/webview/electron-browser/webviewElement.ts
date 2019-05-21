@@ -165,7 +165,8 @@ class WebviewPortMappingProvider extends Disposable {
 
 		session.onBeforeRequest(async (details) => {
 			const uri = URI.parse(details.url);
-			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+			const allowedSchemes = ['http', 'https', 'ws', 'wss']
+			if (allowedSchemes.indexOf(uri.scheme) === -1) {
 				return undefined;
 			}
 
