@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugAdapterTrackerFactory, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/node/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -52,7 +52,6 @@ export class ConfigurationManager implements IConfigurationManager {
 	private _onDidSelectConfigurationName = new Emitter<void>();
 	private configProviders: IDebugConfigurationProvider[];
 	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
-	private adapterTrackerFactories: IDebugAdapterTrackerFactory[];
 	private debugAdapterFactories: Map<string, IDebugAdapterFactory>;
 	private terminalLauncher: ITerminalLauncher;
 	private debugConfigurationTypeContext: IContextKey<string>;
@@ -72,7 +71,6 @@ export class ConfigurationManager implements IConfigurationManager {
 	) {
 		this.configProviders = [];
 		this.adapterDescriptorFactories = [];
-		this.adapterTrackerFactories = [];
 		this.debuggers = [];
 		this.toDispose = [];
 		this.registerListeners(lifecycleService);
@@ -164,24 +162,6 @@ export class ConfigurationManager implements IConfigurationManager {
 		return Promise.resolve(undefined);
 	}
 
-	// debug adapter trackers
-
-	registerDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): IDisposable {
-		this.adapterTrackerFactories.push(debugAdapterTrackerFactory);
-		return {
-			dispose: () => {
-				this.unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory);
-			}
-		};
-	}
-
-	unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): void {
-		const ix = this.adapterTrackerFactories.indexOf(debugAdapterTrackerFactory);
-		if (ix >= 0) {
-			this.adapterTrackerFactories.splice(ix, 1);
-		}
-	}
-
 	// debug configurations
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable {
@@ -203,13 +183,6 @@ export class ConfigurationManager implements IConfigurationManager {
 	hasDebugConfigurationProvider(debugType: string): boolean {
 		// check if there are providers for the given type that contribute a provideDebugConfigurations method
 		const providers = this.configProviders.filter(p => p.provideDebugConfigurations && (p.type === debugType));
-		return providers.length > 0;
-	}
-
-	needsToRunInExtHost(debugType: string): boolean {
-
-		// if the given debugType matches any registered tracker factory we need to run the DA in the EH
-		const providers = this.adapterTrackerFactories.filter(p => p.type === debugType || p.type === '*');
 		return providers.length > 0;
 	}
 
