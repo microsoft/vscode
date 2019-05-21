@@ -38,6 +38,11 @@ export namespace Position {
 	export const fromLocation = (tslocation: Proto.Location): vscode.Position =>
 		new vscode.Position(tslocation.line - 1, tslocation.offset - 1);
 
+	export const toLocation = (vsPosition: vscode.Position): Proto.Location => ({
+		line: vsPosition.line + 1,
+		offset: vsPosition.character + 1,
+	});
+
 	export const toFileLocationRequestArgs = (file: string, position: vscode.Position): Proto.FileLocationRequestArgs => ({
 		file,
 		line: position.line + 1,
@@ -63,16 +68,17 @@ export namespace WorkspaceEdit {
 		edits: Iterable<Proto.FileCodeEdits>
 	): vscode.WorkspaceEdit {
 		return withFileCodeEdits(new vscode.WorkspaceEdit(), client, edits);
-
 	}
+
 	export function withFileCodeEdits(
 		workspaceEdit: vscode.WorkspaceEdit,
 		client: ITypeScriptServiceClient,
 		edits: Iterable<Proto.FileCodeEdits>
 	): vscode.WorkspaceEdit {
 		for (const edit of edits) {
+			const resource = client.toResource(edit.fileName);
 			for (const textChange of edit.textChanges) {
-				workspaceEdit.replace(client.toResource(edit.fileName),
+				workspaceEdit.replace(resource,
 					Range.fromTextSpan(textChange),
 					textChange.newText);
 			}

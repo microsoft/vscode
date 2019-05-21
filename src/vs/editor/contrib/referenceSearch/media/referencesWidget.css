@@ -36,6 +36,10 @@
 	height: 100%;
 }
 
+.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .selected .reference-file {
+	color: inherit !important;
+}
+
 .monaco-editor .reference-zone-widget .ref-tree .reference-file .count {
 	margin-right: 12px;
 	margin-left: auto;

@@ -254,9 +254,9 @@ export class CursorCollection {
 					cursors[winnerIndex].setState(this.context, resultingState.modelState, resultingState.viewState);
 				}
 
-				for (let j = 0; j < sortedCursors.length; j++) {
-					if (sortedCursors[j].index > looserIndex) {
-						sortedCursors[j].index--;
+				for (const sortedCursor of sortedCursors) {
+					if (sortedCursor.index > looserIndex) {
+						sortedCursor.index--;
 					}
 				}
 

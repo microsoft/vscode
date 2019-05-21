@@ -264,7 +264,7 @@ export class Sash extends Disposable {
 
 		const onMouseMove = (e: MouseEvent) => {
 			EventHelper.stop(e, false);
-			const mouseMoveEvent = new StandardMouseEvent(e as MouseEvent);
+			const mouseMoveEvent = new StandardMouseEvent(e);
 			const event: ISashEvent = { startX, currentX: mouseMoveEvent.posx, startY, currentY: mouseMoveEvent.posy, altKey };
 
 			this._onDidChange.fire(event);

@@ -63,7 +63,7 @@ function createCoverageReport(opts) {
 			return resolve(undefined);
 		}
 
-		const exclude = /\b((winjs\.base)|(marked)|(raw\.marked)|(nls)|(css))\.js$/;
+		const exclude = /\b((marked)|(raw\.marked)|(nls)|(css))\.js$/;
 		const remappedCoverage = i_remap(global.__coverage__, { exclude: exclude }).getFinalCoverage();
 
 		// The remapped coverage comes out with broken paths
@@ -120,6 +120,8 @@ function loadTestModules(opts) {
 	if (opts.run) {
 		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
 		const modules = files.map(file => {
+			file = file.replace(/^src/, 'out');
+			file = file.replace(/\.ts$/, '.js');
 			return path.relative(_out, file).replace(/\.js$/, '');
 		});
 		return new Promise((resolve, reject) => {

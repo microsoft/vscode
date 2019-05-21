@@ -30,7 +30,7 @@ declare module "vscode-textmate" {
 	 */
 	export interface RegistryOptions {
 		theme?: IRawTheme;
-		loadGrammar(scopeName: string): Thenable<IRawGrammar>;
+		loadGrammar(scopeName: string): Thenable<IRawGrammar | null> | null;
 		getInjections?(scopeName: string): string[];
 		getOnigLib?(): Thenable<IOnigLib>;
 	}
@@ -102,7 +102,7 @@ declare module "vscode-textmate" {
 		/**
 		 * Tokenize `lineText` using previous line state `prevState`.
 		 */
-		tokenizeLine(lineText: string, prevState: StackElement): ITokenizeLineResult;
+		tokenizeLine(lineText: string, prevState: StackElement | null): ITokenizeLineResult;
 		/**
 		 * Tokenize `lineText` using previous line state `prevState`.
 		 * The result contains the tokens in binary format, resolved with the following information:
@@ -113,7 +113,7 @@ declare module "vscode-textmate" {
 		 *  - background color
 		 * e.g. for getting the languageId: `(metadata & MetadataConsts.LANGUAGEID_MASK) >>> MetadataConsts.LANGUAGEID_OFFSET`
 		 */
-		tokenizeLine2(lineText: string, prevState: StackElement): ITokenizeLineResult2;
+		tokenizeLine2(lineText: string, prevState: StackElement | null): ITokenizeLineResult2;
 	}
 	export interface ITokenizeLineResult {
 		readonly tokens: IToken[];

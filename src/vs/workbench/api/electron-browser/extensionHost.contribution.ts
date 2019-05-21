@@ -9,55 +9,57 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // --- other interested parties
-import { JSONValidationExtensionPoint } from 'vs/workbench/services/jsonschemas/common/jsonValidationExtensionPoint';
+import { JSONValidationExtensionPoint } from 'vs/workbench/api/common/jsonValidationExtensionPoint';
 import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorExtensionPoint';
-import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
+import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/browser/languageConfigurationExtensionPoint';
 
 // --- mainThread participants
-import 'vs/workbench/api/node/apiCommands';
-import './mainThreadClipboard';
-import './mainThreadCommands';
-import './mainThreadConfiguration';
-import './mainThreadDebugService';
-import './mainThreadDecorations';
-import './mainThreadDiagnostics';
-import './mainThreadDialogs';
-import './mainThreadDocumentContentProviders';
-import './mainThreadDocuments';
-import './mainThreadDocumentsAndEditors';
-import './mainThreadEditor';
-import './mainThreadEditors';
-import './mainThreadErrors';
-import './mainThreadExtensionService';
-import './mainThreadFileSystem';
-import './mainThreadFileSystemEventService';
-import './mainThreadHeapService';
-import './mainThreadLanguageFeatures';
-import './mainThreadLanguages';
-import './mainThreadMessageService';
-import './mainThreadOutputService';
-import './mainThreadProgress';
-import './mainThreadQuickOpen';
-import './mainThreadSCM';
-import './mainThreadSearch';
-import './mainThreadSaveParticipant';
-import './mainThreadStatusBar';
-import './mainThreadStorage';
-import './mainThreadTask';
-import './mainThreadTelemetry';
-import './mainThreadTerminalService';
-import './mainThreadTreeViews';
-import './mainThreadLogService';
+import '../browser/mainThreadClipboard';
+import '../browser/mainThreadCommands';
+import '../browser/mainThreadConfiguration';
+import '../browser/mainThreadConsole';
+import '../browser/mainThreadDebugService';
+import '../browser/mainThreadDecorations';
+import '../browser/mainThreadDiagnostics';
+import '../browser/mainThreadDialogs';
+import '../browser/mainThreadDocumentContentProviders';
+import '../browser/mainThreadDocuments';
+import '../browser/mainThreadDocumentsAndEditors';
+import '../browser/mainThreadEditor';
+import '../browser/mainThreadEditors';
+import '../browser/mainThreadErrors';
+import '../browser/mainThreadExtensionService';
+import '../browser/mainThreadFileSystem';
+import '../browser/mainThreadFileSystemEventService';
+import '../browser/mainThreadHeapService';
+import '../browser/mainThreadKeytar';
+import '../browser/mainThreadLanguageFeatures';
+import '../browser/mainThreadLanguages';
+import '../browser/mainThreadLogService';
+import '../browser/mainThreadMessageService';
+import '../browser/mainThreadOutputService';
+import '../browser/mainThreadProgress';
+import '../browser/mainThreadQuickOpen';
+import '../browser/mainThreadSaveParticipant';
+import '../browser/mainThreadSCM';
+import '../browser/mainThreadSearch';
+import '../browser/mainThreadStatusBar';
+import '../browser/mainThreadStorage';
+import '../browser/mainThreadTelemetry';
+import '../browser/mainThreadTerminalService';
+import '../browser/mainThreadTreeViews';
+import '../browser/mainThreadUrls';
+import '../browser/mainThreadWindow';
+import '../browser/mainThreadWorkspace';
+import '../browser/mainThreadComments';
+import '../browser/mainThreadTask';
 import './mainThreadWebview';
-import './mainThreadComments';
-import './mainThreadUrls';
-import './mainThreadWindow';
-import './mainThreadWorkspace';
+import 'vs/workbench/api/common/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		// Classes that handle extension points...
 		this.instantiationService.createInstance(JSONValidationExtensionPoint);

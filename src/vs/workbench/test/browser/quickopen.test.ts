@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import 'vs/workbench/browser/parts/editor/editor.contribution'; // make sure to load all contributed editor things into tests
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -14,9 +13,9 @@ import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpen
 export class TestQuickOpenService implements IQuickOpenService {
 	public _serviceBrand: any;
 
-	private callback: (prefix: string) => void;
+	private callback?: (prefix?: string) => void;
 
-	constructor(callback?: (prefix: string) => void) {
+	constructor(callback?: (prefix?: string) => void) {
 		this.callback = callback;
 	}
 
@@ -29,20 +28,20 @@ export class TestQuickOpenService implements IQuickOpenService {
 	close(): void {
 	}
 
-	show(prefix?: string, options?: any): Promise {
+	show(prefix?: string, options?: any): Promise<void> {
 		if (this.callback) {
 			this.callback(prefix);
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve();
 	}
 
 	get onShow(): Event<void> {
-		return null;
+		return null!;
 	}
 
 	get onHide(): Event<void> {
-		return null;
+		return null!;
 	}
 
 	public dispose() { }
@@ -60,7 +59,7 @@ suite('QuickOpen', () => {
 			'testhandler',
 			',',
 			'Handler',
-			null
+			null!
 		);
 
 		registry.registerQuickOpenHandler(handler);
@@ -72,7 +71,7 @@ suite('QuickOpen', () => {
 	});
 
 	test('QuickOpen Action', () => {
-		let defaultAction = new QuickOpenAction('id', 'label', void 0, new TestQuickOpenService((prefix: string) => assert(!prefix)));
+		let defaultAction = new QuickOpenAction('id', 'label', (undefined)!, new TestQuickOpenService((prefix: string) => assert(!prefix)));
 		let prefixAction = new QuickOpenAction('id', 'label', ',', new TestQuickOpenService((prefix: string) => assert(!!prefix)));
 
 		defaultAction.run();

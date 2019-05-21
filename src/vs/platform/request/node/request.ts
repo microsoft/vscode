@@ -10,7 +10,7 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export const IRequestService = createDecorator<IRequestService>('requestService2');
+export const IRequestService = createDecorator<IRequestService>('requestService');
 
 export interface IRequestService {
 	_serviceBrand: any;
@@ -48,16 +48,21 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 				default: null,
 				description: localize('proxyAuthorization', "The value to send as the 'Proxy-Authorization' header for every network request.")
 			},
-			'http.systemProxy': {
+			'http.proxySupport': {
 				type: 'string',
-				enum: ['off', 'on', 'force'],
+				enum: ['off', 'on', 'override'],
 				enumDescriptions: [
-					localize('systemProxyOff', "Do not use system proxy configuration."),
-					localize('systemProxyOn', "Use system proxy configuration if not specified in the request options."),
-					localize('systemProxyForce', "Always use system proxy configuration."),
+					localize('proxySupportOff', "Disable proxy support for extensions."),
+					localize('proxySupportOn', "Enable proxy support for extensions."),
+					localize('proxySupportOverride', "Enable proxy support for extensions, override request options."),
 				],
-				default: 'off',
-				description: localize('systemProxy', "Experimental setting: Use the system proxy configuration.")
+				default: 'override',
+				description: localize('proxySupport', "Use the proxy support for extensions.")
+			},
+			'http.systemCertificates': {
+				type: 'boolean',
+				default: true,
+				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. (On Windows and macOS a reload of the window is required after turning this off.)")
 			}
 		}
 	});

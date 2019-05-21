@@ -14,7 +14,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 
 export class BlockCommentCommand implements editorCommon.ICommand {
 
-	private _selection: Selection;
+	private readonly _selection: Selection;
 	private _usedEndToken: string | null;
 
 	constructor(selection: Selection) {
@@ -113,8 +113,8 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 			this._usedEndToken = ops.length === 1 ? endToken : null;
 		}
 
-		for (let i = 0; i < ops.length; i++) {
-			builder.addTrackedEditOperation(ops[i].range, ops[i].text);
+		for (const op of ops) {
+			builder.addTrackedEditOperation(op.range, op.text);
 		}
 	}
 

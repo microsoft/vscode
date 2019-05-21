@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -53,15 +53,15 @@ export class Win32UpdateService extends AbstractUpdateService {
 	private availableUpdate: IAvailableUpdate | undefined;
 
 	@memoize
-	get cachePath(): Thenable<string> {
+	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-update-${product.target}-${process.arch}`);
-		return pfs.mkdirp(result, null).then(() => result);
+		return pfs.mkdirp(result, undefined).then(() => result);
 	}
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
@@ -143,7 +143,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 							return this.requestService.request({ url }, CancellationToken.None)
 								.then(context => download(downloadPath, context))
-								.then(hash ? () => checksum(downloadPath, update.hash) : () => null)
+								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
 								.then(() => pfs.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);
 						});
@@ -164,7 +164,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 					});
 				});
 			})
-			.then(null, err => {
+			.then(undefined, err => {
 				this.logService.error(err);
 				/* __GDPR__
 					"update:notAvailable" : {
@@ -172,12 +172,17 @@ export class Win32UpdateService extends AbstractUpdateService {
 					}
 					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle(getUpdateType(), err.message || err));
+
+				// only show message when explicitly checking for updates
+				const message: string | undefined = !!context ? (err.message || err) : undefined;
+				this.setState(State.Idle(getUpdateType(), message));
 			});
 	}
 
 	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		shell.openExternal(state.update.url);
+		if (state.update.url) {
+			shell.openExternal(state.update.url);
+		}
 		this.setState(State.Idle(getUpdateType()));
 	}
 
@@ -187,7 +192,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	}
 
 	private async cleanup(exceptVersion: string | null = null): Promise<any> {
-		const filter = exceptVersion ? one => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
+		const filter = exceptVersion ? (one: string) => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
 		const cachePath = await this.cachePath;
 		const versions = await pfs.readdir(cachePath);
@@ -203,45 +208,44 @@ export class Win32UpdateService extends AbstractUpdateService {
 		await Promise.all(promises);
 	}
 
-	protected doApplyUpdate(): Thenable<void> {
+	protected async doApplyUpdate(): Promise<void> {
 		if (this.state.type !== StateType.Downloaded && this.state.type !== StateType.Downloading) {
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
 		if (!this.availableUpdate) {
-			return Promise.resolve(null);
+			return Promise.resolve(undefined);
 		}
 
 		const update = this.state.update;
 		this.setState(State.Updating(update));
 
-		return this.cachePath.then(cachePath => {
-			this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${product.quality}-${update.version}.flag`);
+		const cachePath = await this.cachePath;
 
-			return pfs.writeFile(this.availableUpdate.updateFilePath, 'flag').then(() => {
-				const child = spawn(this.availableUpdate.packagePath, ['/verysilent', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
-					detached: true,
-					stdio: ['ignore', 'ignore', 'ignore'],
-					windowsVerbatimArguments: true
-				});
+		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${product.quality}-${update.version}.flag`);
 
-				child.once('exit', () => {
-					this.availableUpdate = undefined;
-					this.setState(State.Idle(getUpdateType()));
-				});
-
-				const readyMutexName = `${product.win32MutexName}-ready`;
-				const isActive = (require.__$__nodeRequire('windows-mutex') as any).isActive;
-
-				// poll for mutex-ready
-				pollUntil(() => isActive(readyMutexName))
-					.then(() => this.setState(State.Ready(update)));
-			});
+		await pfs.writeFile(this.availableUpdate.updateFilePath, 'flag');
+		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+			detached: true,
+			stdio: ['ignore', 'ignore', 'ignore'],
+			windowsVerbatimArguments: true
 		});
+
+		child.once('exit', () => {
+			this.availableUpdate = undefined;
+			this.setState(State.Idle(getUpdateType()));
+		});
+
+		const readyMutexName = `${product.win32MutexName}-ready`;
+		const isActive = (require.__$__nodeRequire('windows-mutex') as any).isActive;
+
+		// poll for mutex-ready
+		pollUntil(() => isActive(readyMutexName))
+			.then(() => this.setState(State.Ready(update)));
 	}
 
 	protected doQuitAndInstall(): void {
-		if (this.state.type !== StateType.Ready) {
+		if (this.state.type !== StateType.Ready || !this.availableUpdate) {
 			return;
 		}
 

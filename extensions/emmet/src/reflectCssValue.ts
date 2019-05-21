@@ -29,9 +29,9 @@ function updateCSSNode(editor: TextEditor, property: Property): Thenable<boolean
 	let currentPrefix = '';
 
 	// Find vendor prefix of given property node
-	for (let i = 0; i < vendorPrefixes.length; i++) {
-		if (property.name.startsWith(vendorPrefixes[i])) {
-			currentPrefix = vendorPrefixes[i];
+	for (const prefix of vendorPrefixes) {
+		if (property.name.startsWith(prefix)) {
+			currentPrefix = prefix;
 			break;
 		}
 	}

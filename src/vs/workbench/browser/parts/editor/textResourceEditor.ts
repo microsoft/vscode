@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -19,9 +18,9 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -47,7 +46,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 	}
 
-	getTitle(): string {
+	getTitle(): string | null {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -55,7 +54,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
@@ -66,12 +65,12 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 				// Check for cancellation
 				if (token.isCancellationRequested) {
-					return void 0;
+					return undefined;
 				}
 
 				// Assert Model instance
 				if (!(resolvedModel instanceof BaseTextEditorModel)) {
-					return TPromise.wrapError<void>(new Error('Unable to open file as text'));
+					return Promise.reject(new Error('Unable to open file as text'));
 				}
 
 				// Set Editor Model
@@ -91,7 +90,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 					this.restoreTextResourceEditorViewState(input);
 				}
 
-				return void 0;
+				return undefined;
 			});
 		});
 	}
@@ -137,19 +136,14 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 	/**
 	 * Reveals the last line of this editor if it has a model set.
-	 * When smart is true only scroll if the cursor is currently on the last line of the output panel.
-	 * This allows users to click on the output panel to stop scrolling when they see something of interest.
-	 * To resume, they should scroll to the end of the output panel again.
 	 */
-	revealLastLine(smart: boolean): void {
+	revealLastLine(): void {
 		const codeEditor = <ICodeEditor>this.getControl();
 		const model = codeEditor.getModel();
 
 		if (model) {
 			const lastLine = model.getLineCount();
-			if (!smart || codeEditor.getPosition().lineNumber === lastLine) {
-				codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
-			}
+			codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
 		}
 	}
 
@@ -174,7 +168,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super.saveState();
 	}
 
-	private saveTextResourceEditorViewState(input: EditorInput): void {
+	private saveTextResourceEditorViewState(input: EditorInput | null): void {
 		if (!(input instanceof UntitledEditorInput) && !(input instanceof ResourceEditorInput)) {
 			return; // only enabled for untitled and resource inputs
 		}
@@ -191,7 +185,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			super.saveTextEditorViewState(resource);
 
 			// Make sure to clean up when the input gets disposed
-			once(input.onDispose)(() => {
+			Event.once(input.onDispose)(() => {
 				super.clearTextEditorViewState([resource]);
 			});
 		}

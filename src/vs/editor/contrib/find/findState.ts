@@ -41,7 +41,7 @@ export interface INewFindReplaceState {
 	wholeWordOverride?: FindOptionOverride;
 	matchCase?: boolean;
 	matchCaseOverride?: FindOptionOverride;
-	searchScope?: Range;
+	searchScope?: Range | null;
 }
 
 function effectiveOptionValue(override: FindOptionOverride, value: boolean): boolean {

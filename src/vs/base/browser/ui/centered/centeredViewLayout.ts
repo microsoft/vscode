@@ -5,7 +5,7 @@
 
 import { SplitView, Orientation, ISplitViewStyles, IView as ISplitViewView } from 'vs/base/browser/ui/splitview/splitview';
 import { $ } from 'vs/base/browser/dom';
-import { Event, mapEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IView } from 'vs/base/browser/ui/grid/gridview';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
@@ -39,8 +39,8 @@ function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView {
 		element: view.element,
 		get maximumSize() { return view.maximumWidth; },
 		get minimumSize() { return view.minimumWidth; },
-		onDidChange: mapEvent(view.onDidChange, e => e && e.width),
-		layout: size => view.layout(size, getHeight())
+		onDidChange: Event.map(view.onDidChange, e => e && e.width),
+		layout: size => view.layout(size, getHeight(), Orientation.HORIZONTAL)
 	};
 }
 
@@ -78,7 +78,7 @@ export class CenteredViewLayout {
 				this.resizeMargins();
 			}
 		} else {
-			this.view.layout(width, height);
+			this.view.layout(width, height, Orientation.HORIZONTAL);
 		}
 		this.didLayout = true;
 	}

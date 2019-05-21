@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, Terminal } from 'vscode';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, Terminal, TerminalDimensionsChangeEvent } from 'vscode';
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
 
@@ -136,8 +136,7 @@ suite('window namespace tests', () => {
 			}).then(() => {
 				assert.equal(actualEvents.length, 2);
 
-				for (let i = 0; i < actualEvents.length; i++) {
-					const event = actualEvents[i];
+				for (const event of actualEvents) {
 					assert.equal(event.viewColumn, event.textEditor.viewColumn);
 				}
 
@@ -381,13 +380,13 @@ suite('window namespace tests', () => {
 		assert.equal(await two, 'notempty');
 	});
 
-
-	test('showQuickPick, accept first', async function () {
-		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
-		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		assert.equal(await pick, 'eins');
-	});
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showQuickPick, accept first', async function () {
+	// 	const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
+	// 	await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	assert.equal(await pick, 'eins');
+	// });
 
 	test('showQuickPick, accept second', async function () {
 		const resolves: ((value: string) => void)[] = [];
@@ -436,18 +435,19 @@ suite('window namespace tests', () => {
 		return unexpected;
 	});
 
-	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
-		const picks = window.showQuickPick([
-			{ label: 'eins' },
-			{ label: 'zwei', picked: true },
-			{ label: 'drei', picked: true }
-		], {
-				canPickMany: true
-			});
-		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
-	});
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
+	// 	const picks = window.showQuickPick([
+	// 		{ label: 'eins' },
+	// 		{ label: 'zwei', picked: true },
+	// 		{ label: 'drei', picked: true }
+	// 	], {
+	// 			canPickMany: true
+	// 		});
+	// 	await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
+	// });
 
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
@@ -518,19 +518,20 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
-	test('showWorkspaceFolderPick', async function () {
-		const p = window.showWorkspaceFolderPick(undefined);
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showWorkspaceFolderPick', async function () {
+	// 	const p = window.showWorkspaceFolderPick(undefined);
 
-		await timeout(10);
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		try {
-			await p;
-			assert.ok(true);
-		}
-		catch (_error) {
-			assert.ok(false);
-		}
-	});
+	// 	await timeout(10);
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	try {
+	// 		await p;
+	// 		assert.ok(true);
+	// 	}
+	// 	catch (_error) {
+	// 		assert.ok(false);
+	// 	}
+	// });
 
 	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
 		const result = window.showInputBox({
@@ -695,6 +696,46 @@ suite('window namespace tests', () => {
 			});
 			const terminal = window.createTerminal();
 			terminal.show();
+		});
+
+		test('onDidChangeTerminalDimensions should fire when new terminals are created', (done) => {
+			const reg1 = window.onDidChangeTerminalDimensions(async (event: TerminalDimensionsChangeEvent) => {
+				assert.equal(event.terminal, terminal1);
+				assert.equal(typeof event.dimensions.columns, 'number');
+				assert.equal(typeof event.dimensions.rows, 'number');
+				assert.ok(event.dimensions.columns > 0);
+				assert.ok(event.dimensions.rows > 0);
+				reg1.dispose();
+				let terminal2: Terminal;
+				const reg2 = window.onDidOpenTerminal((newTerminal) => {
+					// This is guarantees to fire before dimensions change event
+					if (newTerminal !== terminal1) {
+						terminal2 = newTerminal;
+						reg2.dispose();
+					}
+				});
+				let firstCalled = false;
+				let secondCalled = false;
+				const reg3 = window.onDidChangeTerminalDimensions((event: TerminalDimensionsChangeEvent) => {
+					if (event.terminal === terminal1) {
+						// The original terminal should fire dimension change after a split
+						firstCalled = true;
+					} else if (event.terminal !== terminal1) {
+						// The new split terminal should fire dimension change
+						secondCalled = true;
+					}
+					if (firstCalled && secondCalled) {
+						terminal1.dispose();
+						terminal2.dispose();
+						reg3.dispose();
+						done();
+					}
+				});
+				await timeout(500);
+				commands.executeCommand('workbench.action.terminal.split');
+			});
+			const terminal1 = window.createTerminal({ name: 'test' });
+			terminal1.show();
 		});
 	});
 });

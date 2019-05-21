@@ -70,8 +70,7 @@ function getPrePostScripts(scripts: any): Set<string> {
 		'pretest', 'postest', 'prepublishOnly'
 	]);
 	let keys = Object.keys(scripts);
-	for (let i = 0; i < keys.length; i++) {
-		const script = keys[i];
+	for (const script of keys) {
 		const prepost = ['pre' + script, 'post' + script];
 		prepost.forEach(each => {
 			if (scripts[each] !== undefined) {
@@ -96,8 +95,7 @@ export async function hasNpmScripts(): Promise<boolean> {
 		return false;
 	}
 	try {
-		for (let i = 0; i < folders.length; i++) {
-			let folder = folders[i];
+		for (const folder of folders) {
 			if (isAutoDetectionEnabled(folder)) {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
 				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
@@ -123,13 +121,11 @@ async function detectNpmScripts(): Promise<Task[]> {
 		return emptyTasks;
 	}
 	try {
-		for (let i = 0; i < folders.length; i++) {
-			let folder = folders[i];
+		for (const folder of folders) {
 			if (isAutoDetectionEnabled(folder)) {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
 				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
-				for (let j = 0; j < paths.length; j++) {
-					let path = paths[j];
+				for (const path of paths) {
 					if (!isExcluded(folder, path) && !visitedPackageJsonFiles.has(path.fsPath)) {
 						let tasks = await provideNpmScriptsForFolder(path);
 						visitedPackageJsonFiles.add(path.fsPath);
@@ -343,7 +339,7 @@ export function startDebugging(scriptName: string, protocol: string, port: numbe
 export type StringMap = { [s: string]: string; };
 
 async function findAllScripts(buffer: string): Promise<StringMap> {
-	var scripts: StringMap = {};
+	let scripts: StringMap = {};
 	let script: string | undefined = undefined;
 	let inScripts = false;
 
@@ -380,7 +376,7 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 }
 
 export function findAllScriptRanges(buffer: string): Map<string, [number, number, string]> {
-	var scripts: Map<string, [number, number, string]> = new Map();
+	let scripts: Map<string, [number, number, string]> = new Map();
 	let script: string | undefined = undefined;
 	let offset: number;
 	let length: number;
@@ -469,8 +465,8 @@ export async function getScripts(packageJsonUri: Uri): Promise<StringMap | undef
 	}
 
 	try {
-		var contents = await readFile(packageJson);
-		var json = findAllScripts(contents);//JSON.parse(contents);
+		let contents = await readFile(packageJson);
+		let json = findAllScripts(contents);//JSON.parse(contents);
 		return json;
 	} catch (e) {
 		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJsonUri.fsPath);

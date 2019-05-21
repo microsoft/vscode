@@ -10,20 +10,22 @@
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
   "engines": {
-    "vscode": "*"
+    "vscode": "^1.30.0"
   },
   "categories": [
     "Programming Languages"
   ],
   "dependencies": {
     "jsonc-parser": "^2.0.1",
+    "rimraf": "^2.6.3",
     "semver": "5.5.1",
-    "vscode-extension-telemetry": "0.1.0",
+    "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "8.0.33",
+    "@types/node": "^12.0.2",
     "@types/semver": "^5.5.0",
+    "@types/rimraf": "2.0.2",
     "vscode": "^1.1.10"
   },
   "scripts": {
@@ -83,7 +85,7 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "scope": "application"
+          "scope": "machine"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
@@ -129,7 +131,7 @@
           },
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
-          "scope": "application"
+          "scope": "machine"
         },
         "typescript.tsserver.trace": {
           "type": "string",
@@ -358,12 +360,6 @@
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
         },
-        "jsDocCompletion.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%jsDocCompletion.enabled%",
-          "scope": "resource"
-        },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
@@ -422,6 +418,18 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "javascript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
+          "scope": "resource"
+        },
+        "typescript.suggest.completeJSDocs": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.completeJSDocs%",
           "scope": "resource"
         },
         "typescript.locale": {
@@ -510,6 +518,18 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifier%",
+          "scope": "resource"
+        },
+        "javascript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
+          "scope": "resource"
+        },
+        "typescript.preferences.renameShorthandProperties": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameShorthandProperties%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {
@@ -687,7 +707,7 @@
     "problemPatterns": [
       {
         "name": "tsc",
-        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+TS(\\d+)\\s*:\\s*(.*)$",
         "file": 1,
         "line": 2,
         "column": 3,

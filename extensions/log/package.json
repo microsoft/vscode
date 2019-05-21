@@ -19,7 +19,7 @@
 					"*.log.?"
 				],
 				"aliases": [
-					"log"
+					"Log"
 				]
 			}
 		],

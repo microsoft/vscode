@@ -30,7 +30,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
-		return model.references.length > 1 && nls.localize('meta.titleReference', " – {0} references", model.references.length);
+		return model.references.length > 1 ? nls.localize('meta.titleReference', " – {0} references", model.references.length) : '';
 	}
 };
 
@@ -78,15 +78,17 @@ export class ReferenceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = ReferencesController.get(editor);
 		if (!controller) {
 			return;
 		}
-		let range = editor.getSelection();
-		let model = editor.getModel();
-		let references = createCancelablePromise(token => provideReferences(model, range.getStartPosition(), token).then(references => new ReferencesModel(references)));
-		controller.toggleWidget(range, references, defaultReferenceSearchOptions);
+		if (editor.hasModel()) {
+			const range = editor.getSelection();
+			const model = editor.getModel();
+			const references = createCancelablePromise(token => provideReferences(model, range.getStartPosition(), token).then(references => new ReferencesModel(references)));
+			controller.toggleWidget(range, references, defaultReferenceSearchOptions);
+		}
 	}
 }
 
@@ -104,7 +106,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 	const codeEditorService = accessor.get(ICodeEditorService);
 	return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
-		if (!isCodeEditor(control)) {
+		if (!isCodeEditor(control) || !control.hasModel()) {
 			return undefined;
 		}
 
@@ -139,10 +141,11 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 			return undefined;
 		}
 
-		return Promise.resolve(controller.toggleWidget(
+		return controller.toggleWidget(
 			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 			createCancelablePromise(_ => Promise.resolve(new ReferencesModel(references))),
-			defaultReferenceSearchOptions)).then(() => true);
+			defaultReferenceSearchOptions
+		);
 	});
 };
 

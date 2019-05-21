@@ -27,9 +27,11 @@ export interface ITelemetryService {
 	 * Sends a telemetry event that has been privacy approved.
 	 * Do not call this unless you have been given approval.
 	 */
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Thenable<void>;
+	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void>;
 
-	getTelemetryInfo(): Thenable<ITelemetryInfo>;
+	setEnabled(value: boolean): void;
+
+	getTelemetryInfo(): Promise<ITelemetryInfo>;
 
 	isOptedIn: boolean;
 }

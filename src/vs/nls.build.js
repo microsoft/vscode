@@ -79,7 +79,7 @@ var NLSBuildLoaderPlugin;
                 });
             }
             else {
-                var suffix = void 0;
+                var suffix = undefined;
                 if (Resources && Resources.getString) {
                     suffix = '.nls.keys';
                     req([name + suffix], function (keyMap) {

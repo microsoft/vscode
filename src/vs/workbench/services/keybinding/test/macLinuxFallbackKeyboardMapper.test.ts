@@ -14,7 +14,7 @@ suite('keyboardMapper - MAC fallback', () => {
 	let mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Macintosh);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh), expected);
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
 	}
 
 	test('resolveKeybinding Cmd+Z', () => {
@@ -27,7 +27,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+Z', null],
+				dispatchParts: ['meta+Z'],
 			}]
 		);
 	});
@@ -51,12 +51,13 @@ suite('keyboardMapper - MAC fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
 				keyCode: KeyCode.KEY_Z,
-				code: null
+				code: null!
 			},
 			{
 				label: '⌘Z',
@@ -65,16 +66,21 @@ suite('keyboardMapper - MAC fallback', () => {
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['meta+Z', null],
+				dispatchParts: ['meta+Z'],
 			}
 		);
 	});
 
+	test('resolveUserBinding empty', () => {
+		assertResolveUserBinding(mapper, [], []);
+	});
+
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			mapper, [
+				new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
+				new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+			],
 			[{
 				label: '⌘, ⌘/',
 				ariaLabel: 'Command+, Command+/',
@@ -91,12 +97,13 @@ suite('keyboardMapper - MAC fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: false,
 				shiftKey: false,
 				altKey: false,
 				metaKey: true,
 				keyCode: KeyCode.Meta,
-				code: null
+				code: null!
 			},
 			{
 				label: '⌘',
@@ -105,7 +112,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				userSettingsLabel: 'cmd+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});
@@ -116,7 +123,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 	let mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Linux);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux), expected);
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
 	}
 
 	test('resolveKeybinding Ctrl+Z', () => {
@@ -129,7 +136,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+Z', null],
+				dispatchParts: ['ctrl+Z'],
 			}]
 		);
 	});
@@ -153,12 +160,13 @@ suite('keyboardMapper - LINUX fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
 				keyCode: KeyCode.KEY_Z,
-				code: null
+				code: null!
 			},
 			{
 				label: 'Ctrl+Z',
@@ -167,16 +175,17 @@ suite('keyboardMapper - LINUX fallback', () => {
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+Z', null],
+				dispatchParts: ['ctrl+Z'],
 			}
 		);
 	});
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+			],
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
@@ -191,9 +200,9 @@ suite('keyboardMapper - LINUX fallback', () => {
 
 	test('resolveUserBinding Ctrl+[Comma]', () => {
 		assertResolveUserBinding(
-			mapper,
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			null,
+			mapper, [
+				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			],
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',
@@ -201,7 +210,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				userSettingsLabel: 'ctrl+,',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: ['ctrl+,', null],
+				dispatchParts: ['ctrl+,'],
 			}]
 		);
 	});
@@ -210,12 +219,13 @@ suite('keyboardMapper - LINUX fallback', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
+				_standardKeyboardEventBrand: true,
 				ctrlKey: true,
 				shiftKey: false,
 				altKey: false,
 				metaKey: false,
 				keyCode: KeyCode.Ctrl,
-				code: null
+				code: null!
 			},
 			{
 				label: 'Ctrl+',
@@ -224,7 +234,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				dispatchParts: [null, null],
+				dispatchParts: [null],
 			}
 		);
 	});

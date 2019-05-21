@@ -23,16 +23,16 @@ suite('references', function () {
 		}]);
 
 		let ref = model.nearestReference(URI.file('/src/can'), new Position(1, 1));
-		assert.equal(ref.uri.path, '/src/can');
+		assert.equal(ref!.uri.path, '/src/can');
 
 		ref = model.nearestReference(URI.file('/src/someOtherFileInSrc'), new Position(1, 1));
-		assert.equal(ref.uri.path, '/src/can');
+		assert.equal(ref!.uri.path, '/src/can');
 
 		ref = model.nearestReference(URI.file('/out/someOtherFile'), new Position(1, 1));
-		assert.equal(ref.uri.path, '/out/obj/can');
+		assert.equal(ref!.uri.path, '/out/obj/can');
 
 		ref = model.nearestReference(URI.file('/out/obj/can2222'), new Position(1, 1));
-		assert.equal(ref.uri.path, '/out/obj/can2');
+		assert.equal(ref!.uri.path, '/out/obj/can2');
 	});
 
 });

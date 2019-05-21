@@ -102,7 +102,7 @@ export interface IUndoRedoResult {
 
 export class EditStack {
 
-	private model: TextModel;
+	private readonly model: TextModel;
 	private currentOpenStackElement: IStackElement | null;
 	private past: IStackElement[];
 	private future: IStackElement[];
@@ -145,7 +145,7 @@ export class EditStack {
 		this.pushStackElement();
 	}
 
-	public pushEditOperation(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null {
+	public pushEditOperation(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer | null): Selection[] | null {
 		// No support for parallel universes :(
 		this.future = [];
 
@@ -174,7 +174,7 @@ export class EditStack {
 		return stackElement!.afterCursorState;
 	}
 
-	private static _computeCursorState(cursorStateComputer: ICursorStateComputer, inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] | null {
+	private static _computeCursorState(cursorStateComputer: ICursorStateComputer | null, inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] | null {
 		try {
 			return cursorStateComputer ? cursorStateComputer(inverseEditOperations) : null;
 		} catch (e) {
@@ -210,7 +210,7 @@ export class EditStack {
 	}
 
 	public canUndo(): boolean {
-		return (this.past.length > 0);
+		return (this.past.length > 0) || this.currentOpenStackElement !== null;
 	}
 
 	public redo(): IUndoRedoResult | null {

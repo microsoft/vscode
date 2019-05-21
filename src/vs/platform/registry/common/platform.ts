@@ -54,4 +54,4 @@ class RegistryImpl implements IRegistry {
 	}
 }
 
-export const Registry = <IRegistry>new RegistryImpl();
+export const Registry: IRegistry = new RegistryImpl();

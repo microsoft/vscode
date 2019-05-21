@@ -7,7 +7,7 @@ import 'vs/css!./actionbar';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { SelectBox, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectOptionItem, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
@@ -16,8 +16,9 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Event, Emitter } from 'vs/base/common/event';
+import { asArray } from 'vs/base/common/arrays';
 
-export interface IActionItem {
+export interface IActionViewItem {
 	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: HTMLElement): void;
@@ -27,20 +28,20 @@ export interface IActionItem {
 	dispose(): void;
 }
 
-export interface IBaseActionItemOptions {
+export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
 	isMenu?: boolean;
 }
 
-export class BaseActionItem extends Disposable implements IActionItem {
+export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
-	element: HTMLElement;
+	element?: HTMLElement;
 	_context: any;
 	_action: IAction;
 
 	private _actionRunner: IActionRunner;
 
-	constructor(context: any, action: IAction, protected options?: IBaseActionItemOptions) {
+	constructor(context: any, action: IAction, protected options?: IBaseActionViewItemOptions) {
 		super();
 
 		this._context = context || this;
@@ -60,24 +61,24 @@ export class BaseActionItem extends Disposable implements IActionItem {
 	}
 
 	private handleActionChangeEvent(event: IActionChangeEvent): void {
-		if (event.enabled !== void 0) {
+		if (event.enabled !== undefined) {
 			this.updateEnabled();
 		}
 
-		if (event.checked !== void 0) {
+		if (event.checked !== undefined) {
 			this.updateChecked();
 		}
 
-		if (event.class !== void 0) {
+		if (event.class !== undefined) {
 			this.updateClass();
 		}
 
-		if (event.label !== void 0) {
+		if (event.label !== undefined) {
 			this.updateLabel();
 			this.updateTooltip();
 		}
 
-		if (event.tooltip !== void 0) {
+		if (event.tooltip !== undefined) {
 			this.updateTooltip();
 		}
 	}
@@ -118,8 +119,7 @@ export class BaseActionItem extends Disposable implements IActionItem {
 				DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
 			}
 
-			const mouseEvent = e as MouseEvent;
-			if (this._action.enabled && mouseEvent.button === 0) {
+			if (this._action.enabled && e.button === 0 && this.element) {
 				DOM.addClass(this.element, 'active');
 			}
 		}));
@@ -146,9 +146,9 @@ export class BaseActionItem extends Disposable implements IActionItem {
 		}));
 
 		[DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT].forEach(event => {
-			this._register(DOM.addDisposableListener(this.element, event, e => {
+			this._register(DOM.addDisposableListener(this.element!, event, e => {
 				DOM.EventHelper.stop(e);
-				DOM.removeClass(this.element, 'active');
+				DOM.removeClass(this.element!, 'active');
 			}));
 		});
 	}
@@ -207,7 +207,7 @@ export class BaseActionItem extends Disposable implements IActionItem {
 	dispose(): void {
 		if (this.element) {
 			DOM.removeNode(this.element);
-			this.element = null;
+			this.element = undefined;
 		}
 
 		super.dispose();
@@ -226,20 +226,20 @@ export class Separator extends Action {
 	}
 }
 
-export interface IActionItemOptions extends IBaseActionItemOptions {
+export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	label?: boolean;
-	keybinding?: string;
+	keybinding?: string | null;
 }
 
-export class ActionItem extends BaseActionItem {
+export class ActionViewItem extends BaseActionViewItem {
 
 	protected label: HTMLElement;
-	protected options: IActionItemOptions;
+	protected options: IActionViewItemOptions;
 
-	private cssClass: string;
+	private cssClass?: string;
 
-	constructor(context: any, action: IAction, options: IActionItemOptions = {}) {
+	constructor(context: any, action: IAction, options: IActionViewItemOptions = {}) {
 		super(context, action, options);
 
 		this.options = options;
@@ -251,7 +251,9 @@ export class ActionItem extends BaseActionItem {
 	render(container: HTMLElement): void {
 		super.render(container);
 
-		this.label = DOM.append(this.element, DOM.$('a.action-label'));
+		if (this.element) {
+			this.label = DOM.append(this.element, DOM.$('a.action-label'));
+		}
 		if (this._action.id === Separator.ID) {
 			this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
 		} else {
@@ -262,7 +264,7 @@ export class ActionItem extends BaseActionItem {
 			}
 		}
 
-		if (this.options.label && this.options.keybinding) {
+		if (this.options.label && this.options.keybinding && this.element) {
 			DOM.append(this.element, DOM.$('span.keybinding')).textContent = this.options.keybinding;
 		}
 
@@ -325,12 +327,16 @@ export class ActionItem extends BaseActionItem {
 	updateEnabled(): void {
 		if (this.getAction().enabled) {
 			this.label.removeAttribute('aria-disabled');
-			DOM.removeClass(this.element, 'disabled');
+			if (this.element) {
+				DOM.removeClass(this.element, 'disabled');
+			}
 			DOM.removeClass(this.label, 'disabled');
 			this.label.tabIndex = 0;
 		} else {
 			this.label.setAttribute('aria-disabled', 'true');
-			DOM.addClass(this.element, 'disabled');
+			if (this.element) {
+				DOM.addClass(this.element, 'disabled');
+			}
 			DOM.addClass(this.label, 'disabled');
 			DOM.removeTabIndexAndUpdateFocus(this.label);
 		}
@@ -357,21 +363,21 @@ export interface ActionTrigger {
 	keyDown: boolean;
 }
 
-export interface IActionItemProvider {
-	(action: IAction): IActionItem;
+export interface IActionViewItemProvider {
+	(action: IAction): IActionViewItem | undefined;
 }
 
 export interface IActionBarOptions {
 	orientation?: ActionsOrientation;
 	context?: any;
-	actionItemProvider?: IActionItemProvider;
+	actionViewItemProvider?: IActionViewItemProvider;
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
 	animated?: boolean;
 	triggerKeys?: ActionTrigger;
 }
 
-let defaultOptions: IActionBarOptions = {
+const defaultOptions: IActionBarOptions = {
 	orientation: ActionsOrientation.HORIZONTAL,
 	context: null,
 	triggerKeys: {
@@ -380,7 +386,7 @@ let defaultOptions: IActionBarOptions = {
 	}
 };
 
-export interface IActionOptions extends IActionItemOptions {
+export interface IActionOptions extends IActionViewItemOptions {
 	index?: number;
 }
 
@@ -391,9 +397,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _actionRunner: IActionRunner;
 	private _context: any;
 
-	// Items
-	items: IActionItem[];
-	protected focusedItem: number;
+	// View Items
+	viewItems: IActionViewItem[];
+	protected focusedItem?: number;
 	private focusTracker: DOM.IFocusTracker;
 
 	// Elements
@@ -417,13 +423,14 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.options = options;
 		this._context = options.context;
-		this._actionRunner = this.options.actionRunner;
 
 		if (!this.options.triggerKeys) {
 			this.options.triggerKeys = defaultOptions.triggerKeys;
 		}
 
-		if (!this._actionRunner) {
+		if (this.options.actionRunner) {
+			this._actionRunner = this.options.actionRunner;
+		} else {
 			this._actionRunner = new ActionRunner();
 			this._register(this._actionRunner);
 		}
@@ -431,7 +438,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._register(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
 		this._register(this._actionRunner.onDidBeforeRun(e => this._onDidBeforeRun.fire(e)));
 
-		this.items = [];
+		this.viewItems = [];
 		this.focusedItem = undefined;
 
 		this.domNode = document.createElement('div');
@@ -467,7 +474,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
 			if (event.equals(previousKey)) {
@@ -492,11 +499,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}));
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_UP, e => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e);
 
 			// Run action on Enter/Space
 			if (this.isTriggerKeyEvent(event)) {
-				if (!this.options.triggerKeys.keyDown) {
+				if (this.options.triggerKeys && !this.options.triggerKeys.keyDown) {
 					this.doTrigger(event);
 				}
 
@@ -554,7 +561,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private updateFocusedItem(): void {
 		for (let i = 0; i < this.actionsList.children.length; i++) {
-			let elem = this.actionsList.children[i];
+			const elem = this.actionsList.children[i];
 			if (DOM.isAncestor(document.activeElement, elem)) {
 				this.focusedItem = i;
 				break;
@@ -568,7 +575,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	set context(context: any) {
 		this._context = context;
-		this.items.forEach(i => i.setActionContext(context));
+		this.viewItems.forEach(i => i.setActionContext(context));
 	}
 
 	get actionRunner(): IActionRunner {
@@ -578,7 +585,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	set actionRunner(actionRunner: IActionRunner) {
 		if (actionRunner) {
 			this._actionRunner = actionRunner;
-			this.items.forEach(item => item.actionRunner = actionRunner);
+			this.viewItems.forEach(item => item.actionRunner = actionRunner);
 		}
 	}
 
@@ -587,41 +594,41 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	push(arg: IAction | IAction[], options: IActionOptions = {}): void {
-		const actions: IAction[] = !Array.isArray(arg) ? [arg] : arg;
+		const actions: IAction[] = asArray(arg);
 
 		let index = types.isNumber(options.index) ? options.index : null;
 
 		actions.forEach((action: IAction) => {
-			const actionItemElement = document.createElement('li');
-			actionItemElement.className = 'action-item';
-			actionItemElement.setAttribute('role', 'presentation');
+			const actionViewItemElement = document.createElement('li');
+			actionViewItemElement.className = 'action-item';
+			actionViewItemElement.setAttribute('role', 'presentation');
 
 			// Prevent native context menu on actions
-			this._register(DOM.addDisposableListener(actionItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+			this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
 				e.preventDefault();
 				e.stopPropagation();
 			}));
 
-			let item: IActionItem | null = null;
+			let item: IActionViewItem | undefined;
 
-			if (this.options.actionItemProvider) {
-				item = this.options.actionItemProvider(action);
+			if (this.options.actionViewItemProvider) {
+				item = this.options.actionViewItemProvider(action);
 			}
 
 			if (!item) {
-				item = new ActionItem(this.context, action, options);
+				item = new ActionViewItem(this.context, action, options);
 			}
 
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
-			item.render(actionItemElement);
+			item.render(actionViewItemElement);
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
-				this.actionsList.appendChild(actionItemElement);
-				this.items.push(item);
+				this.actionsList.appendChild(actionViewItemElement);
+				this.viewItems.push(item);
 			} else {
-				this.actionsList.insertBefore(actionItemElement, this.actionsList.children[index]);
-				this.items.splice(index, 0, item);
+				this.actionsList.insertBefore(actionViewItemElement, this.actionsList.children[index]);
+				this.viewItems.splice(index, 0, item);
 				index++;
 			}
 		});
@@ -629,7 +636,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	getWidth(index: number): number {
 		if (index >= 0 && index < this.actionsList.children.length) {
-			return this.actionsList.children.item(index).clientWidth;
+			const item = this.actionsList.children.item(index);
+			if (item) {
+				return item.clientWidth;
+			}
 		}
 
 		return 0;
@@ -637,53 +647,72 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	getHeight(index: number): number {
 		if (index >= 0 && index < this.actionsList.children.length) {
-			return this.actionsList.children.item(index).clientHeight;
+			const item = this.actionsList.children.item(index);
+			if (item) {
+				return item.clientHeight;
+			}
 		}
 
 		return 0;
 	}
 
 	pull(index: number): void {
-		if (index >= 0 && index < this.items.length) {
-			this.items.splice(index, 1);
+		if (index >= 0 && index < this.viewItems.length) {
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
+			dispose(this.viewItems.splice(index, 1));
 		}
 	}
 
 	clear(): void {
-		this.items = dispose(this.items);
+		this.viewItems = dispose(this.viewItems);
 		DOM.clearNode(this.actionsList);
 	}
 
 	length(): number {
-		return this.items.length;
+		return this.viewItems.length;
 	}
 
 	isEmpty(): boolean {
-		return this.items.length === 0;
+		return this.viewItems.length === 0;
 	}
 
-	focus(selectFirst?: boolean): void {
+	focus(index?: number): void;
+	focus(selectFirst?: boolean): void;
+	focus(arg?: number | boolean): void {
+		let selectFirst: boolean = false;
+		let index: number | undefined = undefined;
+		if (arg === undefined) {
+			selectFirst = true;
+		} else if (typeof arg === 'number') {
+			index = arg;
+		} else if (typeof arg === 'boolean') {
+			selectFirst = arg;
+		}
+
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
 			// Focus the first enabled item
-			this.focusedItem = this.items.length - 1;
+			this.focusedItem = this.viewItems.length - 1;
 			this.focusNext();
 		} else {
+			if (index !== undefined) {
+				this.focusedItem = index;
+			}
+
 			this.updateFocus();
 		}
 	}
 
-	private focusNext(): void {
+	protected focusNext(): void {
 		if (typeof this.focusedItem === 'undefined') {
-			this.focusedItem = this.items.length - 1;
+			this.focusedItem = this.viewItems.length - 1;
 		}
 
-		let startIndex = this.focusedItem;
-		let item: IActionItem;
+		const startIndex = this.focusedItem;
+		let item: IActionViewItem;
 
 		do {
-			this.focusedItem = (this.focusedItem + 1) % this.items.length;
-			item = this.items[this.focusedItem];
+			this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
+			item = this.viewItems[this.focusedItem];
 		} while (this.focusedItem !== startIndex && !item.isEnabled());
 
 		if (this.focusedItem === startIndex && !item.isEnabled()) {
@@ -693,22 +722,22 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.updateFocus();
 	}
 
-	private focusPrevious(): void {
+	protected focusPrevious(): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = 0;
 		}
 
-		let startIndex = this.focusedItem;
-		let item: IActionItem;
+		const startIndex = this.focusedItem;
+		let item: IActionViewItem;
 
 		do {
 			this.focusedItem = this.focusedItem - 1;
 
 			if (this.focusedItem < 0) {
-				this.focusedItem = this.items.length - 1;
+				this.focusedItem = this.viewItems.length - 1;
 			}
 
-			item = this.items[this.focusedItem];
+			item = this.viewItems[this.focusedItem];
 		} while (this.focusedItem !== startIndex && !item.isEnabled());
 
 		if (this.focusedItem === startIndex && !item.isEnabled()) {
@@ -723,22 +752,21 @@ export class ActionBar extends Disposable implements IActionRunner {
 			this.actionsList.focus();
 		}
 
-		for (let i = 0; i < this.items.length; i++) {
-			let item = this.items[i];
-
-			let actionItem = item;
+		for (let i = 0; i < this.viewItems.length; i++) {
+			const item = this.viewItems[i];
+			const actionViewItem = item;
 
 			if (i === this.focusedItem) {
-				if (types.isFunction(actionItem.isEnabled)) {
-					if (actionItem.isEnabled() && types.isFunction(actionItem.focus)) {
-						actionItem.focus(fromRight);
+				if (types.isFunction(actionViewItem.isEnabled)) {
+					if (actionViewItem.isEnabled() && types.isFunction(actionViewItem.focus)) {
+						actionViewItem.focus(fromRight);
 					} else {
 						this.actionsList.focus();
 					}
 				}
 			} else {
-				if (types.isFunction(actionItem.blur)) {
-					actionItem.blur();
+				if (types.isFunction(actionViewItem.blur)) {
+					actionViewItem.blur();
 				}
 			}
 		}
@@ -750,30 +778,28 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		// trigger action
-		let actionItem = this.items[this.focusedItem];
-		if (actionItem instanceof BaseActionItem) {
-			const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
-			this.run(actionItem._action, context);
+		const actionViewItem = this.viewItems[this.focusedItem];
+		if (actionViewItem instanceof BaseActionViewItem) {
+			const context = (actionViewItem._context === null || actionViewItem._context === undefined) ? event : actionViewItem._context;
+			this.run(actionViewItem._action, context);
 		}
 	}
 
 	private cancel(): void {
 		if (document.activeElement instanceof HTMLElement) {
-			(<HTMLElement>document.activeElement).blur(); // remove focus from focused action
+			document.activeElement.blur(); // remove focus from focused action
 		}
 
 		this._onDidCancel.fire();
 	}
 
-	run(action: IAction, context?: any): Thenable<void> {
+	run(action: IAction, context?: any): Promise<void> {
 		return this._actionRunner.run(action, context);
 	}
 
 	dispose(): void {
-		if (this.items !== null) {
-			dispose(this.items);
-		}
-		this.items = null;
+		dispose(this.viewItems);
+		this.viewItems = [];
 
 		DOM.removeNode(this.getContainer());
 
@@ -781,20 +807,20 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 }
 
-export class SelectActionItem extends BaseActionItem {
+export class SelectActionViewItem extends BaseActionViewItem {
 	protected selectBox: SelectBox;
 
-	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
+	constructor(ctx: any, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
 		super(ctx, action);
 
-		this.selectBox = new SelectBox(options, selected, contextViewProvider, null, selectBoxOptions);
+		this.selectBox = new SelectBox(options, selected, contextViewProvider, undefined, selectBoxOptions);
 
 		this._register(this.selectBox);
 		this.registerListeners();
 	}
 
-	setOptions(options: string[], selected?: number, disabled?: number): void {
-		this.selectBox.setOptions(options, selected, disabled);
+	setOptions(options: ISelectOptionItem[], selected?: number): void {
+		this.selectBox.setOptions(options, selected);
 	}
 
 	select(index: number): void {

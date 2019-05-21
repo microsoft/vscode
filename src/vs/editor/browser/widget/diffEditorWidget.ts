@@ -148,7 +148,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly id: number;
 
-	private _domElement: HTMLElement;
+	private readonly _domElement: HTMLElement;
 	protected readonly _containerDomElement: HTMLElement;
 	private readonly _overviewDomElement: HTMLElement;
 	private readonly _overviewViewportDomElement: FastDomNode<HTMLElement>;
@@ -160,12 +160,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private originalEditor: CodeEditorWidget;
 	private _originalDomNode: HTMLElement;
-	private _originalEditorState: VisualEditorState;
+	private readonly _originalEditorState: VisualEditorState;
 	private _originalOverviewRuler: editorBrowser.IOverviewRuler;
 
 	private modifiedEditor: CodeEditorWidget;
 	private _modifiedDomNode: HTMLElement;
-	private _modifiedEditorState: VisualEditorState;
+	private readonly _modifiedEditorState: VisualEditorState;
 	private _modifiedOverviewRuler: editorBrowser.IOverviewRuler;
 
 	private _currentlyChangingViewZones: boolean;
@@ -184,15 +184,15 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _enableSplitViewResizing: boolean;
 	private _strategy: IDiffEditorWidgetStyle;
 
-	private _updateDecorationsRunner: RunOnceScheduler;
+	private readonly _updateDecorationsRunner: RunOnceScheduler;
 
-	private _editorWorkerService: IEditorWorkerService;
+	private readonly _editorWorkerService: IEditorWorkerService;
 	protected _contextKeyService: IContextKeyService;
-	private _codeEditorService: ICodeEditorService;
-	private _themeService: IThemeService;
-	private _notificationService: INotificationService;
+	private readonly _codeEditorService: ICodeEditorService;
+	private readonly _themeService: IThemeService;
+	private readonly _notificationService: INotificationService;
 
-	private _reviewPane: DiffReview;
+	private readonly _reviewPane: DiffReview;
 
 	constructor(
 		domElement: HTMLElement,
@@ -369,15 +369,19 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._overviewDomElement.removeChild(this._originalOverviewRuler.getDomNode());
 			this._originalOverviewRuler.dispose();
 		}
-		this._originalOverviewRuler = this.originalEditor.createOverviewRuler('original diffOverviewRuler');
-		this._overviewDomElement.appendChild(this._originalOverviewRuler.getDomNode());
+		if (this.originalEditor.hasModel()) {
+			this._originalOverviewRuler = this.originalEditor.createOverviewRuler('original diffOverviewRuler')!;
+			this._overviewDomElement.appendChild(this._originalOverviewRuler.getDomNode());
+		}
 
 		if (this._modifiedOverviewRuler) {
 			this._overviewDomElement.removeChild(this._modifiedOverviewRuler.getDomNode());
 			this._modifiedOverviewRuler.dispose();
 		}
-		this._modifiedOverviewRuler = this.modifiedEditor.createOverviewRuler('modified diffOverviewRuler');
-		this._overviewDomElement.appendChild(this._modifiedOverviewRuler.getDomNode());
+		if (this.modifiedEditor.hasModel()) {
+			this._modifiedOverviewRuler = this.modifiedEditor.createOverviewRuler('modified diffOverviewRuler')!;
+			this._overviewDomElement.appendChild(this._modifiedOverviewRuler.getDomNode());
+		}
 
 		this._layoutOverviewRulers();
 	}
@@ -597,8 +601,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	public getModel(): editorCommon.IDiffEditorModel {
 		return {
-			original: this.originalEditor.getModel(),
-			modified: this.modifiedEditor.getModel()
+			original: this.originalEditor.getModel()!,
+			modified: this.modifiedEditor.getModel()!
 		};
 	}
 
@@ -739,7 +743,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public restoreViewState(s: editorCommon.IDiffEditorViewState): void {
-		if (s.original && s.original) {
+		if (s.original && s.modified) {
 			let diffEditorState = <editorCommon.IDiffEditorViewState>s;
 			this.originalEditor.restoreViewState(diffEditorState.original);
 			this.modifiedEditor.restoreViewState(diffEditorState.modified);
@@ -964,7 +968,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _adjustOptionsForRightHandSide(options: editorOptions.IDiffEditorOptions): editorOptions.IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
 		result.revealHorizontalRightPadding = editorOptions.EDITOR_DEFAULTS.viewInfo.revealHorizontalRightPadding + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
-		result.scrollbar.verticalHasArrows = false;
+		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
 		return result;
 	}
@@ -1247,7 +1251,7 @@ interface IMyViewZone {
 class ForeignViewZonesIterator {
 
 	private _index: number;
-	private _source: IEditorWhitespace[];
+	private readonly _source: IEditorWhitespace[];
 	public current: IEditorWhitespace | null;
 
 	constructor(source: IEditorWhitespace[]) {
@@ -1268,9 +1272,9 @@ class ForeignViewZonesIterator {
 
 abstract class ViewZonesComputer {
 
-	private lineChanges: editorCommon.ILineChange[];
-	private originalForeignVZ: IEditorWhitespace[];
-	private modifiedForeignVZ: IEditorWhitespace[];
+	private readonly lineChanges: editorCommon.ILineChange[];
+	private readonly originalForeignVZ: IEditorWhitespace[];
+	private readonly modifiedForeignVZ: IEditorWhitespace[];
 
 	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[]) {
 		this.lineChanges = lineChanges;
@@ -1446,16 +1450,19 @@ abstract class ViewZonesComputer {
 			// ---------------------------- END EMIT MINIMAL VIEW ZONES
 		}
 
-		let ensureDomNode = (z: IMyViewZone) => {
+		return {
+			original: ViewZonesComputer._ensureDomNodes(result.original),
+			modified: ViewZonesComputer._ensureDomNodes(result.modified),
+		};
+	}
+
+	private static _ensureDomNodes(zones: IMyViewZone[]): editorBrowser.IViewZone[] {
+		return zones.map((z) => {
 			if (!z.domNode) {
 				z.domNode = createFakeLinesDiv();
 			}
-		};
-
-		result.original.forEach(ensureDomNode);
-		result.modified.forEach(ensureDomNode);
-
-		return result;
+			return <editorBrowser.IViewZone>z;
+		});
 	}
 
 	protected abstract _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement | null;
@@ -1525,9 +1532,9 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 	static MINIMUM_EDITOR_WIDTH = 100;
 
 	private _disableSash: boolean;
-	private _sash: Sash;
-	private _sashRatio: number;
-	private _sashPosition: number;
+	private readonly _sash: Sash;
+	private _sashRatio: number | null;
+	private _sashPosition: number | null;
 	private _startSashPosition: number;
 
 	constructor(dataSource: IDataSource, enableSplitViewResizing: boolean) {
@@ -1556,7 +1563,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		}
 	}
 
-	public layout(sashRatio: number = this._sashRatio): number {
+	public layout(sashRatio: number | null = this._sashRatio): number {
 		let w = this._dataSource.getWidth();
 		let contentWidth = w - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 
@@ -1586,7 +1593,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 	}
 
 	private onSashDragStart(): void {
-		this._startSashPosition = this._sashPosition;
+		this._startSashPosition = this._sashPosition!;
 	}
 
 	private onSashDrag(e: ISashEvent): void {
@@ -1614,7 +1621,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 	}
 
 	public getVerticalSashLeft(sash: Sash): number {
-		return this._sashPosition;
+		return this._sashPosition!;
 	}
 
 	public getVerticalSashHeight(sash: Sash): number {
@@ -1634,7 +1641,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 			overviewZones: []
 		};
 
-		let originalModel = originalEditor.getModel();
+		let originalModel = originalEditor.getModel()!;
 
 		for (let i = 0, length = lineChanges.length; i < length; i++) {
 			let lineChange = lineChanges[i];
@@ -1694,7 +1701,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 			overviewZones: []
 		};
 
-		let modifiedModel = modifiedEditor.getModel();
+		let modifiedModel = modifiedEditor.getModel()!;
 
 		for (let i = 0, length = lineChanges.length; i < length; i++) {
 			let lineChange = lineChanges[i];
@@ -1843,7 +1850,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 			overviewZones: []
 		};
 
-		let modifiedModel = modifiedEditor.getModel();
+		let modifiedModel = modifiedEditor.getModel()!;
 
 		for (let i = 0, length = lineChanges.length; i < length; i++) {
 			let lineChange = lineChanges[i];
@@ -1904,16 +1911,16 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 
 class InlineViewZonesComputer extends ViewZonesComputer {
 
-	private originalModel: ITextModel;
-	private modifiedEditorConfiguration: editorOptions.InternalEditorOptions;
-	private modifiedEditorTabSize: number;
-	private renderIndicators: boolean;
+	private readonly originalModel: ITextModel;
+	private readonly modifiedEditorConfiguration: editorOptions.InternalEditorOptions;
+	private readonly modifiedEditorTabSize: number;
+	private readonly renderIndicators: boolean;
 
 	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean) {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ);
-		this.originalModel = originalEditor.getModel();
+		this.originalModel = originalEditor.getModel()!;
 		this.modifiedEditorConfiguration = modifiedEditor.getConfiguration();
-		this.modifiedEditorTabSize = modifiedEditor.getModel().getOptions().tabSize;
+		this.modifiedEditorTabSize = modifiedEditor.getModel()!.getOptions().tabSize;
 		this.renderIndicators = renderIndicators;
 	}
 

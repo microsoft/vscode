@@ -7,26 +7,24 @@ import 'vs/css!./media/activityaction';
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ActivityAction, ActivityActionItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity, IGlobalActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
-import { IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export class ViewletActivityAction extends ActivityAction {
@@ -37,14 +35,14 @@ export class ViewletActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
-		@IViewletService private viewletService: IViewletService,
-		@IPartService private partService: IPartService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(activity);
 	}
 
-	run(event: any): Thenable<any> {
+	run(event: any): Promise<any> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return Promise.resolve(false); // do not run on right click
 		}
@@ -56,14 +54,14 @@ export class ViewletActivityAction extends ActivityAction {
 		}
 		this.lastRun = now;
 
-		const sideBarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
+		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.activity.id) {
 			this.logAction('hide');
-			this.partService.setSideBarHidden(true);
-			return Promise.resolve(null);
+			this.layoutService.setSideBarHidden(true);
+			return Promise.resolve();
 		}
 
 		this.logAction('show');
@@ -85,20 +83,20 @@ export class ToggleViewletAction extends Action {
 
 	constructor(
 		private _viewlet: ViewletDescriptor,
-		@IPartService private partService: IPartService,
-		@IViewletService private viewletService: IViewletService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(_viewlet.id, _viewlet.name);
 	}
 
-	run(): Thenable<any> {
-		const sideBarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
+	run(): Promise<any> {
+		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this._viewlet.id) {
-			this.partService.setSideBarHidden(true);
-			return Promise.resolve(null);
+			this.layoutService.setSideBarHidden(true);
+			return Promise.resolve();
 		}
 
 		return this.viewletService.openViewlet(this._viewlet.id, true);
@@ -112,7 +110,7 @@ export class GlobalActivityAction extends ActivityAction {
 	}
 }
 
-export class GlobalActivityActionItem extends ActivityActionItem {
+export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 
 	constructor(
 		action: GlobalActivityAction,
@@ -131,32 +129,29 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
-
-			const event = new StandardMouseEvent(e);
-			this.showContextMenu({ x: event.posx, y: event.posy });
+			this.showContextMenu();
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				DOM.EventHelper.stop(e, true);
-
-				this.showContextMenu(this.container);
+				this.showContextMenu();
 			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
 			DOM.EventHelper.stop(e, true);
-
-			const event = new StandardMouseEvent(e);
-			this.showContextMenu({ x: event.posx, y: event.posy });
+			this.showContextMenu();
 		}));
 	}
 
-	private showContextMenu(location: HTMLElement | { x: number, y: number }): void {
+	private showContextMenu(): void {
 		const globalAction = this._action as GlobalActivityAction;
 		const activity = globalAction.activity as IGlobalActivity;
 		const actions = activity.getActions();
+		const containerPosition = DOM.getDomNodePagePosition(this.container);
+		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => location,
@@ -171,12 +166,12 @@ export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 	constructor(
 		id: string, iconUrl: URI,
 		@IViewletService viewletService: IViewletService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, partService, telemetryService);
+		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, layoutService, telemetryService);
 
-		const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
+		const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
 		DOM.createCSSRule(iconClass, `-webkit-mask: url('${iconUrl || ''}') no-repeat 50% 50%`);
 	}
 
@@ -188,7 +183,7 @@ export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
 
 	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, cssClass: void 0 }, compositeBar);
+		super({ id, name: id, cssClass: undefined }, compositeBar);
 	}
 
 	setActivity(activity: IActivity): void {
@@ -201,20 +196,20 @@ class SwitchSideBarViewAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IViewletService private viewletService: IViewletService,
-		@IActivityService private activityService: IActivityService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IActivityBarService private readonly activityBarService: IActivityBarService
 	) {
 		super(id, name);
 	}
 
-	run(offset: number): TPromise<any> {
-		const pinnedViewletIds = this.activityService.getPinnedViewletIds();
+	run(offset: number): Promise<any> {
+		const pinnedViewletIds = this.activityBarService.getPinnedViewletIds();
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
-			return TPromise.as(null);
+			return Promise.resolve();
 		}
-		let targetViewletId: string;
+		let targetViewletId: string | undefined;
 		for (let i = 0; i < pinnedViewletIds.length; i++) {
 			if (pinnedViewletIds[i] === activeViewlet.getId()) {
 				targetViewletId = pinnedViewletIds[(i + pinnedViewletIds.length + offset) % pinnedViewletIds.length];
@@ -234,12 +229,12 @@ export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 		id: string,
 		name: string,
 		@IViewletService viewletService: IViewletService,
-		@IActivityService activityService: IActivityService
+		@IActivityBarService activityBarService: IActivityBarService
 	) {
-		super(id, name, viewletService, activityService);
+		super(id, name, viewletService, activityBarService);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return super.run(-1);
 	}
 }
@@ -253,12 +248,12 @@ export class NextSideBarViewAction extends SwitchSideBarViewAction {
 		id: string,
 		name: string,
 		@IViewletService viewletService: IViewletService,
-		@IActivityService activityService: IActivityService
+		@IActivityBarService activityBarService: IActivityBarService
 	) {
-		super(id, name, viewletService, activityService);
+		super(id, name, viewletService, activityBarService);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return super.run(1);
 	}
 }
@@ -272,9 +267,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const activeForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activeForegroundColor) {
 		collector.addRule(`
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active .action-label,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
 				background-color: ${activeForegroundColor} !important;
 			}
 		`);
@@ -284,7 +279,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outline = theme.getColor(activeContrastBorder);
 	if (outline) {
 		collector.addRule(`
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:before {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:before {
 				content: "";
 				position: absolute;
 				top: 9px;
@@ -293,26 +288,26 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				width: 32px;
 			}
 
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:hover:before {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:hover:before {
 				outline: 1px solid;
 			}
 
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover:before {
 				outline: 1px dashed;
 			}
 
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus:before {
 				border-left-color: ${outline};
 			}
 
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:hover:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item.checked:hover:before,
+			.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:hover:before {
 				outline-color: ${outline};
 			}
 		`);
@@ -323,7 +318,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const focusBorderColor = theme.getColor(focusBorder);
 		if (focusBorderColor) {
 			collector.addRule(`
-					.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
+					.monaco-workbench .activitybar > .content .monaco-action-bar .action-item:focus:before {
 						border-left-color: ${focusBorderColor};
 					}
 				`);

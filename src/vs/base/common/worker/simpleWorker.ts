@@ -6,15 +6,7 @@
 import { transformErrorForSerialization } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { PolyfillPromise } from 'vs/base/common/winjs.polyfill.promise';
-
-var global: any = self;
-
-// When missing, polyfill the native promise
-// with our winjs-based polyfill
-if (typeof global.Promise === 'undefined') {
-	global.Promise = PolyfillPromise;
-}
+import { getAllPropertyNames } from 'vs/base/common/types';
 
 const INITIALIZE = '$initialize';
 
@@ -243,8 +235,8 @@ export class SimpleWorkerClient<T> extends Disposable {
 			lazyProxyReject = reject;
 			this._onModuleLoaded.then((availableMethods: string[]) => {
 				let proxy = <T>{};
-				for (let i = 0; i < availableMethods.length; i++) {
-					(proxy as any)[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
+				for (const methodName of availableMethods) {
+					(proxy as any)[methodName] = createProxyMethod(methodName, proxyMethodRequest);
 				}
 				resolve(proxy);
 			}, (e) => {
@@ -254,11 +246,11 @@ export class SimpleWorkerClient<T> extends Disposable {
 		});
 
 		// Create proxy to loaded code
-		let proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
+		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
 			return this._request(method, args);
 		};
 
-		let createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => Promise<any>): Function => {
+		const createProxyMethod = (method: string, proxyMethodRequest: (method: string, args: any[]) => Promise<any>): () => Promise<any> => {
 			return function () {
 				let args = Array.prototype.slice.call(arguments, 0);
 				return proxyMethodRequest(method, args);
@@ -333,7 +325,7 @@ export class SimpleWorkerServer {
 		if (this._requestHandler) {
 			// static request handler
 			let methods: string[] = [];
-			for (let prop in this._requestHandler) {
+			for (const prop of getAllPropertyNames(this._requestHandler)) {
 				if (typeof this._requestHandler[prop] === 'function') {
 					methods.push(prop);
 				}
@@ -369,7 +361,7 @@ export class SimpleWorkerServer {
 				}
 
 				let methods: string[] = [];
-				for (let prop in this._requestHandler) {
+				for (const prop of getAllPropertyNames(this._requestHandler)) {
 					if (typeof this._requestHandler[prop] === 'function') {
 						methods.push(prop);
 					}

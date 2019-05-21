@@ -16,6 +16,14 @@ export const enum ContextKeyExprType {
 	Regex = 6
 }
 
+export interface IContextKeyExprMapper {
+	mapDefined(key: string): ContextKeyDefinedExpr;
+	mapNot(key: string): ContextKeyNotExpr;
+	mapEquals(key: string, value: any): ContextKeyEqualsExpr;
+	mapNotEquals(key: string, value: any): ContextKeyNotEqualsExpr;
+	mapRegex(key: string, regexp: RegExp | null): ContextKeyRegexExpr;
+}
+
 export abstract class ContextKeyExpr {
 
 	public static has(key: string): ContextKeyExpr {
@@ -38,36 +46,36 @@ export abstract class ContextKeyExpr {
 		return new ContextKeyNotExpr(key);
 	}
 
-	public static and(...expr: (ContextKeyExpr | undefined | null)[]): ContextKeyExpr {
+	public static and(...expr: Array<ContextKeyExpr | undefined | null>): ContextKeyExpr {
 		return new ContextKeyAndExpr(expr);
 	}
 
-	public static deserialize(serialized: string | null | undefined): ContextKeyExpr | null {
+	public static deserialize(serialized: string | null | undefined, strict: boolean = false): ContextKeyExpr | undefined {
 		if (!serialized) {
-			return null;
+			return undefined;
 		}
 
 		let pieces = serialized.split('&&');
-		let result = new ContextKeyAndExpr(pieces.map(p => this._deserializeOne(p)));
+		let result = new ContextKeyAndExpr(pieces.map(p => this._deserializeOne(p, strict)));
 		return result.normalize();
 	}
 
-	private static _deserializeOne(serializedOne: string): ContextKeyExpr {
+	private static _deserializeOne(serializedOne: string, strict: boolean): ContextKeyExpr {
 		serializedOne = serializedOne.trim();
 
 		if (serializedOne.indexOf('!=') >= 0) {
 			let pieces = serializedOne.split('!=');
-			return new ContextKeyNotEqualsExpr(pieces[0].trim(), this._deserializeValue(pieces[1]));
+			return new ContextKeyNotEqualsExpr(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
 		}
 
 		if (serializedOne.indexOf('==') >= 0) {
 			let pieces = serializedOne.split('==');
-			return new ContextKeyEqualsExpr(pieces[0].trim(), this._deserializeValue(pieces[1]));
+			return new ContextKeyEqualsExpr(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
 		}
 
 		if (serializedOne.indexOf('=~') >= 0) {
 			let pieces = serializedOne.split('=~');
-			return new ContextKeyRegexExpr(pieces[0].trim(), this._deserializeRegexValue(pieces[1]));
+			return new ContextKeyRegexExpr(pieces[0].trim(), this._deserializeRegexValue(pieces[1], strict));
 		}
 
 		if (/^\!\s*/.test(serializedOne)) {
@@ -77,7 +85,7 @@ export abstract class ContextKeyExpr {
 		return new ContextKeyDefinedExpr(serializedOne);
 	}
 
-	private static _deserializeValue(serializedValue: string): any {
+	private static _deserializeValue(serializedValue: string, strict: boolean): any {
 		serializedValue = serializedValue.trim();
 
 		if (serializedValue === 'true') {
@@ -96,17 +104,25 @@ export abstract class ContextKeyExpr {
 		return serializedValue;
 	}
 
-	private static _deserializeRegexValue(serializedValue: string): RegExp | null {
+	private static _deserializeRegexValue(serializedValue: string, strict: boolean): RegExp | null {
 
 		if (isFalsyOrWhitespace(serializedValue)) {
-			console.warn('missing regexp-value for =~-expression');
+			if (strict) {
+				throw new Error('missing regexp-value for =~-expression');
+			} else {
+				console.warn('missing regexp-value for =~-expression');
+			}
 			return null;
 		}
 
 		let start = serializedValue.indexOf('/');
 		let end = serializedValue.lastIndexOf('/');
 		if (start === end || start < 0 /* || to < 0 */) {
-			console.warn(`bad regexp-value '${serializedValue}', missing /-enclosure`);
+			if (strict) {
+				throw new Error(`bad regexp-value '${serializedValue}', missing /-enclosure`);
+			} else {
+				console.warn(`bad regexp-value '${serializedValue}', missing /-enclosure`);
+			}
 			return null;
 		}
 
@@ -115,7 +131,11 @@ export abstract class ContextKeyExpr {
 		try {
 			return new RegExp(value, caseIgnoreFlag);
 		} catch (e) {
-			console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
+			if (strict) {
+				throw new Error(`bad regexp-value '${serializedValue}', parse error: ${e}`);
+			} else {
+				console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
+			}
 			return null;
 		}
 	}
@@ -123,9 +143,10 @@ export abstract class ContextKeyExpr {
 	public abstract getType(): ContextKeyExprType;
 	public abstract equals(other: ContextKeyExpr): boolean;
 	public abstract evaluate(context: IContext): boolean;
-	public abstract normalize(): ContextKeyExpr | null;
+	public abstract normalize(): ContextKeyExpr | undefined;
 	public abstract serialize(): string;
 	public abstract keys(): string[];
+	public abstract map(mapFnc: IContextKeyExprMapper): ContextKeyExpr;
 }
 
 function cmp(a: ContextKeyExpr, b: ContextKeyExpr): number {
@@ -190,10 +211,14 @@ export class ContextKeyDefinedExpr implements ContextKeyExpr {
 	public keys(): string[] {
 		return [this.key];
 	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return mapFnc.mapDefined(this.key);
+	}
 }
 
 export class ContextKeyEqualsExpr implements ContextKeyExpr {
-	constructor(private key: string, private value: any) {
+	constructor(private readonly key: string, private readonly value: any) {
 	}
 
 	public getType(): ContextKeyExprType {
@@ -250,6 +275,10 @@ export class ContextKeyEqualsExpr implements ContextKeyExpr {
 
 	public keys(): string[] {
 		return [this.key];
+	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return mapFnc.mapEquals(this.key, this.value);
 	}
 }
 
@@ -312,6 +341,10 @@ export class ContextKeyNotEqualsExpr implements ContextKeyExpr {
 	public keys(): string[] {
 		return [this.key];
 	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return mapFnc.mapNotEquals(this.key, this.value);
+	}
 }
 
 export class ContextKeyNotExpr implements ContextKeyExpr {
@@ -353,6 +386,10 @@ export class ContextKeyNotExpr implements ContextKeyExpr {
 
 	public keys(): string[] {
 		return [this.key];
+	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return mapFnc.mapNot(this.key);
 	}
 }
 
@@ -412,12 +449,16 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 	public keys(): string[] {
 		return [this.key];
 	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return mapFnc.mapRegex(this.key, this.regexp);
+	}
 }
 
 export class ContextKeyAndExpr implements ContextKeyExpr {
 	public readonly expr: ContextKeyExpr[];
 
-	constructor(expr: (ContextKeyExpr | null | undefined)[]) {
+	constructor(expr: Array<ContextKeyExpr | null | undefined>) {
 		this.expr = ContextKeyAndExpr._normalizeArr(expr);
 	}
 
@@ -449,7 +490,7 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 		return true;
 	}
 
-	private static _normalizeArr(arr: (ContextKeyExpr | null | undefined)[]): ContextKeyExpr[] {
+	private static _normalizeArr(arr: Array<ContextKeyExpr | null | undefined>): ContextKeyExpr[] {
 		let expr: ContextKeyExpr[] = [];
 
 		if (arr) {
@@ -478,9 +519,9 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 		return expr;
 	}
 
-	public normalize(): ContextKeyExpr | null {
+	public normalize(): ContextKeyExpr | undefined {
 		if (this.expr.length === 0) {
-			return null;
+			return undefined;
 		}
 
 		if (this.expr.length === 1) {
@@ -510,6 +551,10 @@ export class ContextKeyAndExpr implements ContextKeyExpr {
 			result.push(...expr.keys());
 		}
 		return result;
+	}
+
+	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpr {
+		return new ContextKeyAndExpr(this.expr.map(expr => expr.map(mapFnc)));
 	}
 }
 
@@ -576,8 +621,11 @@ export interface IContextKeyService {
 	dispose(): void;
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
+	bufferChangeEvents(callback: Function): void;
+
+
 	createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T>;
-	contextMatchesRules(rules: ContextKeyExpr | null): boolean;
+	contextMatchesRules(rules: ContextKeyExpr | undefined): boolean;
 	getContextKeyValue<T>(key: string): T | undefined;
 
 	createScoped(target?: IContextKeyServiceTarget): IContextKeyService;

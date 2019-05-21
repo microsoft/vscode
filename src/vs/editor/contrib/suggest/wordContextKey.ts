@@ -22,7 +22,7 @@ export class WordContextKey {
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this._ckAtEnd = WordContextKey.AtEnd.bindTo(contextKeyService);
-		this._editor.onDidChangeConfiguration(e => e.contribInfo && this._update());
+		this._confListener = this._editor.onDidChangeConfiguration(e => e.contribInfo && this._update());
 		this._update();
 	}
 

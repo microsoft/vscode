@@ -23,6 +23,6 @@ export interface IBulkEditResult {
 export interface IBulkEditService {
 	_serviceBrand: any;
 
-	apply(edit: WorkspaceEdit, options: IBulkEditOptions): Promise<IBulkEditResult>;
+	apply(edit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult>;
 }
 

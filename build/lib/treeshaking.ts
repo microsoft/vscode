@@ -61,15 +61,14 @@ export interface ITreeShakingResult {
 }
 
 function printDiagnostics(diagnostics: ReadonlyArray<ts.Diagnostic>): void {
-	for (let i = 0; i < diagnostics.length; i++) {
-		const diag = diagnostics[i];
+	for (const diag of diagnostics) {
 		let result = '';
 		if (diag.file) {
 			result += `${diag.file.fileName}: `;
 		}
 		if (diag.file && diag.start) {
 			let location = diag.file.getLineAndCharacterOfPosition(diag.start);
-			result += `- ${location.line + 1},${location.character} - `
+			result += `- ${location.line + 1},${location.character} - `;
 		}
 		result += JSON.stringify(diag.messageText);
 		console.log(result);
@@ -157,6 +156,12 @@ function discoverAndReadFiles(options: ITreeShakingOptions): IFileMap {
 		if (fs.existsSync(dts_filename)) {
 			const dts_filecontents = fs.readFileSync(dts_filename).toString();
 			FILES[`${moduleId}.d.ts`] = dts_filecontents;
+			continue;
+		}
+
+		const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+		if (fs.existsSync(js_filename)) {
+			// This is an import for a .js file, so ignore it...
 			continue;
 		}
 
@@ -459,7 +464,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 		}
 
 		if (black_queue.length === 0) {
-			for (let i = 0; i < gray_queue.length; i++) {
+			for (let i = 0; i< gray_queue.length; i++) {
 				const node = gray_queue[i];
 				const nodeParent = node.parent;
 				if ((ts.isClassDeclaration(nodeParent) || ts.isInterfaceDeclaration(nodeParent)) && nodeOrChildIsBlack(nodeParent)) {
@@ -604,8 +609,7 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 						}
 					} else {
 						let survivingImports: string[] = [];
-						for (let i = 0; i < node.importClause.namedBindings.elements.length; i++) {
-							const importNode = node.importClause.namedBindings.elements[i];
+						for (const importNode of node.importClause.namedBindings.elements) {
 							if (getColor(importNode) === NodeColor.Black) {
 								survivingImports.push(importNode.getFullText(sourceFile));
 							}

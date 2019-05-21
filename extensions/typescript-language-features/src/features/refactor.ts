@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { nulToken } from '../utils/cancellation';
 import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
-import { nulToken } from '../utils/cancellation';
+
+const localize = nls.loadMessageBundle();
 
 
 class ApplyRefactoringCommand implements Command {
@@ -49,7 +52,12 @@ class ApplyRefactoringCommand implements Command {
 			action,
 		};
 		const response = await this.client.execute('getEditsForRefactor', args, nulToken);
-		if (response.type !== 'response' || !response.body || !response.body.edits.length) {
+		if (response.type !== 'response' || !response.body) {
+			return false;
+		}
+
+		if (!response.body.edits.length) {
+			vscode.window.showErrorMessage(localize('refactoringFailed', "Could not apply refactoring"));
 			return false;
 		}
 
@@ -104,6 +112,8 @@ class SelectRefactorCommand implements Command {
 }
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
+	public static readonly minVersion = API.v240;
+
 	private static readonly extractFunctionKind = vscode.CodeActionKind.RefactorExtract.append('function');
 	private static readonly extractConstantKind = vscode.CodeActionKind.RefactorExtract.append('constant');
 	private static readonly moveKind = vscode.CodeActionKind.Refactor.append('move');
@@ -132,15 +142,17 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return undefined;
 		}
 
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return undefined;
 		}
 
-		await this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
-
 		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
-		const response = await this.client.execute('getApplicableRefactors', args, token);
+		const response = await this.client.interruptGetErr(() => {
+			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
+
+			return this.client.execute('getApplicableRefactors', args, token);
+		});
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
@@ -186,6 +198,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			command: ApplyRefactoringCommand.ID,
 			arguments: [document, file, info.name, action.name, rangeOrSelection],
 		};
+		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action);
 		return codeAction;
 	}
 
@@ -207,6 +220,15 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		}
 		return vscode.CodeActionKind.Refactor;
 	}
+
+	private static isPreferred(
+		action: Proto.RefactorActionInfo
+	): boolean {
+		if (action.name.startsWith('constant_')) {
+			return action.name.endsWith('scope_0');
+		}
+		return false;
+	}
 }
 
 export function register(
@@ -216,7 +238,7 @@ export function register(
 	commandManager: CommandManager,
 	telemetryReporter: TelemetryReporter,
 ) {
-	return new VersionDependentRegistration(client, API.v240, () => {
+	return new VersionDependentRegistration(client, TypeScriptRefactorProvider.minVersion, () => {
 		return vscode.languages.registerCodeActionsProvider(selector,
 			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager, telemetryReporter),
 			TypeScriptRefactorProvider.metadata);

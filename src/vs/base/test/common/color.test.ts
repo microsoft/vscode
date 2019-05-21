@@ -186,7 +186,7 @@ suite('Color', () => {
 		});
 
 		test('bug#36240', () => {
-			assert.deepEqual(HSVA.fromRGBA(new RGBA(92, 106, 196, 1)), new HSVA(232, .531, .769, 1));
+			assert.deepEqual(HSVA.fromRGBA(new RGBA(92, 106, 196, 1)), new HSVA(232, 0.531, 0.769, 1));
 			assert.deepEqual(HSVA.toRGBA(HSVA.fromRGBA(new RGBA(92, 106, 196, 1))), new RGBA(92, 106, 196, 1));
 		});
 	});
@@ -196,50 +196,50 @@ suite('Color', () => {
 			test('parseHex', () => {
 
 				// invalid
-				assert.deepEqual(Color.Format.CSS.parseHex(null), null);
+				assert.deepEqual(Color.Format.CSS.parseHex(null!), null);
 				assert.deepEqual(Color.Format.CSS.parseHex(''), null);
 				assert.deepEqual(Color.Format.CSS.parseHex('#'), null);
 				assert.deepEqual(Color.Format.CSS.parseHex('#0102030'), null);
 
 				// somewhat valid
-				assert.deepEqual(Color.Format.CSS.parseHex('#FFFFG0').rgba, new RGBA(255, 255, 0, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#FFFFg0').rgba, new RGBA(255, 255, 0, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#-FFF00').rgba, new RGBA(15, 255, 0, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#FFFFG0')!.rgba, new RGBA(255, 255, 0, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#FFFFg0')!.rgba, new RGBA(255, 255, 0, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#-FFF00')!.rgba, new RGBA(15, 255, 0, 1));
 
 				// valid
-				assert.deepEqual(Color.Format.CSS.parseHex('#000000').rgba, new RGBA(0, 0, 0, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#FFFFFF').rgba, new RGBA(255, 255, 255, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#000000')!.rgba, new RGBA(0, 0, 0, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#FFFFFF')!.rgba, new RGBA(255, 255, 255, 1));
 
-				assert.deepEqual(Color.Format.CSS.parseHex('#FF0000').rgba, new RGBA(255, 0, 0, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#00FF00').rgba, new RGBA(0, 255, 0, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#0000FF').rgba, new RGBA(0, 0, 255, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#FF0000')!.rgba, new RGBA(255, 0, 0, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#00FF00')!.rgba, new RGBA(0, 255, 0, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#0000FF')!.rgba, new RGBA(0, 0, 255, 1));
 
-				assert.deepEqual(Color.Format.CSS.parseHex('#FFFF00').rgba, new RGBA(255, 255, 0, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#00FFFF').rgba, new RGBA(0, 255, 255, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#FF00FF').rgba, new RGBA(255, 0, 255, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#FFFF00')!.rgba, new RGBA(255, 255, 0, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#00FFFF')!.rgba, new RGBA(0, 255, 255, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#FF00FF')!.rgba, new RGBA(255, 0, 255, 1));
 
-				assert.deepEqual(Color.Format.CSS.parseHex('#C0C0C0').rgba, new RGBA(192, 192, 192, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#C0C0C0')!.rgba, new RGBA(192, 192, 192, 1));
 
-				assert.deepEqual(Color.Format.CSS.parseHex('#808080').rgba, new RGBA(128, 128, 128, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#800000').rgba, new RGBA(128, 0, 0, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#808000').rgba, new RGBA(128, 128, 0, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#008000').rgba, new RGBA(0, 128, 0, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#800080').rgba, new RGBA(128, 0, 128, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#008080').rgba, new RGBA(0, 128, 128, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#000080').rgba, new RGBA(0, 0, 128, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#808080')!.rgba, new RGBA(128, 128, 128, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#800000')!.rgba, new RGBA(128, 0, 0, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#808000')!.rgba, new RGBA(128, 128, 0, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#008000')!.rgba, new RGBA(0, 128, 0, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#800080')!.rgba, new RGBA(128, 0, 128, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#008080')!.rgba, new RGBA(0, 128, 128, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#000080')!.rgba, new RGBA(0, 0, 128, 1));
 
-				assert.deepEqual(Color.Format.CSS.parseHex('#010203').rgba, new RGBA(1, 2, 3, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#040506').rgba, new RGBA(4, 5, 6, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#070809').rgba, new RGBA(7, 8, 9, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#0a0A0a').rgba, new RGBA(10, 10, 10, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#0b0B0b').rgba, new RGBA(11, 11, 11, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#0c0C0c').rgba, new RGBA(12, 12, 12, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#0d0D0d').rgba, new RGBA(13, 13, 13, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#0e0E0e').rgba, new RGBA(14, 14, 14, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#0f0F0f').rgba, new RGBA(15, 15, 15, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#a0A0a0').rgba, new RGBA(160, 160, 160, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#CFA').rgba, new RGBA(204, 255, 170, 1));
-				assert.deepEqual(Color.Format.CSS.parseHex('#CFA8').rgba, new RGBA(204, 255, 170, 0.533));
+				assert.deepEqual(Color.Format.CSS.parseHex('#010203')!.rgba, new RGBA(1, 2, 3, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#040506')!.rgba, new RGBA(4, 5, 6, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#070809')!.rgba, new RGBA(7, 8, 9, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#0a0A0a')!.rgba, new RGBA(10, 10, 10, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#0b0B0b')!.rgba, new RGBA(11, 11, 11, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#0c0C0c')!.rgba, new RGBA(12, 12, 12, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#0d0D0d')!.rgba, new RGBA(13, 13, 13, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#0e0E0e')!.rgba, new RGBA(14, 14, 14, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#0f0F0f')!.rgba, new RGBA(15, 15, 15, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#a0A0a0')!.rgba, new RGBA(160, 160, 160, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#CFA')!.rgba, new RGBA(204, 255, 170, 1));
+				assert.deepEqual(Color.Format.CSS.parseHex('#CFA8')!.rgba, new RGBA(204, 255, 170, 0.533));
 			});
 		});
 	});

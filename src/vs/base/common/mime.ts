@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
-import * as arrays from 'vs/base/common/arrays';
+import { basename, posix, extname } from 'vs/base/common/path';
+import { endsWith, startsWithUTF8BOM, startsWith } from 'vs/base/common/strings';
+import { coalesce } from 'vs/base/common/arrays';
 import { match } from 'vs/base/common/glob';
 
 export const MIME_TEXT = 'text/plain';
@@ -13,20 +13,20 @@ export const MIME_BINARY = 'application/octet-stream';
 export const MIME_UNKNOWN = 'application/unknown';
 
 export interface ITextMimeAssociation {
-	id: string;
-	mime: string;
-	filename?: string;
-	extension?: string;
-	filepattern?: string;
-	firstline?: RegExp;
-	userConfigured?: boolean;
+	readonly id: string;
+	readonly mime: string;
+	readonly filename?: string;
+	readonly extension?: string;
+	readonly filepattern?: string;
+	readonly firstline?: RegExp;
+	readonly userConfigured?: boolean;
 }
 
 interface ITextMimeAssociationItem extends ITextMimeAssociation {
-	filenameLowercase?: string;
-	extensionLowercase?: string;
-	filepatternLowercase?: string;
-	filepatternOnPath?: boolean;
+	readonly filenameLowercase?: string;
+	readonly extensionLowercase?: string;
+	readonly filepatternLowercase?: string;
+	readonly filepatternOnPath?: boolean;
 }
 
 let registeredAssociations: ITextMimeAssociationItem[] = [];
@@ -82,10 +82,10 @@ function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMime
 		filepattern: association.filepattern,
 		firstline: association.firstline,
 		userConfigured: association.userConfigured,
-		filenameLowercase: association.filename ? association.filename.toLowerCase() : void 0,
-		extensionLowercase: association.extension ? association.extension.toLowerCase() : void 0,
-		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : void 0,
-		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(paths.sep) >= 0 : false
+		filenameLowercase: association.filename ? association.filename.toLowerCase() : undefined,
+		extensionLowercase: association.extension ? association.extension.toLowerCase() : undefined,
+		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : undefined,
+		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(posix.sep) >= 0 : false
 	};
 }
 
@@ -106,20 +106,18 @@ export function clearTextMimes(onlyUserConfigured?: boolean): void {
 /**
  * Given a file, return the best matching mime type for it
  */
-export function guessMimeTypes(path: string, firstLine?: string, skipUserAssociations: boolean = false): string[] {
+export function guessMimeTypes(path: string | null, firstLine?: string): string[] {
 	if (!path) {
 		return [MIME_UNKNOWN];
 	}
 
 	path = path.toLowerCase();
-	const filename = paths.basename(path);
+	const filename = basename(path);
 
-	if (!skipUserAssociations) {
-		// 1.) User configured mappings have highest priority
-		const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
-		if (configuredMime) {
-			return [configuredMime, MIME_TEXT];
-		}
+	// 1.) User configured mappings have highest priority
+	const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
+	if (configuredMime) {
+		return [configuredMime, MIME_TEXT];
 	}
 
 	// 2.) Registered mappings have middle priority
@@ -168,7 +166,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		// Longest extension match
 		if (association.extension) {
 			if (!extensionMatch || association.extension.length > extensionMatch.extension!.length) {
-				if (strings.endsWith(filename, association.extensionLowercase!)) {
+				if (endsWith(filename, association.extensionLowercase!)) {
 					extensionMatch = association;
 				}
 			}
@@ -194,12 +192,15 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 }
 
 function guessMimeTypeByFirstline(firstLine: string): string | null {
-	if (strings.startsWithUTF8BOM(firstLine)) {
+	if (startsWithUTF8BOM(firstLine)) {
 		firstLine = firstLine.substr(1);
 	}
 
 	if (firstLine.length > 0) {
-		for (let i = 0; i < registeredAssociations.length; ++i) {
+
+		// We want to prioritize associations based on the order they are registered so that the last registered
+		// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
+		for (let i = registeredAssociations.length - 1; i >= 0; i--) {
 			const association = registeredAssociations[i];
 			if (!association.firstline) {
 				continue;
@@ -233,12 +234,13 @@ export function isUnspecific(mime: string[] | string): boolean {
  * 2. Otherwise, if there are other extensions, suggest the first one.
  * 3. Otherwise, suggest the prefix.
  */
-export function suggestFilename(langId: string, prefix: string): string {
+export function suggestFilename(mode: string | undefined, prefix: string): string {
 	const extensions = registeredAssociations
-		.filter(assoc => !assoc.userConfigured && assoc.extension && assoc.id === langId)
+		.filter(assoc => !assoc.userConfigured && assoc.extension && assoc.id === mode)
 		.map(assoc => assoc.extension);
-	const extensionsWithDotFirst = arrays.coalesce(extensions)
-		.filter(assoc => strings.startsWith(assoc, '.'));
+
+	const extensionsWithDotFirst = coalesce(extensions)
+		.filter(assoc => startsWith(assoc, '.'));
 
 	if (extensionsWithDotFirst.length > 0) {
 		return prefix + extensionsWithDotFirst[0];
@@ -302,6 +304,6 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 };
 
 export function getMediaMime(path: string): string | undefined {
-	const ext = paths.extname(path);
+	const ext = extname(path);
 	return mapExtToMediaMimes[ext.toLowerCase()];
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 import { IQuickNavigateConfiguration, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -27,7 +26,7 @@ export interface IQuickOpenService {
 	 *
 	 * The returned promise completes when quick open is closing.
 	 */
-	show(prefix?: string, options?: IShowOptions): TPromise<void>;
+	show(prefix?: string, options?: IShowOptions): Promise<void>;
 
 	/**
 	 * Allows to navigate from the outside in an opened picker.

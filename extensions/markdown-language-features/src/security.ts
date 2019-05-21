@@ -149,6 +149,7 @@ export class PreviewSecuritySelector {
 
 		if (selection.type === 'toggle') {
 			this.cspArbiter.setShouldDisableSecurityWarning(!this.cspArbiter.shouldDisableSecurityWarnings());
+			this.webviewManager.refresh();
 			return;
 		} else {
 			await this.cspArbiter.setSecurityLevelForResource(resource, selection.type);

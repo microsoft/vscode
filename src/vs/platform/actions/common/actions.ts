@@ -6,9 +6,9 @@
 import { Action } from 'vs/base/common/actions';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -18,21 +18,18 @@ export interface ILocalizedString {
 	original: string;
 }
 
-export interface IBaseCommandAction {
+export interface ICommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-}
-
-export interface ICommandAction extends IBaseCommandAction {
 	iconLocation?: { dark: URI; light?: URI; };
 	precondition?: ContextKeyExpr;
 	toggled?: ContextKeyExpr;
 }
 
-export interface ISerializableCommandAction extends IBaseCommandAction {
-	iconLocation?: { dark: UriComponents; light?: UriComponents; };
-}
+type Serialized<T> = { [K in keyof T]: T[K] extends URI ? UriComponents : Serialized<T[K]> };
+
+export type ISerializableCommandAction = Serialized<ICommandAction>;
 
 export interface IMenuItem {
 	command: ICommandAction;
@@ -65,6 +62,7 @@ export const enum MenuId {
 	DebugConsoleContext,
 	DebugVariablesContext,
 	DebugWatchContext,
+	DebugToolBar,
 	EditorContext,
 	EditorTitle,
 	EditorTitleContext,
@@ -93,6 +91,7 @@ export const enum MenuId {
 	SCMSourceControl,
 	SCMTitle,
 	SearchContext,
+	StatusBarWindowIndicatorMenu,
 	TouchBarContext,
 	ViewItemContext,
 	ViewTitle,
@@ -104,8 +103,8 @@ export interface IMenuActionOptions {
 }
 
 export interface IMenu extends IDisposable {
-	onDidChange: Event<IMenu>;
-	getActions(options?: IMenuActionOptions): [string, (MenuItemAction | SubmenuItemAction)[]][];
+	readonly onDidChange: Event<IMenu | undefined>;
+	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -118,12 +117,12 @@ export interface IMenuService {
 }
 
 export interface IMenuRegistry {
-	addCommand(userCommand: ICommandAction): boolean;
+	addCommand(userCommand: ICommandAction): IDisposable;
 	getCommand(id: string): ICommandAction;
 	getCommands(): ICommandsMap;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
-	getMenuItems(loc: MenuId): (IMenuItem | ISubmenuItem)[];
-	onDidChangeMenu: Event<MenuId>;
+	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
+	readonly onDidChangeMenu: Event<MenuId>;
 }
 
 export interface ICommandsMap {
@@ -133,15 +132,21 @@ export interface ICommandsMap {
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands: { [id: string]: ICommandAction } = Object.create(null);
-	private readonly _menuItems: { [loc: string]: (IMenuItem | ISubmenuItem)[] } = Object.create(null);
+	private readonly _menuItems: { [loc: number]: Array<IMenuItem | ISubmenuItem> } = Object.create(null);
 	private readonly _onDidChangeMenu = new Emitter<MenuId>();
 
 	readonly onDidChangeMenu: Event<MenuId> = this._onDidChangeMenu.event;
 
-	addCommand(command: ICommandAction): boolean {
-		const old = this._commands[command.id];
+	addCommand(command: ICommandAction): IDisposable {
 		this._commands[command.id] = command;
-		return old !== void 0;
+		this._onDidChangeMenu.fire(MenuId.CommandPalette);
+		return {
+			dispose: () => {
+				if (delete this._commands[command.id]) {
+					this._onDidChangeMenu.fire(MenuId.CommandPalette);
+				}
+			}
+		};
 	}
 
 	getCommand(id: string): ICommandAction {
@@ -175,8 +180,8 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		};
 	}
 
-	getMenuItems(id: MenuId): (IMenuItem | ISubmenuItem)[] {
-		const result = this._menuItems[id] || [];
+	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
+		const result = (this._menuItems[id] || []).slice(0);
 
 		if (id === MenuId.CommandPalette) {
 			// CommandPalette is special because it shows
@@ -186,7 +191,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return result;
 	}
 
-	private _appendImplicitItems(result: (IMenuItem | ISubmenuItem)[]) {
+	private _appendImplicitItems(result: Array<IMenuItem | ISubmenuItem>) {
 		const set = new Set<string>();
 
 		const temp = result.filter(item => { return isIMenuItem(item); }) as IMenuItem[];
@@ -274,13 +279,13 @@ export class SyncActionDescriptor {
 	private _descriptor: SyncDescriptor0<Action>;
 
 	private _id: string;
-	private _label: string;
+	private _label?: string;
 	private _keybindings: IKeybindings | undefined;
 	private _keybindingContext: ContextKeyExpr | undefined;
 	private _keybindingWeight: number | undefined;
 
 	constructor(ctor: IConstructorSignature2<string, string, Action>,
-		id: string, label: string, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
+		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
 	) {
 		this._id = id;
 		this._label = label;
@@ -298,7 +303,7 @@ export class SyncActionDescriptor {
 		return this._id;
 	}
 
-	public get label(): string {
+	public get label(): string | undefined {
 		return this._label;
 	}
 
@@ -312,5 +317,65 @@ export class SyncActionDescriptor {
 
 	public get keybindingWeight(): number | undefined {
 		return this._keybindingWeight;
+	}
+}
+
+
+export interface IActionDescriptor {
+	id: string;
+	handler: ICommandHandler;
+
+	// ICommandUI
+	title?: ILocalizedString;
+	category?: string;
+	f1?: boolean;
+
+	//
+	menu?: {
+		menuId: MenuId,
+		when?: ContextKeyExpr;
+		group?: string;
+	};
+
+	//
+	keybinding?: {
+		when?: ContextKeyExpr;
+		weight?: number;
+		keys: IKeybindings;
+	};
+}
+
+
+export function registerAction(desc: IActionDescriptor) {
+
+	const { id, handler, title, category, menu, keybinding } = desc;
+
+	// 1) register as command
+	CommandsRegistry.registerCommand(id, handler);
+
+	// 2) menus
+	if (menu && title) {
+		let command = { id, title, category };
+		let { menuId, when, group } = menu;
+		MenuRegistry.appendMenuItem(menuId, {
+			command,
+			when,
+			group
+		});
+	}
+
+	// 3) keybindings
+	if (keybinding) {
+		let { when, weight, keys } = keybinding;
+		KeybindingsRegistry.registerKeybindingRule({
+			id,
+			when,
+			weight: weight || 0,
+			primary: keys.primary,
+			secondary: keys.secondary,
+			linux: keys.linux,
+			mac: keys.mac,
+			win: keys.win
+		});
 	}
 }

@@ -37,11 +37,11 @@ export class ColorDetector implements IEditorContribution {
 	private _colorDatas = new Map<string, IColorData>();
 
 	private _colorDecoratorIds: string[] = [];
-	private _decorationsTypes: { [key: string]: boolean } = {};
+	private readonly _decorationsTypes: { [key: string]: boolean } = {};
 
 	private _isEnabled: boolean;
 
-	constructor(private _editor: ICodeEditor,
+	constructor(private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
@@ -76,9 +76,9 @@ export class ColorDetector implements IEditorContribution {
 		}
 		const languageId = model.getLanguageIdentifier();
 		// handle deprecated settings. [languageId].colorDecorators.enable
-		let deprecatedConfig = this._configurationService.getValue(languageId.language);
+		const deprecatedConfig = this._configurationService.getValue<{}>(languageId.language);
 		if (deprecatedConfig) {
-			let colorDecorators = deprecatedConfig['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
+			const colorDecorators = deprecatedConfig['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
 				return colorDecorators['enable'];
 			}
@@ -242,7 +242,7 @@ export class ColorDetector implements IEditorContribution {
 			return null;
 		}
 
-		return this._colorDatas.get(decorations[0].id);
+		return this._colorDatas.get(decorations[0].id)!;
 	}
 }
 

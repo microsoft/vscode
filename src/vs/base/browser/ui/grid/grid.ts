@@ -8,7 +8,9 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles } from './gridview';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
+import { $ } from 'vs/base/browser/dom';
+import { LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 
 export { Orientation } from './gridview';
 
@@ -186,6 +188,7 @@ export interface IGridStyles extends IGridViewStyles { }
 
 export interface IGridOptions {
 	styles?: IGridStyles;
+	proportionalLayout?: boolean;
 }
 
 export class Grid<T extends IView> implements IDisposable {
@@ -227,6 +230,10 @@ export class Grid<T extends IView> implements IDisposable {
 		this.gridview.layout(width, height);
 	}
 
+	hasView(view: T): boolean {
+		return this.views.has(view);
+	}
+
 	addView(newView: T, size: number | Sizing, referenceView: T, direction: Direction): void {
 		if (this.views.has(newView)) {
 			throw new Error('Can\'t add same view twice');
@@ -255,7 +262,7 @@ export class Grid<T extends IView> implements IDisposable {
 		this._addView(newView, viewSize, location);
 	}
 
-	protected _addView(newView: T, size: number | GridViewSizing, location): void {
+	protected _addView(newView: T, size: number | GridViewSizing, location: number[]): void {
 		this.views.set(newView, newView.element);
 		this.gridview.addView(newView, size, location);
 	}
@@ -450,7 +457,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			return { children, box };
 
 		} else if (json.type === 'leaf') {
-			const view = deserializer.fromJSON(json.data) as T;
+			const view: T = deserializer.fromJSON(json.data);
 			return { view, box };
 		}
 
@@ -474,9 +481,9 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			throw new Error('Invalid JSON: \'height\' property must be a number.');
 		}
 
-		const orientation = json.orientation as Orientation;
-		const width = json.width as number;
-		const height = json.height as number;
+		const orientation = json.orientation;
+		const width = json.width;
+		const height = json.height;
 		const box: Box = { top: 0, left: 0, width, height };
 
 		const root = SerializableGrid.deserializeNode(json.root, orientation, box, deserializer) as GridBranchNode<T>;
@@ -645,4 +652,64 @@ export function createSerializedGrid(gridDescriptor: GridDescriptor): ISerialize
 		width: width || 1,
 		height: height || 1
 	};
+}
+
+export class View implements IView {
+
+	readonly element = $('.grid-view-view');
+
+	private visible = false;
+	private width: number | undefined;
+	private height: number | undefined;
+	private orientation: Orientation = Orientation.HORIZONTAL;
+
+	get minimumWidth(): number { return this.visible ? this.view.minimumWidth : 0; }
+	get maximumWidth(): number { return this.visible ? this.view.maximumWidth : (this.orientation === Orientation.HORIZONTAL ? 0 : Number.POSITIVE_INFINITY); }
+	get minimumHeight(): number { return this.visible ? this.view.minimumHeight : 0; }
+	get maximumHeight(): number { return this.visible ? this.view.maximumHeight : (this.orientation === Orientation.VERTICAL ? 0 : Number.POSITIVE_INFINITY); }
+
+	private onDidChangeVisibility = new Emitter<{ width: number; height: number; } | undefined>();
+	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
+
+	get priority(): LayoutPriority | undefined { return this.view.priority; }
+	get snapSize(): number | undefined { return this.visible ? this.view.snapSize : undefined; }
+
+	constructor(private view: IView) {
+		this.show();
+		this.onDidChange = Event.any(this.onDidChangeVisibility.event, Event.filter(view.onDidChange, () => this.visible));
+	}
+
+	show(): void {
+		if (this.visible) {
+			return;
+		}
+
+		this.visible = true;
+
+		this.element.appendChild(this.view.element);
+		this.onDidChangeVisibility.fire(typeof this.width === 'number' ? { width: this.width, height: this.height! } : undefined);
+	}
+
+	hide(): void {
+		if (!this.visible) {
+			return;
+		}
+
+		this.visible = false;
+
+		this.element.removeChild(this.view.element);
+		this.onDidChangeVisibility.fire(undefined);
+	}
+
+	layout(width: number, height: number, orientation: Orientation): void {
+		this.orientation = orientation;
+
+		if (!this.visible) {
+			return;
+		}
+
+		this.view.layout(width, height, orientation);
+		this.width = width;
+		this.height = height;
+	}
 }

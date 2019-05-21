@@ -7,7 +7,7 @@ import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ILineMapperFactory, ILineMapping } from 'vs/editor/common/viewModel/splitLinesCollection';
 
-function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None): ILineMapping {
+function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None): ILineMapping | null {
 	// Create version of `annotatedText` with line break markers removed
 	let rawText = '';
 	let currentLineIndex = 0;
@@ -21,7 +21,7 @@ function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAf
 		}
 	}
 
-	let mapper = factory.createLineMapping(rawText, tabSize, breakAfter, 2, wrappingIndent);
+	const mapper = factory.createLineMapping(rawText, tabSize, breakAfter, 2, wrappingIndent);
 
 	// Insert line break markers again, according to algorithm
 	let actualAnnotatedText = '';
@@ -111,12 +111,12 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 	test('issue #35162: wrappingIndent not consistently working', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('', ' ', '');
 		let mapper = assertLineMapping(factory, 4, 24, '                t h i s |i s |a l |o n |g l |i n |e', WrappingIndent.Indent);
-		assert.equal(mapper.getWrappedLinesIndent(), '                \t');
+		assert.equal(mapper!.getWrappedLinesIndent(), '                \t');
 	});
 
 	test('CharacterHardWrappingLineMapper - WrappingIndent.DeepIndent', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('', ' ', '');
 		let mapper = assertLineMapping(factory, 4, 26, '        W e A r e T e s t |i n g D e |e p I n d |e n t a t |i o n', WrappingIndent.DeepIndent);
-		assert.equal(mapper.getWrappedLinesIndent(), '        \t\t');
+		assert.equal(mapper!.getWrappedLinesIndent(), '        \t\t');
 	});
 });

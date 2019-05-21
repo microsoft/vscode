@@ -158,6 +158,11 @@ export default class CommandHandler implements vscode.Disposable {
 		let navigationResult = await this.findConflictForNavigation(editor, direction);
 
 		if (!navigationResult) {
+			// Check for autoNavigateNextConflict, if it's enabled(which indicating no conflict remain), then do not show warning
+			const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
+			if (mergeConflictConfig.get<boolean>('autoNavigateNextConflict.enabled')) {
+				return;
+			}
 			vscode.window.showWarningMessage(localize('noConflicts', 'No merge conflicts found in this file'));
 			return;
 		}
@@ -232,9 +237,9 @@ export default class CommandHandler implements vscode.Disposable {
 			return null;
 		}
 
-		for (let i = 0; i < conflicts.length; i++) {
-			if (conflicts[i].range.contains(editor.selection.active)) {
-				return conflicts[i];
+		for (const conflict of conflicts) {
+			if (conflict.range.contains(editor.selection.active)) {
+				return conflict;
 			}
 		}
 
@@ -277,11 +282,11 @@ export default class CommandHandler implements vscode.Disposable {
 			throw new Error(`Unsupported direction ${direction}`);
 		}
 
-		for (let i = 0; i < conflicts.length; i++) {
-			if (predicate(conflicts[i]) && !conflicts[i].range.contains(selection)) {
+		for (const conflict of conflicts) {
+			if (predicate(conflict) && !conflict.range.contains(selection)) {
 				return {
 					canNavigate: true,
-					conflict: conflicts[i]
+					conflict: conflict
 				};
 			}
 		}

@@ -82,7 +82,7 @@ export class DiffReview extends Disposable {
 	private readonly _content: FastDomNode<HTMLElement>;
 	private readonly scrollbar: DomScrollableElement;
 	private _diffs: Diff[];
-	private _currentDiff: Diff;
+	private _currentDiff: Diff | null;
 
 	constructor(diffEditor: DiffEditorWidget) {
 		super();
@@ -100,7 +100,7 @@ export class DiffReview extends Disposable {
 
 		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review', true, () => {
 			this.hide();
-			return null;
+			return Promise.resolve(null);
 		}), { label: false, icon: true });
 
 		this.domNode = createFastDomNode(document.createElement('div'));
@@ -200,7 +200,7 @@ export class DiffReview extends Disposable {
 			}
 			index = (this._diffs.length + currentIndex - 1);
 		} else {
-			index = this._findDiffIndex(this._diffEditor.getPosition());
+			index = this._findDiffIndex(this._diffEditor.getPosition()!);
 		}
 
 		if (this._diffs.length === 0) {
@@ -233,7 +233,7 @@ export class DiffReview extends Disposable {
 			}
 			index = (currentIndex + 1);
 		} else {
-			index = this._findDiffIndex(this._diffEditor.getPosition());
+			index = this._findDiffIndex(this._diffEditor.getPosition()!);
 		}
 
 		if (this._diffs.length === 0) {
@@ -253,7 +253,7 @@ export class DiffReview extends Disposable {
 		let jumpToLineNumber = -1;
 		let current = this._getCurrentFocusedRow();
 		if (current) {
-			let lineNumber = parseInt(current.getAttribute('data-line'), 10);
+			let lineNumber = parseInt(current.getAttribute('data-line')!, 10);
 			if (!isNaN(lineNumber)) {
 				jumpToLineNumber = lineNumber;
 			}
@@ -299,7 +299,7 @@ export class DiffReview extends Disposable {
 		return <HTMLElement>this.domNode.domNode.querySelector('.diff-review-row');
 	}
 
-	private _getCurrentFocusedRow(): HTMLElement {
+	private _getCurrentFocusedRow(): HTMLElement | null {
 		let result = <HTMLElement>document.activeElement;
 		if (result && /diff-review-row/.test(result.className)) {
 			return result;
@@ -530,8 +530,8 @@ export class DiffReview extends Disposable {
 		const originalModel = this._diffEditor.getOriginalEditor().getModel();
 		const modifiedModel = this._diffEditor.getModifiedEditor().getModel();
 
-		const originalModelOpts = originalModel.getOptions();
-		const modifiedModelOpts = modifiedModel.getOptions();
+		const originalModelOpts = originalModel!.getOptions();
+		const modifiedModelOpts = modifiedModel!.getOptions();
 
 		if (!this._isVisible || !originalModel || !modifiedModel) {
 			dom.clearNode(this._content.domNode);
@@ -540,8 +540,7 @@ export class DiffReview extends Disposable {
 			return;
 		}
 
-		const pos = this._diffEditor.getPosition();
-		const diffIndex = this._findDiffIndex(pos);
+		const diffIndex = this._findDiffIndex(this._diffEditor.getPosition()!);
 
 		if (this._diffs[diffIndex] === this._currentDiff) {
 			return;
@@ -731,7 +730,7 @@ export class DiffReview extends Disposable {
 				lineContent = nls.localize('blankLine', "blank");
 			}
 
-			let ariaLabel: string;
+			let ariaLabel: string = '';
 			switch (type) {
 				case DiffEntryType.Equal:
 					ariaLabel = nls.localize('equalLine', "original {0}, modified {1}: {2}", originalLine, modifiedLine, lineContent);
@@ -848,7 +847,7 @@ class DiffReviewPrev extends EditorAction {
 	}
 }
 
-function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget {
+function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget | null {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const diffEditors = codeEditorService.listDiffEditors();
 	for (let i = 0, len = diffEditors.length; i < len; i++) {

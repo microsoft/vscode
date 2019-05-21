@@ -594,7 +594,7 @@ export enum CompletionTriggerKind {
 	TriggerForIncompleteCompletions = 2
 }
 
-export enum SignatureHelpTriggerReason {
+export enum SignatureHelpTriggerKind {
 	Invoke = 1,
 	TriggerCharacter = 2,
 	ContentChange = 3

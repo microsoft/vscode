@@ -30,15 +30,15 @@
 		},
 		{
 			"type": "npm",
-			"script": "strict-null-check-watch",
-			"label": "TS - Strict Null Checks",
+			"script": "strict-initialization-watch",
+			"label": "TS - Strict Initialization",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never"
 			},
 			"problemMatcher": {
 				"base": "$tsc-watch",
-				"owner": "typescript-strict-null",
+				"owner": "typescript-strict-initialization",
 				"applyTo": "allDocuments"
 			}
 		},

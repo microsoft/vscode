@@ -10,39 +10,46 @@ import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
-import { CachedResponse, ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
+import * as typeConverters from '../utils/typeConverters';
+import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
+import { CachedResponse } from '../tsServer/cachedResponse';
 
 const localize = nls.loadMessageBundle();
 
 class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+	public static readonly minVersion = API.v206;
 
-	public resolveCodeLens(inputCodeLens: vscode.CodeLens, _token: vscode.CancellationToken): Thenable<vscode.CodeLens> {
+	public async resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		return vscode.commands.executeCommand<vscode.Location[]>('vscode.executeReferenceProvider', codeLens.document, codeLens.range.start).then((locations: vscode.Location[] | undefined) => {
-			if (!locations) {
-				throw codeLens;
-			}
+		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
+		const response = await this.client.execute('references', args, token, /* lowPriority */ true);
+		if (response.type !== 'response' || !response.body) {
+			codeLens.command = response.type === 'cancelled'
+				? TypeScriptBaseCodeLensProvider.cancelledCommand
+				: TypeScriptBaseCodeLensProvider.errorCommand;
+			return codeLens;
+		}
 
-			const referenceLocations = locations.filter(location =>
+		const locations = response.body.refs
+			.map(reference =>
+				typeConverters.Location.fromTextSpan(this.client.toResource(reference.file), reference))
+			.filter(location =>
 				// Exclude original definition from references
 				!(location.uri.toString() === codeLens.document.toString() &&
 					location.range.start.isEqual(codeLens.range.start)));
 
-			codeLens.command = {
-				title: referenceLocations.length === 1
-					? localize('oneReferenceLabel', '1 reference')
-					: localize('manyReferenceLabel', '{0} references', referenceLocations.length),
-				command: referenceLocations.length ? 'editor.action.showReferences' : '',
-				arguments: [codeLens.document, codeLens.range.start, referenceLocations]
-			};
-			return codeLens;
-		}).then(undefined, () => {
-			codeLens.command = {
-				title: localize('referenceErrorLabel', 'Could not determine references'),
-				command: ''
-			};
-			return codeLens;
-		});
+		codeLens.command = {
+			title: this.getCodeLensLabel(locations),
+			command: locations.length ? 'editor.action.showReferences' : '',
+			arguments: [codeLens.document, codeLens.range.start, locations]
+		};
+		return codeLens;
+	}
+
+	private getCodeLensLabel(locations: ReadonlyArray<vscode.Location>): string {
+		return locations.length === 1
+			? localize('oneReferenceLabel', '1 reference')
+			: localize('manyReferenceLabel', '{0} references', locations.length);
 	}
 
 	protected extractSymbol(
@@ -92,7 +99,7 @@ export function register(
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
-	return new VersionDependentRegistration(client, API.v206, () =>
+	return new VersionDependentRegistration(client, TypeScriptReferencesCodeLensProvider.minVersion, () =>
 		new ConfigurationDependentRegistration(modeId, 'referencesCodeLens.enabled', () => {
 			return vscode.languages.registerCodeLensProvider(selector,
 				new TypeScriptReferencesCodeLensProvider(client, cachedResponse));

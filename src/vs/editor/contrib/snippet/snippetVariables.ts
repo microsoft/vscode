@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { basename, dirname } from 'vs/base/common/paths';
+import { basename, dirname } from 'vs/base/common/path';
 import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad } from 'vs/base/common/strings';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from 'vs/base/common/strings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 
 export const KnownSnippetVariableNames = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -34,6 +37,10 @@ export const KnownSnippetVariableNames = Object.freeze({
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
+	'BLOCK_COMMENT_START': true,
+	'BLOCK_COMMENT_END': true,
+	'LINE_COMMENT': true,
+	'WORKSPACE_NAME': true,
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -45,7 +52,7 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 	resolve(variable: Variable): string | undefined {
 		for (const delegate of this._delegates) {
 			let value = delegate.resolve(variable);
-			if (value !== void 0) {
+			if (value !== undefined) {
 				return value;
 			}
 		}
@@ -180,7 +187,29 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 		}
 	}
 }
-
+export class CommentBasedVariableResolver implements VariableResolver {
+	constructor(
+		private readonly _model: ITextModel
+	) {
+		//
+	}
+	resolve(variable: Variable): string | undefined {
+		const { name } = variable;
+		const language = this._model.getLanguageIdentifier();
+		const config = LanguageConfigurationRegistry.getComments(language.id);
+		if (!config) {
+			return undefined;
+		}
+		if (name === 'LINE_COMMENT') {
+			return config.lineCommentToken || undefined;
+		} else if (name === 'BLOCK_COMMENT_START') {
+			return config.blockCommentStartToken || undefined;
+		} else if (name === 'BLOCK_COMMENT_END') {
+			return config.blockCommentEndToken || undefined;
+		}
+		return undefined;
+	}
+}
 export class TimeBasedVariableResolver implements VariableResolver {
 
 	private static readonly dayNames = [nls.localize('Sunday', "Sunday"), nls.localize('Monday', "Monday"), nls.localize('Tuesday', "Tuesday"), nls.localize('Wednesday', "Wednesday"), nls.localize('Thursday', "Thursday"), nls.localize('Friday', "Friday"), nls.localize('Saturday', "Saturday")];
@@ -216,5 +245,34 @@ export class TimeBasedVariableResolver implements VariableResolver {
 		}
 
 		return undefined;
+	}
+}
+
+export class WorkspaceBasedVariableResolver implements VariableResolver {
+	constructor(
+		private readonly _workspaceService: IWorkspaceContextService,
+	) {
+		//
+	}
+
+	resolve(variable: Variable): string | undefined {
+		if (variable.name !== 'WORKSPACE_NAME' || !this._workspaceService) {
+			return undefined;
+		}
+
+		const workspaceIdentifier = toWorkspaceIdentifier(this._workspaceService.getWorkspace());
+		if (!workspaceIdentifier) {
+			return undefined;
+		}
+
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return basename(workspaceIdentifier.path);
+		}
+
+		let filename = basename(workspaceIdentifier.configPath.path);
+		if (endsWith(filename, WORKSPACE_EXTENSION)) {
+			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		}
+		return filename;
 	}
 }

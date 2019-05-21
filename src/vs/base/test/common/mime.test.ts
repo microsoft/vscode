@@ -6,6 +6,7 @@ import * as assert from 'assert';
 import { guessMimeTypes, registerTextMime, suggestFilename } from 'vs/base/common/mime';
 
 suite('Mime', () => {
+
 	test('Dynamically Register Text Mime', () => {
 		let guess = guessMimeTypes('foo.monaco');
 		assert.deepEqual(guess, ['application/unknown']);
@@ -56,6 +57,11 @@ suite('Mime', () => {
 		registerTextMime({ id: 'docker', filepattern: 'dockerfile*', mime: 'text/looser' });
 		guess = guessMimeTypes('dockerfile');
 		assert.deepEqual(guess, ['text/winner', 'text/plain']);
+
+		registerTextMime({ id: 'azure-looser', mime: 'text/azure-looser', firstline: /azure/ });
+		registerTextMime({ id: 'azure-winner', mime: 'text/azure-winner', firstline: /azure/ });
+		guess = guessMimeTypes('azure', 'azure');
+		assert.deepEqual(guess, ['text/azure-winner', 'text/plain']);
 	});
 
 	test('Specificity priority 1', () => {

@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter, fromNodeEventEmitter, filterEvent, debounceEvent } from 'vs/base/common/event';
-import { Throttler, timeout } from 'vs/base/common/async';
+import { Event, Emitter } from 'vs/base/common/event';
+import { timeout } from 'vs/base/common/async';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import product from 'vs/platform/node/product';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { realpath, watch } from 'fs';
 import { spawn } from 'child_process';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,7 +19,6 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	_serviceBrand: any;
 
 	private _state: State = State.Uninitialized;
-	private throttler: Throttler = new Throttler();
 
 	private _onStateChange = new Emitter<State>();
 	get onStateChange(): Event<State> { return this._onStateChange.event; }
@@ -37,7 +34,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService protected logService: ILogService,
 	) {
@@ -52,7 +49,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Thenable<void> {
+	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
 		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
 			.then(() => {
@@ -61,49 +58,49 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 			});
 	}
 
-	checkForUpdates(context: any): TPromise<void> {
+	async checkForUpdates(context: any): Promise<void> {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Idle) {
-			return TPromise.as(void 0);
+			return;
 		}
 
-		return this.throttler.queue(() => TPromise.as(this.doCheckForUpdates(context)));
+		this.doCheckForUpdates(context);
 	}
 
-	downloadUpdate(): TPromise<void> {
+	async downloadUpdate(): Promise<void> {
 		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.AvailableForDownload) {
-			return TPromise.as(void 0);
+			return;
 		}
 
-		return this.doDownloadUpdate(this.state);
+		await this.doDownloadUpdate(this.state);
 	}
 
-	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
-		return TPromise.as(void 0);
+	protected doDownloadUpdate(state: AvailableForDownload): Promise<void> {
+		return Promise.resolve(undefined);
 	}
 
-	applyUpdate(): TPromise<void> {
+	async applyUpdate(): Promise<void> {
 		this.logService.trace('update#applyUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Downloaded) {
-			return TPromise.as(void 0);
+			return;
 		}
 
-		return this.doApplyUpdate();
+		await this.doApplyUpdate();
 	}
 
-	protected doApplyUpdate(): TPromise<void> {
-		return TPromise.as(void 0);
+	protected doApplyUpdate(): Promise<void> {
+		return Promise.resolve(undefined);
 	}
 
-	quitAndInstall(): TPromise<void> {
+	quitAndInstall(): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
-			return TPromise.as(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
@@ -118,7 +115,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 			this.doQuitAndInstall();
 		});
 
-		return TPromise.as(void 0);
+		return Promise.resolve(undefined);
 	}
 
 
@@ -130,7 +127,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 		// noop
 	}
 
-	abstract isLatestVersion(): TPromise<boolean | undefined>;
+	abstract isLatestVersion(): Promise<boolean | undefined>;
 	protected abstract doCheckForUpdates(context: any): void;
 }
 
@@ -139,23 +136,22 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 	_serviceBrand: any;
 
 	constructor(
+		private snap: string,
+		private snapRevision: string,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(lifecycleService, environmentService, logService);
 
-		if (typeof process.env.SNAP === 'undefined') {
-			throw new Error(`'SNAP' environment variable not set`);
-		}
-		const watcher = watch(path.dirname(process.env.SNAP));
-		const onChange = fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
-		const onCurrentChange = filterEvent(onChange, n => n === 'current');
-		const onDebouncedCurrentChange = debounceEvent(onCurrentChange, (_, e) => e, 2000);
+		const watcher = watch(path.dirname(this.snap));
+		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
+		const onCurrentChange = Event.filter(onChange, n => n === 'current');
+		const onDebouncedCurrentChange = Event.debounce(onCurrentChange, (_, e) => e, 2000);
 		const listener = onDebouncedCurrentChange(this.checkForUpdates, this);
 
-		lifecycleService.onShutdown(() => {
+		lifecycleService.onWillShutdown(() => {
 			listener.dispose();
 			watcher.close();
 		});
@@ -166,7 +162,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 
 		this.isUpdateAvailable().then(result => {
 			if (result) {
-				this.setState(State.Ready({ version: 'something', productVersion: 'someting' }));
+				this.setState(State.Ready({ version: 'something', productVersion: 'something' }));
 			} else {
 				/* __GDPR__
 					"update:notAvailable" : {
@@ -193,30 +189,22 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 	protected doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
-		if (typeof process.env.SNAP === 'undefined') {
-			return;
-		}
-
 		// Allow 3 seconds for VS Code to close
-		spawn('bash', ['-c', path.join(process.env.SNAP, `usr/share/${product.applicationName}/snapUpdate.sh`)], {
+		spawn('sleep 3 && ' + path.basename(process.argv[0]), {
+			shell: true,
 			detached: true,
-			stdio: ['ignore', 'ignore', 'ignore']
+			stdio: 'ignore',
 		});
 	}
 
-	private isUpdateAvailable(): TPromise<boolean> {
-		return new TPromise((c, e) => {
-			realpath(`/snap/${product.applicationName}/current`, (err, resolvedCurrentSnapPath) => {
-				if (err) { return e(err); }
-
-				const currentRevision = path.basename(resolvedCurrentSnapPath);
-				c(process.env.SNAP_REVISION !== currentRevision);
-			});
-		});
+	private async isUpdateAvailable(): Promise<boolean> {
+		const resolvedCurrentSnapPath = await new Promise<string>((c, e) => realpath(`${path.dirname(this.snap)}/current`, (err, r) => err ? e(err) : c(r)));
+		const currentRevision = path.basename(resolvedCurrentSnapPath);
+		return this.snapRevision !== currentRevision;
 	}
 
-	isLatestVersion(): TPromise<boolean | undefined> {
-		return this.isUpdateAvailable().then(null, err => {
+	isLatestVersion(): Promise<boolean | undefined> {
+		return this.isUpdateAvailable().then(undefined, err => {
 			this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
 			return undefined;
 		});

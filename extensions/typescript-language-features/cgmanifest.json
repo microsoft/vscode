@@ -28,7 +28,8 @@
 				"type": "other",
 				"other": {
 					"name": "Unicode",
-					"downloadUrl": "http://www.unicode.org/"
+					"downloadUrl": "http://www.unicode.org/",
+					"version": "12.0.0"
 				}
 			},
 			"licenseDetail": [
@@ -88,6 +89,7 @@
 				"use or other dealings in these Data Files or Software without prior",
 				"written authorization of the copyright holder."
 			],
+			"version": "12.0.0",
 			"license": "UNICODE, INC. LICENSE AGREEMENT - DATA FILES AND SOFTWARE"
 		},
 		{
@@ -95,7 +97,8 @@
 				"type": "other",
 				"other": {
 					"name": "Document Object Model",
-					"downloadUrl": "https://www.w3.org/DOM/"
+					"downloadUrl": "https://www.w3.org/DOM/",
+					"version": "4.0.0"
 				}
 			},
 			"licenseDetail": [
@@ -116,7 +119,8 @@
 				"The name and trademarks of copyright holders may NOT be used in advertising or publicity pertaining to the work without specific, written prior permission. ",
 				"Title to copyright in this work will at all times remain with copyright holders."
 			],
-			"license": "W3C License"
+			"license": "W3C License",
+			"version": "4.0.0"
 		},
 		{
 			"component": {

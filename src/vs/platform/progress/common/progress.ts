@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IAction } from 'vs/base/common/actions';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -15,14 +16,14 @@ export interface IProgressService {
 	/**
 	 * Show progress customized with the provided flags.
 	 */
-	show(infinite: boolean, delay?: number): IProgressRunner;
+	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 
 	/**
 	 * Indicate progress for the duration of the provided promise. Progress will stop in
 	 * any case of promise completion, error or cancellation.
 	 */
-	showWhile(promise: Thenable<any>, delay?: number): Thenable<void>;
+	showWhile(promise: Promise<any>, delay?: number): Promise<void>;
 }
 
 export const enum ProgressLocation {
@@ -30,7 +31,8 @@ export const enum ProgressLocation {
 	Scm = 3,
 	Extensions = 5,
 	Window = 10,
-	Notification = 15
+	Notification = 15,
+	Dialog = 20
 }
 
 export interface IProgressOptions {
@@ -39,6 +41,12 @@ export interface IProgressOptions {
 	source?: string;
 	total?: number;
 	cancellable?: boolean;
+}
+
+export interface IProgressNotificationOptions extends IProgressOptions {
+	location: ProgressLocation.Notification;
+	primaryActions?: IAction[];
+	secondaryActions?: IAction[];
 }
 
 export interface IProgressStep {
@@ -52,7 +60,7 @@ export interface IProgressService2 {
 
 	_serviceBrand: any;
 
-	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P;
+	withProgress<R = any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
 }
 
 export interface IProgressRunner {
@@ -130,7 +138,7 @@ export class LongRunningOperation {
 		this.currentOperationDisposables.push(
 			toDisposable(() => clearTimeout(this.currentProgressTimeout)),
 			toDisposable(() => newOperationToken.cancel()),
-			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : void 0)
+			toDisposable(() => this.currentProgressRunner ? this.currentProgressRunner.done() : undefined)
 		);
 
 		return {

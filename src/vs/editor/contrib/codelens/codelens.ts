@@ -68,7 +68,7 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 	const result: ICodeLensSymbol[] = [];
 	return getCodeLensData(model, CancellationToken.None).then(value => {
 
-		let resolve: Thenable<any>[] = [];
+		let resolve: Promise<any>[] = [];
 
 		for (const item of value) {
 			if (typeof itemResolveCount === 'undefined' || Boolean(item.symbol.command)) {

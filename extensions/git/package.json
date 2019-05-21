@@ -241,6 +241,11 @@
         "category": "Git"
       },
       {
+        "command": "git.branchFrom",
+        "title": "%command.branchFrom%",
+        "category": "Git"
+      },
+      {
         "command": "git.deleteBranch",
         "title": "%command.deleteBranch%",
         "category": "Git"
@@ -318,6 +323,16 @@
       {
         "command": "git.pushWithTagsForce",
         "title": "%command.pushWithTagsForce%",
+        "category": "Git"
+      },
+      {
+        "command": "git.addRemote",
+        "title": "%command.addRemote%",
+        "category": "Git"
+      },
+      {
+        "command": "git.removeRemote",
+        "title": "%command.removeRemote%",
         "category": "Git"
       },
       {
@@ -503,6 +518,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.branchFrom",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.deleteBranch",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -569,6 +588,14 @@
         {
           "command": "git.pushWithTagsForce",
           "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.addRemote",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.removeRemote",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.sync",
@@ -662,93 +689,108 @@
           "when": "scmProvider == git"
         },
         {
+          "command": "git.pushForce",
+          "group": "1_sync",
+          "when": "scmProvider == git && config.git.allowForcePush"
+        },
+        {
           "command": "git.pushTo",
           "group": "1_sync",
           "when": "scmProvider == git"
         },
         {
+          "command": "git.pushToForce",
+          "group": "1_sync",
+          "when": "scmProvider == git && config.git.allowForcePush"
+        },
+        {
+          "command": "git.checkout",
+          "group": "2_branch",
+          "when": "scmProvider == git"
+        },
+        {
           "command": "git.publish",
-          "group": "2_publish",
+          "group": "2_branch",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitStaged",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitStagedSigned",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitStagedAmend",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitAll",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitAllSigned",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.commitAllAmend",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.undoCommit",
-          "group": "3_commit",
+          "group": "4_commit",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stageAll",
-          "group": "4_stage",
+          "group": "5_stage",
           "when": "scmProvider == git"
         },
         {
           "command": "git.unstageAll",
-          "group": "4_stage",
+          "group": "5_stage",
           "when": "scmProvider == git"
         },
         {
           "command": "git.cleanAll",
-          "group": "4_stage",
+          "group": "5_stage",
           "when": "scmProvider == git && !gitFreshRepository"
         },
         {
           "command": "git.stashIncludeUntracked",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stash",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stashPop",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stashPopLatest",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stashApply",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {
           "command": "git.stashApplyLatest",
-          "group": "5_stash",
+          "group": "6_stash",
           "when": "scmProvider == git"
         },
         {
@@ -989,7 +1031,7 @@
           ],
           "markdownDescription": "%config.path%",
           "default": null,
-          "scope": "application"
+          "scope": "machine"
         },
         "git.autoRepositoryDetection": {
           "type": [
@@ -1018,11 +1060,18 @@
         },
         "git.autofetch": {
           "type": "boolean",
+          "scope": "resource",
           "description": "%config.autofetch%",
           "default": false,
           "tags": [
             "usesOnlineServices"
           ]
+        },
+        "git.autofetchPeriod": {
+          "type": "number",
+          "scope": "resource",
+          "description": "%config.autofetchPeriod%",
+          "default": 180
         },
         "git.branchValidationRegex": {
           "type": "string",
@@ -1133,6 +1182,7 @@
             "%config.postCommitCommand.sync%"
           ],
           "markdownDescription": "%config.postCommitCommand%",
+          "scope": "resource",
           "default": "none"
         },
         "git.showInlineOpenFileAction": {
@@ -1159,6 +1209,14 @@
           "type": "number",
           "default": 72,
           "description": "%config.inputValidationLength%"
+        },
+        "git.inputValidationSubjectLength": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": 50,
+          "description": "%config.inputValidationSubjectLength%"
         },
         "git.detectSubmodules": {
           "type": "boolean",
@@ -1214,6 +1272,12 @@
           "default": false,
           "description": "%config.fetchOnPull%"
         },
+        "git.autoStash": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.autoStash%"
+        },
         "git.allowForcePush": {
           "type": "boolean",
           "default": false,
@@ -1231,6 +1295,7 @@
         },
         "git.openDiffOnClick": {
           "type": "boolean",
+          "scope": "resource",
           "default": true,
           "description": "%config.openDiffOnClick%"
         }
@@ -1385,7 +1450,7 @@
     "file-type": "^7.2.0",
     "iconv-lite": "^0.4.24",
     "jschardet": "^1.6.0",
-    "vscode-extension-telemetry": "0.1.0",
+    "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0",
     "which": "^1.3.0"
   },
@@ -1393,7 +1458,7 @@
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
-    "@types/node": "^8.10.25",
+    "@types/node": "^10.12.21",
     "@types/which": "^1.0.28",
     "mocha": "^3.2.0"
   }

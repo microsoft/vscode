@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 body {
-	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif;
 	font-size: 14px;
 	padding: 0 26px;
 	line-height: 22px;

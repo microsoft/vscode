@@ -35,8 +35,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 				className: 'up-arrow',
 				top: arrowDelta,
 				left: scrollbarDelta,
-				bottom: void 0,
-				right: void 0,
+				bottom: undefined,
+				right: undefined,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
 				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, 1)),
@@ -44,10 +44,10 @@ export class VerticalScrollbar extends AbstractScrollbar {
 
 			this._createArrow({
 				className: 'down-arrow',
-				top: void 0,
+				top: undefined,
 				left: scrollbarDelta,
 				bottom: arrowDelta,
-				right: void 0,
+				right: undefined,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
 				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, -1)),

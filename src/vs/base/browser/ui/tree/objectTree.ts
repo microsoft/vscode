@@ -4,20 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { AbstractTree, ITreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { ITreeNode, ITreeModel, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
-export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T, TFilterData, T> {
+export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
+	sorter?: ITreeSorter<T>;
+}
+
+export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
 	protected model: ObjectTreeModel<T, TFilterData>;
 
-	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): Iterator<ITreeElement<T>> {
-		return this.model.setChildren(element, children);
+	constructor(
+		container: HTMLElement,
+		delegate: IListVirtualDelegate<T>,
+		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		options: IObjectTreeOptions<T, TFilterData> = {}
+	) {
+		super(container, delegate, renderers, options);
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, T> {
+	setChildren(
+		element: T | null,
+		children?: ISequence<ITreeElement<T>>,
+		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
+		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+	): Iterator<ITreeElement<T | null>> {
+		return this.model.setChildren(element, children, onDidCreateNode, onDidDeleteNode);
+	}
+
+	rerender(element?: T): void {
+		if (element === undefined) {
+			this.view.rerender();
+			return;
+		}
+
+		this.model.rerender(element);
+	}
+
+	resort(element: T, recursive = true): void {
+		this.model.resort(element, recursive);
+	}
+
+	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new ObjectTreeModel(view, options);
 	}
 }

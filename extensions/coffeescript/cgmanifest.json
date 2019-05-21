@@ -6,12 +6,12 @@
 				"git": {
 					"name": "atom/language-coffee-script",
 					"repositoryUrl": "https://github.com/atom/language-coffee-script",
-					"commitHash": "a0da2a73ad817e2fc13c2ef8fcd2624017c39610"
+					"commitHash": "0f6db9143663e18b1ad00667820f46747dba495e"
 				}
 			},
 			"license": "MIT",
 			"description": "The file syntaxes/coffeescript.tmLanguage.json was derived from the Atom package https://github.com/atom/language-coffee-script which was originally converted from the TextMate bundle https://github.com/jashkenas/coffee-script-tmbundle.",
-			"version": "0.0.0"
+			"version": "0.49.3"
 		}
 	],
 	"version": 1

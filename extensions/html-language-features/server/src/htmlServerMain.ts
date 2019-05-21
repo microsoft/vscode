@@ -19,6 +19,7 @@ import uri from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
 import { getFoldingRanges } from './modes/htmlFolding';
+import { getDataProviders } from './customData';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -72,7 +73,7 @@ function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: 
 		}
 		return promise;
 	}
-	return Promise.resolve(void 0);
+	return Promise.resolve(undefined);
 }
 
 // After the server has started the client sends an initialize request. The server receives
@@ -88,11 +89,16 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 	}
 
+	const dataPaths: string[] = params.initializationOptions.dataPaths;
+	const providers = getDataProviders(dataPaths);
+
 	const workspace = {
 		get settings() { return globalSettings; },
 		get folders() { return workspaceFolders; }
 	};
-	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace);
+
+	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true }, workspace, providers);
+
 	documents.onDidClose(e => {
 		languageModes.onDocumentRemoved(e.document);
 	});
@@ -169,7 +175,7 @@ connection.onDidChangeConfiguration((change) => {
 		const enableFormatter = globalSettings && globalSettings.html && globalSettings.html.format && globalSettings.html.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
-				const documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }]; // don't register razor, the formatter does more harm than good
+				const documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }];
 				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector });
 			}
 		} else if (formatterRegistration) {
@@ -447,6 +453,21 @@ connection.onFoldingRanges((params, token) => {
 		}
 		return null;
 	}, null, `Error while computing folding regions for ${params.textDocument.uri}`, token);
+});
+
+connection.onRequest('$/textDocument/selectionRanges', async (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		const positions: Position[] = params.positions;
+
+		if (document) {
+			const htmlMode = languageModes.getMode('html');
+			if (htmlMode && htmlMode.getSelectionRanges) {
+				return htmlMode.getSelectionRanges(document, positions);
+			}
+		}
+		return Promise.resolve(null);
+	}, null, `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 });
 
 

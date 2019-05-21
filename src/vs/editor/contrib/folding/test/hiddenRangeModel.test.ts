@@ -44,7 +44,7 @@ suite('Hidden Range Model', () => {
 
 		assert.equal(hiddenRangeModel.hasRanges(), false);
 
-		let ranges = computeRanges(textModel, false, void 0);
+		let ranges = computeRanges(textModel, false, undefined);
 		foldingModel.update(ranges);
 
 		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!, foldingModel.getRegionAtLine(6)!]);

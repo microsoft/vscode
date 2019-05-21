@@ -200,7 +200,7 @@ class MinimapLayout {
 	 * Compute a desired `scrollPosition` such that the slider moves by `delta`.
 	 */
 	public getDesiredScrollTopFromDelta(delta: number): number {
-		let desiredSliderPosition = this.sliderTop + delta;
+		const desiredSliderPosition = this.sliderTop + delta;
 		return Math.round(desiredSliderPosition / this._computedSliderRatio);
 	}
 
@@ -350,7 +350,7 @@ class RenderData {
 	}
 
 	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[]; } {
-		let tmp = this._renderedLines._get();
+		const tmp = this._renderedLines._get();
 		return {
 			imageData: this._imageData,
 			rendLineNumberStart: tmp.rendLineNumberStart,
@@ -396,7 +396,7 @@ class MinimapBuffers {
 	public getBuffer(): ImageData {
 		// rotate buffers
 		this._lastUsedBuffer = 1 - this._lastUsedBuffer;
-		let result = this._buffers[this._lastUsedBuffer];
+		const result = this._buffers[this._lastUsedBuffer];
 
 		// fill with background color
 		result.data.set(this._backgroundFillData);
@@ -409,7 +409,7 @@ class MinimapBuffers {
 		const backgroundG = background.g;
 		const backgroundB = background.b;
 
-		let result = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
+		const result = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
 		let offset = 0;
 		for (let i = 0; i < HEIGHT; i++) {
 			for (let j = 0; j < WIDTH; j++) {
@@ -584,7 +584,7 @@ export class Minimap extends ViewPart {
 	}
 
 	private _onOptionsMaybeChanged(): boolean {
-		let opts = new MinimapOptions(this._context.configuration);
+		const opts = new MinimapOptions(this._context.configuration);
 		if (this._options.equals(opts)) {
 			return false;
 		}
@@ -721,7 +721,7 @@ export class Minimap extends ViewPart {
 
 		// Render the rest of lines
 		let dy = 0;
-		let renderedLines: MinimapLine[] = [];
+		const renderedLines: MinimapLine[] = [];
 		for (let lineIndex = 0, lineCount = endLineNumber - startLineNumber + 1; lineIndex < lineCount; lineIndex++) {
 			if (needed[lineIndex]) {
 				Minimap._renderLine(
@@ -764,7 +764,7 @@ export class Minimap extends ViewPart {
 		lastRenderData: RenderData | null,
 	): [number, number, boolean[]] {
 
-		let needed: boolean[] = [];
+		const needed: boolean[] = [];
 		if (!lastRenderData) {
 			for (let i = 0, len = endLineNumber - startLineNumber + 1; i < len; i++) {
 				needed[i] = true;
@@ -801,10 +801,10 @@ export class Minimap extends ViewPart {
 				continue;
 			}
 
-			let sourceStart = source_dy * WIDTH * 4;
-			let sourceEnd = (source_dy + minimapLineHeight) * WIDTH * 4;
-			let destStart = dest_dy * WIDTH * 4;
-			let destEnd = (dest_dy + minimapLineHeight) * WIDTH * 4;
+			const sourceStart = source_dy * WIDTH * 4;
+			const sourceEnd = (source_dy + minimapLineHeight) * WIDTH * 4;
+			const destStart = dest_dy * WIDTH * 4;
+			const destEnd = (dest_dy + minimapLineHeight) * WIDTH * 4;
 
 			if (copySourceEnd === sourceStart && copyDestEnd === destStart) {
 				// contiguous zone => extend copy request
@@ -881,7 +881,7 @@ export class Minimap extends ViewPart {
 				const charCode = content.charCodeAt(charIndex);
 
 				if (charCode === CharCode.Tab) {
-					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
+					const insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 					tabsCharDelta += insertSpacesCount - 1;
 					// No need to render anything since tab is invisible
 					dx += insertSpacesCount * charWidth;
@@ -890,7 +890,7 @@ export class Minimap extends ViewPart {
 					dx += charWidth;
 				} else {
 					// Render twice for a full width character
-					let count = strings.isFullWidthCharacter(charCode) ? 2 : 1;
+					const count = strings.isFullWidthCharacter(charCode) ? 2 : 1;
 
 					for (let i = 0; i < count; i++) {
 						if (renderMinimap === RenderMinimap.Large) {

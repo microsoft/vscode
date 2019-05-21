@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorModel, EditorInput, SideBySideEditorInput, TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
@@ -17,9 +16,9 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 	static readonly ID = 'workbench.editors.diffEditorInput';
 
-	private cachedModel: DiffEditorModel;
+	private cachedModel: DiffEditorModel | null;
 
-	constructor(name: string, description: string, original: EditorInput, modified: EditorInput, private forceOpenAsBinary?: boolean) {
+	constructor(name: string, description: string | null, original: EditorInput, modified: EditorInput, private readonly forceOpenAsBinary?: boolean) {
 		super(name, description, original, modified);
 	}
 
@@ -35,7 +34,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.master;
 	}
 
-	resolve(): TPromise<EditorModel> {
+	resolve(): Promise<EditorModel> {
 
 		// Create Model - we never reuse our cached model if refresh is true because we cannot
 		// decide for the inputs within if the cached model can be reused or not. There may be
@@ -56,10 +55,10 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.forceOpenAsBinary ? BINARY_DIFF_EDITOR_ID : TEXT_DIFF_EDITOR_ID;
 	}
 
-	private createModel(refresh?: boolean): TPromise<DiffEditorModel> {
+	private createModel(): Promise<DiffEditorModel> {
 
 		// Join resolve call over two inputs and build diff editor model
-		return TPromise.join([
+		return Promise.all([
 			this.originalInput.resolve(),
 			this.modifiedInput.resolve()
 		]).then(models => {
@@ -68,7 +67,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 			// If both are text models, return textdiffeditor model
 			if (modifiedEditorModel instanceof BaseTextEditorModel && originalEditorModel instanceof BaseTextEditorModel) {
-				return new TextDiffEditorModel(<BaseTextEditorModel>originalEditorModel, <BaseTextEditorModel>modifiedEditorModel);
+				return new TextDiffEditorModel(originalEditorModel, modifiedEditorModel);
 			}
 
 			// Otherwise return normal diff model

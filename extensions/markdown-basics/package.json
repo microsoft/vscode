@@ -17,13 +17,13 @@
 				],
 				"extensions": [
 					".md",
-          ".mkd",
-          ".mdwn",
+					".mkd",
+					".mdwn",
 					".mdown",
 					".markdown",
 					".markdn",
-          ".mdtxt",
-          ".mdtext",
+					".mdtxt",
+					".mdtext",
 					".workbook"
 				],
 				"configuration": "./language-configuration.json"

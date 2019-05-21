@@ -38,7 +38,7 @@ suite('HTML Embedded Formatting', () => {
 			formatOptions = FormattingOptions.create(2, true);
 		}
 
-		let result = format(languageModes, document, range, formatOptions, void 0, { css: true, javascript: true });
+		let result = format(languageModes, document, range, formatOptions, undefined, { css: true, javascript: true });
 
 		let actual = TextDocument.applyEdits(document, result);
 		assert.equal(actual, expected, message);
@@ -67,8 +67,8 @@ suite('HTML Embedded Formatting', () => {
 
 	test('HTLM & Scripts - Fixtures', function () {
 		assertFormatWithFixture('19813.html', '19813.html');
-		assertFormatWithFixture('19813.html', '19813-4spaces.html', void 0, FormattingOptions.create(4, true));
-		assertFormatWithFixture('19813.html', '19813-tab.html', void 0, FormattingOptions.create(1, false));
+		assertFormatWithFixture('19813.html', '19813-4spaces.html', undefined, FormattingOptions.create(4, true));
+		assertFormatWithFixture('19813.html', '19813-tab.html', undefined, FormattingOptions.create(1, false));
 		assertFormatWithFixture('21634.html', '21634.html');
 	});
 
