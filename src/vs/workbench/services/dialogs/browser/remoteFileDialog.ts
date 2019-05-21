@@ -660,7 +660,8 @@ export class RemoteFileDialog {
 			if (force && trailing) {
 				// Keep the cursor position in front of the save as name.
 				this.filePickBox.valueSelection = [this.filePickBox.value.length - trailing.length, this.filePickBox.value.length - trailing.length];
-			} else {
+			} else if (!trailing) {
+				// If there is trailing, we don't move the cursor. If there is no trailing, cursor goes at the end.
 				this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			}
 			this.filePickBox.busy = false;
