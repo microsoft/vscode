@@ -23,7 +23,7 @@ steps:
     git config --global user.email "vscode@microsoft.com"
     git config --global user.name "VSCode"
 
-    git clone https://github.com/DefinitelyTyped/DefinitelyTyped.git
+    git clone https://$(GITHUB_TOKEN)@github.com/DefinitelyTyped/DefinitelyTyped.git
     node build/azure-pipelines/publish-types/update-types.js
 
     TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
@@ -33,10 +33,8 @@ steps:
     git diff --color | cat
     git add -A
     git status
+    git checkout -b "vscode-types-$TAG_VERSION"
     git commit -m "VS Code $TAG_VERSION Extension API"
-    git push origin master
+    git push origin "vscode-types-$TAG_VERSION"
 
-    git remote add vscode https://$(GITHUB_TOKEN)@github.com/microsoft/vscode-DefinitelyTyped.git
-    git push -f vscode master
-
-  displayName: Update vscode-DefinitelyTyped
+  displayName: Push update to DefinitelyTyped
