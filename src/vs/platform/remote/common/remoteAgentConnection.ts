@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Client, PersistentProtocol, ISocket } from 'vs/base/parts/ipc/common/ipc.net';
+import { Client, PersistentProtocol, ISocket, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
+import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export const enum ConnectionType {
 	Management = 1,
@@ -148,6 +150,12 @@ export async function connectRemoteAgentTunnel(options: IConnectionOptions, tunn
 	return protocol;
 }
 
+function sleep(seconds: number): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		setTimeout(resolve, seconds * 1000);
+	});
+}
+
 export const enum PersistenConnectionEventType {
 	ConnectionLost,
 	ReconnectionWait,
@@ -184,11 +192,99 @@ abstract class PersistentConnection extends Disposable {
 	public readonly reconnectionToken: string;
 	public readonly protocol: PersistentProtocol;
 
+	private _isReconnecting: boolean;
+	private _permanentFailure: boolean;
+
 	constructor(options: IConnectionOptions, reconnectionToken: string, protocol: PersistentProtocol) {
 		super();
 		this._options = options;
 		this.reconnectionToken = reconnectionToken;
 		this.protocol = protocol;
+		this._isReconnecting = false;
+		this._permanentFailure = false;
+
+		this._register(protocol.onSocketClose(() => this._beginReconnecting()));
+		this._register(protocol.onSocketTimeout(() => this._beginReconnecting()));
+	}
+
+	private async _beginReconnecting(): Promise<void> {
+		// Only have one reconnection loop active at a time.
+		if (this._isReconnecting) {
+			return;
+		}
+		try {
+			this._isReconnecting = true;
+			await this._runReconnectingLoop();
+		} finally {
+			this._isReconnecting = false;
+		}
+	}
+
+	private async _runReconnectingLoop(): Promise<void> {
+		if (this._permanentFailure) {
+			// no more attempts!
+			return;
+		}
+		this._onDidStateChange.fire(new ConnectionLostEvent());
+		const TIMES = [5, 5, 10, 10, 10, 10, 10, 30];
+		const disconnectStartTime = Date.now();
+		let attempt = -1;
+		do {
+			attempt++;
+			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : TIMES[TIMES.length - 1]);
+			try {
+				this._onDidStateChange.fire(new ReconnectionWaitEvent(waitTime));
+				await sleep(waitTime);
+
+				// connection was lost, let's try to re-establish it
+				this._onDidStateChange.fire(new ReconnectionRunningEvent());
+				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol);
+				await connectWithTimeLimit(this._reconnect(simpleOptions), 30 * 1000 /*30s*/);
+				this._onDidStateChange.fire(new ConnectionGainEvent());
+
+				break;
+			} catch (err) {
+				if (err.code === 'VSCODE_CONNECTION_ERROR') {
+					console.error(`A permanent connection error occurred`);
+					console.error(err);
+					this._permanentFailure = true;
+					this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+					this.protocol.acceptDisconnect();
+					break;
+				}
+				if (Date.now() - disconnectStartTime > ProtocolConstants.ReconnectionGraceTime) {
+					console.error(`Giving up after reconnection grace time has expired!`);
+					this._permanentFailure = true;
+					this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+					this.protocol.acceptDisconnect();
+					break;
+				}
+				if (RemoteAuthorityResolverError.isTemporarilyNotAvailable(err)) {
+					console.warn(`A temporarily not available error occured while trying to reconnect:`);
+					console.warn(err);
+					// try again!
+					continue;
+				}
+				if ((err.code === 'ETIMEDOUT' || err.code === 'ENETUNREACH' || err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') && err.syscall === 'connect') {
+					console.warn(`A connect error occured while trying to reconnect:`);
+					console.warn(err);
+					// try again!
+					continue;
+				}
+				if (isPromiseCanceledError(err)) {
+					console.warn(`A cancel error occured while trying to reconnect:`);
+					console.warn(err);
+					// try again!
+					continue;
+				}
+				console.error(`An error occured while trying to reconnect:`);
+				console.error(err);
+				this._permanentFailure = true;
+				this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+				this.protocol.acceptDisconnect();
+				break;
+			}
+		} while (!this._permanentFailure);
 	}
 
 	protected abstract _reconnect(options: ISimpleConnectionOptions): Promise<void>;
@@ -225,6 +321,24 @@ export class ExtensionHostPersistentConnection extends PersistentConnection {
 	protected async _reconnect(options: ISimpleConnectionOptions): Promise<void> {
 		await doConnectRemoteAgentExtensionHost(options, this._startArguments);
 	}
+}
+
+function connectWithTimeLimit(p: Promise<void>, timeLimit: number): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		let timeout = setTimeout(() => {
+			const err: any = new Error('Time limit reached');
+			err.code = 'ETIMEDOUT';
+			err.syscall = 'connect';
+			reject(err);
+		}, timeLimit);
+		p.then(() => {
+			clearTimeout(timeout);
+			resolve();
+		}, (err) => {
+			clearTimeout(timeout);
+			reject(err);
+		});
+	});
 }
 
 function getErrorFromMessage(msg: any): Error | null {
