@@ -23,7 +23,7 @@ steps:
     git config --global user.email "vscode@microsoft.com"
     git config --global user.name "VSCode"
 
-    git clone https://$(GITHUB_TOKEN)@github.com/DefinitelyTyped/DefinitelyTyped.git
+    git clone https://$(GITHUB_TOKEN)@github.com/DefinitelyTyped/DefinitelyTyped.git --depth=1
     node build/azure-pipelines/publish-types/update-types.js
 
     TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
