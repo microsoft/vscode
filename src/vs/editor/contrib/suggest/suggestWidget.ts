@@ -29,7 +29,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { TimeoutTimer, CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { CompletionItemKind, completionKindToCssClass } from 'vs/editor/common/modes';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
@@ -37,6 +37,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileKind } from 'vs/platform/files/common/files';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const expandSuggestionDocsByDefault = false;
 
@@ -45,6 +46,7 @@ interface ISuggestionTemplateData {
 	icon: HTMLElement;
 	colorspan: HTMLElement;
 	iconLabel: IconLabel;
+	resolving: HTMLElement;
 	typeLabel: HTMLElement;
 	readMore: HTMLElement;
 	disposables: IDisposable[];
@@ -116,6 +118,8 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		data.iconLabel = new IconLabel(main, { supportHighlights: true });
 		data.disposables.push(data.iconLabel);
 
+		data.resolving = append(main, $('span.progress'));
+
 		data.typeLabel = append(main, $('span.type-label'));
 
 		data.readMore = append(main, $('span.readMore'));
@@ -149,13 +153,11 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		return data;
 	}
 
-	renderElement(element: CompletionItem, _index: number, templateData: ISuggestionTemplateData): void {
-		const data = <ISuggestionTemplateData>templateData;
-		const suggestion = (<CompletionItem>element).completion;
+	renderElement(element: CompletionItem, _index: number, data: ISuggestionTemplateData): void {
+		const suggestion = element.completion;
 
 		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
-
 
 		const labelOptions: IIconLabelValueOptions = {
 			labelEscapeNewLines: true,
@@ -194,6 +196,16 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		data.iconLabel.setLabel(suggestion.label, undefined, labelOptions);
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
+		// resolve rendered items and show inline progress
+		const timeout = disposableTimeout(() => addClass(data.resolving, 'busy'), 50);
+		const cts = new CancellationTokenSource();
+		element.resolve(cts.token).finally(() => {
+			timeout.dispose();
+			removeClass(data.resolving, 'busy');
+		});
+		data.disposables.push(timeout, { dispose() { cts.cancel(); } }, cts);
+
+		// details...
 		if (canExpandCompletionItem(element)) {
 			show(data.readMore);
 			data.readMore.onmousedown = e => {

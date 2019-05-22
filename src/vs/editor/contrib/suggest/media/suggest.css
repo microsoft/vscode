@@ -158,6 +158,24 @@
 
 }
 
+/* loading items */
+
+@keyframes fade { 0% {opacity: 0.2;} 33% {opacity: 0.8;} 100% {opacity: 0.2;}};
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .contents > .main > .progress {
+	display: none;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .contents > .main > .progress.busy::before,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover .contents > .main > .progress.busy::before {
+	content: '\2022';
+	padding-left: 2px;
+	opacity: 0.2;
+	animation-name: fade;
+	animation-duration: 3s;
+	animation-iteration-count: infinite;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon {
 	display: block;
 	height: 16px;
