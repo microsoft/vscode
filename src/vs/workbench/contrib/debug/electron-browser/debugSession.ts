@@ -25,7 +25,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -62,7 +61,6 @@ export class DebugSession implements IDebugSession {
 		private _parentSession: IDebugSession | undefined,
 		@IDebugService private readonly debugService: IDebugService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IOutputService private readonly outputService: IOutputService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewletService private readonly viewletService: IViewletService,
@@ -167,7 +165,7 @@ export class DebugSession implements IDebugSession {
 
 		return dbgr.getCustomTelemetryService().then(customTelemetryService => {
 
-			return dbgr.createDebugAdapter(this, this.outputService).then(debugAdapter => {
+			return dbgr.createDebugAdapter(this).then(debugAdapter => {
 
 				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.environmentService);
 
