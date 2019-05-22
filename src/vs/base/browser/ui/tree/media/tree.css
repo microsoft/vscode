@@ -16,6 +16,10 @@
 	left: 16px;
 }
 
+.monaco-tl-indent > svg {
+	overflow: visible;
+}
+
 .monaco-tl-twistie,
 .monaco-tl-contents {
 	height: 100%;

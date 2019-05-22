@@ -7,7 +7,7 @@ import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, mightProducePrintableCharacter, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass } from 'vs/base/browser/dom';
+import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, createStyleSheet } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -394,21 +394,23 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 			switch (guides[i]) {
 				case IndentGuide.First:
-					lines.push(`<line style="stroke:#a9a9a9;" x1="${x1}" y1="${halfHeight}" x2="${x1}" y2="${height}" />`);
-					lines.push(`<line style="stroke:#a9a9a9;" x1="${x1}" y1="${halfHeight}" x2="${x1 + 4}" y2="${halfHeight}" />`);
+					lines.push(`<line x1="${x1}" y1="${halfHeight}" x2="${x1}" y2="${height}" />`);
+					lines.push(`<line x1="${x1}" y1="${halfHeight}" x2="${x1 + 4}" y2="${halfHeight}" />`);
 					break;
 				case IndentGuide.Middle:
-					lines.push(`<line style="stroke:#a9a9a9;" x1="${x1}" y1="0" x2="${x1}" y2="${height}" />`);
+					lines.push(`<line x1="${x1}" y1="0" x2="${x1}" y2="${height}" />`);
 					break;
 				case IndentGuide.Last:
-					lines.push(`<line style="stroke:#a9a9a9;" x1="${x1}" y1="0" x2="${x1}" y2="${halfHeight}" />`);
-					lines.push(`<line style="stroke:#a9a9a9;" x1="${x1}" y1="${halfHeight}" x2="${x2}" y2="${halfHeight}" />`);
+					lines.push(`<line x1="${x1}" y1="0" x2="${x1}" y2="${halfHeight}" />`);
+					lines.push(`<line x1="${x1}" y1="${halfHeight}" x2="${x2}" y2="${halfHeight}" />`);
 					break;
 			}
 		}
 
-		const rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${this.indent * guides.length} ${height}">${lines.join('')}</svg>`;
-		templateData.indent.style.background = `url("data:image/svg+xml,${encodeURIComponent(rawSvg)}") no-repeat 0 0`;
+		const width = this.indent * guides.length;
+		const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${lines.join('')}</svg>`;
+
+		templateData.indent.innerHTML = svg;
 	}
 
 	dispose(): void {
@@ -1107,6 +1109,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private eventBufferer = new EventBufferer();
 	private typeFilterController?: TypeFilterController<T, TFilterData>;
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
+	private styleElement: HTMLStyleElement;
 	protected disposables: IDisposable[] = [];
 
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
@@ -1193,6 +1196,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.focusNavigationFilter = node => this.typeFilterController!.shouldAllowFocus(node);
 			this.disposables.push(this.typeFilterController!);
 		}
+
+		this.styleElement = createStyleSheet(this.view.getHTMLElement());
 	}
 
 	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
@@ -1293,6 +1298,18 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	style(styles: IListStyles): void {
+		const suffix = `.${this.view.domId}`;
+		const content: string[] = [];
+
+		if (styles.treeIndentGuidesStroke) {
+			content.push(`.monaco-list${suffix} .monaco-tl-indent > svg > line { stroke: ${styles.treeIndentGuidesStroke}; }`);
+		}
+
+		const newStyles = content.join('\n');
+		if (newStyles !== this.styleElement.innerHTML) {
+			this.styleElement.innerHTML = newStyles;
+		}
+
 		this.view.style(styles);
 	}
 
