@@ -10,6 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
+import { EditorKeybindingCancellationTokenSource } from 'vs/editor/browser/core/keybindingCancellation';
 
 export const enum CodeEditorStateFlag {
 	Value = 1,
@@ -78,12 +79,12 @@ export class EditorState {
  * A cancellation token source that cancels when the editor changes as expressed
  * by the provided flags
  */
-export class EditorStateCancellationTokenSource extends CancellationTokenSource {
+export class EditorStateCancellationTokenSource extends EditorKeybindingCancellationTokenSource {
 
 	private readonly _listener: IDisposable[] = [];
 
 	constructor(readonly editor: IActiveCodeEditor, flags: CodeEditorStateFlag, parent?: CancellationToken) {
-		super(parent);
+		super(editor, parent);
 
 		if (flags & CodeEditorStateFlag.Position) {
 			this._listener.push(editor.onDidChangeCursorPosition(_ => this.cancel()));

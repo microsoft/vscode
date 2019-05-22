@@ -6,9 +6,11 @@
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as os from 'os';
+import * as fs from 'fs';
 import { tmpName } from 'tmp';
 import { IDriver, connect as connectDriver, IDisposable, IElement, Thenable } from './driver';
 import { Logger } from '../logger';
+import { ncp } from 'ncp';
 
 const repoPath = path.join(__dirname, '../../../..');
 
@@ -128,6 +130,15 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 			`--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri`,
 			`vscode-remote://test+test${options.workspacePath}`,
 		);
+		if (codePath) {
+			// running against a build: copy the test resolver extension
+			const testResolverExtPath = path.join(options.extensionsPath, 'vscode-test-resolver');
+			if (!fs.existsSync(testResolverExtPath)) {
+				const orig = path.join(repoPath, 'extensions', 'vscode-test-resolver');
+				await new Promise((c, e) => ncp(orig, testResolverExtPath, err => err ? e(err) : c()));
+			}
+		}
+		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 	}
 
 	if (!codePath) {

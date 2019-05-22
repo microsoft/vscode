@@ -33,7 +33,6 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IdleValue } from 'vs/base/common/async';
 import { isObject } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class SuggestController implements IEditorContribution {
 
@@ -68,11 +67,7 @@ export class SuggestController implements IEditorContribution {
 			this._toDispose.push(widget.onDidSelect(item => this._insertSuggestion(item, false, true), this));
 
 			// Wire up logic to accept a suggestion on certain characters
-			const commitCharacterController = new CommitCharacterController(
-				this._editor,
-				widget,
-				item => this._insertSuggestion(item, false, true, true)
-			);
+			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true));
 			this._toDispose.push(
 				commitCharacterController,
 				this._model.onDidSuggest(e => {
@@ -166,23 +161,12 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): Promise<void>;
-	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean, noResolve: true): void;
-	protected async _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean, noResolve?: true): Promise<void> {
+	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
 			this._model.cancel();
 			return;
 		}
-
-		if (!noResolve) {
-			// DEFAULT is to wait for the item to be resolve
-			// but the current implementation of commit characters
-			// doesn't allow to wait and that's why there is a
-			// sync (no resolve) case
-			await event.item.resolve(CancellationToken.None);
-		}
-
 		if (!this._editor.hasModel()) {
 			return;
 		}

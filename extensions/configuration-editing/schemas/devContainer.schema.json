@@ -17,6 +17,10 @@
 						"type": "string"
 					}
 				},
+				"settings": {
+					"type": "object",
+					"description": "Machine specific settings that should be copied into the container."
+				},
 				"postCreateCommand": {
 					"type": ["string", "array"],
 					"description": "A command to run after creating the container. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
@@ -54,6 +58,14 @@
 				"overrideCommand": {
 					"type": "boolean",
 					"description": "Whether to overwrite the command specified in the image. The default is true."
+				},
+				"workspaceFolder": {
+					"type": "string",
+					"description": "The path of the workspace folder inside the container."
+				},
+				"workspaceMount": {
+					"type": "string",
+					"description": "The --mount parameter for docker run. The default is to mount the project folder at /workspaces/$project."
 				}
 			}
 		},

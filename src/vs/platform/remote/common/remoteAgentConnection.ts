@@ -7,6 +7,8 @@ import { Client, PersistentProtocol, ISocket, ProtocolConstants } from 'vs/base/
 import { generateUuid } from 'vs/base/common/uuid';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { VSBuffer } from 'vs/base/common/buffer';
+import * as platform from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -16,6 +18,37 @@ export const enum ConnectionType {
 	ExtensionHost = 2,
 	Tunnel = 3,
 }
+
+export interface AuthRequest {
+	type: 'auth';
+	auth: string;
+}
+
+export interface SignRequest {
+	type: 'sign';
+	data: string;
+}
+
+export interface ConnectionTypeRequest {
+	type: 'connectionType';
+	commit?: string;
+	signedData?: string;
+	desiredConnectionType?: ConnectionType;
+	args?: any;
+	isBuilt: boolean;
+}
+
+export interface ErrorMessage {
+	type: 'error';
+	reason: string;
+}
+
+export interface OKMessage {
+	type: 'ok';
+}
+
+export type HandshakeMessage = AuthRequest | SignRequest | ConnectionTypeRequest | ErrorMessage | OKMessage;
+
 
 interface ISimpleConnectionOptions {
 	isBuilt: boolean;
@@ -36,7 +69,84 @@ export interface IWebSocketFactory {
 }
 
 async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptions, connectionType: ConnectionType, args: any | undefined): Promise<PersistentProtocol> {
-	throw new Error(`Not implemented`);
+	const protocol = await new Promise<PersistentProtocol>((c, e) => {
+		options.webSocketFactory.connect(
+			options.host,
+			options.port,
+			`reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`,
+			(err: any, socket: ISocket) => {
+				if (err) {
+					e(err);
+					return;
+				}
+
+				if (options.reconnectionProtocol) {
+					options.reconnectionProtocol.beginAcceptReconnection(socket, null);
+					c(options.reconnectionProtocol);
+				} else {
+					c(new PersistentProtocol(socket, null));
+				}
+			}
+		);
+	});
+
+	return new Promise<PersistentProtocol>((c, e) => {
+
+		const messageRegistration = protocol.onControlMessage(raw => {
+			const msg = <HandshakeMessage>JSON.parse(raw.toString());
+			// Stop listening for further events
+			messageRegistration.dispose();
+
+			const error = getErrorFromMessage(msg);
+			if (error) {
+				return e(error);
+			}
+
+			if (msg.type === 'sign') {
+
+				let signed = msg.data;
+				if (platform.isNative) {
+					try {
+						const vsda = <any>require.__$__nodeRequire('vsda');
+						const signer = new vsda.signer();
+						if (signer) {
+							signed = signer.sign(msg.data);
+						}
+					} catch (e) {
+						console.error('signer.sign: ' + e);
+					}
+				} else {
+					signed = (<any>self).CONNECTION_AUTH_TOKEN;
+				}
+
+				const connTypeRequest: ConnectionTypeRequest = {
+					type: 'connectionType',
+					commit: options.commit,
+					signedData: signed,
+					desiredConnectionType: connectionType,
+					isBuilt: options.isBuilt
+				};
+				if (args) {
+					connTypeRequest.args = args;
+				}
+				protocol.sendControl(VSBuffer.fromString(JSON.stringify(connTypeRequest)));
+				c(protocol);
+			} else {
+				e(new Error('handshake error'));
+			}
+		});
+
+		setTimeout(() => {
+			e(new Error('handshake timeout'));
+		}, 2000);
+
+		// TODO@vs-remote: use real nonce here
+		const authRequest: AuthRequest = {
+			type: 'auth',
+			auth: '00000000000000000000'
+		};
+		protocol.sendControl(VSBuffer.fromString(JSON.stringify(authRequest)));
+	});
 }
 
 interface IManagementConnectionResult {

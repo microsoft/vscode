@@ -544,6 +544,19 @@
 				]
 			},
 			{
+				"target": "**/vs/agent/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/**/{common,node}/**",
+					"**/vs/base/parts/**/{common,node}/**",
+					"**/vs/platform/**/{common,node}/**",
+					"**/vs/workbench/**/{common,node}/**",
+					"**/vs/agent/**",
+					"**/vs/code/**/{common,node}/**",
+					"*" // node modules
+				]
+			},
+			{
 				"target": "**/{node,electron-browser,electron-main,extensions}/**",
 				"restrictions": "**/*"
 			},

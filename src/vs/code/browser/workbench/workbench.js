@@ -17,7 +17,7 @@
 		document.head.appendChild(script);
 	}
 
-	loadScript('../../../../../out/vs/loader.js', function () {
+	loadScript('./out/vs/loader.js', function () {
 
 		// @ts-ignore
 		require.config({

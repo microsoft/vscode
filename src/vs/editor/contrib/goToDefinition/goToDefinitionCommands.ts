@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { createCancelablePromise } from 'vs/base/common/async';
+import { createCancelablePromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
@@ -64,9 +64,9 @@ export class DefinitionAction extends EditorAction {
 
 		const cts = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-		const definitionPromise = this._getTargetLocationForPosition(model, pos, cts.token).then(async references => {
+		const definitionPromise = raceCancellation(this._getTargetLocationForPosition(model, pos, cts.token), cts.token).then(async references => {
 
-			if (cts.token.isCancellationRequested || model.isDisposed() || editor.getModel() !== model) {
+			if (!references || model.isDisposed()) {
 				// new model, no more model
 				return;
 			}
