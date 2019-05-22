@@ -22,6 +22,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ActivePanelContext } from 'vs/workbench/common/panel';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -120,7 +121,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '4_panels',
 	command: {
 		id: ToggleOutputAction.ID,
-		title: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output")
+		title: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"),
+		toggled: ActivePanelContext.isEqualTo(OUTPUT_PANEL_ID)
 	},
 	order: 1
 });

@@ -15,8 +15,8 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ActivePanelContext } from 'vs/workbench/common/panel';
 
 export class ClosePanelAction extends Action {
 
@@ -272,9 +272,19 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: TogglePanelAction.ID,
-		title: nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel"),
-		toggled: ContextKeyExpr.has('activePanel')
+		title: nls.localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
 	},
+	when: ActivePanelContext.toNegated(),
+	order: 5
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '2_workbench_layout',
+	command: {
+		id: TogglePanelAction.ID,
+		title: nls.localize({ key: 'miHidePanel', comment: ['&& denotes a mnemonic'] }, "Hide &&Panel"),
+	},
+	when: ActivePanelContext,
 	order: 5
 });
 

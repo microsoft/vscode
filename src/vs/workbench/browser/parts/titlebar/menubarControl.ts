@@ -38,12 +38,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 export class MenubarControl extends Disposable {
 
 	private keys = [
-		'files.autoSave',
 		'window.menuBarVisibility',
-		'editor.multiCursorModifier',
-		'workbench.sideBar.location',
-		'workbench.statusBar.visible',
-		'workbench.activityBar.visible',
 		'window.enableMenuBarMnemonics',
 		'window.nativeTabs'
 	];
@@ -154,28 +149,6 @@ export class MenubarControl extends Disposable {
 		}
 
 		return enableMenuBarMnemonics;
-	}
-
-	private get currentSidebarPosition(): string {
-		return this.configurationService.getValue<string>('workbench.sideBar.location');
-	}
-
-	private get currentStatusBarVisibility(): boolean {
-		let setting = this.configurationService.getValue<boolean>('workbench.statusBar.visible');
-		if (typeof setting !== 'boolean') {
-			setting = true;
-		}
-
-		return setting;
-	}
-
-	private get currentActivityBarVisibility(): boolean {
-		let setting = this.configurationService.getValue<boolean>('workbench.activityBar.visible');
-		if (typeof setting !== 'boolean') {
-			setting = true;
-		}
-
-		return setting;
 	}
 
 	private get currentMenubarVisibility(): MenuBarVisibility {
@@ -319,30 +292,6 @@ export class MenubarControl extends Disposable {
 	private calculateActionLabel(action: IAction | IMenubarMenuItemAction): string {
 		let label = action.label;
 		switch (action.id) {
-			case 'workbench.action.toggleSidebarPosition':
-				if (this.currentSidebarPosition !== 'right') {
-					label = nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right");
-				} else {
-					label = nls.localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left");
-				}
-				break;
-
-			case 'workbench.action.toggleStatusbarVisibility':
-				if (this.currentStatusBarVisibility) {
-					label = nls.localize({ key: 'miHideStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Hide Status Bar");
-				} else {
-					label = nls.localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Show Status Bar");
-				}
-				break;
-
-			case 'workbench.action.toggleActivityBarVisibility':
-				if (this.currentActivityBarVisibility) {
-					label = nls.localize({ key: 'miHideActivityBar', comment: ['&& denotes a mnemonic'] }, "Hide &&Activity Bar");
-				} else {
-					label = nls.localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar");
-				}
-				break;
-
 			default:
 				break;
 		}

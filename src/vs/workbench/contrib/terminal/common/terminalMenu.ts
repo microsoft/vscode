@@ -7,6 +7,8 @@ import * as nls from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ActivePanelContext } from 'vs/workbench/common/panel';
+import { TERMINAL_PANEL_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export function setupTerminalMenu() {
 
@@ -16,7 +18,8 @@ export function setupTerminalMenu() {
 		group: '4_panels',
 		command: {
 			id: TERMINAL_COMMAND_ID.TOGGLE,
-			title: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
+			title: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
+			toggled: ActivePanelContext.isEqualTo(TERMINAL_PANEL_ID)
 		},
 		order: 3
 	});
