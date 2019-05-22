@@ -150,7 +150,7 @@ export class MarkdownContentProvider {
 
 	private getSettingsOverrideStyles(nonce: string, config: MarkdownPreviewConfiguration): string {
 		return `<style nonce="${nonce}">
-			body {
+			html, body {
 				${config.fontFamily ? `font-family: ${config.fontFamily};` : ''}
 				${isNaN(config.fontSize) ? '' : `font-size: ${config.fontSize}px;`}
 				${isNaN(config.lineHeight) ? '' : `line-height: ${config.lineHeight};`}
