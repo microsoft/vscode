@@ -833,6 +833,10 @@ body[data-icon-theme="icon-explorations-2"] .debug-function-breakpoint-disabled 
 	Extensions
 ****************/
 
+body[data-icon-theme^="icon-explorations-"] .extensions-viewlet > .extensions .extension > .details > .header-container > .header {
+	align-items: center;
+}
+
 body[data-icon-theme="icon-explorations-1"] .monaco-action-bar .action-item .action-label.clear-extensions {
 	-webkit-mask-image: url("images/extensions/clear-alt1.svg");
 }
