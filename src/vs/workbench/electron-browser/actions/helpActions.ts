@@ -100,7 +100,7 @@ export class OpenNewsletterSignupUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openNewsletterSignupUrl';
 	static readonly LABEL = nls.localize('newsletterSignup', "Signup for the VS Code Newsletter");
-	telemetryService: ITelemetryService;
+	private telemetryService: ITelemetryService;
 	private static readonly URL = product.newsletterSignupUrl;
 	static readonly AVAILABLE = !!OpenNewsletterSignupUrlAction.URL;
 
