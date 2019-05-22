@@ -19,11 +19,15 @@ function ensureFolderExists(loc: string) {
 	}
 }
 
+function getDownloadUrl(commit: string, platform: string, quality: string): string {
+	return `https://update.code.visualstudio.com/commit:${commit}/server-${platform}/${quality}`;
+}
+
 async function downloadVSCodeServerArchive(commit: string, quality: string, destDir: string): Promise<string> {
 	ensureFolderExists(destDir);
 
 	const platform = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? 'darwin' : 'linux-x64';
-	const downloadUrl = `https://update.code.visualstudio.com/commit:${commit}/server-${platform}/${quality}`;
+	const downloadUrl = getDownloadUrl(commit, platform, quality);
 
 	return new Promise((resolve, reject) => {
 		console.log(`Downloading VS Code Server from: ${downloadUrl}`);
