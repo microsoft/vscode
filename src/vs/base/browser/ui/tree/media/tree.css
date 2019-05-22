@@ -13,6 +13,7 @@
 	height: 100%;
 	position: absolute;
 	top: 0;
+	left: 16px;
 }
 
 .monaco-tl-twistie,

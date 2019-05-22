@@ -286,7 +286,6 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
 		templateData.twistie.style.marginLeft = `${indent}px`;
 		templateData.indent.style.width = `${indent + this.indent}px`;
-		templateData.indent.style.left = `${Math.floor(this.indent * 1.5)}px`;
 
 		this.renderTwistie(node, templateData);
 
@@ -385,20 +384,20 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		const halfHeight = Math.floor(height / 2);
 
 		for (let i = 0; i < guides.length; i++) {
-			const halfX = Math.floor((guides.length - i - 0.5) * this.indent);
-			const fullX = (guides.length - i) * this.indent;
+			const x1 = Math.floor((guides.length - i - 1) * this.indent);
+			const x2 = x1 + this.indent - Math.min(Math.floor(this.indent * 0.5), 4);
 
 			switch (guides[i]) {
 				case IndentGuide.First:
-					lines.push(`<line style="stroke:#a9a9a9;" x1="${halfX}" y1="${halfHeight}" x2="${halfX}" y2="${height}" />`);
-					lines.push(`<line style="stroke:#a9a9a9;" x1="${halfX}" y1="${halfHeight}" x2="${fullX}" y2="${halfHeight}" />`);
+					lines.push(`<line style="stroke:#a9a9a9;" x1="${x1}" y1="${halfHeight}" x2="${x1}" y2="${height}" />`);
+					lines.push(`<line style="stroke:#a9a9a9;" x1="${x1}" y1="${halfHeight}" x2="${x1 + 4}" y2="${halfHeight}" />`);
 					break;
 				case IndentGuide.Middle:
-					lines.push(`<line style="stroke:#a9a9a9;" x1="${halfX}" y1="0" x2="${halfX}" y2="${height}" />`);
+					lines.push(`<line style="stroke:#a9a9a9;" x1="${x1}" y1="0" x2="${x1}" y2="${height}" />`);
 					break;
 				case IndentGuide.Last:
-					lines.push(`<line style="stroke:#a9a9a9;" x1="${halfX}" y1="0" x2="${halfX}" y2="${halfHeight}" />`);
-					lines.push(`<line style="stroke:#a9a9a9;" x1="${halfX}" y1="${halfHeight}" x2="${fullX}" y2="${halfHeight}" />`);
+					lines.push(`<line style="stroke:#a9a9a9;" x1="${x1}" y1="0" x2="${x1}" y2="${halfHeight}" />`);
+					lines.push(`<line style="stroke:#a9a9a9;" x1="${x1}" y1="${halfHeight}" x2="${x2}" y2="${halfHeight}" />`);
 					break;
 			}
 		}
