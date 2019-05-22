@@ -647,11 +647,7 @@ export class TerminalInstance implements ITerminalInstance {
 				const promptChoices: IPromptChoice[] = [
 					{
 						label: nls.localize('yes', "Yes"),
-						run: () => {
-							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
-								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "The terminal is now using the fallback renderer."));
-							});
-						}
+						run: () => this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER)
 					} as IPromptChoice,
 					{
 						label: nls.localize('no', "No"),
