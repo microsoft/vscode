@@ -62,13 +62,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			!is32ProcessOn64Windows &&
 			getWindowsBuildNumber() >= 18309;
 
-		const options: pty.IPtyForkOptions = {
+		const options: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions = {
 			name: shellName,
 			cwd,
 			env,
 			cols,
 			rows,
-			experimentalUseConpty: useConpty
+			experimentalUseConpty: useConpty,
+			conptyInheritCursor: true
 		};
 
 		// TODO: Need to verify whether executable is on $PATH, otherwise things like cmd.exe will break
@@ -91,14 +92,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessIdReady(() => c());
 		});
-		ptyProcess.on('data', (data) => {
+		ptyProcess.on('data', data => {
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
 		});
-		ptyProcess.on('exit', (code) => {
+		ptyProcess.on('exit', code => {
 			this._exitCode = code;
 			this._queueProcessExit();
 		});
