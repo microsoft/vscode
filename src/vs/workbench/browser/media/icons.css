@@ -1483,6 +1483,18 @@ body[data-icon-theme="icon-explorations-2"] .markers-panel .monaco-tl-contents .
 	background-color: var(--yellow);
 }
 
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .lightbulb-glyph.autofixable,
+body[data-icon-theme="icon-explorations-1"] .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
+	-webkit-mask-image: url("images/intellisense/lightbulb-autofix-alt1.svg");
+	background-color: var(--blue);
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .lightbulb-glyph.autofixable,
+body[data-icon-theme="icon-explorations-2"] .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
+	-webkit-mask-image: url("images/intellisense/lightbulb-autofix-alt2.svg");
+	background-color: var(--blue);
+}
+
 /****************
 	Notifications
 ****************/
