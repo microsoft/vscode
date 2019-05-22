@@ -64,10 +64,10 @@ export class SuggestController implements IEditorContribution {
 			const widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
 
 			this._toDispose.push(widget);
-			this._toDispose.push(widget.onDidSelect(item => this._onDidSelectItem(item, false, true), this));
+			this._toDispose.push(widget.onDidSelect(item => this._insertSuggestion(item, false, true), this));
 
 			// Wire up logic to accept a suggestion on certain characters
-			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._onDidSelectItem(item, false, true));
+			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._insertSuggestion(item, false, true));
 			this._toDispose.push(
 				commitCharacterController,
 				this._model.onDidSuggest(e => {
@@ -161,7 +161,7 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	protected _onDidSelectItem(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
+	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
 			this._model.cancel();
@@ -233,7 +233,7 @@ export class SuggestController implements IEditorContribution {
 					if (modelVersionNow !== model.getAlternativeVersionId()) {
 						model.undo();
 					}
-					this._onDidSelectItem(next, false, false);
+					this._insertSuggestion(next, false, false);
 					break;
 				}
 			});
@@ -315,7 +315,7 @@ export class SuggestController implements IEditorContribution {
 					return;
 				}
 				this._editor.pushUndoStop();
-				this._onDidSelectItem({ index, item, model: completionModel }, true, false);
+				this._insertSuggestion({ index, item, model: completionModel }, true, false);
 
 			}, undefined, listener);
 		});
@@ -327,7 +327,7 @@ export class SuggestController implements IEditorContribution {
 
 	acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): void {
 		const item = this._widget.getValue().getFocusedItem();
-		this._onDidSelectItem(item, !!keepAlternativeSuggestions, true);
+		this._insertSuggestion(item, !!keepAlternativeSuggestions, true);
 	}
 
 	acceptNextSuggestion() {
