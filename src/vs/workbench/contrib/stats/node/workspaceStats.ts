@@ -53,6 +53,7 @@ const ModulesToLookFor = [
 	// JS frameworks
 	'react',
 	'react-native',
+	'rnpm-plugin-windows',
 	'@angular/core',
 	'@ionic',
 	'vue',
@@ -268,6 +269,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.npm.hapi" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.socket.io" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.restify" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.rnpm-plugin-windows" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@angular/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.vue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -288,6 +290,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.ionic" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
 			"workspace.nativeScript" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
+			"workspace.java.pom" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.requirements" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.requirements.star" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.Pipfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -386,6 +389,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
 			tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
 			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
+
+			tags['workspace.java.pom'] = nameSet.has('pom.xml');
 
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
@@ -502,18 +507,18 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			const packageJsonPromises = getFilePromises('package.json', this.fileService, this.textFileService, content => {
 				try {
 					const packageJsonContents = JSON.parse(content.value);
-					if (packageJsonContents['dependencies']) {
+					if (packageJsonContents['dependencies'] || packageJsonContents['devDependencies']) {
 						for (let module of ModulesToLookFor) {
 							if ('react-native' === module) {
-								if (packageJsonContents['dependencies'][module]) {
+								if (packageJsonContents['dependencies'][module] || packageJsonContents['devDependencies'][module]) {
 									tags['workspace.reactNative'] = true;
 								}
 							} else if ('tns-core-modules' === module) {
-								if (packageJsonContents['dependencies'][module]) {
+								if (packageJsonContents['dependencies'][module] || packageJsonContents['devDependencies'][module]) {
 									tags['workspace.nativescript'] = true;
 								}
 							} else {
-								if (packageJsonContents['dependencies'][module]) {
+								if (packageJsonContents['dependencies'][module] || packageJsonContents['devDependencies'][module]) {
 									tags['workspace.npm.' + module] = true;
 								}
 							}
@@ -527,6 +532,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(() => tags);
 		});
 	}
+
 
 	private handleWorkspaceFiles(rootFiles: string[]): void {
 		const state = this.contextService.getWorkbenchState();
