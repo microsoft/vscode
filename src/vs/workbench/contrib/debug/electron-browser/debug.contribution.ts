@@ -51,6 +51,7 @@ import { VariablesView } from 'vs/workbench/contrib/debug/browser/variablesView'
 import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { ActivePanelContext } from 'vs/workbench/common/panel';
+import { ActiveViewletContext } from 'vs/workbench/common/viewlet';
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -322,7 +323,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '3_views',
 	command: {
 		id: VIEWLET_ID,
-		title: nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")
+		title: nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug"),
+		toggled: ActiveViewletContext.isEqualTo(VIEWLET_ID)
 	},
 	order: 4
 });

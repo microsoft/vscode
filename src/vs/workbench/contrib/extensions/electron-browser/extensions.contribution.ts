@@ -49,6 +49,7 @@ import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/electron-browser/extensionsDependencyChecker';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ActiveViewletContext } from 'vs/workbench/common/viewlet';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -315,7 +316,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '3_views',
 	command: {
 		id: VIEWLET_ID,
-		title: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions")
+		title: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
+		toggled: ActiveViewletContext.isEqualTo(VIEWLET_ID)
 	},
 	order: 5
 });

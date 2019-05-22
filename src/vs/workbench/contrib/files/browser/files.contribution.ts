@@ -39,6 +39,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
+import { ActiveViewletContext } from 'vs/workbench/common/viewlet';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -421,7 +422,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '3_views',
 	command: {
 		id: VIEWLET_ID,
-		title: nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer")
+		title: nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
+		toggled: ActiveViewletContext.isEqualTo(VIEWLET_ID)
 	},
 	order: 1
 });

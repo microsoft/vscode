@@ -24,6 +24,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
+import { ActiveViewletContext } from 'vs/workbench/common/viewlet';
 
 class OpenSCMViewletAction extends ShowViewletAction {
 
@@ -106,7 +107,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '3_views',
 	command: {
 		id: VIEWLET_ID,
-		title: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM")
+		title: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"),
+		toggled: ActiveViewletContext.isEqualTo(VIEWLET_ID)
 	},
 	order: 3
 });
