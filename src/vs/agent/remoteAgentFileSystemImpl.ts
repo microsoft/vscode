@@ -150,7 +150,7 @@ export class RemoteAgentFileSystemChannel extends Disposable implements IServerC
 	}
 
 	private _open(uriTransformer: IURITransformer, _resource: UriComponents, opts: FileOpenOptions): Promise<number> {
-		const resource = this._transformIncoming(uriTransformer, _resource);
+		const resource = this._transformIncoming(uriTransformer, _resource, true);
 		return this._fsProvider.open(resource, opts);
 	}
 
