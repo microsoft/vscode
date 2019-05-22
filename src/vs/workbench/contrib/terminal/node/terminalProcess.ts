@@ -91,15 +91,15 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessIdReady(() => c());
 		});
-		ptyProcess.onData(data => {
+		ptyProcess.on('data', data => {
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
 		});
-		ptyProcess.onExit(e => {
-			this._exitCode = e.exitCode;
+		ptyProcess.on('exit', code => {
+			this._exitCode = code;
 			this._queueProcessExit();
 		});
 		this._setupTitlePolling(ptyProcess);
