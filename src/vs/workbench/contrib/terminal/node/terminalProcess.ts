@@ -127,12 +127,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		setTimeout(() => {
 			this._sendProcessTitle(ptyProcess);
 		}, 0);
-		// Setup polling
-		this._titleInterval = setInterval(() => {
-			if (this._currentTitle !== ptyProcess.process) {
-				this._sendProcessTitle(ptyProcess);
-			}
-		}, 200);
+		// Setup polling for non-Windows, for Windows `process` doesn't change
+		if (!platform.isWindows) {
+			this._titleInterval = setInterval(() => {
+				if (this._currentTitle !== ptyProcess.process) {
+					this._sendProcessTitle(ptyProcess);
+				}
+			}, 200);
+		}
 	}
 
 	// Allow any trailing data events to be sent before the exit event is sent.
