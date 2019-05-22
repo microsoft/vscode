@@ -107,7 +107,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
 	command: {
 		id: ToggleCenteredLayout.ID,
-		title: nls.localize('miToggleCenteredLayout', "Toggle Centered Layout"),
+		title: nls.localize('miToggleCenteredLayout', "Centered Layout"),
 		toggled: IsCenteredLayoutContext
 	},
 	order: 3
@@ -416,7 +416,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
 	command: {
 		id: ToggleZenMode.ID,
-		title: nls.localize('miToggleZenMode', "Toggle Zen Mode"),
+		title: nls.localize('miToggleZenMode', "Zen Mode"),
 		toggled: InEditorZenModeContext
 	},
 	order: 2
@@ -474,14 +474,23 @@ if (isWindows || isLinux) {
 }
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '1_toggle_view',
+	group: '2_workbench_layout',
 	command: {
 		id: ToggleMenuBarAction.ID,
-		title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"),
-		toggled: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'))
+		title: nls.localize({ key: 'miHideMenuBar', comment: ['&& denotes a mnemonic'] }, "Hide Menu &&Bar")
 	},
-	when: IsMacContext.toNegated(),
-	order: 4
+	when: ContextKeyExpr.and(IsMacContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle')),
+	order: 0
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '2_workbench_layout',
+	command: {
+		id: ToggleMenuBarAction.ID,
+		title: nls.localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar")
+	},
+	when: ContextKeyExpr.and(IsMacContext.toNegated(), ContextKeyExpr.and(ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'visible'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'default'))),
+	order: 0
 });
 
 // --- Resize View

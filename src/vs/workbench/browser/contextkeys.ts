@@ -16,9 +16,10 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+import { PanelPositionContext } from 'vs/workbench/common/panel';
 
 export const IsMacContext = new RawContextKey<boolean>('isMac', isMacintosh);
 export const IsLinuxContext = new RawContextKey<boolean>('isLinux', isLinux);
@@ -59,6 +60,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private isFullscreenContext: IContextKey<boolean>;
 	private isCenteredLayoutContext: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
+	private panelPositionContext: IContextKey<string>;
 
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -98,6 +100,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.layoutService.onZenModeChange(enabled => this.inZenModeContext.set(enabled)));
 		this._register(this.layoutService.onFullscreenChange(fullscreen => this.isFullscreenContext.set(fullscreen)));
 		this._register(this.layoutService.onCenteredLayoutChange(centered => this.isCenteredLayoutContext.set(centered)));
+		this._register(this.layoutService.onPanelPositionChange(position => this.panelPositionContext.set(position)));
 
 		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
 		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
@@ -156,6 +159,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// Sidebar
 		this.sideBarVisibleContext = SideBarVisibleContext.bindTo(this.contextKeyService);
+
+		// Panel Position
+		this.panelPositionContext = PanelPositionContext.bindTo(this.contextKeyService);
+		this.panelPositionContext.set(this.layoutService.getPanelPosition() === Position.RIGHT ? 'right' : 'bottom');
 	}
 
 	private updateEditorContextKeys(): void {

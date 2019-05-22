@@ -358,7 +358,7 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 		group: '1_toggle_view',
 		command: {
 			id: ToggleFullScreenAction.ID,
-			title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen"),
+			title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
 			toggled: IsFullscreenContext
 		},
 		order: 1

@@ -56,6 +56,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onCenteredLayoutChange: Event<boolean>;
 
 	/**
+	 * Emit when panel position changes.
+	 */
+	readonly onPanelPositionChange: Event<string>;
+
+	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
 	 * this means that the contents of editors have loaded.
 	 */

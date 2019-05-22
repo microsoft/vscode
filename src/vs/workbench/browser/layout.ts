@@ -72,6 +72,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onCenteredLayout: Emitter<boolean> = this._register(new Emitter<boolean>());
 	get onCenteredLayoutChange(): Event<boolean> { return this._onCenteredLayout.event; }
 
+	private readonly _onPanelPositionChange: Emitter<string> = this._register(new Emitter<string>());
+	get onPanelPositionChange(): Event<string> { return this._onPanelPositionChange.event; }
+
 	private readonly _onLayout = this._register(new Emitter<IDimension>());
 	get onLayout(): Event<IDimension> { return this._onLayout.event; }
 
@@ -1060,6 +1063,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		this.storageService.store(Storage.PANEL_POSITION, positionToString(this.state.panel.position), StorageScope.WORKSPACE);
+
+		this._onPanelPositionChange.fire(positionToString(this.state.panel.position));
 
 		// Adjust CSS
 		removeClass(panelPart.getContainer(), oldPositionValue);
