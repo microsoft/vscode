@@ -533,7 +533,6 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		});
 	}
 
-
 	private handleWorkspaceFiles(rootFiles: string[]): void {
 		const state = this.contextService.getWorkbenchState();
 		const workspace = this.contextService.getWorkspace();
