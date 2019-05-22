@@ -15,7 +15,7 @@ declare module 'node-pty' {
 	 * @see Parsing C++ Comamnd-Line Arguments https://msdn.microsoft.com/en-us/library/17w5ykft.aspx
 	 * @see GetCommandLine https://msdn.microsoft.com/en-us/library/windows/desktop/ms683156.aspx
 	 */
-	export function spawn(file: string, args: string[] | string, options: IPtyForkOptions): IPty;
+	export function spawn(file: string, args: string[] | string, options: IPtyForkOptions | IWindowsPtyForkOptions): IPty;
 
 	export interface IPtyForkOptions {
 		name?: string;
@@ -26,6 +26,15 @@ declare module 'node-pty' {
 		uid?: number;
 		gid?: number;
 		encoding?: string;
+	}
+
+	export interface IWindowsPtyForkOptions {
+		name?: string;
+		cols?: number;
+		rows?: number;
+		cwd?: string;
+		env?: { [key: string]: string };
+		encoding?: string;
 		/**
 		 * Whether to use the experimental ConPTY system on Windows. When this is not set, ConPTY will
 		 * be used when the Windows build number is >= 18309 (it's available in 17134 and 17692 but is
@@ -34,6 +43,11 @@ declare module 'node-pty' {
 		 * This setting does nothing on non-Windows.
 		 */
 		experimentalUseConpty?: boolean;
+		/**
+		 * Whether to use PSEUDOCONSOLE_INHERIT_CURSOR in conpty.
+		 * @see https://docs.microsoft.com/en-us/windows/console/createpseudoconsole
+		 */
+		conptyInheritCursor?: boolean;
 	}
 
 	/**
@@ -43,35 +57,35 @@ declare module 'node-pty' {
 		/**
 		 * The process ID of the outer process.
 		 */
-		pid: number;
+		readonly pid: number;
 
 		/**
 		 * The column size in characters.
 		 */
-		cols: number;
+		readonly cols: number;
 
 		/**
 		 * The row size in characters.
 		 */
-		rows: number;
+		readonly rows: number;
 
 		/**
 		 * The title of the active process.
 		 */
-		process: string;
+		readonly process: string;
 
 		/**
 		 * Adds an event listener for when a data event fires. This happens when data is returned from
 		 * the pty.
 		 * @returns an `IDisposable` to stop listening.
 		 */
-		onData: IEvent<string>;
+		readonly onData: IEvent<string>;
 
 		/**
 		 * Adds an event listener for when an exit event fires. This happens when the pty exits.
 		 * @returns an `IDisposable` to stop listening.
 		 */
-		onExit: IEvent<{ exitCode: number, signal?: number }>;
+		readonly onExit: IEvent<{ exitCode: number, signal?: number }>;
 
 		/**
 		 * Adds a listener to the data event, fired when data is returned from the pty.

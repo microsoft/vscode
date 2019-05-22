@@ -62,13 +62,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			!is32ProcessOn64Windows &&
 			getWindowsBuildNumber() >= 18309;
 
-		const options: pty.IPtyForkOptions = {
+		const options: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions = {
 			name: shellName,
 			cwd,
 			env,
 			cols,
 			rows,
-			experimentalUseConpty: useConpty
+			experimentalUseConpty: useConpty,
+			conptyInheritCursor: true
 		};
 
 		// TODO: Need to verify whether executable is on $PATH, otherwise things like cmd.exe will break
