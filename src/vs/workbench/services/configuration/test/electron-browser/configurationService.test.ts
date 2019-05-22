@@ -1443,17 +1443,17 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 			'id': '_test',
 			'type': 'object',
 			'properties': {
-				'configurationService.folder.applicationSetting': {
+				'configurationService.remote.applicationSetting': {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION
 				},
-				'configurationService.folder.machineSetting': {
+				'configurationService.remote.machineSetting': {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.MACHINE
 				},
-				'configurationService.folder.testSetting': {
+				'configurationService.remote.testSetting': {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.RESOURCE
@@ -1495,8 +1495,17 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		testObject.acquireInstantiationService(instantiationService);
 	}
 
-	function registerRemtoeFileSystemProvider(): void {
+	function registerRemoteFileSystemProvider(): void {
 		instantiationService.get(IFileService).registerProvider(Schemas.vscodeRemote, new RemoteFileSystemProvider(diskFileSystemProvider, remoteAuthority));
+	}
+
+	function registerRemoteFileSystemProviderOnActivation(): void {
+		const disposable = instantiationService.get(IFileService).onWillActivateFileSystemProvider(e => {
+			if (e.scheme === Schemas.vscodeRemote) {
+				disposable.dispose();
+				e.join(Promise.resolve().then(() => registerRemoteFileSystemProvider()));
+			}
+		});
 	}
 
 	teardown(() => {
@@ -1510,23 +1519,31 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	});
 
 	test('remote settings override globals', async () => {
-		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.folder.machineSetting": "remoteValue" }');
-		registerRemtoeFileSystemProvider();
+		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
+		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
 		await initialize();
-		assert.equal(testObject.getValue('configurationService.folder.machineSetting'), 'remoteValue');
+		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+	});
+
+	test('remote settings override globals after remote provider is registered on activation', async () => {
+		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
+		resolveRemoteEnvironment();
+		registerRemoteFileSystemProviderOnActivation();
+		await initialize();
+		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 	});
 
 	test('remote settings override globals after remote environment is resolved', async () => {
-		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.folder.machineSetting": "remoteValue" }');
-		registerRemtoeFileSystemProvider();
+		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
+		registerRemoteFileSystemProvider();
 		await initialize();
 		const promise = new Promise((c, e) => {
 			testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.equal(event.source, ConfigurationTarget.USER);
-					assert.deepEqual(event.affectedKeys, ['configurationService.folder.machineSetting']);
-					assert.equal(testObject.getValue('configurationService.folder.machineSetting'), 'remoteValue');
+					assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 					c();
 				} catch (error) {
 					e(error);
@@ -1537,38 +1554,16 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		return promise;
 	});
 
-	/*
-		// comment this test as it is failing
-		test('remote settings override globals after remote provider is registered', async () => {
-			fs.writeFileSync(remoteSettingsFile, '{ "configurationService.folder.machineSetting": "remoteValue" }');
-			resolveRemoteEnvironment();
-			await initialize();
-			const promise = new Promise((c, e) => {
-				testObject.onDidChangeConfiguration(event => {
-					try {
-						assert.equal(event.source, ConfigurationTarget.USER);
-						assert.deepEqual(event.affectedKeys, ['configurationService.folder.machineSetting']);
-						assert.equal(testObject.getValue('configurationService.folder.machineSetting'), 'remoteValue');
-						c();
-					} catch (error) {
-						e(error);
-					}
-				});
-			});
-			registerRemtoeFileSystemProvider();
-			return promise;
-		});
-	*/
-
-	test('remote settings override globals after remote provider is registered and remote environment is resolved', async () => {
-		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.folder.machineSetting": "remoteValue" }');
+	test('remote settings override globals after remote provider is registered on activation and remote environment is resolved', async () => {
+		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
+		registerRemoteFileSystemProviderOnActivation();
 		await initialize();
 		const promise = new Promise((c, e) => {
 			testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.equal(event.source, ConfigurationTarget.USER);
-					assert.deepEqual(event.affectedKeys, ['configurationService.folder.machineSetting']);
-					assert.equal(testObject.getValue('configurationService.folder.machineSetting'), 'remoteValue');
+					assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 					c();
 				} catch (error) {
 					e(error);
@@ -1576,28 +1571,27 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 			});
 		});
 		resolveRemoteEnvironment();
-		registerRemtoeFileSystemProvider();
 		return promise;
 	});
 
 	test('update remote settings', async () => {
-		registerRemtoeFileSystemProvider();
+		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
 		await initialize();
-		assert.equal(testObject.getValue('configurationService.folder.machineSetting'), 'isSet');
+		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
 		const promise = new Promise((c, e) => {
 			testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.equal(event.source, ConfigurationTarget.USER);
-					assert.deepEqual(event.affectedKeys, ['configurationService.folder.machineSetting']);
-					assert.equal(testObject.getValue('configurationService.folder.machineSetting'), 'remoteValue');
+					assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 					c();
 				} catch (error) {
 					e(error);
 				}
 			});
 		});
-		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.folder.machineSetting": "remoteValue" }');
+		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
 		return promise;
 	});
 
