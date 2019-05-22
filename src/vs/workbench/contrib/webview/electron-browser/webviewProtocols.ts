@@ -8,16 +8,19 @@ import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IFileService } from 'vs/platform/files/common/files';
+import * as electron from 'electron';
+
+type BufferProtocolCallback = (buffer?: Buffer | electron.MimeTypedBuffer | { error: number }) => void;
 
 export const enum WebviewProtocol {
 	CoreResource = 'vscode-core-resource',
 	VsCodeResource = 'vscode-resource',
 }
 
-function resolveContent(fileService: IFileService, resource: URI, mime: string, callback: any): void {
+function resolveContent(fileService: IFileService, resource: URI, mime: string, callback: BufferProtocolCallback): void {
 	fileService.readFile(resource).then(contents => {
 		callback({
-			data: contents.value.buffer,
+			data: Buffer.from(contents.value.buffer),
 			mimeType: mime
 		});
 	}, (err) => {
@@ -27,7 +30,7 @@ function resolveContent(fileService: IFileService, resource: URI, mime: string, 
 }
 
 export function registerFileProtocol(
-	contents: Electron.WebContents,
+	contents: electron.WebContents,
 	protocol: WebviewProtocol,
 	fileService: IFileService,
 	extensionLocation: URI | undefined,
