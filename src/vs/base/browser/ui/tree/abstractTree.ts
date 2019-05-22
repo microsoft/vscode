@@ -243,6 +243,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 	constructor(
 		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
+		onDidSplice: Event<ITreeModelSpliceEvent<T, TFilterData>>,
 		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>,
 		options: ITreeRendererOptions = {}
 	) {
@@ -250,6 +251,9 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		this.updateOptions(options);
 
 		Event.map(onDidChangeCollapseState, e => e.node)(this.onDidChangeNodeTwistieState, this, this.disposables);
+
+		// TODO: only do iff indent guides are enabled
+		Event.map(onDidSplice, e => e.parentNode)(this.onDidChangeNodeTwistieState, this, this.disposables);
 
 		if (renderer.onDidChangeTwistieState) {
 			renderer.onDidChangeTwistieState(this.onDidChangeTwistieState, this, this.disposables);
@@ -347,6 +351,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		}
 	}
 
+	// TODO: only do iff indent guides are enabled
 	private renderIndentGuides(_node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
 		let node: ITreeNode<T, TFilterData> | undefined = _node;
 		let parent: ITreeNode<T, TFilterData> | undefined;
@@ -1147,8 +1152,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	) {
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
+		const onDidSplice = new Relay<ITreeModelSpliceEvent<T, TFilterData>>();
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
-		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event, _options));
+		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidSplice.event, onDidChangeCollapseStateRelay.event, _options));
 		this.disposables.push(...this.renderers);
 
 		let filter: TypeFilter<T> | undefined;
@@ -1164,6 +1170,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view = new TreeNodeList(container, treeDelegate, this.renderers, this.focus, this.selection, { ...asListOptions(() => this.model, _options), tree: this });
 
 		this.model = this.createModel(this.view, _options);
+		onDidSplice.input = this.model.onDidSplice;
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
 		this.model.onDidSplice(e => {

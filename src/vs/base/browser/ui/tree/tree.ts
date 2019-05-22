@@ -98,6 +98,7 @@ export interface ICollapseStateChangeEvent<T, TFilterData> {
 }
 
 export interface ITreeModelSpliceEvent<T, TFilterData> {
+	parentNode: ITreeNode<T, TFilterData>;
 	insertedNodes: ITreeNode<T, TFilterData>[];
 	deletedNodes: ITreeNode<T, TFilterData>[];
 }
