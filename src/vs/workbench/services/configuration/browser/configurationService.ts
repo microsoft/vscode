@@ -543,8 +543,10 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	private onRemoteUserConfigurationChanged(userConfiguration: ConfigurationModel): void {
-		const keys = this._configuration.compareAndUpdateRemoteUserConfiguration(userConfiguration);
-		this.triggerConfigurationChange(keys, ConfigurationTarget.USER);
+		if (this._configuration) {
+			const keys = this._configuration.compareAndUpdateRemoteUserConfiguration(userConfiguration);
+			this.triggerConfigurationChange(keys, ConfigurationTarget.USER);
+		}
 	}
 
 	private onWorkspaceConfigurationChanged(): Promise<void> {

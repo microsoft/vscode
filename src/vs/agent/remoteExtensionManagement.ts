@@ -28,7 +28,7 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannelClient } from 'vs/platform/download/node/downloadIpc';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { FollowerLogService, LogLevelSetterChannelClient } from 'vs/platform/log/node/logIpc';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { createBufferSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -144,7 +144,7 @@ export class RemoteExtensionManagementServer extends Disposable {
 		// TODO: @Sandy @Joao need dynamic context based router
 		const router = new StaticRouter<RemoteAgentConnectionContext>(ctx => ctx.clientId === 'renderer');
 		const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', router));
-		const logService = new FollowerLogService(logLevelClient, createSpdLogService(RemoteExtensionLogFileName, LogLevel.Info, this._environmentService.logsPath));
+		const logService = new FollowerLogService(logLevelClient, createBufferSpdLogService(RemoteExtensionLogFileName, LogLevel.Info, this._environmentService.logsPath));
 
 		services.set(IEnvironmentService, this._environmentService);
 		services.set(ILogService, logService);
@@ -230,7 +230,7 @@ export class RemoteExtensionManagementCli {
 		const services = new ServiceCollection();
 
 		services.set(IEnvironmentService, environmentService);
-		const logService = createSpdLogService('cli', getLogLevel(environmentService), environmentService.logsPath);
+		const logService = createBufferSpdLogService('cli', getLogLevel(environmentService), environmentService.logsPath);
 		services.set(ILogService, logService);
 		const instantiationService: IInstantiationService = new InstantiationService(services);
 

@@ -33,6 +33,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IdleValue } from 'vs/base/common/async';
 import { isObject } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class SuggestController implements IEditorContribution {
 
@@ -64,10 +65,14 @@ export class SuggestController implements IEditorContribution {
 			const widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
 
 			this._toDispose.push(widget);
-			this._toDispose.push(widget.onDidSelect(item => this._onDidSelectItem(item, false, true), this));
+			this._toDispose.push(widget.onDidSelect(item => this._insertSuggestion(item, false, true), this));
 
 			// Wire up logic to accept a suggestion on certain characters
-			const commitCharacterController = new CommitCharacterController(this._editor, widget, item => this._onDidSelectItem(item, false, true));
+			const commitCharacterController = new CommitCharacterController(
+				this._editor,
+				widget,
+				item => this._insertSuggestion(item, false, true, true)
+			);
 			this._toDispose.push(
 				commitCharacterController,
 				this._model.onDidSuggest(e => {
@@ -161,12 +166,23 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	protected _onDidSelectItem(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
+	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): Promise<void>;
+	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean, noResolve: true): void;
+	protected async _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean, noResolve?: true): Promise<void> {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
 			this._model.cancel();
 			return;
 		}
+
+		if (!noResolve) {
+			// DEFAULT is to wait for the item to be resolve
+			// but the current implementation of commit characters
+			// doesn't allow to wait and that's why there is a
+			// sync (no resolve) case
+			await event.item.resolve(CancellationToken.None);
+		}
+
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -233,7 +249,7 @@ export class SuggestController implements IEditorContribution {
 					if (modelVersionNow !== model.getAlternativeVersionId()) {
 						model.undo();
 					}
-					this._onDidSelectItem(next, false, false);
+					this._insertSuggestion(next, false, false);
 					break;
 				}
 			});
@@ -315,7 +331,7 @@ export class SuggestController implements IEditorContribution {
 					return;
 				}
 				this._editor.pushUndoStop();
-				this._onDidSelectItem({ index, item, model: completionModel }, true, false);
+				this._insertSuggestion({ index, item, model: completionModel }, true, false);
 
 			}, undefined, listener);
 		});
@@ -326,10 +342,8 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): void {
-		if (this._widget) {
-			const item = this._widget.getValue().getFocusedItem();
-			this._onDidSelectItem(item, !!keepAlternativeSuggestions, true);
-		}
+		const item = this._widget.getValue().getFocusedItem();
+		this._insertSuggestion(item, !!keepAlternativeSuggestions, true);
 	}
 
 	acceptNextSuggestion() {
@@ -341,58 +355,40 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	cancelSuggestWidget(): void {
-		if (this._widget) {
-			this._model.cancel();
-			this._widget.getValue().hideWidget();
-		}
+		this._model.cancel();
+		this._widget.getValue().hideWidget();
 	}
 
 	selectNextSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectNext();
-		}
+		this._widget.getValue().selectNext();
 	}
 
 	selectNextPageSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectNextPage();
-		}
+		this._widget.getValue().selectNextPage();
 	}
 
 	selectLastSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectLast();
-		}
+		this._widget.getValue().selectLast();
 	}
 
 	selectPrevSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectPrevious();
-		}
+		this._widget.getValue().selectPrevious();
 	}
 
 	selectPrevPageSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectPreviousPage();
-		}
+		this._widget.getValue().selectPreviousPage();
 	}
 
 	selectFirstSuggestion(): void {
-		if (this._widget) {
-			this._widget.getValue().selectFirst();
-		}
+		this._widget.getValue().selectFirst();
 	}
 
 	toggleSuggestionDetails(): void {
-		if (this._widget) {
-			this._widget.getValue().toggleDetails();
-		}
+		this._widget.getValue().toggleDetails();
 	}
 
 	toggleSuggestionFocus(): void {
-		if (this._widget) {
-			this._widget.getValue().toggleDetailsFocus();
-		}
+		this._widget.getValue().toggleDetailsFocus();
 	}
 }
 

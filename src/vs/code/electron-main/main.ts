@@ -288,7 +288,7 @@ function startup(args: ParsedArgs): void {
 				return Promise.reject(error);
 			})
 			.then(mainIpcServer => {
-				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
+				createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath).then(logger => bufferLogService.logger = logger);
 
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
 			});

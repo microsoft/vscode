@@ -29,6 +29,7 @@ export class RemoteUserConfiguration extends Disposable {
 	private readonly _cachedConfiguration: CachedUserConfiguration;
 	private readonly _configurationFileService: IConfigurationFileService;
 	private _userConfiguration: UserConfiguration | CachedUserConfiguration;
+	private _userConfigurationInitializationPromise: Promise<ConfigurationModel> | null = null;
 
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
@@ -46,7 +47,8 @@ export class RemoteUserConfiguration extends Disposable {
 			if (environment) {
 				const userConfiguration = this._register(new UserConfiguration(environment.settingsPath, MACHINE_SCOPES, this._configurationFileService));
 				this._register(userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
-				const configurationModel = await userConfiguration.initialize();
+				this._userConfigurationInitializationPromise = userConfiguration.initialize();
+				const configurationModel = await this._userConfigurationInitializationPromise;
 				this._userConfiguration.dispose();
 				this._userConfiguration = userConfiguration;
 				this.onDidUserConfigurationChange(configurationModel);
@@ -54,8 +56,20 @@ export class RemoteUserConfiguration extends Disposable {
 		});
 	}
 
-	initialize(): Promise<ConfigurationModel> {
-		return this._userConfiguration.initialize();
+	async initialize(): Promise<ConfigurationModel> {
+		if (this._userConfiguration instanceof UserConfiguration) {
+			return this._userConfiguration.initialize();
+		}
+
+		// Initialize cached configuration
+		let configurationModel = await this._userConfiguration.initialize();
+		if (this._userConfigurationInitializationPromise) {
+			// Use user configuration
+			configurationModel = await this._userConfigurationInitializationPromise;
+			this._userConfigurationInitializationPromise = null;
+		}
+
+		return configurationModel;
 	}
 
 	reload(): Promise<ConfigurationModel> {

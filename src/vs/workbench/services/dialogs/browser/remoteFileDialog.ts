@@ -279,9 +279,8 @@ export class RemoteFileDialog {
 						if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
 							this.filePickBox.validationMessage = undefined;
 							const filePickBoxUri = this.filePickBoxValue();
-							const valueUri = resources.removeTrailingPathSeparator(filePickBoxUri);
 							let updated: UpdateResult = UpdateResult.NotUpdated;
-							if (!resources.isEqual(resources.removeTrailingPathSeparator(this.currentFolder), valueUri, true)) {
+							if (!resources.isEqual(this.currentFolder, filePickBoxUri, true)) {
 								updated = await this.tryUpdateItems(value, filePickBoxUri);
 							}
 							if (updated === UpdateResult.NotUpdated) {
@@ -660,7 +659,8 @@ export class RemoteFileDialog {
 			if (force && trailing) {
 				// Keep the cursor position in front of the save as name.
 				this.filePickBox.valueSelection = [this.filePickBox.value.length - trailing.length, this.filePickBox.value.length - trailing.length];
-			} else {
+			} else if (!trailing) {
+				// If there is trailing, we don't move the cursor. If there is no trailing, cursor goes at the end.
 				this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			}
 			this.filePickBox.busy = false;
