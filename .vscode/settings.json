@@ -45,15 +45,9 @@
 	"gitBranch.base": "origin/master",
 	"gitBranch.diffGroups": [
 		{
-			"name": "🚧🛑Build & Dev Scripts (needs empty gulp tasks)",
+			"name": "🚧🛑Sourcemap (should skip vs/agent)",
 			"files": [
-				".gitignore",
-				".vscode/settings.json",
 				"build/azure-pipelines/darwin/build.sh",
-				"build/azure-pipelines/linux/build.sh",
-				"build/azure-pipelines/win32/build.ps1",
-				"build/npm/postinstall.js",
-				"tslint.json",
 			]
 		},
 		{
