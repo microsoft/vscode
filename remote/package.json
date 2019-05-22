@@ -23,7 +23,6 @@
     "yazl": "^2.4.3"
   },
   "optionalDependencies": {
-    "vscode-windows-ca-certs": "0.1.0",
-    "vsda": "git+https://monacotools.visualstudio.com/DefaultCollection/_git/vscode-debug-handshake#31bf016d04d013bb9b86117232e53e3ebb015c27"
+    "vscode-windows-ca-certs": "0.1.0"
   }
 }

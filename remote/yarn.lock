@@ -1086,12 +1086,6 @@ vscode-windows-ca-certs@0.1.0:
   dependencies:
     node-addon-api "1.6.2"
 
-"vsda@git+https://monacotools.visualstudio.com/DefaultCollection/_git/vscode-debug-handshake#31bf016d04d013bb9b86117232e53e3ebb015c27":
-  version "1.0.0"
-  resolved "git+https://monacotools.visualstudio.com/DefaultCollection/_git/vscode-debug-handshake#31bf016d04d013bb9b86117232e53e3ebb015c27"
-  dependencies:
-    nan "^2.10.0"
-
 which-pm-runs@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/which-pm-runs/-/which-pm-runs-1.0.0.tgz#670b3afbc552e0b55df6b7780ca74615f23ad1cb"
