@@ -54,6 +54,10 @@
 				"overrideCommand": {
 					"type": "boolean",
 					"description": "Whether to overwrite the command specified in the image. The default is true."
+				},
+				"workspaceFolder": {
+					"type": "string",
+					"description": "The path of the workspace folder inside the container."
 				}
 			}
 		},
