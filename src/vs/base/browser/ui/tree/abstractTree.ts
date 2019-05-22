@@ -188,6 +188,7 @@ export class ComposedTreeDelegate<T, N extends { element: T }> implements IListV
 
 interface ITreeListTemplateData<T> {
 	readonly container: HTMLElement;
+	readonly indent: HTMLElement;
 	readonly twistie: HTMLElement;
 	readonly templateData: T;
 }
@@ -196,13 +197,47 @@ interface ITreeRendererOptions {
 	readonly indent?: number;
 }
 
+enum IndentGuide {
+	None,
+	First,
+	Middle,
+	Last
+}
+
+function getLastVisibleChild<T, TFilterData>(node: ITreeNode<T, TFilterData>): ITreeNode<T, TFilterData> | undefined {
+	for (let i = 0; i < node.children.length; i++) {
+		const child = node.children[node.children.length - i - 1];
+
+		if (child.visible) {
+			return child;
+		}
+	}
+
+	return undefined;
+}
+
+function hasVisibleChildren<T, TFilterData>(node: ITreeNode<T, TFilterData>): boolean {
+	for (let i = 0; i < node.children.length; i++) {
+		if (node.children[i].visible) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+interface IRenderData<TTemplateData> {
+	templateData: ITreeListTemplateData<TTemplateData>;
+	height: number;
+}
+
 class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
 	private static DefaultIndent = 8;
 
 	readonly templateId: string;
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
-	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
+	private renderedNodes = new Map<ITreeNode<T, TFilterData>, IRenderData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
 	private disposables: IDisposable[] = [];
 
@@ -226,29 +261,38 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 			this.indent = clamp(options.indent, 0, 40);
 		}
 
-		this.renderedNodes.forEach((templateData, node) => {
-			templateData.twistie.style.marginLeft = `${node.depth * this.indent}px`;
+		// TODO
+		this.renderedNodes.forEach((data, node) => {
+			data.templateData.indent.style.width = `${node.depth * this.indent}px`;
 		});
 	}
 
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
 		const el = append(container, $('.monaco-tl-row'));
+		const indent = append(el, $('.monaco-tl-indent'));
 		const twistie = append(el, $('.monaco-tl-twistie'));
 		const contents = append(el, $('.monaco-tl-contents'));
 		const templateData = this.renderer.renderTemplate(contents);
 
-		return { container, twistie, templateData };
+		return { container, indent, twistie, templateData };
 	}
 
 	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
 		if (typeof height === 'number') {
-			this.renderedNodes.set(node, templateData);
+			this.renderedNodes.set(node, { templateData, height });
 			this.renderedElements.set(node.element, node);
 		}
 
 		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
 		templateData.twistie.style.marginLeft = `${indent}px`;
-		this.update(node, templateData);
+		templateData.indent.style.width = `${indent + this.indent}px`;
+		templateData.indent.style.left = `${Math.floor(this.indent * 1.5)}px`;
+
+		this.renderTwistie(node, templateData);
+
+		if (typeof height === 'number') {
+			this.renderIndentGuides(node, templateData, height);
+		}
 
 		this.renderer.renderElement(node, index, templateData.templateData, height);
 	}
@@ -279,16 +323,17 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	private onDidChangeNodeTwistieState(node: ITreeNode<T, TFilterData>): void {
-		const templateData = this.renderedNodes.get(node);
+		const data = this.renderedNodes.get(node);
 
-		if (!templateData) {
+		if (!data) {
 			return;
 		}
 
-		this.update(node, templateData);
+		this.renderTwistie(node, data.templateData);
+		this.renderIndentGuides(node, data.templateData, data.height);
 	}
 
-	private update(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>) {
+	private renderTwistie(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>) {
 		if (this.renderer.renderTwistie) {
 			this.renderer.renderTwistie(node.element, templateData.twistie);
 		}
@@ -301,6 +346,65 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		} else {
 			templateData.container.removeAttribute('aria-expanded');
 		}
+	}
+
+	private renderIndentGuides(_node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
+		let node: ITreeNode<T, TFilterData> | undefined = _node;
+		let parent: ITreeNode<T, TFilterData> | undefined;
+		const guides: IndentGuide[] = [];
+
+		if (node && node.collapsible && !node.collapsed && hasVisibleChildren(node)) {
+			guides.push(IndentGuide.First);
+		} else {
+			guides.push(IndentGuide.None);
+		}
+
+		while (node) {
+			parent = node.parent;
+
+			if (!parent || !parent.parent) {
+				break;
+			}
+
+			const isLastChild = parent && getLastVisibleChild(parent) === node;
+
+			if (isLastChild) {
+				if (node === _node) {
+					guides.push(IndentGuide.Last);
+				} else {
+					guides.push(IndentGuide.None);
+				}
+			} else {
+				guides.push(IndentGuide.Middle);
+			}
+
+			node = parent;
+		}
+
+		const lines: string[] = [];
+		const halfHeight = Math.floor(height / 2);
+
+		for (let i = 0; i < guides.length; i++) {
+			const halfX = Math.floor((guides.length - i - 0.5) * this.indent);
+			const fullX = (guides.length - i) * this.indent;
+
+			switch (guides[i]) {
+				case IndentGuide.First:
+					lines.push(`<line style="stroke:#a9a9a9;" x1="${halfX}" y1="${halfHeight}" x2="${halfX}" y2="${height}" />`);
+					lines.push(`<line style="stroke:#a9a9a9;" x1="${halfX}" y1="${halfHeight}" x2="${fullX}" y2="${halfHeight}" />`);
+					break;
+				case IndentGuide.Middle:
+					lines.push(`<line style="stroke:#a9a9a9;" x1="${halfX}" y1="0" x2="${halfX}" y2="${height}" />`);
+					break;
+				case IndentGuide.Last:
+					lines.push(`<line style="stroke:#a9a9a9;" x1="${halfX}" y1="0" x2="${halfX}" y2="${halfHeight}" />`);
+					lines.push(`<line style="stroke:#a9a9a9;" x1="${halfX}" y1="${halfHeight}" x2="${fullX}" y2="${halfHeight}" />`);
+					break;
+			}
+		}
+
+		const rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${this.indent * guides.length} ${height}">${lines.join('')}</svg>`;
+		templateData.indent.style.background = `url("data:image/svg+xml,${encodeURIComponent(rawSvg)}") no-repeat 0 0`;
 	}
 
 	dispose(): void {

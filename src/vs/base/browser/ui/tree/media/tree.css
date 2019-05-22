@@ -9,6 +9,12 @@
 	align-items: center;
 }
 
+.monaco-tl-indent {
+	height: 100%;
+	position: absolute;
+	top: 0;
+}
+
 .monaco-tl-twistie,
 .monaco-tl-contents {
 	height: 100%;
