@@ -659,7 +659,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		token: vscode.CancellationToken
 	): Promise<boolean> {
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
-		// Don't complete function calls inside of destructive assigments or imports
+		// Don't complete function calls inside of destructive assignments or imports
 		try {
 			const args: Proto.FileLocationRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 			const response = await this.client.execute('quickinfo', args, token);
