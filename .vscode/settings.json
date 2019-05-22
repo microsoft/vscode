@@ -69,7 +69,7 @@
 			]
 		},
 		{
-			"name": "⛔🛑 Server implementation & resources [DO NOT MERGE]",
+			"name": "⛔🛑 [DO NOT MERGE] Server implementation, resources & scripts",
 			"files": [
 				"build/gulpfile.reh.js",
 				"remote/LICENSE",
@@ -82,7 +82,7 @@
 			]
 		},
 		{
-			"name": "⛔🛑 Quality Icons & Licenses [DO NOT MERGE]",
+			"name": "⛔🛑 [DO NOT MERGE] Quality Icons & Licenses",
 			"files": [
 				"quality/**"
 			]
