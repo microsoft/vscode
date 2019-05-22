@@ -7,161 +7,68 @@ import * as assert from 'assert';
 import { incrementFileName } from 'vs/workbench/contrib/files/browser/fileActions';
 
 suite('Files - Increment file name', () => {
-
-	test('Increment file name without any version', function () {
+	test('Increment file name', function () {
 		const name = 'test.js';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'test.1.js');
+		assert.strictEqual(result, 'test (Copy).js');
 	});
-
-	test('Increment folder name without any version', function () {
+	test('Increment file name without file extension', function () {
 		const name = 'test';
-		const result = incrementFileName(name, true);
-		assert.strictEqual(result, 'test.1');
-	});
-
-	test('Increment file name with suffix version', function () {
-		const name = 'test.1.js';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'test.2.js');
+		assert.strictEqual(result, 'test (Copy)');
 	});
-
-	test('Increment file name with suffix version with trailing zeros', function () {
-		const name = 'test.001.js';
+	test('Increment file name with two file extensions', function () {
+		const name = 'test.tar.gz';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'test.002.js');
+		assert.strictEqual(result, 'test (Copy).tar.gz');
 	});
 
-	test('Increment file name with suffix version with trailing zeros, changing length', function () {
-		const name = 'test.009.js';
+	test('Increment second file name', function () {
+		const name = 'test (Copy).js';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'test.010.js');
+		assert.strictEqual(result, 'test (Copy 2).js');
 	});
-
-	test('Increment file name with suffix version with `-` as separator', function () {
-		const name = 'test-1.js';
+	test('Increment second file name without file extension', function () {
+		const name = 'test (Copy)';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'test-2.js');
+		assert.strictEqual(result, 'test (Copy 2)');
 	});
-
-	test('Increment file name with suffix version with `-` as separator, trailing zeros', function () {
-		const name = 'test-001.js';
+	test('Increment second file name with two file extensions', function () {
+		const name = 'test (Copy).tar.gz';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'test-002.js');
+		assert.strictEqual(result, 'test (Copy 2).tar.gz');
 	});
 
-	test('Increment file name with suffix version with `-` as separator, trailing zeros, changnig length', function () {
-		const name = 'test-099.js';
+	test('Increment third file name', function () {
+		const name = 'test (Copy 2).js';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'test-100.js');
+		assert.strictEqual(result, 'test (Copy 3).js');
 	});
-
-	test('Increment file name with suffix version with `_` as separator', function () {
-		const name = 'test_1.js';
+	test('Increment third file name without file extension', function () {
+		const name = 'test (Copy 2)';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'test_2.js');
+		assert.strictEqual(result, 'test (Copy 3)');
 	});
-
-	test('Increment folder name with suffix version', function () {
-		const name = 'test.1';
-		const result = incrementFileName(name, true);
-		assert.strictEqual(result, 'test.2');
-	});
-
-	test('Increment folder name with suffix version, trailing zeros', function () {
-		const name = 'test.001';
-		const result = incrementFileName(name, true);
-		assert.strictEqual(result, 'test.002');
-	});
-
-	test('Increment folder name with suffix version with `-` as separator', function () {
-		const name = 'test-1';
-		const result = incrementFileName(name, true);
-		assert.strictEqual(result, 'test-2');
-	});
-
-	test('Increment folder name with suffix version with `_` as separator', function () {
-		const name = 'test_1';
-		const result = incrementFileName(name, true);
-		assert.strictEqual(result, 'test_2');
-	});
-
-	test('Increment file name with suffix version, too big number', function () {
-		const name = 'test.9007199254740992.js';
+	test('Increment third file name with two file extensions', function () {
+		const name = 'test (Copy 2).tar.gz';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'test.9007199254740992.1.js');
+		assert.strictEqual(result, 'test (Copy 3).tar.gz');
 	});
 
-	test('Increment folder name with suffix version, too big number', function () {
-		const name = 'test.9007199254740992';
-		const result = incrementFileName(name, true);
-		assert.strictEqual(result, 'test.9007199254740992.1');
-	});
-
-	test('Increment file name with prefix version', function () {
-		const name = '1.test.js';
+	test('Increment max safe small integer file name', function () {
+		const name = 'test (Copy 1073741824).js';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, '2.test.js');
+		assert.strictEqual(result, 'test (Copy 1073741824) (Copy).js');
 	});
-
-	test('Increment file name with just version in name', function () {
-		const name = '1.js';
+	test('Increment max safe small integer file name without file extension', function () {
+		const name = 'test (Copy 1073741824)';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, '2.js');
+		assert.strictEqual(result, 'test (Copy 1073741824) (Copy)');
 	});
-
-	test('Increment file name with just version in name, too big number', function () {
-		const name = '9007199254740992.js';
+	test('Increment max safe small integer file name with two file extensions', function () {
+		const name = 'test (Copy 1073741824).tar.gz';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, '9007199254740992.1.js');
-	});
-
-	test('Increment file name with prefix version, trailing zeros', function () {
-		const name = '001.test.js';
-		const result = incrementFileName(name, false);
-		assert.strictEqual(result, '002.test.js');
-	});
-
-	test('Increment file name with prefix version with `-` as separator', function () {
-		const name = '1-test.js';
-		const result = incrementFileName(name, false);
-		assert.strictEqual(result, '2-test.js');
-	});
-
-	test('Increment file name with prefix version with `-` as separator', function () {
-		const name = '1_test.js';
-		const result = incrementFileName(name, false);
-		assert.strictEqual(result, '2_test.js');
-	});
-
-	test('Increment file name with prefix version, too big number', function () {
-		const name = '9007199254740992.test.js';
-		const result = incrementFileName(name, false);
-		assert.strictEqual(result, '9007199254740992.test.1.js');
-	});
-
-	test('Increment folder name with prefix version', function () {
-		const name = '1.test';
-		const result = incrementFileName(name, true);
-		assert.strictEqual(result, '2.test');
-	});
-
-	test('Increment folder name with prefix version, too big number', function () {
-		const name = '9007199254740992.test';
-		const result = incrementFileName(name, true);
-		assert.strictEqual(result, '9007199254740992.test.1');
-	});
-
-	test('Increment folder name with prefix version, trailing zeros', function () {
-		const name = '001.test';
-		const result = incrementFileName(name, true);
-		assert.strictEqual(result, '002.test');
-	});
-
-	test('Increment folder name with prefix version  with `-` as separator', function () {
-		const name = '1-test';
-		const result = incrementFileName(name, true);
-		assert.strictEqual(result, '2-test');
+		assert.strictEqual(result, 'test (Copy 1073741824) (Copy).tar.gz');
 	});
 
 });

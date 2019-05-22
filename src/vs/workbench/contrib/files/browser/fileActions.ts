@@ -359,70 +359,21 @@ export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste
 }
 
 export function incrementFileName(name: string, isFolder: boolean): string {
-	const separators = '[\\.\\-_]';
 	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
 
-	// file.1.txt=>file.2.txt
-	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
-	if (!isFolder && name.match(suffixFileRegex)) {
-		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g2);
-			return number < maxNumber
-				? g1 + strings.pad(number + 1, g2.length) + g3
-				: strings.format('{0}{1}.1{2}', g1, g2, g3);
-		});
+	if (name.match(/ \(Copy\)(?:\..+)?$/)) {
+		return name.replace(/ \(Copy\)(\..+)?$/, ' (Copy 2)$1');
 	}
 
-	// 1.file.txt=>2.file.txt
-	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
-	if (!isFolder && name.match(prefixFileRegex)) {
-		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
-			let number = parseInt(g1);
-			return number < maxNumber
-				? strings.pad(number + 1, g1.length) + g2 + g3
-				: strings.format('{0}{1}.1{2}', g1, g2, g3);
-		});
+	let m = name.match(/ \(Copy (\d+)\)(?:\..+)?$/);
+	if (m) {
+		let num = +m[1];
+		if (num < maxNumber - 1) {
+			return name.replace(/ \(Copy \d+\)(\..+)?/, strings.format(' (Copy {0})$1', num + 1));
+		}
 	}
 
-	// 1.txt=>2.txt
-	let prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
-	if (!isFolder && name.match(prefixFileNoNameRegex)) {
-		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
-			let number = parseInt(g1);
-			return number < maxNumber
-				? strings.pad(number + 1, g1.length) + g2
-				: strings.format('{0}.1{1}', g1, g2);
-		});
-	}
-
-	// file.txt=>file.1.txt
-	const lastIndexOfDot = name.lastIndexOf('.');
-	if (!isFolder && lastIndexOfDot >= 0) {
-		return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
-	}
-
-	// folder.1=>folder.2
-	if (isFolder && name.match(/(\d+)$/)) {
-		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => {
-			let number = parseInt(groups[0]);
-			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length)
-				: strings.format('{0}.1', groups[0]);
-		});
-	}
-
-	// 1.folder=>2.folder
-	if (isFolder && name.match(/^(\d+)/)) {
-		return name.replace(/^(\d+)(.*)$/, (match: string, ...groups: any[]) => {
-			let number = parseInt(groups[0]);
-			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length) + groups[1]
-				: strings.format('{0}{1}.1', groups[0], groups[1]);
-		});
-	}
-
-	// file/folder=>file.1/folder.1
-	return strings.format('{0}.1', name);
+	return name.replace(/(\..+)?$/, ' (Copy)$1');
 }
 
 // Global Compare with
