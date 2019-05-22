@@ -7,17 +7,17 @@ import { extname, sep } from 'vs/base/common/path';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export const enum WebviewProtocol {
 	CoreResource = 'vscode-core-resource',
 	VsCodeResource = 'vscode-resource',
 }
 
-function resolveContent(textFileService: ITextFileService, resource: URI, mime: string, callback: any): void {
-	textFileService.read(resource, { encoding: 'binary' }).then(contents => {
+function resolveContent(fileService: IFileService, resource: URI, mime: string, callback: any): void {
+	fileService.readFile(resource).then(contents => {
 		callback({
-			data: Buffer.from(contents.value, contents.encoding),
+			data: contents.value,
 			mimeType: mime
 		});
 	}, (err) => {
@@ -29,7 +29,7 @@ function resolveContent(textFileService: ITextFileService, resource: URI, mime: 
 export function registerFileProtocol(
 	contents: Electron.WebContents,
 	protocol: WebviewProtocol,
-	textFileService: ITextFileService,
+	fileService: IFileService,
 	extensionLocation: URI | undefined,
 	getRoots: () => ReadonlyArray<URI>
 ) {
@@ -51,10 +51,10 @@ export function registerFileProtocol(
 						requestResourcePath: requestUri.path
 					})
 				});
-				resolveContent(textFileService, redirectedUri, getMimeType(requestUri), callback);
+				resolveContent(fileService, redirectedUri, getMimeType(requestUri), callback);
 				return;
 			} else {
-				resolveContent(textFileService, normalizedPath, getMimeType(normalizedPath), callback);
+				resolveContent(fileService, normalizedPath, getMimeType(normalizedPath), callback);
 				return;
 			}
 		}
