@@ -58,6 +58,10 @@
 				"workspaceFolder": {
 					"type": "string",
 					"description": "The path of the workspace folder inside the container."
+				},
+				"workspaceMount": {
+					"type": "string",
+					"description": "The --mount parameter for docker run. The default is to mount the project folder at /workspaces/$project."
 				}
 			}
 		},
