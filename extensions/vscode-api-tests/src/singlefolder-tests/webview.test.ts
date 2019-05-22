@@ -132,24 +132,7 @@ suite('Webview tests', () => {
 		// Open webview in same column
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const ready = getMesssage(webview);
-		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
-			<script>
-				const vscode = acquireVsCodeApi();
-				let value = 0;
-				window.addEventListener('message', (message) => {
-					switch (message.data.type) {
-						case 'get':
-							vscode.postMessage({ value });
-							break;
-
-						case 'add':
-							++value;;
-							vscode.postMessage({ value });
-							break;
-					}
-				});
-				vscode.postMessage({ type: 'ready' });
-			</script>`);
+		webview.webview.html = statefulWebviewHtml;
 		await ready;
 
 		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
@@ -167,25 +150,7 @@ suite('Webview tests', () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMesssage(webview);
 
-		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
-			<script>
-				const vscode = acquireVsCodeApi();
-				let value = 0;
-				window.addEventListener('message', (message) => {
-					switch (message.data.type) {
-						case 'get':
-							vscode.postMessage({ value });
-							break;
-
-						case 'add':
-							++value;;
-							vscode.setState({ value });
-							vscode.postMessage({ value });
-							break;
-					}
-				});
-				vscode.postMessage({ type: 'ready' });
-			</script>`);
+		webview.webview.html = statefulWebviewHtml;
 		await ready;
 
 		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
@@ -243,6 +208,33 @@ suite('Webview tests', () => {
 		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
 		assert.strictEqual(secondResponse.value, 100);
 	});
+
+	conditionalTest('webviews with retainContextWhenHidden should be able to recive messages while hidden', async () => {
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
+		const ready = getMesssage(webview);
+
+		webview.webview.html = statefulWebviewHtml;
+		await ready;
+
+		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		assert.strictEqual((await firstResponse).value, 1);
+
+		// Swap away from the webview
+		const doc = await vscode.workspace.openTextDocument(testDocument);
+		await vscode.window.showTextDocument(doc);
+
+		// Try posting a message to our hidden webview
+		const secondResponse = await sendRecieveMessage(webview, { type: 'add' });
+		assert.strictEqual((await secondResponse).value, 2);
+
+		// Now show webview again
+		webview.reveal(vscode.ViewColumn.One);
+
+		// We should still have old state
+		const thirdResponse = await sendRecieveMessage(webview, { type: 'get' });
+		assert.strictEqual(thirdResponse.value, 2);
+	});
+
 
 	conditionalTest('webviews should only be able to load resources from workspace by default', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
@@ -355,6 +347,27 @@ function createHtmlDocumentWithBody(body: string): string {
 </body>
 </html>`;
 }
+
+const statefulWebviewHtml = createHtmlDocumentWithBody(/*html*/ `
+	<script>
+		const vscode = acquireVsCodeApi();
+		let value = 0;
+		window.addEventListener('message', (message) => {
+			switch (message.data.type) {
+				case 'get':
+					vscode.postMessage({ value });
+					break;
+
+				case 'add':
+					++value;;
+					vscode.setState({ value });
+					vscode.postMessage({ value });
+					break;
+			}
+		});
+		vscode.postMessage({ type: 'ready' });
+	</script>`);
+
 
 function getMesssage<R = any>(webview: vscode.WebviewPanel): Promise<R> {
 	return new Promise<R>(resolve => {

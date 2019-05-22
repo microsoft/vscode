@@ -210,11 +210,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}
 	}
 
-	public $postMessage(handle: WebviewPanelHandle | WebviewInsetHandle, message: any): Promise<boolean> {
+	public async $postMessage(handle: WebviewPanelHandle | WebviewInsetHandle, message: any): Promise<boolean> {
 		if (typeof handle === 'number') {
 			this.getWebviewElement(handle).sendMessage(message);
-			return Promise.resolve(true);
-
+			return true;
 		} else {
 			const webview = this.getWebview(handle);
 			const editors = this._editorService.visibleControls
@@ -222,11 +221,17 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				.map(e => e as WebviewEditor)
 				.filter(e => e.input!.matches(webview));
 
-			for (const editor of editors) {
-				editor.sendMessage(message);
+			if (editors.length > 0) {
+				editors[0].sendMessage(message);
+				return true;
 			}
 
-			return Promise.resolve(editors.length > 0);
+			if (webview.webview) {
+				webview.webview.sendMessage(message);
+				return true;
+			}
+
+			return false;
 		}
 	}
 

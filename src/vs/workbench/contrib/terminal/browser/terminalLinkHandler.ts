@@ -139,7 +139,11 @@ export class TerminalLinkHandler {
 		this._xterm.webLinksInit(wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
 			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => this._widgetManager.closeMessage(),
+			leaveCallback: () => {
+				if (this._widgetManager) {
+					this._widgetManager.closeMessage();
+				}
+			},
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
 		});
 	}
@@ -151,7 +155,11 @@ export class TerminalLinkHandler {
 		this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => this._widgetManager.closeMessage(),
+			leaveCallback: () => {
+				if (this._widgetManager) {
+					this._widgetManager.closeMessage();
+				}
+			},
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		});
@@ -165,7 +173,11 @@ export class TerminalLinkHandler {
 			matchIndex: 1,
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => this._widgetManager.closeMessage(),
+			leaveCallback: () => {
+				if (this._widgetManager) {
+					this._widgetManager.closeMessage();
+				}
+			},
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		};
