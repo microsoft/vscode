@@ -17,7 +17,7 @@ export const enum WebviewProtocol {
 function resolveContent(fileService: IFileService, resource: URI, mime: string, callback: any): void {
 	fileService.readFile(resource).then(contents => {
 		callback({
-			data: contents.value,
+			data: contents.value.buffer,
 			mimeType: mime
 		});
 	}, (err) => {
