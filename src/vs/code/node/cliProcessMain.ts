@@ -31,7 +31,7 @@ import { mkdirp, writeFile } from 'vs/base/node/pfs';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IStateService } from 'vs/platform/state/common/state';
 import { StateService } from 'vs/platform/state/node/stateService';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { createBufferSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { areSameExtensions, adoptToGalleryExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -291,7 +291,7 @@ export function main(argv: ParsedArgs): Promise<void> {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(argv, process.execPath);
-	const logService = createSpdLogService('cli', getLogLevel(environmentService), environmentService.logsPath);
+	const logService = createBufferSpdLogService('cli', getLogLevel(environmentService), environmentService.logsPath);
 	process.once('exit', () => logService.dispose());
 
 	logService.info('main', argv);
