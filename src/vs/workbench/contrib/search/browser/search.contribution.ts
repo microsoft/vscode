@@ -752,6 +752,16 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'auto',
 			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the search view.")
+		},
+		'search.resultAlign': {
+			type: 'string',
+			enum: ['left', 'matchWord'],
+			enumDescriptions: [
+				nls.localize('search.resultAlignLeft', "Show search result starting from the leftmost side of each line."),
+				nls.localize('search.resultAlignMatchWord', "Show matched word in a proper position."),
+			],
+			default: 'matchWord',
+			description: nls.localize('search.resultAlign', "Controls the align of search result lines in the search view.")
 		}
 	}
 });

@@ -249,7 +249,12 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 	renderElement(node: ITreeNode<Match, any>, index: number, templateData: IMatchTemplate): void {
 		const match = node.element;
-		const preview = match.preview();
+
+		const searchConfig = this.configurationService.getValue<ISearchConfigurationProperties>('search');
+		const resultAlign = searchConfig.resultAlign;
+		const showLineNumbers = searchConfig.showLineNumbers;
+
+		const preview = match.preview(resultAlign === 'matchWord');
 		const replace = this.searchModel.isReplaceActive() && !!this.searchModel.replaceString;
 
 		templateData.before.textContent = preview.before;
@@ -262,7 +267,6 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 		const numLines = match.range().endLineNumber - match.range().startLineNumber;
 		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';
 
-		const showLineNumbers = this.configurationService.getValue<ISearchConfigurationProperties>('search').showLineNumbers;
 		const lineNumberStr = showLineNumbers ? `:${match.range().startLineNumber}` : '';
 		DOM.toggleClass(templateData.lineNumber, 'show', (numLines > 0) || showLineNumbers);
 

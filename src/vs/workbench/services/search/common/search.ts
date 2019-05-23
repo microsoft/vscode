@@ -316,6 +316,7 @@ export interface ISearchConfigurationProperties {
 	actionsPosition: 'auto' | 'right';
 	maintainFileSearchCache: boolean;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
+	resultAlign: 'left' | 'matchWord';
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

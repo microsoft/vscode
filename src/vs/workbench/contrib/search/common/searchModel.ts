@@ -74,12 +74,14 @@ export class Match {
 		return this._range;
 	}
 
-	preview(): { before: string; inside: string; after: string; } {
+	preview(alignMatchWord: boolean): { before: string; inside: string; after: string; } {
 		let before = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1),
 			inside = this.getMatchString(),
 			after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
 
-		before = lcut(before, 26);
+		if (alignMatchWord) {
+			before = lcut(before, 26);
+		}
 		before = before.trimLeft();
 
 		let charsRemaining = Match.MAX_PREVIEW_CHARS - before.length;
