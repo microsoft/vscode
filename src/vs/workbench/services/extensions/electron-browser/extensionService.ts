@@ -457,7 +457,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		let extensions: Promise<IExtensionDescription[]>;
 		if (isInitialStart) {
 			autoStart = false;
-			extensions = this._extensionScanner.scannedExtensions;
+			extensions = this._extensionScanner.scannedExtensions.then(extensions => this._getRuntimeExtensions(extensions));
 		} else {
 			// restart case
 			autoStart = true;
