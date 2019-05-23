@@ -539,23 +539,27 @@ export class RevertAndCloseEditorAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		const activeControl = this.editorService.activeControl;
 		if (activeControl) {
 			const editor = activeControl.input;
 			const group = activeControl.group;
 
 			// first try a normal revert where the contents of the editor are restored
-			return editor.revert().then(() => group.closeEditor(editor), error => {
+			try {
+				await editor.revert();
+			} catch (error) {
 				// if that fails, since we are about to close the editor, we accept that
 				// the editor cannot be reverted and instead do a soft revert that just
 				// enables us to close the editor. With this, a user can always close a
 				// dirty editor even when reverting fails.
-				return editor.revert({ soft: true }).then(() => group.closeEditor(editor));
-			});
+				await editor.revert({ soft: true });
+			}
+
+			group.closeEditor(editor);
 		}
 
-		return Promise.resolve(false);
+		return true;
 	}
 }
 
@@ -618,7 +622,7 @@ export abstract class BaseCloseAllAction extends Action {
 		return groupsToClose;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 
 		// Just close all if there are no or one dirty editor
 		if (this.textFileService.getDirty().length < 2) {
@@ -626,26 +630,23 @@ export abstract class BaseCloseAllAction extends Action {
 		}
 
 		// Otherwise ask for combined confirmation
-		return this.textFileService.confirmSave().then(confirm => {
-			if (confirm === ConfirmResult.CANCEL) {
-				return undefined;
-			}
+		const confirm = await this.textFileService.confirmSave();
+		if (confirm === ConfirmResult.CANCEL) {
+			return;
+		}
 
-			let saveOrRevertPromise: Promise<boolean>;
-			if (confirm === ConfirmResult.DONT_SAVE) {
-				saveOrRevertPromise = this.textFileService.revertAll(undefined, { soft: true }).then(() => true);
-			} else {
-				saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => !!r.success));
-			}
+		let saveOrRevert: boolean;
+		if (confirm === ConfirmResult.DONT_SAVE) {
+			await this.textFileService.revertAll(undefined, { soft: true });
+			saveOrRevert = true;
+		} else {
+			const res = await this.textFileService.saveAll(true);
+			saveOrRevert = res.results.every(r => !!r.success);
+		}
 
-			return saveOrRevertPromise.then(success => {
-				if (success) {
-					return this.doCloseAll();
-				}
-
-				return undefined;
-			});
-		});
+		if (saveOrRevert) {
+			return this.doCloseAll();
+		}
 	}
 
 	protected abstract doCloseAll(): Promise<any>;
@@ -684,10 +685,10 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 		super(id, label, undefined, textFileService, editorGroupService);
 	}
 
-	protected doCloseAll(): Promise<any> {
-		return Promise.all(this.groupsToClose.map(g => g.closeAllEditors())).then(() => {
-			this.groupsToClose.forEach(group => this.editorGroupService.removeGroup(group));
-		});
+	protected async doCloseAll(): Promise<any> {
+		await Promise.all(this.groupsToClose.map(group => group.closeAllEditors()));
+
+		this.groupsToClose.forEach(group => this.editorGroupService.removeGroup(group));
 	}
 }
 
