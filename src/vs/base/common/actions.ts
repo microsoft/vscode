@@ -191,18 +191,19 @@ export class ActionRunner extends Disposable implements IActionRunner {
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
 
-	run(action: IAction, context?: any): Promise<any> {
+	async run(action: IAction, context?: any): Promise<any> {
 		if (!action.enabled) {
 			return Promise.resolve(null);
 		}
 
 		this._onDidBeforeRun.fire({ action: action });
 
-		return this.runAction(action, context).then((result: any) => {
+		try {
+			const result = await this.runAction(action, context);
 			this._onDidRun.fire({ action: action, result: result });
-		}, (error: any) => {
+		} catch (error) {
 			this._onDidRun.fire({ action: action, error: error });
-		});
+		}
 	}
 
 	protected runAction(action: IAction, context?: any): Promise<any> {

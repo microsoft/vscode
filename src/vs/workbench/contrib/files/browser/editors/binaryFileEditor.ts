@@ -47,24 +47,19 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		);
 	}
 
-	private openInternal(input: EditorInput, options: EditorOptions): Promise<void> {
+	private async openInternal(input: EditorInput, options: EditorOptions): Promise<void> {
 		if (input instanceof FileEditorInput) {
 			input.setForceOpenAsText();
 
-			return this.editorService.openEditor(input, options, this.group).then(() => undefined);
+			await this.editorService.openEditor(input, options, this.group);
 		}
-
-		return Promise.resolve();
 	}
 
-	private openExternal(resource: URI): void {
-		this.windowsService.openExternal(resource.toString()).then(didOpen => {
-			if (!didOpen) {
-				return this.windowsService.showItemInFolder(resource);
-			}
-
-			return undefined;
-		});
+	private async openExternal(resource: URI): Promise<void> {
+		const didOpen = await this.windowsService.openExternal(resource.toString());
+		if (!didOpen) {
+			return this.windowsService.showItemInFolder(resource);
+		}
 	}
 
 	getTitle(): string | null {

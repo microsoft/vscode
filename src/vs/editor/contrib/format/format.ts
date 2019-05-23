@@ -152,17 +152,22 @@ export async function formatDocumentRangeWithProvider(
 		cts = new TextModelCancellationTokenSource(editorOrModel, token);
 	}
 
-	const rawEdits = await provider.provideDocumentRangeFormattingEdits(
-		model,
-		range,
-		model.getFormattingOptions(),
-		cts.token
-	);
+	let edits: TextEdit[] | undefined;
+	try {
+		const rawEdits = await provider.provideDocumentRangeFormattingEdits(
+			model,
+			range,
+			model.getFormattingOptions(),
+			cts.token
+		);
+		edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 
-	const edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+		if (cts.token.isCancellationRequested) {
+			return true;
+		}
 
-	if (cts.token.isCancellationRequested) {
-		return true;
+	} finally {
+		cts.dispose();
 	}
 
 	if (!edits || edits.length === 0) {
@@ -235,16 +240,22 @@ export async function formatDocumentWithProvider(
 		cts = new TextModelCancellationTokenSource(editorOrModel, token);
 	}
 
-	const rawEdits = await provider.provideDocumentFormattingEdits(
-		model,
-		model.getFormattingOptions(),
-		cts.token
-	);
+	let edits: TextEdit[] | undefined;
+	try {
+		const rawEdits = await provider.provideDocumentFormattingEdits(
+			model,
+			model.getFormattingOptions(),
+			cts.token
+		);
 
-	const edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+		edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 
-	if (cts.token.isCancellationRequested) {
-		return true;
+		if (cts.token.isCancellationRequested) {
+			return true;
+		}
+
+	} finally {
+		cts.dispose();
 	}
 
 	if (!edits || edits.length === 0) {

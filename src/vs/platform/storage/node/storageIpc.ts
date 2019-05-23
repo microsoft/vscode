@@ -45,20 +45,21 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 		this.whenReady = this.init();
 	}
 
-	private init(): Promise<void> {
-		return this.storageMainService.initialize().then(undefined, error => {
+	private async init(): Promise<void> {
+		try {
+			await this.storageMainService.initialize();
+		} catch (error) {
 			onUnexpectedError(error);
 			this.logService.error(error);
-		}).then(() => {
+		}
 
-			// Apply global telemetry values as part of the initialization
-			// These are global across all windows and thereby should be
-			// written from the main process once.
-			this.initTelemetry();
+		// Apply global telemetry values as part of the initialization
+		// These are global across all windows and thereby should be
+		// written from the main process once.
+		this.initTelemetry();
 
-			// Setup storage change listeners
-			this.registerListeners();
-		});
+		// Setup storage change listeners
+		this.registerListeners();
 	}
 
 	private initTelemetry(): void {
@@ -112,33 +113,39 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_: unknown, command: string, arg?: any): Promise<any> {
+	async call(_: unknown, command: string, arg?: any): Promise<any> {
+
+		// ensure to always wait for ready
+		await this.whenReady;
+
+		// handle call
 		switch (command) {
 			case 'getItems': {
-				return this.whenReady.then(() => mapToSerializable(this.storageMainService.items));
+				return mapToSerializable(this.storageMainService.items);
 			}
 
 			case 'updateItems': {
-				return this.whenReady.then(() => {
-					const items: ISerializableUpdateRequest = arg;
-					if (items.insert) {
-						for (const [key, value] of items.insert) {
-							this.storageMainService.store(key, value);
-						}
+				const items: ISerializableUpdateRequest = arg;
+				if (items.insert) {
+					for (const [key, value] of items.insert) {
+						this.storageMainService.store(key, value);
 					}
+				}
 
-					if (items.delete) {
-						items.delete.forEach(key => this.storageMainService.remove(key));
-					}
-				});
+				if (items.delete) {
+					items.delete.forEach(key => this.storageMainService.remove(key));
+				}
+
+				break;
 			}
 
 			case 'checkIntegrity': {
-				return this.whenReady.then(() => this.storageMainService.checkIntegrity(arg));
+				return this.storageMainService.checkIntegrity(arg);
 			}
-		}
 
-		throw new Error(`Call not found: ${command}`);
+			default:
+				throw new Error(`Call not found: ${command}`);
+		}
 	}
 }
 
@@ -167,8 +174,10 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 		}
 	}
 
-	getItems(): Promise<Map<string, string>> {
-		return this.channel.call('getItems').then((data: Item[]) => serializableToMap(data));
+	async getItems(): Promise<Map<string, string>> {
+		const items: Item[] = await this.channel.call('getItems');
+
+		return serializableToMap(items);
 	}
 
 	updateItems(request: IUpdateRequest): Promise<void> {
