@@ -104,9 +104,7 @@ export class DefinitionAction extends EditorAction {
 
 			} else {
 				// handle multile results
-				const model = new ReferencesModel(result);
-				symbolNavService.put(model);
-				return this._onResult(editorService, editor, model);
+				return this._onResult(editorService, symbolNavService, editor, new ReferencesModel(result));
 			}
 
 		}, (err) => {
@@ -134,7 +132,7 @@ export class DefinitionAction extends EditorAction {
 		return model.references.length > 1 ? nls.localize('meta.title', " – {0} definitions", model.references.length) : '';
 	}
 
-	private async _onResult(editorService: ICodeEditorService, editor: ICodeEditor, model: ReferencesModel): Promise<void> {
+	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: ICodeEditor, model: ReferencesModel): Promise<void> {
 
 		const msg = model.getAriaMessage();
 		alert(msg);
@@ -153,6 +151,12 @@ export class DefinitionAction extends EditorAction {
 				this._openInPeek(editorService, targetEditor, model);
 			} else {
 				model.dispose();
+			}
+
+			// keep remaining locations around when using
+			// 'goto'-mode
+			if (gotoLocation.multiple === 'goto') {
+				symbolNavService.put(next);
 			}
 		}
 	}

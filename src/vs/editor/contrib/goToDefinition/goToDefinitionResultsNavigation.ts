@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/referencesModel';
+import { ReferencesModel, OneReference } from 'vs/editor/contrib/referenceSearch/referencesModel';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { registerEditorCommand, EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -15,6 +15,9 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { Range } from 'vs/editor/common/core/range';
 import { Disposable, dispose, combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { localize } from 'vs/nls';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export const ctxHasSymbols = new RawContextKey('hasSymbols', false);
 
@@ -22,8 +25,9 @@ export const ISymbolNavigationService = createDecorator<ISymbolNavigationService
 
 export interface ISymbolNavigationService {
 	_serviceBrand: any;
-	put(model: ReferencesModel): void;
-	revealNext(source: ICodeEditor): boolean;
+	reset(): void;
+	put(anchor: OneReference): void;
+	revealNext(source: ICodeEditor): Promise<any>;
 }
 
 class SymbolNavigationService implements ISymbolNavigationService {
@@ -35,42 +39,52 @@ class SymbolNavigationService implements ISymbolNavigationService {
 	private _currentModel?: ReferencesModel = undefined;
 	private _currentIdx: number = -1;
 	private _currentDisposables: IDisposable[] = [];
+	private _currentMessage?: IDisposable = undefined;
+	private _ignoreEditorChange: boolean = false;
 
 	constructor(
-		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
+		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		this._ctxHasSymbols = ctxHasSymbols.bindTo(contextKeyService);
 	}
 
-	private _reset(): void {
+	reset(): void {
 		this._ctxHasSymbols.reset();
 		dispose(this._currentDisposables);
+		dispose(this._currentMessage);
 		this._currentModel = undefined;
 		this._currentIdx = -1;
 	}
 
-	put(refModel: ReferencesModel): void {
+	put(anchor: OneReference): void {
+		const refModel = anchor.parent.parent;
 
 		if (refModel.references.length <= 1) {
-			this._reset();
+			this.reset();
 			return;
 		}
 
 		this._currentModel = refModel;
-		this._currentIdx = 1;
+		this._currentIdx = refModel.references.indexOf(anchor);
 		this._ctxHasSymbols.set(true);
+		this._showMessage();
 
 		const editorStatus = new EditorStatus(this._editorService);
-		const listener = editorStatus.onDidChange(e => {
+		const listener = editorStatus.onDidChange(_ => {
 
-			if (this._editorService.listCodeEditors().length === 0) {
-				this._reset();
+			if (this._ignoreEditorChange) {
 				return;
 			}
 
-			const model = e.editor.getModel();
-			const position = e.editor.getPosition();
+			const editor = this._editorService.getActiveCodeEditor();
+			if (!editor) {
+				return;
+			}
+			const model = editor.getModel();
+			const position = editor.getPosition();
 			if (!model || !position) {
 				return;
 			}
@@ -85,33 +99,52 @@ class SymbolNavigationService implements ISymbolNavigationService {
 					break;
 				}
 			}
-			if (seenUri && !seenPosition) {
-				this._reset();
+			if (!seenUri || !seenPosition) {
+				this.reset();
 			}
 		});
 
 		this._currentDisposables = [editorStatus, listener];
 	}
 
-	revealNext(source: ICodeEditor): boolean {
+	revealNext(source: ICodeEditor): Promise<any> {
 		if (!this._currentModel) {
-			return false;
+			return Promise.resolve();
 		}
 
 		// get next result and advance
+		this._currentIdx += 1;
+		this._currentIdx %= this._currentModel.references.length;
 		const reference = this._currentModel.references[this._currentIdx];
-		this._editorService.openCodeEditor({
+
+		// status
+		this._showMessage();
+
+		// open editor, ignore events while that happens
+		this._ignoreEditorChange = true;
+		return this._editorService.openCodeEditor({
 			resource: reference.uri,
 			options: {
 				selection: Range.collapseToStart(reference.range),
 				revealInCenterIfOutsideViewport: true,
 				revealIfOpened: true
 			}
-		}, source);
+		}, source).finally(() => {
+			this._ignoreEditorChange = false;
+		});
 
-		this._currentIdx += 1;
-		this._currentIdx %= this._currentModel.references.length;
-		return true;
+	}
+
+	private _showMessage(): void {
+
+		dispose(this._currentMessage);
+
+		const kb = this._keybindingService.lookupKeybinding('editor.gotoNextSymbolFromResult');
+		const message = kb
+			? localize('location.kb', "Symbol {0} of {1}, press {2} to reveal next", this._currentIdx + 1, this._currentModel!.references.length, kb.getLabel())
+			: localize('location', "Symbol {0} of {1}", this._currentIdx + 1, this._currentModel!.references.length);
+
+		this._currentMessage = this._statusbarService.setStatusMessage(message);
 	}
 }
 
@@ -134,7 +167,17 @@ registerEditorCommand(new class extends EditorCommand {
 	}
 
 	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		accessor.get(ISymbolNavigationService).revealNext(editor);
+		return accessor.get(ISymbolNavigationService).revealNext(editor);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'editor.gotoNextSymbolFromResult.cancel',
+	weight: KeybindingWeight.EditorContrib,
+	when: ctxHasSymbols,
+	primary: KeyCode.Escape,
+	handler(accessor) {
+		accessor.get(ISymbolNavigationService).reset();
 	}
 });
 
