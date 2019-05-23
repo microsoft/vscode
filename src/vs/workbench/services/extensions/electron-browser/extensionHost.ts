@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { ChildProcess, fork } from 'child_process';
-import { ipcRenderer as ipc } from 'electron';
 import { Server, Socket, createServer } from 'net';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
@@ -42,8 +41,8 @@ import { isEqualOrParent } from 'vs/base/common/resources';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
-	private readonly _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
-	public readonly onCrashed: Event<[number, string]> = this._onCrashed.event;
+	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
+	public readonly onExit: Event<[number, string]> = this._onExit.event;
 
 	private readonly _toDispose: IDisposable[];
 
@@ -93,7 +92,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._messageProtocol = null;
 
 		this._toDispose = [];
-		this._toDispose.push(this._onCrashed);
+		this._toDispose.push(this._onExit);
 		this._toDispose.push(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
 		this._toDispose.push(this._extensionHostDebugService.onClose(event => {
@@ -451,20 +450,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			return;
 		}
 
-		// Unexpected termination
-		if (!this._isExtensionDevHost) {
-			this._onCrashed.fire([code, signal]);
-		}
-
-		// Expected development extension termination: When the extension host goes down we also shutdown the window
-		else if (!this._isExtensionDevTestFromCli) {
-			this._windowService.closeWindow();
-		}
-
-		// When CLI testing make sure to exit with proper exit code
-		else {
-			ipc.send('vscode:exit', code);
-		}
+		this._onExit.fire([code, signal]);
 	}
 
 	public enableInspector(): Promise<void> {
