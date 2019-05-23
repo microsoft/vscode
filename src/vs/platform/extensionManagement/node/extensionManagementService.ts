@@ -8,7 +8,7 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
 import { extract, ExtractError, zip, IFile } from 'vs/base/node/zip';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
@@ -246,7 +246,18 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private installFromZipPath(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: IGalleryMetadata | null, type: ExtensionType, operation: InstallOperation, token: CancellationToken): Promise<ILocalExtension> {
 		return this.toNonCancellablePromise(this.installExtension({ zipPath, identifierWithVersion, metadata }, type, token)
-			.then(local => this.installDependenciesAndPackExtensions(local, null).then(() => local, error => this.uninstall(local, true).then(() => Promise.reject(error), () => Promise.reject(error))))
+			.then(local => this.installDependenciesAndPackExtensions(local, null)
+				.then(
+					() => local,
+					error => {
+						if (isNonEmptyArray(local.manifest.extensionDependencies)) {
+							this.logService.warn(`Cannot install dependencies of extension:`, local.identifier.id, error.message);
+						}
+						if (isNonEmptyArray(local.manifest.extensionPack)) {
+							this.logService.warn(`Cannot install packed extensions of extension:`, local.identifier.id, error.message);
+						}
+						return local;
+					}))
 			.then(
 				local => { this._onDidInstallExtension.fire({ identifier: identifierWithVersion.identifier, zipPath, local, operation }); return local; },
 				error => { this._onDidInstallExtension.fire({ identifier: identifierWithVersion.identifier, zipPath, operation, error }); return Promise.reject(error); }
