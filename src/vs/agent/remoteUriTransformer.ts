@@ -47,6 +47,15 @@ export function createRemoteURITransformer(remoteAuthority: string): IURITransfo
 			}
 			return uri;
 		}
+
+		transformOutgoingScheme(scheme: string): string {
+			if (scheme === 'file') {
+				return 'vscode-remote';
+			} else if (scheme === 'vscode-local') {
+				return 'file';
+			}
+			return scheme;
+		}
 	};
 }
 
