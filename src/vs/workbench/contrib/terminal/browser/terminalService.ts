@@ -52,6 +52,7 @@ export abstract class TerminalService extends CommonTerminalService implements I
 	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
 		if (shell.runInBackground) {
 			// TODO: When show is triggered, create a TerminalTab for this instance
+			// TODO: How do backgrounded terminals interact with extensions listening for them, just ignore?
 			return this.createInstance(this._terminalFocusContextKey,
 				this.configHelper,
 				undefined,
