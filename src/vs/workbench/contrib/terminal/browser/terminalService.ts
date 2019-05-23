@@ -51,8 +51,6 @@ export abstract class TerminalService extends CommonTerminalService implements I
 
 	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
 		if (shell.runInBackground) {
-			// TODO: When show is triggered, create a TerminalTab for this instance
-			// TODO: How do backgrounded terminals interact with extensions listening for them, just ignore?
 			const instance = this.createInstance(this._terminalFocusContextKey,
 				this.configHelper,
 				undefined,
@@ -80,11 +78,8 @@ export abstract class TerminalService extends CommonTerminalService implements I
 	}
 
 	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
-		// TODO: Remove from _backgroundedTerminalInstances
 		this._backgroundedTerminalInstances = this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
 		instance.shellLaunchConfig.runInBackground = false;
-		console.log('show backgrounded terminal', instance);
-
 		const terminalTab = this._instantiationService.createInstance(TerminalTab,
 			this._terminalFocusContextKey,
 			this.configHelper,
