@@ -208,7 +208,8 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		};
 	}
 
-	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+
 		// Join with existing running promise to ensure progress is accurate
 		if (this.progressState.type === ProgressState.Type.While) {
 			promise = Promise.all([promise, this.progressState.whilePromise]);
@@ -217,24 +218,25 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		// Keep Promise in State
 		this.progressState = new ProgressState.While(promise, delay || 0, Date.now());
 
-		let stop = () => {
+		try {
+			this.doShowWhile(delay);
 
-			// If this is not the last promise in the list of joined promises, return early
-			if (this.progressState.type === ProgressState.Type.While && this.progressState.whilePromise !== promise) {
-				return;
+			await promise;
+		} catch (error) {
+			// ignore
+		} finally {
+
+			// If this is not the last promise in the list of joined promises, skip this
+			if (this.progressState.type !== ProgressState.Type.While || this.progressState.whilePromise === promise) {
+
+				// The while promise is either null or equal the promise we last hooked on
+				this.progressState = ProgressState.None;
+
+				if (this.isActive) {
+					this.progressbar.stop().hide();
+				}
 			}
-
-			// The while promise is either null or equal the promise we last hooked on
-			this.progressState = ProgressState.None;
-
-			if (this.isActive) {
-				this.progressbar.stop().hide();
-			}
-		};
-
-		this.doShowWhile(delay);
-
-		return promise.then(stop, stop);
+		}
 	}
 
 	private doShowWhile(delay?: number): void {
@@ -280,13 +282,15 @@ export class ProgressService implements IProgressService {
 		};
 	}
 
-	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
-		const stop = () => {
+	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+		try {
+			this.progressbar.infinite().show(delay);
+
+			await promise;
+		} catch (error) {
+			// ignore
+		} finally {
 			this.progressbar.stop().hide();
-		};
-
-		this.progressbar.infinite().show(delay);
-
-		return promise.then(stop, stop);
+		}
 	}
 }
