@@ -5,6 +5,4 @@
 
 import { startExtensionHostProcess } from 'vs/workbench/services/extensions/node/extensionHostProcessSetup';
 
-startExtensionHostProcess(
-	_ => null
-).catch((err) => console.log(err));
+startExtensionHostProcess().catch((err) => console.log(err));
