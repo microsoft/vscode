@@ -21,5 +21,7 @@ export class ProductService implements IProductService {
 
 	get extensionAllowedProposedApi(): string[] { return product.extensionAllowedProposedApi; }
 
+	get uiExtensions(): string[] | undefined { return product.uiExtensions; }
+
 	get enableTelemetry(): boolean { return product.enableTelemetry; }
 }
