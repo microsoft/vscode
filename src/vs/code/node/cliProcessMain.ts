@@ -38,7 +38,6 @@ import { areSameExtensions, adoptToGalleryExtensionId, getGalleryExtensionId } f
 import { URI } from 'vs/base/common/uri';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
-import { isUIExtension } from 'vs/platform/extensions/node/extensionsUtil';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { Schemas } from 'vs/base/common/network';
@@ -69,10 +68,8 @@ export function getIdAndVersion(id: string): [string, string | undefined] {
 export class Main {
 
 	constructor(
-		private readonly remote: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) { }
@@ -138,10 +135,6 @@ export class Main {
 			extension = path.isAbsolute(extension) ? extension : path.join(process.cwd(), extension);
 
 			const manifest = await getManifest(extension);
-			if (this.remote && (!isLanguagePackExtension(manifest) && isUIExtension(manifest, [], this.configurationService))) {
-				console.log(localize('notSupportedUIExtension', "Can't install extension {0} since UI Extensions are not supported", getBaseLabel(extension)));
-				return null;
-			}
 			const valid = await this.validate(manifest, force);
 
 			if (valid) {
@@ -180,11 +173,6 @@ export class Main {
 					}
 
 					const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
-					if (this.remote && manifest && (!isLanguagePackExtension(manifest) && isUIExtension(manifest, [], this.configurationService))) {
-						console.log(localize('notSupportedUIExtension', "Can't install extension {0} since UI Extensions are not supported", extension.identifier.id));
-						return null;
-					}
-
 					const [installedExtension] = installed.filter(e => areSameExtensions(e.identifier, { id }));
 					if (installedExtension) {
 						if (extension.version === installedExtension.manifest.version) {
@@ -312,7 +300,7 @@ export function main(argv: ParsedArgs): Promise<void> {
 			const services = new ServiceCollection();
 			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 			services.set(IRequestService, new SyncDescriptor(RequestService));
-			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [false]));
+			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
 			const appenders: AppInsightsAppender[] = [];
@@ -334,7 +322,7 @@ export function main(argv: ParsedArgs): Promise<void> {
 			}
 
 			const instantiationService2 = instantiationService.createChild(services);
-			const main = instantiationService2.createInstance(Main, false);
+			const main = instantiationService2.createInstance(Main);
 
 			return main.run(argv).then(() => {
 				// Dispose the AI adapter so that remaining data gets flushed.
