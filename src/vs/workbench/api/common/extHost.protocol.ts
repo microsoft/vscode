@@ -1210,6 +1210,7 @@ export interface ExtHostCommentsShape {
 	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Promise<modes.CommentThread | null>;
 	$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange): void;
 	$onCommentWidgetInputChange(commentControllerHandle: number, document: UriComponents, range: IRange, input: string | undefined): Promise<number | undefined>;
+	$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number): void;
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined>;
 	$checkStaticContribution(commentControllerHandle: number): Promise<boolean>;
 	$provideReactionGroup(commentControllerHandle: number): Promise<modes.CommentReaction[] | undefined>;

@@ -173,6 +173,14 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		return Promise.resolve(commentControllerHandle);
 	}
 
+	$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number) {
+		const commentController = this._commentControllers.get(commentControllerHandle);
+
+		if (commentController) {
+			commentController.$deleteCommentThread(commentThreadHandle);
+		}
+	}
+
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined> {
 		const commentController = this._commentControllers.get(commentControllerHandle);
 
@@ -762,6 +770,16 @@ class ExtHostCommentController implements vscode.CommentController {
 		commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
 		this._threads.set(commentThread.handle, commentThread);
 		return commentThread;
+	}
+
+	$deleteCommentThread(threadHandle: number) {
+		let thread = this._threads.get(threadHandle);
+
+		if (thread) {
+			thread.dispose();
+		}
+
+		this._threads.delete(threadHandle);
 	}
 
 	$onCommentWidgetInputChange(uriComponents: UriComponents, range: IRange, input: string) {
