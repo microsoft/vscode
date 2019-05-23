@@ -14,6 +14,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { getNLSConfiguration } from 'vs/agent/remoteLanguagePacks';
 import { IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { uriTransformerPath } from 'vs/agent/remoteUriTransformer';
 
 export class ExtensionHostConnection {
 
@@ -88,7 +89,7 @@ export class ExtensionHostConnection {
 			};
 
 			// Run Extension Host as fork of current process
-			this._extensionHostProcess = cp.fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=extensionHost'], opts);
+			this._extensionHostProcess = cp.fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=extensionHost', `--uriTransformerPath=${uriTransformerPath}`], opts);
 
 			// Catch all output coming from the extension host process
 			this._extensionHostProcess.stdout.setEncoding('utf8');

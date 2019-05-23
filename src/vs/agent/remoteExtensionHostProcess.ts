@@ -4,8 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { startExtensionHostProcess } from 'vs/workbench/services/extensions/node/extensionHostProcessSetup';
-import { createRemoteURITransformer } from 'vs/agent/remoteUriTransformer';
 
-startExtensionHostProcess(
-	initData => initData.remoteAuthority ? createRemoteURITransformer(initData.remoteAuthority) : null
-).catch((err) => console.log(err));
+startExtensionHostProcess().catch((err) => console.log(err));

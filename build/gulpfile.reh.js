@@ -64,6 +64,9 @@ const vscodeResources = [
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
 
+	// Uri transformer
+	'out-build/vs/agent/uriTransformer.js',
+
 	// Workbench
 	// 'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
 	// 'out-build/vs/base/browser/ui/octiconLabel/octicons/**',

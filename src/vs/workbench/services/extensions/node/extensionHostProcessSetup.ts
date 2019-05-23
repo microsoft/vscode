@@ -5,6 +5,7 @@
 
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
+import * as minimist from 'minimist';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -17,10 +18,20 @@ import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createBufferSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
+
+interface ParsedExtHostArgs {
+	uriTransformerPath?: string;
+}
+
+const args = minimist(process.argv.slice(2), {
+	string: [
+		'uriTransformerPath'
+	]
+}) as ParsedExtHostArgs;
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -271,9 +282,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	}
 })();
 
-export async function startExtensionHostProcess(
-	uriTransformerFn: (initData: IInitData) => IURITransformer | null
-): Promise<void> {
+export async function startExtensionHostProcess(): Promise<void> {
 
 	const protocol = await createExtHostProtocol();
 	const renderer = await connectToRenderer(protocol);
@@ -288,6 +297,17 @@ export async function startExtensionHostProcess(
 		realpath(path: string) { return realpath(path); }
 	};
 
+	// Attempt to load uri transformer
+	let uriTransformer: IURITransformer | null = null;
+	if (initData.remoteAuthority && args.uriTransformerPath) {
+		try {
+			const rawURITransformerFactory = <any>require.__$__nodeRequire(args.uriTransformerPath);
+			const rawURITransformer = <IRawURITransformer>rawURITransformerFactory(initData.remoteAuthority);
+			uriTransformer = new URITransformer(rawURITransformer);
+		} catch (e) {
+			console.error(e);
+		}
+	}
 
 	const extensionHostMain = new ExtensionHostMain(
 		renderer.protocol,
@@ -295,7 +315,7 @@ export async function startExtensionHostProcess(
 		hostUtils,
 		patchPatchedConsole,
 		createLogService,
-		uriTransformerFn(initData)
+		uriTransformer
 	);
 
 	// rewrite onTerminate-function to be a proper shutdown
