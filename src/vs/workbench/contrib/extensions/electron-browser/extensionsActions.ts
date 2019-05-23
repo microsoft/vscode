@@ -57,10 +57,11 @@ import { coalesce } from 'vs/base/common/arrays';
 import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IFileIconTheme, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
+import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IProductService } from 'vs/platform/product/common/product';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -164,6 +165,7 @@ export class InstallAction extends ExtensionAction {
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(`extensions.install`, InstallAction.INSTALL_LABEL, InstallAction.Class, false);
@@ -193,7 +195,7 @@ export class InstallAction extends ExtensionAction {
 			this.tooltip = InstallAction.INSTALLING_LABEL;
 		} else {
 			if (this._manifest && this.workbenchEnvironmentService.configuration.remoteAuthority) {
-				if (isUIExtension(this._manifest, this.configurationService)) {
+				if (isUIExtension(this._manifest, this.productService, this.configurationService)) {
 					this.label = `${InstallAction.INSTALL_LABEL} ${localize('locally', "Locally")}`;
 					this.tooltip = `${InstallAction.INSTALL_LABEL} ${localize('locally', "Locally")}`;
 				} else {
@@ -293,6 +295,7 @@ export class RemoteInstallAction extends ExtensionAction {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(`extensions.remoteinstall`, RemoteInstallAction.INSTALL_LABEL, RemoteInstallAction.Class, false);
 		this.labelService.onDidChangeFormatters(() => this.updateLabel(), this, this.disposables);
@@ -328,7 +331,7 @@ export class RemoteInstallAction extends ExtensionAction {
 			// Installed User Extension
 			&& this.extension && this.extension.local && this.extension.type === ExtensionType.User && this.extension.state === ExtensionState.Installed
 			// Local Workspace Extension
-			&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && (isLanguagePackExtension(this.extension.local.manifest) || !isUIExtension(this.extension.local.manifest, this.configurationService))
+			&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && (isLanguagePackExtension(this.extension.local.manifest) || !isUIExtension(this.extension.local.manifest, this.productService, this.configurationService))
 			// Extension does not exist in remote
 			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
 			&& this.extensionsWorkbenchService.canInstall(this.extension)
@@ -377,6 +380,7 @@ export class LocalInstallAction extends ExtensionAction {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(`extensions.localinstall`, LocalInstallAction.INSTALL_LABEL, LocalInstallAction.Class, false);
 		this.labelService.onDidChangeFormatters(() => this.updateLabel(), this, this.disposables);
@@ -407,7 +411,7 @@ export class LocalInstallAction extends ExtensionAction {
 			// Installed User Extension
 			&& this.extension && this.extension.local && this.extension.type === ExtensionType.User && this.extension.state === ExtensionState.Installed
 			// Remote UI or Language pack Extension
-			&& this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && (isLanguagePackExtension(this.extension.local.manifest) || isUIExtension(this.extension.local.manifest, this.configurationService))
+			&& this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && (isLanguagePackExtension(this.extension.local.manifest) || isUIExtension(this.extension.local.manifest, this.productService, this.configurationService))
 			// Extension does not exist in local
 			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.localExtensionManagementServer)
 			&& this.extensionsWorkbenchService.canInstall(this.extension)
@@ -1245,7 +1249,8 @@ export class ReloadAction extends ExtensionAction {
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
 		this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this, this.disposables);
@@ -1325,7 +1330,7 @@ export class ReloadAction extends ExtensionAction {
 					return;
 				}
 				if (this.workbenchEnvironmentService.configuration.remoteAuthority) {
-					const uiExtension = isUIExtension(this.extension.local.manifest, this.configurationService);
+					const uiExtension = isUIExtension(this.extension.local.manifest, this.productService, this.configurationService);
 					// Local Workspace Extension
 					if (!uiExtension && this.extension.server === this.extensionManagementServerService.localExtensionManagementServer) {
 						const remoteExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)[0];
@@ -1747,7 +1752,8 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(id, label, 'extension-action');
 		this.recommendations = recommendations;
@@ -1774,7 +1780,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 	private async installExtension(extension: IExtension): Promise<void> {
 		try {
 			if (extension.local && extension.gallery) {
-				if (isUIExtension(extension.local.manifest, this.configurationService)) {
+				if (isUIExtension(extension.local.manifest, this.productService, this.configurationService)) {
 					await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(extension.gallery);
 					return;
 				} else if (this.extensionManagementServerService.remoteExtensionManagementServer) {
@@ -2717,6 +2723,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -2760,7 +2767,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;
 		const localExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
 		const localExtensionServer = localExtension ? localExtension.server : null;
-		if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)) {
+		if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.productService, this.configurationService)) {
 			if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
 				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
 				this.tooltip = localize('disabled locally', "Extension is enabled on '{0}' and disabled locally.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));
@@ -2772,7 +2779,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
-		if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && isUIExtension(this.extension.local.manifest, this.configurationService)) {
+		if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && isUIExtension(this.extension.local.manifest, this.productService, this.configurationService)) {
 			if (runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
 				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
 				this.tooltip = localize('disabled remotely', "Extension is enabled locally and disabled on '{0}'.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));

@@ -20,7 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, ResolvedAuthority, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
+import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -716,10 +716,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			});
 
 			// remove UI extensions from the remote extensions
-			remoteEnv.extensions = remoteEnv.extensions.filter(extension => !isUIExtension(extension, this._configurationService));
+			remoteEnv.extensions = remoteEnv.extensions.filter(extension => !isUIExtension(extension, this._productService, this._configurationService));
 
 			// remove non-UI extensions from the local extensions
-			localExtensions = localExtensions.filter(extension => extension.isBuiltin || isUIExtension(extension, this._configurationService));
+			localExtensions = localExtensions.filter(extension => extension.isBuiltin || isUIExtension(extension, this._productService, this._configurationService));
 
 			// in case of overlap, the remote wins
 			const isRemoteExtension = new Set<string>();
