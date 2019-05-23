@@ -507,23 +507,24 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			const packageJsonPromises = getFilePromises('package.json', this.fileService, this.textFileService, content => {
 				try {
 					const packageJsonContents = JSON.parse(content.value);
-					if (packageJsonContents['dependencies'] || packageJsonContents['devDependencies']) {
-						for (let module of ModulesToLookFor) {
-							if ('react-native' === module) {
-								if (packageJsonContents['dependencies'][module] || packageJsonContents['devDependencies'][module]) {
-									tags['workspace.reactNative'] = true;
-								}
-							} else if ('tns-core-modules' === module) {
-								if (packageJsonContents['dependencies'][module] || packageJsonContents['devDependencies'][module]) {
-									tags['workspace.nativescript'] = true;
-								}
-							} else {
-								if (packageJsonContents['dependencies'][module] || packageJsonContents['devDependencies'][module]) {
-									tags['workspace.npm.' + module] = true;
-								}
+					let dependencies = packageJsonContents['dependencies'];
+					let devDependencies = packageJsonContents['devDependencies'];
+					for (let module of ModulesToLookFor) {
+						if ('react-native' === module) {
+							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
+								tags['workspace.reactNative'] = true;
+							}
+						} else if ('tns-core-modules' === module) {
+							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
+								tags['workspace.nativescript'] = true;
+							}
+						} else {
+							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
+								tags['workspace.npm.' + module] = true;
 							}
 						}
 					}
+
 				}
 				catch (e) {
 					// Ignore errors when resolving file or parsing file contents
