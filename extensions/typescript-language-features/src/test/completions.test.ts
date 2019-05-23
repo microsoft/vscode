@@ -131,6 +131,9 @@ suite('TypeScript Completions', () => {
 					'const x = { "hello world2": 1 };',
 					`x["hello world2"]${insert}`
 				));
+
+			disposeAll(_disposables);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 		}
 	});
 
