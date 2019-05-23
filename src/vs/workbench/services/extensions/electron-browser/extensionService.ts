@@ -17,7 +17,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { EnablementState, IExtensionEnablementService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { BetterMergeId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/electron-browser/remoteExtensionHostClient';
+import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, ResolvedAuthority, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
