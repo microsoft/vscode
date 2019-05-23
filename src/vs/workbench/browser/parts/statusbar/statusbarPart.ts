@@ -382,7 +382,7 @@ class StatusBarEntryItem extends Disposable {
 		}
 	}
 
-	private executeCommand(id: string, args?: unknown[]) {
+	private async executeCommand(id: string, args?: unknown[]): Promise<void> {
 		args = args || [];
 
 		// Maintain old behaviour of always focusing the editor here
@@ -398,7 +398,11 @@ class StatusBarEntryItem extends Disposable {
 			}
 		*/
 		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'status bar' });
-		this.commandService.executeCommand(id, ...args).then(undefined, err => this.notificationService.error(toErrorMessage(err)));
+		try {
+			await this.commandService.executeCommand(id, ...args);
+		} catch (error) {
+			this.notificationService.error(toErrorMessage(error));
+		}
 	}
 
 	dispose(): void {

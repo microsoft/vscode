@@ -11,7 +11,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
@@ -133,52 +133,48 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return Promise.resolve();
 	}
 
-	load(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
+	async load(): Promise<UntitledEditorModel & IResolvedTextEditorModel> {
 
 		// Check for backups first
-		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
-			if (backupResource) {
-				return this.backupFileService.resolveBackupContent(backupResource);
-			}
+		let backup: IResolvedBackup<object> | undefined = undefined;
+		const backupResource = await this.backupFileService.loadBackupResource(this.resource);
+		if (backupResource) {
+			backup = await this.backupFileService.resolveBackupContent(backupResource);
+		}
 
-			return Promise.resolve(undefined);
-		}).then(backup => {
-			const hasBackup = !!backup;
+		// untitled associated to file path are dirty right away as well as untitled with content
+		this.setDirty(this._hasAssociatedFilePath || !!backup || !!this.initialValue);
 
-			// untitled associated to file path are dirty right away as well as untitled with content
-			this.setDirty(this._hasAssociatedFilePath || hasBackup || !!this.initialValue);
+		let untitledContents: ITextBufferFactory;
+		if (backup) {
+			untitledContents = backup.value;
+		} else {
+			untitledContents = createTextBufferFactory(this.initialValue || '');
+		}
 
-			let untitledContents: ITextBufferFactory;
-			if (backup) {
-				untitledContents = backup.value;
-			} else {
-				untitledContents = createTextBufferFactory(this.initialValue || '');
-			}
+		// Create text editor model if not yet done
+		if (!this.textEditorModel) {
+			this.createTextEditorModel(untitledContents, this.resource, this.preferredMode);
+		}
 
-			// Create text editor model if not yet done
-			if (!this.textEditorModel) {
-				this.createTextEditorModel(untitledContents, this.resource, this.preferredMode);
-			}
+		// Otherwise update
+		else {
+			this.updateTextEditorModel(untitledContents, this.preferredMode);
+		}
 
-			// Otherwise update
-			else {
-				this.updateTextEditorModel(untitledContents, this.preferredMode);
-			}
+		// Encoding
+		this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 
-			// Encoding
-			this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
+		// We know for a fact there is a text editor model here
+		const textEditorModel = this.textEditorModel!;
 
-			// We know for a fact there is a text editor model here
-			const textEditorModel = this.textEditorModel!;
+		// Listen to content changes
+		this._register(textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 
-			// Listen to content changes
-			this._register(textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+		// Listen to mode changes
+		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
-			// Listen to mode changes
-			this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
-
-			return this as UntitledEditorModel & IResolvedTextEditorModel;
-		});
+		return this as UntitledEditorModel & IResolvedTextEditorModel;
 	}
 
 	private onModelContentChanged(): void {

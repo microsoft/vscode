@@ -567,16 +567,15 @@ class InlineImageView {
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor, textFileService: ITextFileService): Promise<string> {
+	private static async imageSrc(descriptor: IResourceDescriptor, textFileService: ITextFileService): Promise<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
 			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
 		}
 
-		return textFileService.read(descriptor.resource, { encoding: 'base64' }).then(data => {
-			const mime = getMime(descriptor);
+		const data = await textFileService.read(descriptor.resource, { encoding: 'base64' });
+		const mime = getMime(descriptor);
 
-			return `data:${mime};base64,${data.value}`;
-		});
+		return `data:${mime};base64,${data.value}`;
 	}
 }
 

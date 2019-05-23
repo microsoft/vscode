@@ -71,9 +71,9 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 		this.isPure().then(r => {
 			if (r.isPure) {
-				// all is good
-				return;
+				return; // all is good
 			}
+
 			this._prompt();
 		});
 	}
@@ -106,29 +106,25 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		return this._isPurePromise;
 	}
 
-	private _isPure(): Promise<IntegrityTestResult> {
+	private async _isPure(): Promise<IntegrityTestResult> {
 		const expectedChecksums = product.checksums || {};
 
-		return this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			let asyncResults: Promise<ChecksumPair>[] = Object.keys(expectedChecksums).map((filename) => {
-				return this._resolve(filename, expectedChecksums[filename]);
-			});
+		await this.lifecycleService.when(LifecyclePhase.Eventually);
 
-			return Promise.all(asyncResults).then<IntegrityTestResult>((allResults) => {
-				let isPure = true;
-				for (let i = 0, len = allResults.length; i < len; i++) {
-					if (!allResults[i].isPure) {
-						isPure = false;
-						break;
-					}
-				}
+		const allResults = await Promise.all(Object.keys(expectedChecksums).map(filename => this._resolve(filename, expectedChecksums[filename])));
 
-				return {
-					isPure: isPure,
-					proof: allResults
-				};
-			});
-		});
+		let isPure = true;
+		for (let i = 0, len = allResults.length; i < len; i++) {
+			if (!allResults[i].isPure) {
+				isPure = false;
+				break;
+			}
+		}
+
+		return {
+			isPure: isPure,
+			proof: allResults
+		};
 	}
 
 	private _resolve(filename: string, expected: string): Promise<ChecksumPair> {

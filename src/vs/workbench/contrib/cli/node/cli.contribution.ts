@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as cp from 'child_process';
 import * as pfs from 'vs/base/node/pfs';
+import * as extpath from 'vs/base/node/extpath';
 import * as platform from 'vs/base/common/platform';
 import { promisify } from 'util';
 import { Action } from 'vs/base/common/actions';
@@ -91,7 +92,7 @@ class InstallAction extends Action {
 	private isInstalled(): Promise<boolean> {
 		return pfs.lstat(this.target)
 			.then(stat => stat.isSymbolicLink())
-			.then(() => pfs.readlink(this.target))
+			.then(() => extpath.realpath(this.target))
 			.then(link => link === getSource())
 			.then(undefined, ignore('ENOENT', false));
 	}

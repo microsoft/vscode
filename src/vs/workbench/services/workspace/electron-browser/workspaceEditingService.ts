@@ -71,6 +71,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (reason !== ShutdownReason.LOAD && reason !== ShutdownReason.CLOSE) {
 			return undefined; // only interested when window is closing or loading
 		}
+
 		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
 		if (!workspaceIdentifier || !isEqualOrParent(workspaceIdentifier.configPath, this.environmentService.untitledWorkspacesHome)) {
 			return undefined; // only care about untitled workspaces to ask for saving
@@ -190,16 +191,23 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 	}
 
-	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError: boolean = false): Promise<void> {
-		return this.contextService.updateFolders(foldersToAdd, foldersToDelete, index)
-			.then(() => null, error => donotNotifyError ? Promise.reject(error) : this.handleWorkspaceConfigurationEditingError(error));
+	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError: boolean = false): Promise<void> {
+		try {
+			await this.contextService.updateFolders(foldersToAdd, foldersToDelete, index);
+		} catch (error) {
+			if (donotNotifyError) {
+				throw error;
+			}
+
+			this.handleWorkspaceConfigurationEditingError(error);
+		}
 	}
 
 	addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): Promise<void> {
 		return this.doAddFolders(foldersToAdd, undefined, donotNotifyError);
 	}
 
-	private doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
+	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
 		const state = this.contextService.getWorkbenchState();
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
@@ -217,11 +225,18 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Delegate addition of folders to workspace service otherwise
-		return this.contextService.addFolders(foldersToAdd, index)
-			.then(() => null, error => donotNotifyError ? Promise.reject(error) : this.handleWorkspaceConfigurationEditingError(error));
+		try {
+			await this.contextService.addFolders(foldersToAdd, index);
+		} catch (error) {
+			if (donotNotifyError) {
+				throw error;
+			}
+
+			this.handleWorkspaceConfigurationEditingError(error);
+		}
 	}
 
-	removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): Promise<void> {
+	async removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): Promise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we create an empty workspace and enter it.
@@ -230,8 +245,15 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Delegate removal of folders to workspace service otherwise
-		return this.contextService.removeFolders(foldersToRemove)
-			.then(() => null, error => donotNotifyError ? Promise.reject(error) : this.handleWorkspaceConfigurationEditingError(error));
+		try {
+			await this.contextService.removeFolders(foldersToRemove);
+		} catch (error) {
+			if (donotNotifyError) {
+				throw error;
+			}
+
+			this.handleWorkspaceConfigurationEditingError(error);
+		}
 	}
 
 	private includesSingleFolderWorkspace(folders: URI[]): boolean {
@@ -283,10 +305,12 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				detail: nls.localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
 				noLink: true
 			};
-			return this.windowService.showMessageBox(options).then(() => false);
+			await this.windowService.showMessageBox(options);
+
+			return false;
 		}
 
-		return Promise.resolve(true); // OK
+		return true; // OK
 	}
 
 	private async saveWorkspaceAs(workspace: IWorkspaceIdentifier, targetConfigPathURI: URI): Promise<any> {

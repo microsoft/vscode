@@ -160,7 +160,7 @@ export class NotificationActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected runAction(action: IAction, context: INotificationViewItem): Promise<any> {
+	protected async runAction(action: IAction, context: INotificationViewItem): Promise<any> {
 
 		/* __GDPR__
 			"workbenchActionExecuted" : {
@@ -171,8 +171,10 @@ export class NotificationActionRunner extends ActionRunner {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
 
 		// Run and make sure to notify on any error again
-		super.runAction(action, context).then(undefined, error => this.notificationService.error(error));
-
-		return Promise.resolve();
+		try {
+			await super.runAction(action, context);
+		} catch (error) {
+			this.notificationService.error(error);
+		}
 	}
 }

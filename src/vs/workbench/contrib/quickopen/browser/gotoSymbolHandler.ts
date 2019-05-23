@@ -390,7 +390,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		this.rangeHighlightDecorationId = undefined;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel | null> {
+	async getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel | null> {
 		searchValue = searchValue.trim();
 
 		// Support to cancel pending outline requests
@@ -407,20 +407,19 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 
 		// Resolve Outline Model
-		return this.getOutline().then(outline => {
-			if (!outline) {
-				return outline;
-			}
-
-			if (token.isCancellationRequested) {
-				return outline;
-			}
-
-			// Filter by search
-			outline.applyFilter(searchValue);
-
+		const outline = await this.getOutline();
+		if (!outline) {
 			return outline;
-		});
+		}
+
+		if (token.isCancellationRequested) {
+			return outline;
+		}
+
+		// Filter by search
+		outline.applyFilter(searchValue);
+
+		return outline;
 	}
 
 	getEmptyLabel(searchString: string): string {

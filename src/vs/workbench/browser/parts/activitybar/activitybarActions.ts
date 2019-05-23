@@ -42,15 +42,15 @@ export class ViewletActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	run(event: any): Promise<any> {
+	async run(event: any): Promise<any> {
 		if (event instanceof MouseEvent && event.button === 2) {
-			return Promise.resolve(false); // do not run on right click
+			return false; // do not run on right click
 		}
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
 		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
-			return Promise.resolve(true);
+			return true;
 		}
 		this.lastRun = now;
 
@@ -61,11 +61,12 @@ export class ViewletActivityAction extends ActivityAction {
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.activity.id) {
 			this.logAction('hide');
 			this.layoutService.setSideBarHidden(true);
-			return Promise.resolve();
+			return true;
 		}
 
 		this.logAction('show');
-		return this.viewletService.openViewlet(this.activity.id, true).then(() => this.activate());
+		await this.viewletService.openViewlet(this.activity.id, true);
+		return this.activate();
 	}
 
 	private logAction(action: string) {

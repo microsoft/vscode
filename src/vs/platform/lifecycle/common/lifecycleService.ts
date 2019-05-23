@@ -58,9 +58,9 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 		}
 	}
 
-	when(phase: LifecyclePhase): Promise<void> {
+	async when(phase: LifecyclePhase): Promise<void> {
 		if (phase <= this._phase) {
-			return Promise.resolve();
+			return;
 		}
 
 		let barrier = this.phaseWhen.get(phase);
@@ -69,6 +69,6 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 			this.phaseWhen.set(phase, barrier);
 		}
 
-		return barrier.wait().then(undefined);
+		await barrier.wait();
 	}
 }

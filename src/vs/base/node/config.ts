@@ -9,7 +9,8 @@ import * as objects from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
-import { readlink, statLink } from 'vs/base/node/pfs';
+import { statLink } from 'vs/base/node/pfs';
+import { realpath } from 'vs/base/node/extpath';
 import { watchFolder, watchFile } from 'vs/base/node/watcher';
 
 export interface IConfigurationChangeEvent<T> {
@@ -130,7 +131,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private async handleSymbolicLink(): Promise<void> {
 		const { stat, isSymbolicLink } = await statLink(this._path);
 		if (isSymbolicLink && !stat.isDirectory()) {
-			const realPath = await readlink(this._path);
+			const realPath = await realpath(this._path);
 
 			this.watch(realPath, false);
 		}

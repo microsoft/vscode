@@ -251,15 +251,13 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	set dataProvider(dataProvider: ITreeViewDataProvider | null) {
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
-				getChildren(node: ITreeItem): Promise<ITreeItem[]> {
+				async getChildren(node: ITreeItem): Promise<ITreeItem[]> {
 					if (node && node.children) {
 						return Promise.resolve(node.children);
 					}
-					const promise = node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node);
-					return promise.then(children => {
-						node.children = children;
-						return children;
-					});
+					const children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
+					node.children = children;
+					return children;
 				}
 			};
 			this.updateMessage();
@@ -524,19 +522,16 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	private refreshing: boolean = false;
-	private doRefresh(elements: ITreeItem[]): Promise<void> {
+	private async doRefresh(elements: ITreeItem[]): Promise<void> {
 		if (this.tree) {
 			this.refreshing = true;
-			return Promise.all(elements.map(e => this.tree.refresh(e)))
-				.then(() => {
-					this.refreshing = false;
-					this.updateContentAreas();
-					if (this.focused) {
-						this.focus();
-					}
-				});
+			await Promise.all(elements.map(e => this.tree.refresh(e)));
+			this.refreshing = false;
+			this.updateContentAreas();
+			if (this.focused) {
+				this.focus();
+			}
 		}
-		return Promise.resolve(undefined);
 	}
 
 	private updateContentAreas(): void {

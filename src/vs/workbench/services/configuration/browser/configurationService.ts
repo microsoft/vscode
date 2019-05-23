@@ -515,10 +515,11 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				}, {});
 			};
 
-			const unsupportedApplicationSettings = convertToNotSuggestedProperties(applicationSettings.properties, localize('unsupportedApplicationSetting', "This setting can be applied only in application user Settings"));
-			const unsupportedMachineSettings = convertToNotSuggestedProperties(machineSettings.properties, localize('unsupportedMachineSetting', "This setting can be applied only in user Settings"));
+			const unsupportedApplicationSettings = convertToNotSuggestedProperties(applicationSettings.properties, localize('unsupportedApplicationSetting', "This setting can be applied only in application user settings"));
+			const unsupportedMachineSettings = convertToNotSuggestedProperties(machineSettings.properties, localize('unsupportedMachineSetting', "This setting can be applied only in user settings"));
+			const unsupportedRemoteMachineSettings = convertToNotSuggestedProperties(machineSettings.properties, localize('unsupportedRemoteMachineSetting', "This setting can be applied only in remote machine settings"));
 			const allSettingsSchema: IJSONSchema = { properties: allSettings.properties, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
-			const userSettingsSchema: IJSONSchema = this.remoteUserConfiguration ? { properties: { ...applicationSettings.properties, ...unsupportedMachineSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' } : allSettingsSchema;
+			const userSettingsSchema: IJSONSchema = this.remoteUserConfiguration ? { properties: { ...applicationSettings.properties, ...unsupportedRemoteMachineSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' } : allSettingsSchema;
 			const machineSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
 			const workspaceSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...unsupportedMachineSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
 

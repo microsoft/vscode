@@ -113,11 +113,10 @@ export class OpenNewsletterSignupUrlAction extends Action {
 		this.telemetryService = telemetryService;
 	}
 
-	run(): Promise<void> {
-		this.telemetryService.getTelemetryInfo().then(info => {
-			window.open(`${OpenNewsletterSignupUrlAction.URL}?machineId=${encodeURIComponent(info.machineId)}`);
-		});
-		return Promise.resolve();
+	async run(): Promise<void> {
+		const info = await this.telemetryService.getTelemetryInfo();
+
+		window.open(`${OpenNewsletterSignupUrlAction.URL}?machineId=${encodeURIComponent(info.machineId)}`);
 	}
 }
 
