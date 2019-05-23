@@ -659,9 +659,10 @@ export class SimpleProductService implements IProductService {
 
 	_serviceBrand: any;
 
-	version?: string;
+	version: string = '0.0.0';
 	commit?: string;
-
+	nameLong: string = '';
+	urlProtocol: string = '';
 	enableTelemetry: boolean = false;
 }
 

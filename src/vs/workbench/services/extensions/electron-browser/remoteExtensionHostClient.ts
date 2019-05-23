@@ -9,8 +9,6 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
 import { connectRemoteAgentExtensionHost, IRemoteExtensionHostStartParams, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -30,6 +28,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { VSBuffer } from 'vs/base/common/buffer';
 import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IProductService } from 'vs/platform/product/common/product';
 
 export interface IInitDataProvider {
 	readonly remoteAuthority: string;
@@ -59,7 +58,8 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService
+		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
 		this._protocol = null;
@@ -75,7 +75,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 	public start(): Promise<IMessagePassingProtocol> {
 		const options: IConnectionOptions = {
 			isBuilt: this._environmentService.isBuilt,
-			commit: product.commit,
+			commit: this._productService.commit,
 			webSocketFactory: nodeWebSocketFactory,
 			addressProvider: {
 				getAddress: async () => {
@@ -191,15 +191,15 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 			const hostExtensions = allExtensions.filter(extension => extension.main && extension.api === 'none').map(extension => extension.identifier);
 			const workspace = this._contextService.getWorkspace();
 			const r: IInitData = {
-				commit: product.commit,
-				version: pkg.version,
+				commit: this._productService.commit,
+				version: this._productService.version,
 				parentPid: remoteExtensionHostData.pid,
 				environment: {
 					isExtensionDevelopmentDebug,
 					appRoot: remoteExtensionHostData.appRoot,
 					appSettingsHome: remoteExtensionHostData.appSettingsHome,
-					appName: product.nameLong,
-					appUriScheme: product.urlProtocol,
+					appName: this._productService.nameLong,
+					appUriScheme: this._productService.urlProtocol,
 					appLanguage: platform.language,
 					extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 					extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
