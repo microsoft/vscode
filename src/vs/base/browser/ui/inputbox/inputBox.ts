@@ -421,6 +421,9 @@ export class InputBox extends Widget {
 
 				return null;
 			},
+			onHide: () => {
+				this.state = 'idle';
+			},
 			layout: layout
 		});
 	}
