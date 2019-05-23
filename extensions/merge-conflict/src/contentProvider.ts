@@ -23,12 +23,40 @@ export default class MergeConflictContentProvider implements vscode.TextDocument
 
 	async provideTextDocumentContent(uri: vscode.Uri): Promise<string | null> {
 		try {
-			const { scheme, range } = JSON.parse(uri.query) as { scheme: string; range: { line: number, character: number }[] };
-			const [start, end] = range;
+			const { type, scheme, range, fullRange, ranges } = JSON.parse(uri.query) as { type: string, scheme: string; range: { line: number, character: number }[], fullRange: { line: number, character: number }[], ranges: [{ line: number, character: number }[], { line: number, character: number }[]][] };
 
-			const document = await vscode.workspace.openTextDocument(uri.with({ scheme, query: '' }));
-			const text = document.getText(new vscode.Range(start.line, start.character, end.line, end.character));
-			return text;
+			if (type === 'full') {
+				// complete diff
+				const document = await vscode.workspace.openTextDocument(uri.with({ scheme, query: '' }));
+
+				let text = '';
+				let lastPosition = new vscode.Position(0, 0);
+				ranges.forEach(rangeObj => {
+					let [range, fullRange] = rangeObj;
+					const [start, end] = range;
+					const [fullStart, fullEnd] = fullRange;
+
+					text += document.getText(new vscode.Range(lastPosition.line, lastPosition.character, fullStart.line, fullStart.character));
+					text += document.getText(new vscode.Range(start.line, start.character, end.line, end.character));
+					lastPosition = new vscode.Position(fullEnd.line, fullEnd.character);
+				});
+
+				let documentEnd = document.lineAt(document.lineCount - 1).range.end;
+				text += document.getText(new vscode.Range(lastPosition.line, lastPosition.character, documentEnd.line, documentEnd.character));
+
+				return text;
+			} else {
+				const [start, end] = range;
+				const [fullStart, fullEnd] = fullRange;
+				const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
+				const context = Math.max(0, mergeConflictConfig.get<number>('diffViewContext') || 0);
+				const document = await vscode.workspace.openTextDocument(uri.with({ scheme, query: '' }));
+				const text =
+					document.getText(new vscode.Range(Math.max(0, fullStart.line - context), 0, fullStart.line, fullStart.character))
+					+ document.getText(new vscode.Range(start.line, start.character, end.line, end.character))
+					+ document.getText(new vscode.Range(fullEnd.line, fullEnd.character, Math.min(document.lineCount, fullEnd.line + context + 1), 0));
+				return text;
+			}
 		}
 		catch (ex) {
 			await vscode.window.showErrorMessage('Unable to show comparison');

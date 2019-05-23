@@ -39,7 +39,8 @@ export default class CommandHandler implements vscode.Disposable {
 			this.registerTextEditorCommand('merge-conflict.accept.all-both', this.acceptAllBoth),
 			this.registerTextEditorCommand('merge-conflict.next', this.navigateNext),
 			this.registerTextEditorCommand('merge-conflict.previous', this.navigatePrevious),
-			this.registerTextEditorCommand('merge-conflict.compare', this.compare)
+			this.registerTextEditorCommand('merge-conflict.compare', this.compare),
+			this.registerTextEditorCommand('merge-conflict.compareAll', this.compareAll)
 		);
 	}
 
@@ -92,11 +93,36 @@ export default class CommandHandler implements vscode.Disposable {
 		let range = conflict.current.content;
 		const leftUri = editor.document.uri.with({
 			scheme: ContentProvider.scheme,
-			query: JSON.stringify({ scheme, range })
+			query: JSON.stringify({ scheme, range, fullRange: conflict.range })
 		});
 
 		range = conflict.incoming.content;
-		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, range }) });
+		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, range, fullRange: conflict.range }) });
+
+		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
+		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+	}
+
+	async compareAll(editor: vscode.TextEditor) {
+		const fileName = path.basename(editor.document.uri.fsPath);
+		const conflicts = await this.tracker.getConflicts(editor.document);
+
+		// Still failed to find conflict, warn the user and exit
+		if (!conflicts) {
+			vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
+			return;
+		}
+
+		const scheme = editor.document.uri.scheme;
+		let leftRanges = conflicts.map(conflict => [conflict.current.content, conflict.range]);
+		let rightRanges = conflicts.map(conflict => [conflict.incoming.content, conflict.range]);
+
+		const leftUri = editor.document.uri.with({
+			scheme: ContentProvider.scheme,
+			query: JSON.stringify({ type: 'full', scheme, ranges: leftRanges })
+		});
+
+		const rightUri = leftUri.with({ query: JSON.stringify({ type: 'full', scheme, ranges: rightRanges }) });
 
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
 		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
