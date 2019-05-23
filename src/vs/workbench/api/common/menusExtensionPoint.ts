@@ -47,9 +47,9 @@ namespace schema {
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
 			case 'comments/commentThread/title': return MenuId.CommentThreadTitle;
-			case 'comments/commentThread/actions': return MenuId.CommentThreadActions;
+			case 'comments/commentThread/context': return MenuId.CommentThreadActions;
 			case 'comments/comment/title': return MenuId.CommentTitle;
-			case 'comments/comment/actions': return MenuId.CommentActions;
+			case 'comments/comment/context': return MenuId.CommentActions;
 		}
 
 		return undefined;
