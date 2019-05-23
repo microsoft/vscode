@@ -44,9 +44,7 @@ import { Schemas } from 'vs/base/common/network';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isUIExtension } from 'vs/platform/extensions/node/extensionsUtil';
+import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion } from 'vs/platform/extensions/common/extensions';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -129,9 +127,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
-		private readonly remote: boolean,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService,
 		@optional(IDownloadService) private downloadService: IDownloadService,
@@ -506,16 +502,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 							return this.galleryService.query({ names, pageSize: dependenciesAndPackExtensions.length }, CancellationToken.None)
 								.then(galleryResult => {
 									const extensionsToInstall = galleryResult.firstPage;
-									return Promise.all(extensionsToInstall.map(async e => {
-										if (this.remote) {
-											const manifest = await this.galleryService.getManifest(e, CancellationToken.None);
-											if (manifest && isUIExtension(manifest, [], this.configurationService) && !isLanguagePackExtension(manifest)) {
-												this.logService.info('Ignored installing the UI dependency', e.identifier.id);
-												return;
-											}
-										}
-										return this.installFromGallery(e);
-									}))
+									return Promise.all(extensionsToInstall.map(e => this.installFromGallery(e)))
 										.then(() => null, errors => this.rollback(extensionsToInstall).then(() => Promise.reject(errors), () => Promise.reject(errors)));
 								});
 						}
