@@ -664,6 +664,7 @@ export class SimpleProductService implements IProductService {
 	nameLong: string = '';
 	urlProtocol: string = '';
 	extensionAllowedProposedApi: string[] = [];
+	uiExtensions?: string[];
 	enableTelemetry: boolean = false;
 }
 
