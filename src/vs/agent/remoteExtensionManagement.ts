@@ -178,7 +178,7 @@ export class RemoteExtensionManagementServer extends Disposable {
 		const downloadChannel = server.getChannel('download', router);
 		services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, () => this.getUriTransformer('renderer') /* TODO: @Sandy @Joao need dynamic context based router */));
 
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [true]));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 		const instantiationService = new InstantiationService(services);
 		services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
@@ -216,7 +216,7 @@ export class RemoteExtensionManagementCli {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		this.cliMain = instantiationService.createInstance(CliMain, true);
+		this.cliMain = instantiationService.createInstance(CliMain);
 	}
 
 	static shouldSpawnCli(argv: ParsedArgs): boolean {
@@ -239,7 +239,7 @@ export class RemoteExtensionManagementCli {
 		services.set(ITelemetryService, NullTelemetryService);
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [true]));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 		return instantiationService.createInstance(RemoteExtensionManagementCli);
 	}
