@@ -42,6 +42,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
+import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -97,6 +98,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private readonly _onDidChangeResponsiveChange = this._register(new Emitter<IResponsiveStateChangeEvent>());
 	public readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = this._onDidChangeResponsiveChange.event;
 
+	private readonly _isExtensionDevHost: boolean;
+	private readonly _isExtensionDevTestFromCli: boolean;
+
 	// --- Members used per extension host process
 	private _extensionHostProcessManagers: ExtensionHostProcessManager[];
 	private _extensionHostActiveExtensions: Map<string, ExtensionIdentifier>;
@@ -141,6 +145,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionHostExtensionRuntimeErrors = new Map<string, Error[]>();
 
 		this._startDelayed(this._lifecycleService);
+
+		const devOpts = parseExtensionDevOptions(this._environmentService);
+		this._isExtensionDevHost = devOpts.isExtensionDevHost;
+		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
 
 		if (this._extensionEnablementService.allUserExtensionsDisabled) {
 			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
@@ -466,18 +474,29 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, null, initialActivationEvents);
-		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal, true));
+		extHostProcessManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(code, signal, true));
 		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
 		this._extensionHostProcessManagers.push(extHostProcessManager);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority));
+			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), nodeWebSocketFactory);
 			const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
-			remoteExtHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal, false));
+			remoteExtHostProcessManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(code, signal, false));
 			remoteExtHostProcessManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
 			this._extensionHostProcessManagers.push(remoteExtHostProcessManager);
 		}
+	}
+
+	private _onExtensionHostCrashOrExit(code: number, signal: string | null, showNotification: boolean): void {
+
+		// Unexpected termination
+		if (!this._isExtensionDevHost) {
+			this._onExtensionHostCrashed(code, signal, showNotification);
+			return;
+		}
+
+		this._onExtensionHostExit(code);
 	}
 
 	private _onExtensionHostCrashed(code: number, signal: string | null, showNotification: boolean): void {
@@ -970,8 +989,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	public _onExtensionHostExit(code: number): void {
 		// Expected development extension termination: When the extension host goes down we also shutdown the window
-		const devOpts = parseExtensionDevOptions(this._environmentService);
-		if (!devOpts.isExtensionDevTestFromCli) {
+		if (!this._isExtensionDevTestFromCli) {
 			this._windowService.closeWindow();
 		}
 

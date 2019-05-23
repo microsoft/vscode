@@ -35,7 +35,7 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export class ExtensionHostProcessManager extends Disposable {
 
-	public readonly onDidCrash: Event<[number, string | null]>;
+	public readonly onDidExit: Event<[number, string | null]>;
 
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
@@ -66,7 +66,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._extensionHostProcessCustomers = [];
 
 		this._extensionHostProcessWorker = extensionHostProcessWorker;
-		this.onDidCrash = this._extensionHostProcessWorker.onCrashed;
+		this.onDidExit = this._extensionHostProcessWorker.onExit;
 		this._extensionHostProcessProxy = this._extensionHostProcessWorker.start()!.then(
 			(protocol) => {
 				return { value: this._createExtensionHostCustomers(protocol) };
