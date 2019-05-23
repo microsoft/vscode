@@ -11,5 +11,11 @@
 	</body>
 
 	<!-- Startup via workbench.js -->
-	<script src="../../../../../out/vs/code/browser/workbench/workbench.js"></script>
+	<script>
+		self.CONNECTION_AUTH_TOKEN = '{{CONNECTION_AUTH_TOKEN}}';
+		self.USER_HOME_DIR = '{{USER_HOME_DIR}}';
+	</script>
+
+	<!-- Startup via workbench.js -->
+	<script src="./out/vs/code/browser/workbench/workbench.js"></script>
 </html>

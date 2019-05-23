@@ -20,6 +20,19 @@ rm -rf $ROOT/code-*.tar.*
 
 node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_LINUX" archive-unsigned "$TARBALL_FILENAME" "$VERSION" true "$TARBALL_PATH"
 
+# Publish Remote Extension Host
+if [[ "$VSCODE_ARCH" != "ia32" ]]; then
+	LEGACY_SERVER_BUILD_NAME="vscode-reh-$PLATFORM_LINUX"
+	SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX"
+	SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX.tar.gz"
+	SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
+
+	rm -rf $ROOT/vscode-server-*.tar.*
+	(cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
+
+	node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "server-$PLATFORM_LINUX" archive-unsigned "$SERVER_TARBALL_FILENAME" "$VERSION" true "$SERVER_TARBALL_PATH"
+fi
+
 # Publish hockeyapp symbols
 node build/azure-pipelines/common/symbols.js "$VSCODE_MIXIN_PASSWORD" "$VSCODE_HOCKEYAPP_TOKEN" "$VSCODE_ARCH" "$VSCODE_HOCKEYAPP_ID_LINUX64"
 

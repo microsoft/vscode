@@ -67,14 +67,6 @@ export interface IExtension {
 	readonly isMalicious: boolean;
 }
 
-export interface IExtensionDependencies {
-	dependencies: IExtensionDependencies[];
-	hasDependencies: boolean;
-	identifier: string;
-	extension: IExtension;
-	dependent: IExtensionDependencies | null;
-}
-
 export const SERVICE_ID = 'extensionsWorkbenchService';
 
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>(SERVICE_ID);
@@ -95,7 +87,6 @@ export interface IExtensionsWorkbenchService {
 	installVersion(extension: IExtension, version: string): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	loadDependencies(extension: IExtension, token: CancellationToken): Promise<IExtensionDependencies | null>;
 	open(extension: IExtension, sideByside?: boolean): Promise<any>;
 	checkForUpdates(): Promise<void>;
 	allowedBadgeProviders: string[];

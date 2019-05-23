@@ -264,6 +264,9 @@ import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-browser/task.contribution';
 
+// Remote
+import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
+
 // Emmet
 import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
 

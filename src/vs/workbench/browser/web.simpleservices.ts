@@ -333,11 +333,6 @@ export class SimpleExtensionGalleryService implements IExtensionGalleryService {
 		return Promise.resolve(undefined);
 	}
 
-	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
 	getExtensionsReport(): Promise<IReportedExtension[]> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
