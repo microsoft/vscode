@@ -42,7 +42,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 
-const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
+const MAX_URL_LENGTH = 2045;
 
 interface SearchResult {
 	html_url: string;
