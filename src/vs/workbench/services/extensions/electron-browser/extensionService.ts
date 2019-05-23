@@ -24,13 +24,11 @@ import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsU
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import pkg from 'vs/platform/product/node/package';
-import product from 'vs/platform/product/node/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser, schema } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
@@ -43,19 +41,18 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
+import { IProductService } from 'vs/platform/product/common/product';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
-schema.properties.engines.properties.vscode.default = `^${pkg.version}`;
-
 let productAllowProposedApi: Set<string> | null = null;
-function allowProposedApiFromProduct(id: ExtensionIdentifier): boolean {
+function allowProposedApiFromProduct(productService: IProductService, id: ExtensionIdentifier): boolean {
 	// create set if needed
 	if (!productAllowProposedApi) {
 		productAllowProposedApi = new Set<string>();
-		if (isNonEmptyArray(product.extensionAllowedProposedApi)) {
-			product.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi!.add(ExtensionIdentifier.toKey(id)));
+		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
+			productService.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi!.add(ExtensionIdentifier.toKey(id)));
 		}
 	}
 	return productAllowProposedApi.has(ExtensionIdentifier.toKey(id));
@@ -119,7 +116,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
 
@@ -821,7 +819,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 
 		const enableProposedApiForAll = !this._environmentService.isBuilt ||
-			(!!this._environmentService.extensionDevelopmentLocationURI && product.nameLong !== 'Visual Studio Code') ||
+			(!!this._environmentService.extensionDevelopmentLocationURI && this._productService.nameLong !== 'Visual Studio Code') ||
 			(enableProposedApiFor.length === 0 && 'enable-proposed-api' in this._environmentService.args);
 
 
@@ -859,7 +857,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _updateEnableProposedApi(extension: IExtensionDescription, enableProposedApiForAll: boolean, enableProposedApiFor: string | string[]): IExtensionDescription {
-		if (allowProposedApiFromProduct(extension.identifier)) {
+		if (allowProposedApiFromProduct(this._productService, extension.identifier)) {
 			// fast lane -> proposed api is available to all extensions
 			// that are listed in product.json-files
 			extension.enableProposedApi = true;

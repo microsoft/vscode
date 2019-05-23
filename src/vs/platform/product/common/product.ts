@@ -15,6 +15,7 @@ export interface IProductService {
 
 	nameLong: string;
 	urlProtocol: string;
+	extensionAllowedProposedApi: string[];
 
 	enableTelemetry: boolean;
 }
