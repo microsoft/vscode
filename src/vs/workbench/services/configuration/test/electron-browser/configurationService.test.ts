@@ -1595,6 +1595,14 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	// 	return promise;
 	// });
 
+	test('machine settings in local user settings does not override defaults', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.remote.machineSetting": "globalValue" }');
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
+	});
+
 });
 
 function getWorkspaceId(configPath: URI): string {

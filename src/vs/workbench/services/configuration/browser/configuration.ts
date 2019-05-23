@@ -12,7 +12,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, IConfigurationFileService, MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, IConfigurationFileService, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -45,7 +45,7 @@ export class RemoteUserConfiguration extends Disposable {
 		this._userConfiguration = this._cachedConfiguration = new CachedUserConfiguration(remoteAuthority, configurationCache);
 		remoteAgentService.getEnvironment().then(async environment => {
 			if (environment) {
-				const userConfiguration = this._register(new UserConfiguration(environment.settingsPath, MACHINE_SCOPES, this._configurationFileService));
+				const userConfiguration = this._register(new UserConfiguration(environment.settingsPath, REMOTE_MACHINE_SCOPES, this._configurationFileService));
 				this._register(userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
 				this._userConfigurationInitializationPromise = userConfiguration.initialize();
 				const configurationModel = await this._userConfigurationInitializationPromise;
