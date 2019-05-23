@@ -16,18 +16,24 @@ export function isUIExtension(manifest: IExtensionManifest, uiContributions: str
 		case 'ui': return true;
 		case 'workspace': return false;
 		default: {
+			// Tagged as UI extension in product
 			if (isNonEmptyArray(product.uiExtensions) && product.uiExtensions.some(id => areSameExtensions({ id }, { id: extensionId }))) {
 				return true;
 			}
+			// Not an UI extension if it has main
 			if (manifest.main) {
 				return false;
 			}
+			// Not an UI extension if it has dependencies or an extension pack
+			if (isNonEmptyArray(manifest.extensionDependencies) || isNonEmptyArray(manifest.extensionPack)) {
+				return false;
+			}
 			if (manifest.contributes) {
+				// Not an UI extension if it has no ui contributions
 				if (!uiContributions.length || Object.keys(manifest.contributes).some(contribution => uiContributions.indexOf(contribution) === -1)) {
 					return false;
 				}
 			}
-			// Default is UI Extension
 			return true;
 		}
 	}

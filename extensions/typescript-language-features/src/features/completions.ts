@@ -50,17 +50,16 @@ class MyCompletionItem extends vscode.CompletionItem {
 	) {
 		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
 
-		if (tsEntry.isRecommended) {
-			// Make sure isRecommended property always comes first
-			// https://github.com/Microsoft/vscode/issues/40325
-			this.sortText = tsEntry.sortText;
-			this.preselect = true;
-		} else if (tsEntry.source) {
+		if (tsEntry.source) {
 			// De-prioritze auto-imports
 			// https://github.com/Microsoft/vscode/issues/40311
 			this.sortText = '\uffff' + tsEntry.sortText;
 		} else {
 			this.sortText = tsEntry.sortText;
+		}
+
+		if (tsEntry.isRecommended) {
+			this.preselect = true;
 		}
 
 		this.position = position;
@@ -87,7 +86,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		if (tsEntry.kindModifiers) {
 			const kindModifiers = new Set(tsEntry.kindModifiers.split(/\s+/g));
-
 			if (kindModifiers.has(PConst.KindModifiers.optional)) {
 				if (!this.insertText) {
 					this.insertText = this.label;
@@ -205,7 +203,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.enum:
 			case PConst.Kind.interface:
 				commitCharacters.push('.', ';');
-
 				break;
 
 			case PConst.Kind.module:
@@ -659,7 +656,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		token: vscode.CancellationToken
 	): Promise<boolean> {
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
-		// Don't complete function calls inside of destructive assigments or imports
+		// Don't complete function calls inside of destructive assignments or imports
 		try {
 			const args: Proto.FileLocationRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 			const response = await this.client.execute('quickinfo', args, token);
