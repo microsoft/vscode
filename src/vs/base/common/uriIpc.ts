@@ -10,6 +10,7 @@ export interface IURITransformer {
 	transformIncoming(uri: UriComponents): UriComponents;
 	transformOutgoing(uri: UriComponents): UriComponents;
 	transformOutgoingURI(uri: URI): URI;
+	transformOutgoingScheme(scheme: string): string;
 }
 
 export const DefaultURITransformer: IURITransformer = new class {
@@ -23,6 +24,10 @@ export const DefaultURITransformer: IURITransformer = new class {
 
 	transformOutgoingURI(uri: URI): URI {
 		return uri;
+	}
+
+	transformOutgoingScheme(scheme: string): string {
+		return scheme;
 	}
 };
 

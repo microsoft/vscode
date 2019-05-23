@@ -17,7 +17,6 @@ import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createBufferSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
-import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
@@ -273,9 +272,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 })();
 
 export async function startExtensionHostProcess(
-	uriTransformerFn: (initData: IInitData) => IURITransformer | null,
-	schemeTransformerFn: (initData: IInitData) => ISchemeTransformer | null,
-	outputChannelNameFn: (initData: IInitData) => string,
+	uriTransformerFn: (initData: IInitData) => IURITransformer | null
 ): Promise<void> {
 
 	const protocol = await createExtHostProtocol();
@@ -298,9 +295,7 @@ export async function startExtensionHostProcess(
 		hostUtils,
 		patchPatchedConsole,
 		createLogService,
-		uriTransformerFn(initData),
-		schemeTransformerFn(initData),
-		outputChannelNameFn(initData)
+		uriTransformerFn(initData)
 	);
 
 	// rewrite onTerminate-function to be a proper shutdown
