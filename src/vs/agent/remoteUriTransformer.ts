@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { IRawURITransformer, UriParts, URITransformer, IURITransformer } from 'vs/base/common/uriIpc';
 
 /**
  * ```
@@ -17,33 +16,23 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
  * ```
  */
 export function createRemoteURITransformer(remoteAuthority: string): IURITransformer {
-	return new class implements IURITransformer {
-		transformIncoming(uri: UriComponents): UriComponents {
+	const uriTransfomer = new class implements IRawURITransformer {
+		transformIncoming(uri: UriParts): UriParts {
 			if (uri.scheme === 'vscode-remote') {
-				return toJSON(URI.from({ scheme: 'file', path: uri.path }));
+				return { scheme: 'file', path: uri.path };
 			}
 			if (uri.scheme === 'file') {
-				return toJSON(URI.from({ scheme: 'vscode-local', path: uri.path }));
+				return { scheme: 'vscode-local', path: uri.path };
 			}
 			return uri;
 		}
 
-		transformOutgoing(uri: UriComponents): UriComponents {
+		transformOutgoing(uri: UriParts): UriParts {
 			if (uri.scheme === 'file') {
-				return toJSON(URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: uri.path }));
+				return { scheme: 'vscode-remote', authority: remoteAuthority, path: uri.path };
 			}
 			if (uri.scheme === 'vscode-local') {
-				return toJSON(URI.from({ scheme: 'file', path: uri.path }));
-			}
-			return uri;
-		}
-
-		transformOutgoingURI(uri: URI): URI {
-			if (uri.scheme === 'file') {
-				return URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: uri.path });
-			}
-			if (uri.scheme === 'vscode-local') {
-				return URI.from({ scheme: 'file', path: uri.path });
+				return { scheme: 'file', path: uri.path };
 			}
 			return uri;
 		}
@@ -57,8 +46,6 @@ export function createRemoteURITransformer(remoteAuthority: string): IURITransfo
 			return scheme;
 		}
 	};
-}
 
-function toJSON(uri: URI): UriComponents {
-	return <UriComponents><any>uri.toJSON();
+	return new URITransformer(uriTransfomer);
 }
