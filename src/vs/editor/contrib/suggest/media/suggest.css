@@ -160,20 +160,25 @@
 
 /* loading items */
 
-@keyframes fade { 0% {opacity: 0.2;} 33% {opacity: 0.8;} 100% {opacity: 0.2;}};
+@keyframes spin {from { transform: rotate(45deg)} to {transform: rotate(405deg)} }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .contents > .main > .progress {
 	display: none;
+	border-radius: 50%;
+	width: 8px;
+	height: 8px;
+	margin: 3px 0 0 3px;
+	border-top: 2px solid rgba(255, 0, 0, 0.486);
+	border-left: 2px solid red;
+	border-right: 2px solid red;
+	border-bottom: 2px solid red;
+	transform: rotate(45deg);
+	animation: spin 3s infinite;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .contents > .main > .progress.busy::before,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover .contents > .main > .progress.busy::before {
-	content: '\2022';
-	padding-left: 2px;
-	opacity: 0.2;
-	animation-name: fade;
-	animation-duration: 3s;
-	animation-iteration-count: infinite;
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .contents > .main > .progress.busy,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover .contents > .main > .progress.busy {
+	display: inline-block;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon {

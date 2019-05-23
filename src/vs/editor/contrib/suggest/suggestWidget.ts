@@ -118,7 +118,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		data.iconLabel = new IconLabel(main, { supportHighlights: true });
 		data.disposables.push(data.iconLabel);
 
-		data.resolving = append(main, $('span.progress'));
+		data.resolving = append(main, $('.progress'));
 
 		data.typeLabel = append(main, $('span.type-label'));
 
