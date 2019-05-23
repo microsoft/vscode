@@ -663,6 +663,7 @@ export class SimpleProductService implements IProductService {
 	commit?: string;
 	nameLong: string = '';
 	urlProtocol: string = '';
+	extensionAllowedProposedApi: string[] = [];
 	enableTelemetry: boolean = false;
 }
 

@@ -19,5 +19,7 @@ export class ProductService implements IProductService {
 
 	get urlProtocol(): string { return product.urlProtocol; }
 
+	get extensionAllowedProposedApi(): string[] { return product.extensionAllowedProposedApi; }
+
 	get enableTelemetry(): boolean { return product.enableTelemetry; }
 }
