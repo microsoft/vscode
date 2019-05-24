@@ -16,5 +16,3 @@ git fetch distro
 git merge $(node -p "require('./package.json').distro")
 
 CHILD_CONCURRENCY=1 yarn
-yarn gulp mixin
-node build/azure-pipelines/common/installDistro.js
