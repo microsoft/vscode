@@ -996,6 +996,7 @@ export interface LinkDto {
 	cacheId?: ChainedCacheId;
 	range: IRange;
 	url?: string | UriComponents;
+	tooltip?: string;
 }
 
 export interface CodeLensDto extends ObjectIdentifier {
