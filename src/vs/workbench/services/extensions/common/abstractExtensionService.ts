@@ -372,6 +372,35 @@ export abstract class CommonExtensionService extends Disposable implements IExte
 		}
 	}
 
+	private _isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
+		if (this._environmentService.isExtensionDevelopment) {
+			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
+			if (extDevLocs) {
+				const extLocation = extension.extensionLocation;
+				for (let p of extDevLocs) {
+					if (isEqualOrParent(extLocation, p)) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+	protected _isEnabled(extension: IExtensionDescription): boolean {
+		if (this._isExtensionUnderDevelopment(extension)) {
+			// Never disable extensions under development
+			return true;
+		}
+
+		if (ExtensionIdentifier.equals(extension.identifier, BetterMergeId)) {
+			// Check if this is the better merge extension which was migrated to a built-in extension
+			return false;
+		}
+
+		return this._extensionEnablementService.isEnabled(toExtension(extension));
+	}
+
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
 		const affectedExtensionPoints: { [extPointName: string]: boolean; } = Object.create(null);
 		for (let extensionDescription of affectedExtensions) {
@@ -939,35 +968,6 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 		}
 
 		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
-	}
-
-	private isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
-		if (this._environmentService.isExtensionDevelopment) {
-			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
-			if (extDevLocs) {
-				const extLocation = extension.extensionLocation;
-				for (let p of extDevLocs) {
-					if (isEqualOrParent(extLocation, p)) {
-						return true;
-					}
-				}
-			}
-		}
-		return false;
-	}
-
-	private _isEnabled(extension: IExtensionDescription): boolean {
-		if (this.isExtensionUnderDevelopment(extension)) {
-			// Never disable extensions under development
-			return true;
-		}
-
-		if (ExtensionIdentifier.equals(extension.identifier, BetterMergeId)) {
-			// Check if this is the better merge extension which was migrated to a built-in extension
-			return false;
-		}
-
-		return this._extensionEnablementService.isEnabled(toExtension(extension));
 	}
 
 	public abstract _onExtensionHostExit(code: number): void;
