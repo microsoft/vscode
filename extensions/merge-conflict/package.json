@@ -81,12 +81,6 @@
         "title": "%command.compare%",
         "original": "Compare Current Conflict",
         "command": "merge-conflict.compare"
-      },
-      {
-        "category": "%command.category%",
-        "title": "%command.compareAll%",
-        "original": "Compare All Conflict in Current Editor",
-        "command": "merge-conflict.compareAll"
       }
     ],
     "menus": {
@@ -120,11 +114,6 @@
           "type": "boolean",
           "description": "%config.autoNavigateNextConflictEnabled%",
           "default": false
-        },
-        "merge-conflict.diffViewContext": {
-          "type": "number",
-          "description": "%config.diffViewContext%",
-          "default": 0
         },
         "merge-conflict.openDiffInNewEditor": {
           "type": "boolean",
