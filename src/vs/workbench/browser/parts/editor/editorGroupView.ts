@@ -20,8 +20,8 @@ import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BAC
 import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder, GroupsOrder, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
+import { ILocalProgressService } from 'vs/platform/progress/common/progress';
+import { LocalProgressService } from 'vs/workbench/services/progress/browser/localProgressService';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -178,7 +178,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService],
-			[IProgressService, new ProgressService(this.progressBar)]
+			[ILocalProgressService, new LocalProgressService(this.progressBar)]
 		));
 
 		// Context keys

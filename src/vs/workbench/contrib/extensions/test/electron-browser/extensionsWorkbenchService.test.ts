@@ -30,8 +30,8 @@ import { TestContextService, TestWindowService, TestSharedProcessService } from 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IProgressService2 } from 'vs/platform/progress/common/progress';
-import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
@@ -61,7 +61,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IWindowService, TestWindowService);
-		instantiationService.stub(IProgressService2, ProgressService2);
+		instantiationService.stub(IProgressService, ProgressService);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(IURLService, URLService);

@@ -40,7 +40,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -482,7 +482,7 @@ class TaskService extends Disposable implements ITaskService {
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IProgressService2 private readonly progressService: IProgressService2,
+		@IProgressService private readonly progressService: IProgressService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IDialogService private readonly dialogService: IDialogService,

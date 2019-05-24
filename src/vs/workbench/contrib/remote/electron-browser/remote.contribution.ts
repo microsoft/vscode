@@ -32,7 +32,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import { ipcRenderer as ipc } from 'electron';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProgressService2, IProgress, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgress, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { PersistenConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -272,7 +272,7 @@ class ProgressReporter {
 class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IProgressService2 progressService: IProgressService2,
+		@IProgressService progressService: IProgressService,
 		@IDialogService dialogService: IDialogService,
 		@ICommandService commandService: ICommandService
 	) {
