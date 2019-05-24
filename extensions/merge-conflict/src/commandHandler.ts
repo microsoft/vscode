@@ -127,11 +127,15 @@ export default class CommandHandler implements vscode.Disposable {
 		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
 		const openToTheSide = mergeConflictConfig.get<boolean>('openDiffInNewEditor');
 		const opts: vscode.TextDocumentShowOptions = {
-			viewColumn: openToTheSide ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
+			viewColumn: vscode.ViewColumn.Active,
 			selection
 		};
 
-		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, opts);
+		if (openToTheSide) {
+			await vscode.commands.executeCommand('workbench.action.newGroupBelow');
+		}
+
+		await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, opts);
 	}
 
 	navigateNext(editor: vscode.TextEditor): Promise<void> {
