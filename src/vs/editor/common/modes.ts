@@ -1000,6 +1000,7 @@ export interface IInplaceReplaceSupportResult {
 export interface ILink {
 	range: IRange;
 	url?: URI | string;
+	tooltip?: string;
 }
 
 export interface ILinksList {

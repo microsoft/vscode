@@ -808,7 +808,8 @@ export namespace DocumentLink {
 	export function from(link: vscode.DocumentLink): modes.ILink {
 		return {
 			range: Range.from(link.range),
-			url: link.target
+			url: link.target,
+			tooltip: link.tooltip
 		};
 	}
 

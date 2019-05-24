@@ -64,12 +64,12 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		super();
 
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
-		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
-		_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this, this._toDispose);
+		this._register(_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
+		this._register(_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this));
 
 		// This reviver's only job is to activate webview extensions
 		// This should trigger the real reviver to be registered from the extension host side.
-		this._toDispose.push(_webviewService.registerReviver({
+		this._register(_webviewService.registerReviver({
 			canRevive: (webview) => {
 				const viewType = webview.state.viewType;
 				if (viewType) {
@@ -80,9 +80,9 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			reviveWebview: () => { throw new Error('not implemented'); }
 		}));
 
-		lifecycleService.onBeforeShutdown(e => {
+		this._register(lifecycleService.onBeforeShutdown(e => {
 			e.veto(this._onBeforeShutdown());
-		}, this, this._toDispose);
+		}, this));
 	}
 
 	public $createWebviewPanel(

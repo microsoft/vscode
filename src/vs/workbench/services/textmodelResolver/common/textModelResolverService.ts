@@ -151,10 +151,10 @@ export class TextModelResolverService implements ITextModelService {
 			const cachedModel = this.modelService.getModel(resource);
 
 			if (!cachedModel) {
-				return Promise.reject(new Error('Cant resolve inmemory resource'));
+				throw new Error('Cant resolve inmemory resource');
 			}
 
-			return Promise.resolve(new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource) as IResolvedTextEditorModel));
+			return new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource) as IResolvedTextEditorModel);
 		}
 
 		const ref = this.resourceModelCollection.acquire(resource.toString());

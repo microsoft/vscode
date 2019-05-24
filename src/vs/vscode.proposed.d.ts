@@ -1437,4 +1437,14 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region DocumentLink tooltip mjbvz
+
+	interface DocumentLink {
+		/**
+		 * The tooltip text when you hover over this link.
+		 */
+		tooltip?: string;
+	}
+
+	// #endregion
 }

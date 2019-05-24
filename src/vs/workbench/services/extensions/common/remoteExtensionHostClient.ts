@@ -3,17 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer as ipc } from 'electron';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
-import { connectRemoteAgentExtensionHost, IRemoteExtensionHostStartParams, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
+import { connectRemoteAgentExtensionHost, IRemoteExtensionHostStartParams, IConnectionOptions, IWebSocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -28,8 +24,8 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IProductService } from 'vs/platform/product/common/product';
 
 export interface IInitDataProvider {
 	readonly remoteAuthority: string;
@@ -38,28 +34,28 @@ export interface IInitDataProvider {
 
 export class RemoteExtensionHostClient extends Disposable implements IExtensionHostStarter {
 
-	private _onCrashed: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
-	public readonly onCrashed: Event<[number, string | null]> = this._onCrashed.event;
+	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
+	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
 
 	private _protocol: PersistentProtocol | null;
 
 	private readonly _isExtensionDevHost: boolean;
-	private readonly _isExtensionDevTestFromCli: boolean;
 
 	private _terminating: boolean;
 
 	constructor(
 		private readonly _allExtensions: Promise<IExtensionDescription[]>,
 		private readonly _initDataProvider: IInitDataProvider,
+		private readonly _webSocketFactory: IWebSocketFactory,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IWindowService private readonly _windowService: IWindowService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService
+		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
 		this._protocol = null;
@@ -69,14 +65,13 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
-		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
 	}
 
 	public start(): Promise<IMessagePassingProtocol> {
 		const options: IConnectionOptions = {
 			isBuilt: this._environmentService.isBuilt,
-			commit: product.commit,
-			webSocketFactory: nodeWebSocketFactory,
+			commit: this._productService.commit,
+			webSocketFactory: this._webSocketFactory,
 			addressProvider: {
 				getAddress: async () => {
 					const { host, port } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
@@ -168,20 +163,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 			return;
 		}
 
-		// Unexpected termination
-		if (!this._isExtensionDevHost) {
-			this._onCrashed.fire([0, null]);
-		}
-
-		// Expected development extension termination: When the extension host goes down we also shutdown the window
-		else if (!this._isExtensionDevTestFromCli) {
-			this._windowService.closeWindow();
-		}
-
-		// When CLI testing make sure to exit with proper exit code
-		else {
-			ipc.send('vscode:exit', 0);
-		}
+		this._onExit.fire([0, null]);
 	}
 
 	private _createExtHostInitData(isExtensionDevelopmentDebug: boolean): Promise<IInitData> {
@@ -191,15 +173,15 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 			const hostExtensions = allExtensions.filter(extension => extension.main && extension.api === 'none').map(extension => extension.identifier);
 			const workspace = this._contextService.getWorkspace();
 			const r: IInitData = {
-				commit: product.commit,
-				version: pkg.version,
+				commit: this._productService.commit,
+				version: this._productService.version,
 				parentPid: remoteExtensionHostData.pid,
 				environment: {
 					isExtensionDevelopmentDebug,
 					appRoot: remoteExtensionHostData.appRoot,
 					appSettingsHome: remoteExtensionHostData.appSettingsHome,
-					appName: product.nameLong,
-					appUriScheme: product.urlProtocol,
+					appName: this._productService.nameLong,
+					appUriScheme: this._productService.urlProtocol,
 					appLanguage: platform.language,
 					extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 					extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,

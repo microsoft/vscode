@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -436,7 +436,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
-					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget, ...markdownDisposeables]);
+					this.renderDisposable = combinedDisposable(colorListener, colorChangeListener, widget, ...markdownDisposeables);
 				});
 			} else {
 				if (msg instanceof MarkerHover) {
@@ -526,7 +526,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	private renderMarkerStatusbar(markerHover: MarkerHover): HTMLElement {
 		const hoverElement = $('div.hover-row.status-bar');
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
 		disposables.push(this.renderAction(actionsElement, {
 			label: nls.localize('quick fixes', "Quick Fix..."),
@@ -553,7 +553,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}));
 		}
-		this.renderDisposable = combinedDisposable(disposables);
+		this.renderDisposable = disposables;
 		return hoverElement;
 	}
 

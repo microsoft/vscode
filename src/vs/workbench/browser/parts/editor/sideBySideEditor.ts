@@ -169,7 +169,7 @@ export class SideBySideEditor extends BaseEditor {
 		}
 
 		if (!this.detailsEditor || !this.masterEditor) {
-			return Promise.resolve();
+			return;
 		}
 
 		await Promise.all([

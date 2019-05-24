@@ -13,7 +13,7 @@ import { registerEditorCommand, EditorCommand } from 'vs/editor/browser/editorEx
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
-import { Disposable, dispose, combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { localize } from 'vs/nls';
@@ -126,8 +126,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 			resource: reference.uri,
 			options: {
 				selection: Range.collapseToStart(reference.range),
-				revealInCenterIfOutsideViewport: true,
-				revealIfOpened: true
+				revealInCenterIfOutsideViewport: true
 			}
 		}, source).finally(() => {
 			this._ignoreEditorChange = false;
@@ -141,7 +140,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 
 		const kb = this._keybindingService.lookupKeybinding('editor.gotoNextSymbolFromResult');
 		const message = kb
-			? localize('location.kb', "Symbol {0} of {1}, press {2} to reveal next", this._currentIdx + 1, this._currentModel!.references.length, kb.getLabel())
+			? localize('location.kb', "Symbol {0} of {1}, {2} for next", this._currentIdx + 1, this._currentModel!.references.length, kb.getLabel())
 			: localize('location', "Symbol {0} of {1}", this._currentIdx + 1, this._currentModel!.references.length);
 
 		this._currentMessage = this._statusbarService.setStatusMessage(message);
@@ -199,10 +198,10 @@ class EditorStatus extends Disposable {
 	}
 
 	private _onDidAddEditor(editor: ICodeEditor): void {
-		this._listener.set(editor, combinedDisposable([
+		this._listener.set(editor, combinedDisposable(
 			editor.onDidChangeCursorPosition(_ => this._onDidChange.fire({ editor })),
 			editor.onDidChangeModelContent(_ => this._onDidChange.fire({ editor })),
-		]));
+		));
 	}
 
 	private _onDidRemoveEditor(editor: ICodeEditor): void {

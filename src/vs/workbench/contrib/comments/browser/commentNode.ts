@@ -178,8 +178,8 @@ export class CommentNode extends Disposable {
 
 		let commentMenus = this.commentService.getCommentMenus(this.owner);
 		const menu = commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
-		this._toDispose.push(menu);
-		this._toDispose.push(menu.onDidChange(e => {
+		this._register(menu);
+		this._register(menu.onDidChange(e => {
 			const contributedActions = menu.getActions({ shouldForwardArgs: true }).reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
 			this.toolbar.setActions(contributedActions);
 		}));
@@ -217,7 +217,7 @@ export class CommentNode extends Disposable {
 
 			this.registerActionBarListeners(this._actionsToolbarContainer);
 			this.toolbar.setActions(actions, [])();
-			this._toDispose.push(this.toolbar);
+			this._register(this.toolbar);
 		}
 	}
 
@@ -354,7 +354,7 @@ export class CommentNode extends Disposable {
 				return this.actionViewItemProvider(action as Action);
 			}
 		});
-		this._toDispose.push(this._reactionsActionBar);
+		this._register(this._reactionsActionBar);
 
 		this.comment.commentReactions!.map(reaction => {
 			let action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && reaction.canEdit ? 'active' : '', reaction.canEdit, async () => {
@@ -444,8 +444,8 @@ export class CommentNode extends Disposable {
 			}));
 		}
 
-		this._toDispose.push(this._commentEditor);
-		this._toDispose.push(this._commentEditorModel);
+		this._register(this._commentEditor);
+		this._register(this._commentEditorModel);
 	}
 
 	private removeCommentEditor() {
@@ -561,8 +561,8 @@ export class CommentNode extends Disposable {
 		const menus = this.commentService.getCommentMenus(this.owner);
 		const menu = menus.getCommentActions(this.comment, this._contextKeyService);
 
-		this._toDispose.push(menu);
-		this._toDispose.push(menu.onDidChange(() => {
+		this._register(menu);
+		this._register(menu.onDidChange(() => {
 			this._commentFormActions.setActions(menu);
 		}));
 
@@ -599,17 +599,17 @@ export class CommentNode extends Disposable {
 
 		const cancelEditButton = new Button(formActions);
 		cancelEditButton.label = nls.localize('label.cancel', "Cancel");
-		this._toDispose.push(attachButtonStyler(cancelEditButton, this.themeService));
+		this._register(attachButtonStyler(cancelEditButton, this.themeService));
 
-		this._toDispose.push(cancelEditButton.onDidClick(_ => {
+		this._register(cancelEditButton.onDidClick(_ => {
 			this.removeCommentEditor();
 		}));
 
 		this._updateCommentButton = new Button(formActions);
 		this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
-		this._toDispose.push(attachButtonStyler(this._updateCommentButton, this.themeService));
+		this._register(attachButtonStyler(this._updateCommentButton, this.themeService));
 
-		this._toDispose.push(this._updateCommentButton.onDidClick(_ => {
+		this._register(this._updateCommentButton.onDidClick(_ => {
 			this.editComment();
 		}));
 
@@ -622,21 +622,21 @@ export class CommentNode extends Disposable {
 	}
 
 	private registerActionBarListeners(actionsContainer: HTMLElement): void {
-		this._toDispose.push(dom.addDisposableListener(this._domNode, 'mouseenter', () => {
+		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', () => {
 			actionsContainer.classList.remove('hidden');
 		}));
 
-		this._toDispose.push(dom.addDisposableListener(this._domNode, 'focus', () => {
+		this._register(dom.addDisposableListener(this._domNode, 'focus', () => {
 			actionsContainer.classList.remove('hidden');
 		}));
 
-		this._toDispose.push(dom.addDisposableListener(this._domNode, 'mouseleave', () => {
+		this._register(dom.addDisposableListener(this._domNode, 'mouseleave', () => {
 			if (!this._domNode.contains(document.activeElement)) {
 				actionsContainer.classList.add('hidden');
 			}
 		}));
 
-		this._toDispose.push(dom.addDisposableListener(this._domNode, 'focusout', (e: FocusEvent) => {
+		this._register(dom.addDisposableListener(this._domNode, 'focusout', (e: FocusEvent) => {
 			if (!this._domNode.contains((<HTMLElement>e.relatedTarget))) {
 				actionsContainer.classList.add('hidden');
 
@@ -708,9 +708,5 @@ export class CommentNode extends Disposable {
 				dom.removeClass(this.domNode, 'focus');
 			}, 3000);
 		}
-	}
-
-	dispose() {
-		this._toDispose.forEach(disposeable => disposeable.dispose());
 	}
 }

@@ -30,6 +30,7 @@ import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { LRUCache } from 'vs/base/common/map';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 // --- adapter
 
@@ -1036,15 +1037,11 @@ class AdapterData {
 	) { }
 }
 
-export interface ISchemeTransformer {
-	transformOutgoing(scheme: string): string;
-}
-
 export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	private static _handlePool: number = 0;
 
-	private readonly _schemeTransformer: ISchemeTransformer | null;
+	private readonly _uriTransformer: IURITransformer | null;
 	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
@@ -1056,14 +1053,14 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	constructor(
 		mainContext: IMainContext,
-		schemeTransformer: ISchemeTransformer | null,
+		uriTransformer: IURITransformer | null,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		heapMonitor: ExtHostHeapService,
 		diagnostics: ExtHostDiagnostics,
 		logService: ILogService
 	) {
-		this._schemeTransformer = schemeTransformer;
+		this._uriTransformer = uriTransformer;
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageFeatures);
 		this._documents = documents;
 		this._commands = commands;
@@ -1099,8 +1096,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 	private _transformScheme(scheme: string | undefined): string | undefined {
-		if (this._schemeTransformer && typeof scheme === 'string') {
-			return this._schemeTransformer.transformOutgoing(scheme);
+		if (this._uriTransformer && typeof scheme === 'string') {
+			return this._uriTransformer.transformOutgoingScheme(scheme);
 		}
 		return scheme;
 	}

@@ -21,7 +21,6 @@ namespace schema {
 	export interface IUserFriendlyMenuItem {
 		command: string;
 		alt?: string;
-		precondition?: string;
 		when?: string;
 		group?: string;
 	}
@@ -79,10 +78,6 @@ namespace schema {
 				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'alt'));
 				return false;
 			}
-			if (item.precondition && typeof item.precondition !== 'string') {
-				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'precondition'));
-				return false;
-			}
 			if (item.when && typeof item.when !== 'string') {
 				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
 				return false;
@@ -105,10 +100,6 @@ namespace schema {
 			},
 			alt: {
 				description: localize('vscode.extension.contributes.menuItem.alt', 'Identifier of an alternative command to execute. The command must be declared in the \'commands\'-section'),
-				type: 'string'
-			},
-			precondition: {
-				description: localize('vscode.extension.contributes.menuItem.precondition', 'Condition which must be true to enable this item'),
 				type: 'string'
 			},
 			when: {
@@ -224,6 +215,7 @@ namespace schema {
 	export interface IUserFriendlyCommand {
 		command: string;
 		title: string | ILocalizedString;
+		enablement?: string;
 		category?: string | ILocalizedString;
 		icon?: IUserFriendlyIcon;
 	}
@@ -240,6 +232,10 @@ namespace schema {
 			return false;
 		}
 		if (!isValidLocalizedString(command.title, collector, 'title')) {
+			return false;
+		}
+		if (command.enablement && typeof command.enablement !== 'string') {
+			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'precondition'));
 			return false;
 		}
 		if (command.category && !isValidLocalizedString(command.category, collector, 'category')) {
@@ -295,6 +291,10 @@ namespace schema {
 				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by the command is grouped in the UI'),
 				type: 'string'
 			},
+			enablement: {
+				description: localize('vscode.extension.contributes.commandType.precondition', '(Optional) Condition which must be true to enable the command'),
+				type: 'string'
+			},
 			icon: {
 				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path or a themable configuration'),
 				anyOf: [{
@@ -342,7 +342,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 			return;
 		}
 
-		const { icon, category, title, command } = userFriendlyCommand;
+		const { icon, enablement, category, title, command } = userFriendlyCommand;
 
 		let absoluteIcon: { dark: URI; light?: URI; } | undefined;
 		if (icon) {
@@ -359,7 +359,13 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 		if (MenuRegistry.getCommand(command)) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
-		const registration = MenuRegistry.addCommand({ id: command, title, category, iconLocation: absoluteIcon });
+		const registration = MenuRegistry.addCommand({
+			id: command,
+			title,
+			category,
+			precondition: ContextKeyExpr.deserialize(enablement),
+			iconLocation: absoluteIcon
+		});
 		disposables.push(registration);
 	}
 
@@ -432,14 +438,6 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 					} else {
 						group = item.group;
 					}
-				}
-
-				if (item.precondition) {
-					command.precondition = ContextKeyExpr.deserialize(item.precondition);
-				}
-
-				if (alt && item.precondition) {
-					alt.precondition = command.precondition;
 				}
 
 				const registration = MenuRegistry.appendMenuItem(menu, {

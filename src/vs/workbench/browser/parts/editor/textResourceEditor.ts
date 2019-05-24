@@ -70,7 +70,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 		// Assert Model instance
 		if (!(resolvedModel instanceof BaseTextEditorModel)) {
-			return Promise.reject(new Error('Unable to open file as text'));
+			throw new Error('Unable to open file as text');
 		}
 
 		// Set Editor Model
