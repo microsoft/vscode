@@ -366,6 +366,14 @@ export class MainThreadCommentController {
 		thread.dispose();
 	}
 
+	deleteCommentThreadMain(commentThreadId: string) {
+		this._threads.forEach(thread => {
+			if (thread.threadId === commentThreadId) {
+				this._proxy.$deleteCommentThread(this._handle, thread.commentThreadHandle);
+			}
+		});
+	}
+
 	updateInput(input: string) {
 		let thread = this.activeCommentThread;
 

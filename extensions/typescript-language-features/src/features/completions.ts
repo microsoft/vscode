@@ -74,7 +74,9 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 
 		this.insertText = tsEntry.insertText;
-		this.filterText = tsEntry.insertText;
+		// Set filterText for intelliCode and bracket accessors , but not for `this.` completions since it results in
+		// them being overly prioritized. #74164
+		this.filterText = tsEntry.insertText && !/^this\./.test(tsEntry.insertText) ? tsEntry.insertText : undefined;
 
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext) {
 			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
