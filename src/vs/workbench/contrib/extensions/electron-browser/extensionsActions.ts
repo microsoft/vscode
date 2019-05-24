@@ -470,6 +470,7 @@ export class UninstallAction extends ExtensionAction {
 
 		this.label = UninstallAction.UninstallLabel;
 		this.class = UninstallAction.UninstallClass;
+		this.tooltip = UninstallAction.UninstallLabel;
 
 		if (state !== ExtensionState.Installed) {
 			this.enabled = false;
