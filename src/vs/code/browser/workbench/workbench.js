@@ -21,7 +21,11 @@
 
 		// @ts-ignore
 		require.config({
-			baseUrl: `${window.location.origin}/out`
+			baseUrl: `${window.location.origin}/out`,
+			paths: {
+				'vscode-textmate': `${window.location.origin}/node_modules/vscode-textmate/release/main`,
+				'onigasm-umd': `${window.location.origin}/node_modules/onigasm-umd/release/main`,
+			}
 		});
 
 		// @ts-ignore
