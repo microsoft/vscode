@@ -14,6 +14,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 export class CommentFormActions implements IDisposable {
 	private _buttonElements: HTMLElement[] = [];
 	private readonly _toDispose = new DisposableStore();
+	private _actions: IAction[];
 
 	constructor(
 		private container: HTMLElement,
@@ -30,6 +31,7 @@ export class CommentFormActions implements IDisposable {
 		for (const group of groups) {
 			const [, actions] = group;
 
+			this._actions = actions;
 			actions.forEach(action => {
 				const button = new Button(this.container);
 				this._buttonElements.push(button.element);
@@ -41,6 +43,16 @@ export class CommentFormActions implements IDisposable {
 				button.enabled = action.enabled;
 				button.label = action.label;
 			});
+		}
+	}
+
+	triggerDefaultAction() {
+		if (this._actions.length) {
+			let lastAction = this._actions[0];
+
+			if (lastAction.enabled) {
+				this.actionHandler(lastAction);
+			}
 		}
 	}
 
