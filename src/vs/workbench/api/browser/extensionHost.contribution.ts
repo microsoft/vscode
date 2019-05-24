@@ -3,5 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../browser/extensionHost.contribution.common';
+import './extensionHost.contribution.common';
 import './mainThreadWebview';

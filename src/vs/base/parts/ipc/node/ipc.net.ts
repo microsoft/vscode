@@ -76,6 +76,9 @@ const enum ReadState {
 	Fin = 4
 }
 
+/**
+ * See https://tools.ietf.org/html/rfc6455#section-5.2
+ */
 export class WebSocketNodeSocket extends Disposable implements ISocket {
 
 	public readonly socket: NodeSocket;
@@ -169,7 +172,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				const len = (secondByte & 0b01111111);
 
 				this._state.state = ReadState.ReadHeader;
-				this._state.readLen = Constants.MinHeaderByteSize + (hasMask ? 4 : 0) + (len === 126 ? 2 : 0) + (len === 127 ? 4 : 0);
+				this._state.readLen = Constants.MinHeaderByteSize + (hasMask ? 4 : 0) + (len === 126 ? 2 : 0) + (len === 127 ? 8 : 0);
 				this._state.mask = 0;
 
 			} else if (this._state.state === ReadState.ReadHeader) {
@@ -187,10 +190,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 					);
 				} else if (len === 127) {
 					len = (
-						header.readUInt8(++offset) * 2 ** 56
-						+ header.readUInt8(++offset) * 2 ** 48
-						+ header.readUInt8(++offset) * 2 ** 40
-						+ header.readUInt8(++offset) * 2 ** 32
+						header.readUInt8(++offset) * 0
+						+ header.readUInt8(++offset) * 0
+						+ header.readUInt8(++offset) * 0
+						+ header.readUInt8(++offset) * 0
 						+ header.readUInt8(++offset) * 2 ** 24
 						+ header.readUInt8(++offset) * 2 ** 16
 						+ header.readUInt8(++offset) * 2 ** 8
