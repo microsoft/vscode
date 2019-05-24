@@ -138,27 +138,14 @@ export abstract class CommonExtensionService extends Disposable implements IExte
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
 		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
-
-		this._startDelayed(this._lifecycleService);
 	}
 
-	private _startDelayed(lifecycleService: ILifecycleService): void {
-		// delay extension host creation and extension scanning
-		// until the workbench is running. we cannot defer the
-		// extension host more (LifecyclePhase.Restored) because
-		// some editors require the extension host to restore
-		// and this would result in a deadlock
-		// see https://github.com/Microsoft/vscode/issues/41322
-		lifecycleService.when(LifecyclePhase.Ready).then(() => {
-			// reschedule to ensure this runs after restoring viewlets, panels, and editors
-			runWhenIdle(async () => {
-				perf.mark('willLoadExtensions');
-				this._startExtensionHostProcess(true, []);
-				this.whenInstalledExtensionsRegistered().then(() => perf.mark('didLoadExtensions'));
-				await this._scanAndHandleExtensions();
-				this._releaseBarrier();
-			}, 50 /*max delay*/);
-		});
+	protected async _initialize(): Promise<void> {
+		perf.mark('willLoadExtensions');
+		this._startExtensionHostProcess(true, []);
+		this.whenInstalledExtensionsRegistered().then(() => perf.mark('didLoadExtensions'));
+		await this._scanAndHandleExtensions();
+		this._releaseBarrier();
 	}
 
 	private _releaseBarrier(): void {
@@ -192,28 +179,28 @@ export abstract class CommonExtensionService extends Disposable implements IExte
 
 		const processManagers = this._createExtensionHosts(isInitialStart, initialActivationEvents);
 		processManagers.forEach((processManager) => {
-			processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(code, signal, processManager.isLocal));
+			processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
 			processManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
 			this._extensionHostProcessManagers.push(processManager);
 		});
 	}
 
-	private _onExtensionHostCrashOrExit(code: number, signal: string | null, showNotification: boolean): void {
+	private _onExtensionHostCrashOrExit(extensionHost: ExtensionHostProcessManager, code: number, signal: string | null): void {
 
 		// Unexpected termination
 		if (!this._isExtensionDevHost) {
-			this._onExtensionHostCrashed(code, signal, showNotification);
+			this._onExtensionHostCrashed(extensionHost, code, signal);
 			return;
 		}
 
 		this._onExtensionHostExit(code);
 	}
 
-	private _onExtensionHostCrashed(code: number, signal: string | null, showNotification: boolean): void {
+	private _onExtensionHostCrashed(extensionHost: ExtensionHostProcessManager, code: number, signal: string | null): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		this._stopExtensionHostProcess();
 
-		if (showNotification) {
+		if (extensionHost.isLocal) {
 			if (code === 55) {
 				this._notificationService.prompt(
 					Severity.Error,
@@ -351,9 +338,6 @@ export abstract class CommonExtensionService extends Disposable implements IExte
 	}
 
 	public getInspectPort(): number {
-		if (this._extensionHostProcessManagers.length > 0) {
-			return this._extensionHostProcessManagers[0].getInspectPort();
-		}
 		return 0;
 	}
 
@@ -533,7 +517,7 @@ export abstract class CommonExtensionService extends Disposable implements IExte
 
 export abstract class AbstractExtensionService extends CommonExtensionService implements IExtensionService {
 
-	private _remoteExtensionsEnvironmentData: Map<string, IRemoteAgentEnvironment>;
+	private readonly _remoteExtensionsEnvironmentData: Map<string, IRemoteAgentEnvironment>;
 
 	protected readonly _extensionHostLogsLocation: URI;
 	private readonly _extensionScanner: IExtensionScanner;
@@ -608,6 +592,19 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 				this._handleDeltaExtensions(new DeltaExtensionsQueueItem([], [event.identifier.id]));
 			}
 		}));
+
+		// delay extension host creation and extension scanning
+		// until the workbench is running. we cannot defer the
+		// extension host more (LifecyclePhase.Restored) because
+		// some editors require the extension host to restore
+		// and this would result in a deadlock
+		// see https://github.com/Microsoft/vscode/issues/41322
+		this._lifecycleService.when(LifecyclePhase.Ready).then(() => {
+			// reschedule to ensure this runs after restoring viewlets, panels, and editors
+			runWhenIdle(async () => {
+				this._initialize();
+			}, 50 /*max delay*/);
+		});
 	}
 
 	//#region deltaExtensions
@@ -918,11 +915,6 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 			// fetch the remote environment
 			const remoteEnv = (await this._remoteAgentService.getEnvironment())!;
 
-			// revive URIs
-			remoteEnv.extensions.forEach((extension) => {
-				(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
-			});
-
 			// enable or disable proposed API per extension
 			this._checkEnableProposedApi(remoteEnv.extensions);
 
@@ -963,6 +955,13 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 		}
 
 		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
+	}
+
+	public getInspectPort(): number {
+		if (this._extensionHostProcessManagers.length > 0) {
+			return this._extensionHostProcessManagers[0].getInspectPort();
+		}
+		return 0;
 	}
 
 	public abstract _onExtensionHostExit(code: number): void;

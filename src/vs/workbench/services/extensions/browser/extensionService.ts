@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionEnablementService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -10,33 +11,23 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IExtensionService, IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/product';
-import { AbstractExtensionService, IExtensionScanner } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { CommonExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { browserWebSocketFactory } from 'vs/platform/remote/browser/browserWebSocketFactory';
-import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
-import { Event } from 'vs/base/common/event';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
+import { RemoteExtensionHostClient, IInitDataProvider } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
-class NullExtensionScanner implements IExtensionScanner {
-	readonly scannedExtensions: Promise<IExtensionDescription[]> = Promise.resolve([]);
-	readonly translationConfig: Promise<Translations>;
+export class ExtensionService extends CommonExtensionService implements IExtensionService {
 
-	public async scanSingleExtension(path: string, isBuiltin: boolean, log: ILog): Promise<IExtensionDescription | null> {
-		return null;
-	}
-	public async startScanningExtensions(log: ILog): Promise<void> {
-	}
-}
+	private _remoteExtensionsEnvironmentData: IRemoteAgentEnvironment | null;
 
-
-export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
@@ -53,8 +44,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IProductService productService: IProductService
 	) {
 		super(
-			new NullExtensionScanner(),
-			browserWebSocketFactory,
 			instantiationService,
 			notificationService,
 			environmentService,
@@ -69,23 +58,53 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			fileService,
 			productService,
 		);
+
+		this._remoteExtensionsEnvironmentData = null;
+		this._initialize();
 	}
 
-	protected _createLocalExtHostProcessWorker(autoStart: boolean, extensions: Promise<IExtensionDescription[]>): IExtensionHostStarter {
-		return new class implements IExtensionHostStarter {
-			onExit = Event.None;
-			start(): Promise<IMessagePassingProtocol> | null {
-				return new Promise<IMessagePassingProtocol>((c, e) => {
-
+	private _createProvider(remoteAuthority: string): IInitDataProvider {
+		return {
+			remoteAuthority: remoteAuthority,
+			getInitData: () => {
+				return this.whenInstalledExtensionsRegistered().then(() => {
+					return this._remoteExtensionsEnvironmentData!;
 				});
 			}
-			getInspectPort(): number | undefined {
-				throw new Error('Method not implemented.');
-			}
-			dispose(): void {
-				throw new Error('Method not implemented.');
-			}
 		};
+	}
+
+	protected _createExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): ExtensionHostProcessManager[] {
+		const result: ExtensionHostProcessManager[] = [];
+
+		const remoteAgentConnection = this._remoteAgentService.getConnection()!;
+		const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), browserWebSocketFactory);
+		const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
+		result.push(remoteExtHostProcessManager);
+
+		return result;
+	}
+
+	protected async _scanAndHandleExtensions(): Promise<void> {
+		// fetch the remote environment
+		const remoteEnv = (await this._remoteAgentService.getEnvironment())!;
+
+		// enable or disable proposed API per extension
+		this._checkEnableProposedApi(remoteEnv.extensions);
+
+		// remove disabled extensions
+		remoteEnv.extensions = remoteEnv.extensions.filter(extension => this._isEnabled(extension));
+
+		// save for remote extension's init data
+		this._remoteExtensionsEnvironmentData = remoteEnv;
+
+		// this._handleExtensionPoints((<IExtensionDescription[]>[]).concat(remoteEnv.extensions).concat(localExtensions));
+		const result = this._registry.deltaExtensions(remoteEnv.extensions, []);
+		if (result.removedDueToLooping.length > 0) {
+			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+		}
+
+		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
 	}
 
 	public _onExtensionHostExit(code: number): void {
@@ -103,4 +122,3 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 }
 
 registerSingleton(IExtensionService, ExtensionService);
-
