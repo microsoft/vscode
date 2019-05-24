@@ -14,8 +14,8 @@ import * as path from 'path';
 import { RemoteExtensionManagementServer, ManagementConnection } from 'vs/agent/remoteExtensionManagement';
 import { ExtensionHostConnection } from 'vs/agent/extensionHostConnection';
 import { ConnectionType, HandshakeMessage, SignRequest, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
-import { PersistentProtocol, ChunkStream, ISocket } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
+import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { readdir, rimraf } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -26,8 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { isLinux } from 'vs/base/common/platform';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 const CONNECTION_AUTH_TOKEN = generateUuid();
@@ -41,194 +40,6 @@ const textMmimeType = {
 };
 
 const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
-
-const enum Constants {
-	MinHeaderByteSize = 2
-}
-
-const enum ReadState {
-	PeekHeader = 1,
-	ReadHeader = 2,
-	ReadBody = 3,
-	Fin = 4
-}
-
-class WebSocketNodeSocket extends Disposable implements ISocket {
-
-	private readonly _socket: NodeSocket;
-	private readonly _incomingData: ChunkStream;
-	private readonly _onData = this._register(new Emitter<VSBuffer>());
-
-	private readonly _state = {
-		state: ReadState.PeekHeader,
-		readLen: Constants.MinHeaderByteSize,
-		mask: 0
-	};
-
-	constructor(socket: NodeSocket) {
-		super();
-		this._socket = socket;
-		this._incomingData = new ChunkStream();
-		this._register(this._socket.onData(data => this._acceptChunk(data)));
-	}
-
-	public dispose(): void {
-		this._socket.dispose();
-	}
-
-	public onData(listener: (e: VSBuffer) => void): IDisposable {
-		return this._onData.event(listener);
-	}
-
-	public onClose(listener: () => void): IDisposable {
-		return this._socket.onClose(listener);
-	}
-
-	public onEnd(listener: () => void): IDisposable {
-		return this._socket.onEnd(listener);
-	}
-
-	public write(buffer: VSBuffer): void {
-		let headerLen = Constants.MinHeaderByteSize;
-		if (buffer.byteLength < 126) {
-			headerLen += 0;
-		} else if (buffer.byteLength < 2 ** 16) {
-			headerLen += 2;
-		} else {
-			headerLen += 8;
-		}
-		const header = VSBuffer.alloc(headerLen);
-
-		header.writeUInt8(0b10000010, 0);
-		if (buffer.byteLength < 126) {
-			header.writeUInt8(buffer.byteLength, 1);
-		} else if (buffer.byteLength < 2 ** 16) {
-			header.writeUInt8(126, 1);
-			let offset = 1;
-			header.writeUInt8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
-		} else {
-			header.writeUInt8(127, 1);
-			let offset = 1;
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 24) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 16) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
-		}
-
-		this._socket.write(VSBuffer.concat([header, buffer]));
-	}
-
-	public end(): void {
-		this._socket.end();
-	}
-
-	private _acceptChunk(data: VSBuffer): void {
-		if (data.byteLength === 0) {
-			return;
-		}
-
-		this._incomingData.acceptChunk(data);
-
-		while (this._incomingData.byteLength >= this._state.readLen) {
-
-			if (this._state.state === ReadState.PeekHeader) {
-				// peek to see if we can read the entire header
-				const peekHeader = this._incomingData.peek(this._state.readLen);
-				// const firstByte = peekHeader.readUInt8(0);
-				// const finBit = (firstByte & 0b10000000) >>> 7;
-				const secondByte = peekHeader.readUInt8(1);
-				const hasMask = (secondByte & 0b10000000) >>> 7;
-				const len = (secondByte & 0b01111111);
-
-				this._state.state = ReadState.ReadHeader;
-				this._state.readLen = Constants.MinHeaderByteSize + (hasMask ? 4 : 0) + (len === 126 ? 2 : 0) + (len === 127 ? 4 : 0);
-				this._state.mask = 0;
-
-			} else if (this._state.state === ReadState.ReadHeader) {
-				// read entire header
-				const header = this._incomingData.read(this._state.readLen);
-				const secondByte = header.readUInt8(1);
-				const hasMask = (secondByte & 0b10000000) >>> 7;
-				let len = (secondByte & 0b01111111);
-
-				let offset = 1;
-				if (len === 126) {
-					len = (
-						header.readUInt8(++offset) * 2 ** 8
-						+ header.readUInt8(++offset)
-					);
-				} else if (len === 127) {
-					len = (
-						header.readUInt8(++offset) * 2 ** 56
-						+ header.readUInt8(++offset) * 2 ** 48
-						+ header.readUInt8(++offset) * 2 ** 40
-						+ header.readUInt8(++offset) * 2 ** 32
-						+ header.readUInt8(++offset) * 2 ** 24
-						+ header.readUInt8(++offset) * 2 ** 16
-						+ header.readUInt8(++offset) * 2 ** 8
-						+ header.readUInt8(++offset)
-					);
-				}
-
-				let mask = 0;
-				if (hasMask) {
-					mask = (
-						header.readUInt8(++offset) * 2 ** 24
-						+ header.readUInt8(++offset) * 2 ** 16
-						+ header.readUInt8(++offset) * 2 ** 8
-						+ header.readUInt8(++offset)
-					);
-				}
-
-				this._state.state = ReadState.ReadBody;
-				this._state.readLen = len;
-				this._state.mask = mask;
-
-			} else if (this._state.state === ReadState.ReadBody) {
-				// read body
-
-				const body = this._incomingData.read(this._state.readLen);
-				unmask(body, this._state.mask);
-
-				this._state.state = ReadState.PeekHeader;
-				this._state.readLen = Constants.MinHeaderByteSize;
-				this._state.mask = 0;
-
-				this._onData.fire(body);
-			}
-		}
-	}
-}
-
-function unmask(buffer: VSBuffer, mask: number): void {
-	if (mask === 0) {
-		return;
-	}
-	let cnt = buffer.byteLength >>> 2;
-	for (let i = 0; i < cnt; i++) {
-		const v = buffer.readUInt32BE(i * 4);
-		buffer.writeUInt32BE(v ^ mask, i * 4);
-	}
-	let offset = cnt * 4;
-	let bytesLeft = buffer.byteLength - offset;
-	const m3 = (mask >>> 24) & 0b11111111;
-	const m2 = (mask >>> 16) & 0b11111111;
-	const m1 = (mask >>> 8) & 0b11111111;
-	if (bytesLeft >= 1) {
-		buffer.writeUInt8(buffer.readUInt8(offset) ^ m3, offset);
-	}
-	if (bytesLeft >= 2) {
-		buffer.writeUInt8(buffer.readUInt8(offset + 1) ^ m2, offset + 1);
-	}
-	if (bytesLeft >= 3) {
-		buffer.writeUInt8(buffer.readUInt8(offset + 2) ^ m1, offset + 2);
-	}
-}
 
 export class RemoteExtensionHostAgentServer extends Disposable {
 
