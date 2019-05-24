@@ -176,7 +176,6 @@ export class DefinitionAction extends EditorAction {
 			resource: reference.uri,
 			options: {
 				selection: Range.collapseToStart(range),
-				revealIfOpened: true,
 				revealInCenterIfOutsideViewport: true
 			}
 		}, editor, sideBySide);
