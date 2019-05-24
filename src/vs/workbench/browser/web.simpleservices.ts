@@ -9,11 +9,11 @@ import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 // tslint:disable-next-line: import-patterns no-standalone-editor
-import { SimpleConfigurationService as StandaloneEditorConfigurationService, StandaloneKeybindingService, SimpleResourcePropertiesService } from 'vs/editor/standalone/browser/simpleServices';
+import { StandaloneKeybindingService, SimpleResourcePropertiesService } from 'vs/editor/standalone/browser/simpleServices';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment/common/environment';
@@ -51,7 +51,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { IWorkspaceContextService, Workspace, toWorkspaceFolder, IWorkspaceFolder, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, isConfigurationOverrides, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -73,6 +73,9 @@ import { ICommentService, IResourceCommentThreadEvent, IWorkspaceCommentThreadsE
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { CommentingRanges } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
+import { Configuration, DefaultConfigurationModel, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const workspaceResource = URI.file((<any>self).USER_HOME_DIR || '/').with({
 	scheme: Schemas.vscodeRemote,
@@ -208,7 +211,94 @@ registerSingleton(IClipboardService, SimpleClipboardService, true);
 
 //#region Configuration
 
-export class SimpleConfigurationService extends StandaloneEditorConfigurationService { }
+export class SimpleConfigurationService extends Disposable implements IConfigurationService {
+
+	_serviceBrand: any;
+
+	private _configuration: Configuration;
+
+	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
+	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
+
+	constructor() {
+		super();
+
+		// Initialize
+		const defaults = new DefaultConfigurationModel();
+		this._configuration = new Configuration(defaults, new ConfigurationModel());
+
+		// Listeners
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDidDefaultConfigurationChange(configurationProperties)));
+	}
+
+	get configuration(): Configuration {
+		return this._configuration;
+	}
+
+	getConfigurationData(): IConfigurationData {
+		return this.configuration.toData();
+	}
+
+	getValue<T>(): T;
+	getValue<T>(section: string): T;
+	getValue<T>(overrides: IConfigurationOverrides): T;
+	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
+	getValue(arg1?: any, arg2?: any): any {
+		const section = typeof arg1 === 'string' ? arg1 : undefined;
+		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
+		return this.configuration.getValue(section, overrides, undefined);
+	}
+
+	updateValue(key: string, value: any): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides): Promise<void>;
+	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
+		return Promise.reject(new Error('not supported'));
+	}
+
+	inspect<T>(key: string): {
+		default: T,
+		user: T,
+		workspace?: T,
+		workspaceFolder?: T
+		value: T
+	} {
+		return this.configuration.inspect<T>(key, {}, undefined);
+	}
+
+	keys(): {
+		default: string[];
+		user: string[];
+		workspace: string[];
+		workspaceFolder: string[];
+	} {
+		return this.configuration.keys(undefined);
+	}
+
+	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void> {
+		return Promise.resolve(undefined);
+	}
+
+	private onDidDefaultConfigurationChange(keys: string[]): void {
+		this._configuration.updateDefaultConfiguration(new DefaultConfigurationModel());
+		this.trigger(keys, ConfigurationTarget.DEFAULT);
+	}
+
+	private trigger(keys: string[], source: ConfigurationTarget): void {
+		this._onDidChangeConfiguration.fire(new ConfigurationChangeEvent().change(keys).telemetryData(source, this.getTargetConfiguration(source)));
+	}
+
+	private getTargetConfiguration(target: ConfigurationTarget): any {
+		switch (target) {
+			case ConfigurationTarget.DEFAULT:
+				return this._configuration.defaults.contents;
+			case ConfigurationTarget.USER:
+				return this._configuration.localUserConfiguration.contents;
+		}
+		return {};
+	}
+}
 
 registerSingleton(IConfigurationService, SimpleConfigurationService);
 
