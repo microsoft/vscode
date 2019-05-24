@@ -352,7 +352,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 export class InMemoryBackupFileService implements IBackupFileService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IBackupFileService>;
 
 	private backups: Map<string, ITextSnapshot> = new Map();
 

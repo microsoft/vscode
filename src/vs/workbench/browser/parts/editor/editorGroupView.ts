@@ -279,7 +279,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		});
 
 		// Toolbar actions
-		const removeGroupAction = this._register(new Action(CLOSE_EDITOR_GROUP_COMMAND_ID, localize('closeGroupAction', "Close"), 'close-editor-group', true, () => { this.accessor.removeGroup(this); return Promise.resolve(true); }));
+		const removeGroupAction = this._register(new Action(
+			CLOSE_EDITOR_GROUP_COMMAND_ID,
+			localize('closeGroupAction', "Close"),
+			'close-editor-group',
+			true,
+			() => {
+				this.accessor.removeGroup(this);
+
+				return Promise.resolve(true);
+			}));
+
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
 		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : undefined });
 	}
@@ -402,7 +412,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private async restoreEditors(from: IEditorGroupView | ISerializedEditorGroup): Promise<void> {
 		if (this._group.count === 0) {
-			return Promise.resolve(); // nothing to show
+			return; // nothing to show
 		}
 
 		// Determine editor options
@@ -415,7 +425,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		const activeEditor = this._group.activeEditor;
 		if (!activeEditor) {
-			return Promise.resolve();
+			return;
 		}
 
 		options.pinned = this._group.isPinned(activeEditor);	// preserve pinned state
@@ -1102,7 +1112,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private async handleDirty(editors: EditorInput[]): Promise<boolean /* veto */> {
 		if (!editors.length) {
-			return Promise.resolve(false); // no veto
+			return false; // no veto
 		}
 
 		const editor = editors.shift()!;
@@ -1135,7 +1145,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.accessor.groups.some(groupView => groupView !== this && groupView.group.contains(editor, true /* support side by side */)) ||  // editor is opened in other group
 			editor instanceof SideBySideEditorInput && this.isOpened(editor.master) // side by side editor master is still opened
 		) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		// Switch to editor that we want to handle and confirm to save/revert

@@ -447,8 +447,7 @@ suite('Disk File Service', () => {
 			await service.del(source.resource);
 
 			return Promise.reject(new Error('Unexpected'));
-		}
-		catch (error) {
+		} catch (error) {
 			return Promise.resolve(true);
 		}
 	});

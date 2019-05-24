@@ -90,7 +90,7 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 			ref.dispose();
 			this.modelReference = null;
 
-			return Promise.reject(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
+			throw new Error(`Unexpected model for ResourceInput: ${this.resource}`);
 		}
 
 		this.cachedModel = model;

@@ -78,7 +78,7 @@ export class FileService extends Disposable implements IFileService {
 		});
 
 		if (this.provider.has(scheme)) {
-			return Promise.resolve(); // provider is already here so we can return directly
+			return; // provider is already here so we can return directly
 		}
 
 		// If the provider is not yet there, make sure to join on the listeners assuming
@@ -235,7 +235,7 @@ export class FileService extends Disposable implements IFileService {
 			return fileStat;
 		}
 
-		return Promise.resolve(fileStat);
+		return fileStat;
 	}
 
 	async resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
