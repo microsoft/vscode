@@ -14,7 +14,11 @@ function code() {
 	node build/lib/builtInExtensions.js
 
 	# Load remote node
-	./node_modules/.bin/gulp node-remote
+	if [[ -e "./.build/node-remote/node" ]]; then
+		echo 'Skipping node download...'
+	else
+		./node_modules/.bin/gulp node-remote
+	fi
 
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
