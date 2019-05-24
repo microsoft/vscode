@@ -42,18 +42,6 @@ import { Translations, ILog, Logger } from 'vs/workbench/services/extensions/com
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
-let productAllowProposedApi: Set<string> | null = null;
-function allowProposedApiFromProduct(productService: IProductService, id: ExtensionIdentifier): boolean {
-	// create set if needed
-	if (!productAllowProposedApi) {
-		productAllowProposedApi = new Set<string>();
-		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
-			productService.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi!.add(ExtensionIdentifier.toKey(id)));
-		}
-	}
-	return productAllowProposedApi.has(ExtensionIdentifier.toKey(id));
-}
-
 class DeltaExtensionsQueueItem {
 	constructor(
 		public readonly toAdd: IExtension[],
@@ -83,6 +71,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _extensionsMessages: Map<string, IMessage[]>;
 	private _allRequestedActivateEvents: { [activationEvent: string]: boolean; };
 	private readonly _extensionScanner: IExtensionScanner;
+	private readonly _proposedApiController: ProposedApiController;
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
 
 	private readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>());
@@ -142,6 +131,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._extensionsMessages = new Map<string, IMessage[]>();
 		this._allRequestedActivateEvents = Object.create(null);
 		this._extensionScanner = extensionScanner;
+		this._proposedApiController = new ProposedApiController(this._environmentService, this._productService);
 		this._deltaExtensionsQueue = [];
 
 		this._extensionHostProcessManagers = [];
@@ -806,30 +796,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const extensionsToDisable: IExtensionDescription[] = [];
 		const userMigratedSystemExtensions: IExtensionIdentifier[] = [{ id: BetterMergeId }];
 
-		let enableProposedApiFor: string | string[] = this._environmentService.args['enable-proposed-api'] || [];
-
-		const notFound = (id: string) => nls.localize('notFound', "Extension \`{0}\` cannot use PROPOSED API as it cannot be found", id);
-
-		if (enableProposedApiFor.length) {
-			let allProposed = (enableProposedApiFor instanceof Array ? enableProposedApiFor : [enableProposedApiFor]);
-			allProposed.forEach(id => {
-				if (!allExtensions.some(description => ExtensionIdentifier.equals(description.identifier, id))) {
-					console.error(notFound(id));
-				}
-			});
-			// Make enabled proposed API be lowercase for case insensitive comparison
-			if (Array.isArray(enableProposedApiFor)) {
-				enableProposedApiFor = enableProposedApiFor.map(id => id.toLowerCase());
-			} else {
-				enableProposedApiFor = enableProposedApiFor.toLowerCase();
-			}
-		}
-
-		const enableProposedApiForAll = !this._environmentService.isBuilt ||
-			(!!this._environmentService.extensionDevelopmentLocationURI && this._productService.nameLong !== 'Visual Studio Code') ||
-			(enableProposedApiFor.length === 0 && 'enable-proposed-api' in this._environmentService.args);
-
-
 		for (const extension of allExtensions) {
 
 			// Do not disable extensions under development
@@ -847,7 +813,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 					continue;
 				}
 			}
-			runtimeExtensions.push(this._updateEnableProposedApi(extension, enableProposedApiForAll, enableProposedApiFor));
+			runtimeExtensions.push(this._proposedApiController.updateEnableProposedApi(extension));
 		}
 
 		this._telemetryService.publicLog('extensionsScanned', {
@@ -861,29 +827,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		} else {
 			return runtimeExtensions;
 		}
-	}
-
-	private _updateEnableProposedApi(extension: IExtensionDescription, enableProposedApiForAll: boolean, enableProposedApiFor: string | string[]): IExtensionDescription {
-		if (allowProposedApiFromProduct(this._productService, extension.identifier)) {
-			// fast lane -> proposed api is available to all extensions
-			// that are listed in product.json-files
-			extension.enableProposedApi = true;
-
-		} else if (extension.enableProposedApi && !extension.isBuiltin) {
-			if (
-				!enableProposedApiForAll &&
-				enableProposedApiFor.indexOf(extension.identifier.value.toLowerCase()) < 0
-			) {
-				extension.enableProposedApi = false;
-				console.error(`Extension '${extension.identifier.value} cannot use PROPOSED API (must started out of dev or enabled via --enable-proposed-api)`);
-
-			} else {
-				// proposed api is available when developing or when an extension was explicitly
-				// spelled out via a command line argument
-				console.warn(`Extension '${extension.identifier.value}' uses PROPOSED API which is subject to change and removal without notice.`);
-			}
-		}
-		return extension;
 	}
 
 	private _handleExtensionPointMessage(msg: IMessage) {
@@ -997,3 +940,60 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 }
 
+class ProposedApiController {
+
+	private readonly enableProposedApiFor: string | string[];
+	private readonly enableProposedApiForAll: boolean;
+	private readonly productAllowProposedApi: Set<string>;
+
+	constructor(
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IProductService productService: IProductService
+	) {
+		this.enableProposedApiFor = environmentService.args['enable-proposed-api'] || [];
+		if (this.enableProposedApiFor.length) {
+			// Make enabled proposed API be lowercase for case insensitive comparison
+			if (Array.isArray(this.enableProposedApiFor)) {
+				this.enableProposedApiFor = this.enableProposedApiFor.map(id => id.toLowerCase());
+			} else {
+				this.enableProposedApiFor = this.enableProposedApiFor.toLowerCase();
+			}
+		}
+
+		this.enableProposedApiForAll = !environmentService.isBuilt ||
+			(!!environmentService.extensionDevelopmentLocationURI && productService.nameLong !== 'Visual Studio Code') ||
+			(this.enableProposedApiFor.length === 0 && 'enable-proposed-api' in environmentService.args);
+
+		this.productAllowProposedApi = new Set<string>();
+		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
+			productService.extensionAllowedProposedApi.forEach((id) => this.productAllowProposedApi.add(ExtensionIdentifier.toKey(id)));
+		}
+	}
+
+	public updateEnableProposedApi(extension: IExtensionDescription): IExtensionDescription {
+		if (this._allowProposedApiFromProduct(extension.identifier)) {
+			// fast lane -> proposed api is available to all extensions
+			// that are listed in product.json-files
+			extension.enableProposedApi = true;
+
+		} else if (extension.enableProposedApi && !extension.isBuiltin) {
+			if (
+				!this.enableProposedApiForAll &&
+				this.enableProposedApiFor.indexOf(extension.identifier.value.toLowerCase()) < 0
+			) {
+				extension.enableProposedApi = false;
+				console.error(`Extension '${extension.identifier.value} cannot use PROPOSED API (must started out of dev or enabled via --enable-proposed-api)`);
+
+			} else {
+				// proposed api is available when developing or when an extension was explicitly
+				// spelled out via a command line argument
+				console.warn(`Extension '${extension.identifier.value}' uses PROPOSED API which is subject to change and removal without notice.`);
+			}
+		}
+		return extension;
+	}
+
+	private _allowProposedApiFromProduct(id: ExtensionIdentifier): boolean {
+		return this.productAllowProposedApi.has(ExtensionIdentifier.toKey(id));
+	}
+}
