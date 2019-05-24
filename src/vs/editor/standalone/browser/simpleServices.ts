@@ -25,7 +25,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -446,7 +446,17 @@ export class SimpleConfigurationService implements IConfigurationService {
 	}
 
 	public getConfigurationData(): IConfigurationData | null {
-		return null;
+		const emptyModel: IConfigurationModel = {
+			contents: {},
+			keys: [],
+			overrides: []
+		};
+		return {
+			defaults: emptyModel,
+			user: emptyModel,
+			workspace: emptyModel,
+			folders: {}
+		};
 	}
 }
 

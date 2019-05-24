@@ -339,21 +339,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 								console.log(`==> No UI language provided by renderer. Falling back to English.`);
 							}
 
-							if (!(socket instanceof NodeSocket)) {
-								console.error(`WebSocket not supported.`);
-								protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'WebSocket not supported.' })));
-								protocol.dispose();
-								socket.dispose();
-								return;
-							}
-
 							if (isReconnection) {
 								// This is a reconnection
 								if (this._extHostConnections[reconnectionToken]) {
 									protocol.sendControl(VSBuffer.fromString(JSON.stringify(startParams.port ? { debugPort: startParams.port } : {})));
 									const dataChunk = protocol.readEntireBuffer();
 									protocol.dispose();
-									this._extHostConnections[reconnectionToken].acceptReconnection(socket.socket, dataChunk);
+									this._extHostConnections[reconnectionToken].acceptReconnection(socket, dataChunk);
 								} else {
 									// This is an unknown reconnection token
 									protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Unknown reconnection token.' })));
@@ -371,7 +363,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 									protocol.sendControl(VSBuffer.fromString(JSON.stringify(startParams.port ? { debugPort: startParams.port } : {})));
 									const dataChunk = protocol.readEntireBuffer();
 									protocol.dispose();
-									const con = new ExtensionHostConnection(this._environmentService, socket.socket, dataChunk);
+									const con = new ExtensionHostConnection(this._environmentService, socket, dataChunk);
 									this._extHostConnections[reconnectionToken] = con;
 									con.onClose(() => {
 										delete this._extHostConnections[reconnectionToken];

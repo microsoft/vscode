@@ -7,10 +7,10 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { PersistentProtocol, ProtocolConstants, createBufferedEvent } from 'vs/base/parts/ipc/common/ipc.net';
+import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/node/product';
 import { IInitData, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -111,17 +111,23 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 			process.on('message', (msg: IExtHostSocketMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
 					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
+					let socket: NodeSocket | WebSocketNodeSocket;
+					if (msg.skipWebSocketFrames) {
+						socket = new NodeSocket(handle);
+					} else {
+						socket = new WebSocketNodeSocket(new NodeSocket(handle));
+					}
 					if (protocol) {
 						// reconnection case
 						if (disconnectWaitTimer) {
 							clearTimeout(disconnectWaitTimer);
 							disconnectWaitTimer = null;
 						}
-						protocol.beginAcceptReconnection(new NodeSocket(handle), initialDataChunk);
+						protocol.beginAcceptReconnection(socket, initialDataChunk);
 						protocol.endAcceptReconnection();
 					} else {
 						clearTimeout(timer);
-						protocol = new PersistentProtocol(new NodeSocket(handle), initialDataChunk);
+						protocol = new PersistentProtocol(socket, initialDataChunk);
 						protocol.onClose(() => onTerminate());
 						resolve(protocol);
 
@@ -165,16 +171,22 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 	return new class implements IMessagePassingProtocol {
 
-		private _terminating = false;
+		private readonly _onMessage = new Emitter<VSBuffer>();
+		readonly onMessage: Event<VSBuffer> = createBufferedEvent(this._onMessage.event);
 
-		readonly onMessage: Event<any> = Event.filter(protocol.onMessage, msg => {
-			if (!isMessageOfType(msg, MessageType.Terminate)) {
-				return true;
-			}
-			this._terminating = true;
-			onTerminate();
-			return false;
-		});
+		private _terminating: boolean;
+
+		constructor() {
+			this._terminating = false;
+			protocol.onMessage((msg) => {
+				if (isMessageOfType(msg, MessageType.Terminate)) {
+					this._terminating = true;
+					onTerminate();
+				} else {
+					this._onMessage.fire(msg);
+				}
+			});
+		}
 
 		send(msg: any): void {
 			if (!this._terminating) {

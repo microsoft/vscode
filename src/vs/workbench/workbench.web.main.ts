@@ -7,7 +7,7 @@
 
 import 'vs/editor/editor.all';
 
-// import 'vs/workbench/api/electron-browser/extensionHost.contribution';
+import 'vs/workbench/api/browser/extensionHost.contribution';
 
 // import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';

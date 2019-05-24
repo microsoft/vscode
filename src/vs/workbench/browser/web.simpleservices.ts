@@ -57,6 +57,22 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IFileService } from 'vs/platform/files/common/files';
 import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
+// tslint:disable-next-line: import-patterns
+import { State as DebugState, IDebugService, IDebugSession, IConfigurationManager, IStackFrame, IThread, IViewModel, IExpression, IFunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+// tslint:disable-next-line: import-patterns
+import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
+// tslint:disable-next-line: import-patterns
+import { ITerminalService, ITerminalConfigHelper, ITerminalTab, ITerminalInstance, ITerminalProcessExtHostRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+// tslint:disable-next-line: import-patterns
+import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
+// tslint:disable-next-line: import-patterns
+import { TaskEvent } from 'vs/workbench/contrib/tasks/common/tasks';
+// tslint:disable-next-line: import-patterns
+import { ICommentService, IResourceCommentThreadEvent, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
+// tslint:disable-next-line: import-patterns
+import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
+import { CommentingRanges } from 'vs/editor/common/modes';
+import { Range } from 'vs/editor/common/core/range';
 
 export const workspaceResource = URI.file((<any>self).USER_HOME_DIR || '/').with({
 	scheme: Schemas.vscodeRemote,
@@ -349,6 +365,232 @@ export class SimpleExtensionGalleryService implements IExtensionGalleryService {
 
 registerSingleton(IExtensionGalleryService, SimpleExtensionGalleryService, true);
 
+//#endregion
+
+//#region IDebugService
+export class SimpleDebugService implements IDebugService {
+	_serviceBrand: any;
+	state: DebugState;
+	onDidChangeState: Event<DebugState> = Event.None;
+	onDidNewSession: Event<IDebugSession> = Event.None;
+	onWillNewSession: Event<IDebugSession> = Event.None;
+	onDidEndSession: Event<IDebugSession> = Event.None;
+	getConfigurationManager(): IConfigurationManager {
+		return new class implements IConfigurationManager {
+			canSetBreakpointsIn: any;
+			selectedConfiguration: any;
+			selectConfiguration: any;
+			getLaunches: any;
+			getLaunch: any;
+			onDidSelectConfiguration: Event<void>;
+			activateDebuggers: any;
+			hasDebugConfigurationProvider: any;
+			registerDebugConfigurationProvider: any;
+			unregisterDebugConfigurationProvider: any;
+			registerDebugAdapterDescriptorFactory: any;
+			unregisterDebugAdapterDescriptorFactory: any;
+			resolveConfigurationByProviders: any;
+			getDebugAdapterDescriptor: any;
+			registerDebugAdapterFactory() { return Disposable.None; }
+			createDebugAdapter: any;
+			substituteVariables: any;
+			runInTerminal: any;
+		};
+	}
+	focusStackFrame: any;
+	addBreakpoints: any;
+	updateBreakpoints: any;
+	enableOrDisableBreakpoints: any;
+	setBreakpointsActivated: any;
+	removeBreakpoints: any;
+	addFunctionBreakpoint: any;
+	renameFunctionBreakpoint: any;
+	removeFunctionBreakpoints: any;
+	sendAllBreakpoints: any;
+	addWatchExpression: any;
+	renameWatchExpression: any;
+	moveWatchExpression: any;
+	removeWatchExpressions: any;
+	startDebugging: any;
+	restartSession: any;
+	stopSession: any;
+	sourceIsNotAvailable: any;
+	getModel: any;
+	getViewModel(): IViewModel {
+		return new class implements IViewModel {
+			focusedSession: IDebugSession | undefined;
+			focusedThread: IThread | undefined;
+			focusedStackFrame: IStackFrame | undefined;
+			getSelectedExpression(): IExpression | undefined {
+				throw new Error('Method not implemented.');
+			}
+			getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined {
+				throw new Error('Method not implemented.');
+			}
+			setSelectedExpression(expression: IExpression | undefined): void {
+				throw new Error('Method not implemented.');
+			}
+			setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void {
+				throw new Error('Method not implemented.');
+			}
+			isMultiSessionView(): boolean {
+				throw new Error('Method not implemented.');
+			}
+			onDidFocusSession: Event<IDebugSession | undefined> = Event.None;
+			onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean; }> = Event.None;
+			onDidSelectExpression: Event<IExpression | undefined> = Event.None;
+			getId(): string {
+				throw new Error('Method not implemented.');
+			}
+		};
+	}
+}
+registerSingleton(IDebugService, SimpleDebugService, true);
+
+//#endregion IExtensionsWorkbenchService
+export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchService {
+	_serviceBrand: any;
+	onChange: Event<IExtension2 | undefined>;
+	local: IExtension2[];
+	installed: IExtension2[];
+	outdated: IExtension2[];
+	queryLocal: any;
+	queryGallery: any;
+	canInstall: any;
+	install: any;
+	uninstall: any;
+	installVersion: any;
+	reinstall: any;
+	setEnablement: any;
+	open: any;
+	checkForUpdates: any;
+	allowedBadgeProviders: string[];
+}
+registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService, true);
+//#endregion
+
+//#region ITerminalService
+export class SimpleTerminalService implements ITerminalService {
+	_serviceBrand: any; activeTabIndex: number;
+	configHelper: ITerminalConfigHelper;
+	onActiveTabChanged: Event<void> = Event.None;
+	onTabDisposed: Event<ITerminalTab> = Event.None;
+	onInstanceCreated: Event<ITerminalInstance> = Event.None;
+	onInstanceDisposed: Event<ITerminalInstance> = Event.None;
+	onInstanceProcessIdReady: Event<ITerminalInstance> = Event.None;
+	onInstanceDimensionsChanged: Event<ITerminalInstance> = Event.None;
+	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest> = Event.None;
+	onInstancesChanged: Event<void> = Event.None;
+	onInstanceTitleChanged: Event<ITerminalInstance> = Event.None;
+	onActiveInstanceChanged: Event<ITerminalInstance | undefined> = Event.None;
+	terminalInstances: ITerminalInstance[] = [];
+	terminalTabs: ITerminalTab[];
+	createTerminal: any;
+	createTerminalRenderer: any;
+	createInstance: any;
+	getInstanceFromId: any;
+	getInstanceFromIndex: any;
+	getTabLabels: any;
+	getActiveInstance() { return null; }
+	setActiveInstance: any;
+	setActiveInstanceByIndex: any;
+	getActiveOrCreateInstance: any;
+	splitInstance: any;
+	getActiveTab: any;
+	setActiveTabToNext: any;
+	setActiveTabToPrevious: any;
+	setActiveTabByIndex: any;
+	refreshActiveTab: any;
+	showPanel: any;
+	hidePanel: any;
+	focusFindWidget: any;
+	hideFindWidget: any;
+	getFindState: any;
+	findNext: any;
+	findPrevious: any;
+	setContainers: any;
+	getDefaultShell: any;
+	selectDefaultWindowsShell: any;
+	setWorkspaceShellAllowed: any;
+	preparePathForTerminalAsync: any;
+	extHostReady() { }
+	requestExtHostProcess: any;
+}
+registerSingleton(ITerminalService, SimpleTerminalService, true);
+
+//#endregion
+
+//#region ITaskService
+export class SimpleTaskService implements ITaskService {
+	_serviceBrand: any;
+	onDidStateChange: Event<TaskEvent> = Event.None;
+	supportsMultipleTaskExecutions: boolean;
+	configureAction: any;
+	build: any;
+	runTest: any;
+	run: any;
+	inTerminal: any;
+	isActive: any;
+	getActiveTasks: any;
+	restart: any;
+	terminate: any;
+	terminateAll: any;
+	tasks: any;
+	getWorkspaceTasks: any;
+	getTask: any;
+	getTasksForGroup: any;
+	getRecentlyUsedTasks: any;
+	createSorter: any;
+	needsFolderQualification: any;
+	canCustomize: any;
+	customize: any;
+	openConfig: any;
+	registerTaskProvider() { return Disposable.None; }
+	registerTaskSystem() { }
+	extensionCallbackTaskComplete: any;
+}
+registerSingleton(ITaskService, SimpleTaskService, true);
+//#endregion
+
+//#region ICommentService
+export class SimpleCommentService implements ICommentService {
+	_serviceBrand: any;
+	onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = Event.None;
+	onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent> = Event.None;
+	onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = Event.None;
+	onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges; }> = Event.None;
+	onDidSetDataProvider: Event<void> = Event.None;
+	onDidDeleteDataProvider: Event<string> = Event.None;
+	setDocumentComments: any;
+	setWorkspaceComments: any;
+	removeWorkspaceComments: any;
+	registerCommentController: any;
+	unregisterCommentController: any;
+	getCommentController: any;
+	createCommentThreadTemplate: any;
+	getCommentMenus: any;
+	registerDataProvider: any;
+	unregisterDataProvider: any;
+	updateComments: any;
+	disposeCommentThread: any;
+	createNewCommentThread: any;
+	replyToCommentThread: any;
+	editComment: any;
+	deleteComment: any;
+	getComments() { return Promise.resolve([]); }
+	getCommentingRanges: any;
+	startDraft: any;
+	deleteDraft: any;
+	finishDraft: any;
+	getStartDraftLabel: any;
+	getDeleteDraftLabel: any;
+	getFinishDraftLabel: any;
+	addReaction: any;
+	deleteReaction: any;
+	getReactionGroup: any;
+	toggleReaction: any;
+}
+registerSingleton(ICommentService, SimpleCommentService, true);
 //#endregion
 
 //#region Extension Management
@@ -652,7 +894,7 @@ export class SimpleProductService implements IProductService {
 
 	_serviceBrand: any;
 
-	version: string = '0.0.0';
+	version: string = '1.35.0';
 	commit?: string;
 	nameLong: string = '';
 	urlProtocol: string = '';
