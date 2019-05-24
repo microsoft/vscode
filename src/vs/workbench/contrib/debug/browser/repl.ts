@@ -142,6 +142,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.updateTitleArea();
 		}));
 		this._register(this.themeService.onThemeChange(() => {
+			this.refreshReplElements(false);
 			if (this.isVisible()) {
 				this.updateInputDecoration();
 			}
@@ -606,7 +607,8 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, Fuz
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService
 	) { }
 
 	get templateId(): string {
@@ -649,7 +651,7 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, Fuz
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
-		const result = handleANSIOutput(element.value, this.linkDetector);
+		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService);
 		templateData.value.appendChild(result);
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
