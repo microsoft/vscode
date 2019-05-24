@@ -703,11 +703,17 @@
 		"GitHub.vscode-pull-request-github-insiders",
 		"Microsoft.vscode-nmake-tools",
 		"ms-vscode-remote.remote-containers",
+		"ms-vscode-remote.remote-containers-nightly",
 		"ms-vscode-remote.remote-ssh",
+		"ms-vscode-remote.remote-ssh-nightly",
 		"ms-vscode-remote.remote-ssh-edit",
+		"ms-vscode-remote.remote-ssh-edit-nightly",
 		"ms-vscode-remote.remote-ssh-explorer",
+		"ms-vscode-remote.remote-ssh-explorer-nightly",
 		"ms-vscode-remote.remote-wsl",
-		"ms-vscode-remote.vscode-remote-extensionpack"
+		"ms-vscode-remote.remote-wsl-nightly",
+		"ms-vscode-remote.vscode-remote-extensionpack",
+		"ms-vscode-remote.vscode-remote-extensionpack-nightly"
 	],
 	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
 	"uiExtensions": [
