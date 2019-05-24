@@ -348,7 +348,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 
 			quote = (s: string) => {
 				s = s.replace(/\'/g, '\'\'');
-				if (s.length > 0 && s.charAt(s.length-1) === '\\') {
+				if (s.length > 0 && s.charAt(s.length - 1) === '\\') {
 					return `'${s}\\'`;
 				}
 				return `'${s}'`;
