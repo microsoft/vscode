@@ -557,7 +557,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		const isSelected = this.element && hasClass(this.element, 'focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : this.menuStyle.backgroundColor;
-		const border = isSelected && this.menuStyle.selectionBorderColor ? `1px solid ${this.menuStyle.selectionBorderColor}` : null;
+		const border = isSelected && this.menuStyle.selectionBorderColor ? `thin solid ${this.menuStyle.selectionBorderColor}` : null;
 
 		this.item.style.color = fgColor ? `${fgColor}` : null;
 		this.check.style.backgroundColor = fgColor ? `${fgColor}` : null;
