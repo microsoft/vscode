@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { dirname } from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { statLink } from 'vs/base/node/pfs';
@@ -47,12 +47,10 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private disposed: boolean;
 	private loaded: boolean;
 	private timeoutHandle: NodeJS.Timer | null;
-	private disposables: IDisposable[];
+	private readonly disposables = new DisposableStore();
 	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 
 	constructor(private _path: string, private options: IConfigOptions<T> = { defaultConfig: Object.create(null), onError: error => console.error(error) }) {
-		this.disposables = [];
-
 		this._onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent<T>>();
 		this.disposables.push(this._onDidUpdateConfiguration);
 
@@ -187,6 +185,6 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 
 	dispose(): void {
 		this.disposed = true;
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }

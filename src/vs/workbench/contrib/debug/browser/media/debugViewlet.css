@@ -246,10 +246,6 @@
 	opacity: 0.35;
 }
 
-.monaco-workbench .debug-viewlet .monaco-list-row .expression {
-	white-space: pre;
-}
-
 .debug-viewlet .debug-call-stack .error {
 	font-style: italic;
 	text-overflow: ellipsis;

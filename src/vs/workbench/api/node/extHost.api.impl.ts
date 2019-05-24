@@ -675,6 +675,8 @@ export function createApiFactory(
 			}
 		};
 
+		const comments = comment;
+
 		// namespace: debug
 		const debug: typeof vscode.debug = {
 			get activeDebugSession() {
@@ -758,6 +760,7 @@ export function createApiFactory(
 			languages,
 			scm,
 			comment,
+			comments,
 			tasks,
 			window,
 			workspace,
@@ -773,6 +776,7 @@ export function createApiFactory(
 			ColorInformation: extHostTypes.ColorInformation,
 			ColorPresentation: extHostTypes.ColorPresentation,
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
+			CommentMode: extHostTypes.CommentMode,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionList: extHostTypes.CompletionList,

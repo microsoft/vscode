@@ -464,7 +464,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			};
 
 			const cancellationTokenListener = cancellationToken.onCancellationRequested(cancel);
-			disposable = combinedDisposable([toDisposable(cancel), cancellationTokenListener]);
+			disposable = combinedDisposable(toDisposable(cancel), cancellationTokenListener);
 			this.activeRequests.add(disposable);
 		});
 

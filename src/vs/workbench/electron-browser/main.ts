@@ -230,7 +230,7 @@ class CodeRendererMain extends Disposable {
 
 		// Multi-root workspace
 		if (this.configuration.workspace) {
-			return Promise.resolve(this.configuration.workspace);
+			return this.configuration.workspace;
 		}
 
 		// Single-folder workspace
@@ -260,7 +260,7 @@ class CodeRendererMain extends Disposable {
 
 		// Return early the folder is not local
 		if (folderUri.scheme !== Schemas.file) {
-			return Promise.resolve({ id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri });
+			return { id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri };
 		}
 
 		function computeLocalDiskFolderId(folder: URI, stat: fs.Stats): string {

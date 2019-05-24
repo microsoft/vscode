@@ -8,7 +8,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SyncActionDescriptor, MenuRegistry, MenuId, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -33,7 +33,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 	}
 
 	private registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
-		let registrations: IDisposable[] = [];
+		const registrations = new DisposableStore();
 
 		// command
 		registrations.push(CommandsRegistry.registerCommand(descriptor.id, this.createCommandHandler(descriptor)));
@@ -78,7 +78,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		// TODO@alex,joh
 		// support removal of keybinding rule
 		// support removal of command-ui
-		return combinedDisposable(registrations);
+		return registrations;
 	}
 
 	private createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
