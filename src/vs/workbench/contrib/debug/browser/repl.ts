@@ -11,7 +11,7 @@ import { IAction, IActionViewItem, Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import severity from 'vs/base/common/severity';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ITextModel } from 'vs/editor/common/model';
@@ -76,6 +76,7 @@ interface IPrivateReplService {
 	getVisibleContent(): string;
 	selectSession(session?: IDebugSession): void;
 	clearRepl(): void;
+	focusRepl(): void;
 }
 
 function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
@@ -180,6 +181,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	showNextValue(): void {
 		this.navigateHistory(false);
+	}
+
+	focusRepl(): void {
+		this.tree.domFocus();
 	}
 
 	private onDidFontChange(): void {
@@ -383,6 +388,15 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			}) as WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		let lastSelectedString: string;
+		this._register(this.tree.onMouseClick(() => {
+			const selection = window.getSelection();
+			if (!selection || selection.type !== 'Range' || lastSelectedString === selection.toString()) {
+				// only focus the input if the user is not currently selecting.
+				this.replInput.focus();
+			}
+			lastSelectedString = selection ? selection.toString() : '';
+		}));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
 		this.styleElement = dom.createStyleSheet(this.container);
@@ -834,6 +848,28 @@ class AcceptReplInputAction extends EditorAction {
 	}
 }
 
+class FilterReplAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'repl.action.filter',
+			label: nls.localize('repl.action.filter', "REPL Focus Content to Filter"),
+			alias: 'REPL Filter',
+			precondition: CONTEXT_IN_DEBUG_REPL,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
+		SuggestController.get(editor).acceptSelectedSuggestion();
+		accessor.get(IPrivateReplService).focusRepl();
+	}
+}
+
 class ReplCopyAllAction extends EditorAction {
 
 	constructor() {
@@ -853,6 +889,7 @@ class ReplCopyAllAction extends EditorAction {
 
 registerEditorAction(AcceptReplInputAction);
 registerEditorAction(ReplCopyAllAction);
+registerEditorAction(FilterReplAction);
 
 class SelectReplActionViewItem extends FocusSessionActionViewItem {
 
