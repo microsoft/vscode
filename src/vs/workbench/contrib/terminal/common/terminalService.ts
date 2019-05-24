@@ -457,15 +457,14 @@ export abstract class TerminalService implements ITerminalService {
 
 	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string): Promise<string> {
 		return new Promise<string>(c => {
-			const exe = executable;
-			if (!exe) {
+			if (!executable) {
 				c(originalPath);
 				return;
 			}
 
 			const hasSpace = originalPath.indexOf(' ') !== -1;
 
-			const pathBasename = basename(exe, '.exe');
+			const pathBasename = basename(executable, '.exe');
 			const isPowerShell = pathBasename === 'pwsh' ||
 				title === 'pwsh' ||
 				pathBasename === 'powershell' ||
@@ -479,7 +478,9 @@ export abstract class TerminalService implements ITerminalService {
 			if (isWindows) {
 				// 17063 is the build number where wsl path was introduced.
 				// Update Windows uriPath to be executed in WSL.
-				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (this._getWindowsBuildNumber() >= 17063)) {
+				const lowerExecutable = executable.toLowerCase();
+				if (this._getWindowsBuildNumber() >= 17063 &&
+					(lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1))) {
 					c(this._getWslPath(originalPath));
 					return;
 				} else if (hasSpace) {

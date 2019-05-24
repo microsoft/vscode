@@ -6124,10 +6124,10 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.9.0-beta9:
-  version "0.9.0-beta9"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta9.tgz#75cffcf4026f543475c115f017ca7fe66cf6e7fe"
-  integrity sha512-h6e8jUikGSZwqt1JHmzT5Zi0fdUCultX/BWrS35suTaZNJm/YSJA2QDG9HTVoSA6dhRvtFoaGiBtgbX9uZKe6w==
+node-pty@0.9.0-beta13:
+  version "0.9.0-beta13"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta13.tgz#615cae7447ac232aefa65a263d6821bc04d0f213"
+  integrity sha512-hO1U8Hd4OhSZMryTqfsog2bJnRGh8Ct3yTsfKRbLK8qhUnqmyOdHzLQkGTx5J7aG7iA8mDVcWBSx2YX2MpkDRQ==
   dependencies:
     nan "^2.13.2"
 
@@ -9636,10 +9636,10 @@ vscode-windows-registry@1.0.1:
   dependencies:
     nan "^2.12.1"
 
-vscode-xterm@3.14.0-beta4:
-  version "3.14.0-beta4"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.14.0-beta4.tgz#fa0dff0bee9c5058e43a8f6ad03d73d38f913ccf"
-  integrity sha512-LxJdTio0HwjM620c3BXDbzVClyEHpnmm+HYV/VU4/KuHsW7upvJHNBiz9bw4O8pClROpjvcM4S/xzmf08+HPOw==
+vscode-xterm@3.14.0-beta5:
+  version "3.14.0-beta5"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.14.0-beta5.tgz#53817b035c3dc786efd82f231caa1bdabab7f06f"
+  integrity sha512-gluTw/GjnOAf2EQ+WqFLjmgSe7P7c1HRmJedkC0uvHaMAOsLeSw3G9UrMkIejN4bTWEfKrAOLYG2hOTVd8ejaw==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

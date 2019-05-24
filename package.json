@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.35.0",
-  "distro": "215a2936aad0ed131aa1dc6b1c57024bd695cb2b",
+  "distro": "0361e553d5870d1db241bea5e844e25a867fc37b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -40,7 +40,7 @@
     "native-is-elevated": "^0.2.1",
     "native-keymap": "1.2.5",
     "native-watchdog": "1.0.0",
-    "node-pty": "0.9.0-beta9",
+    "node-pty": "0.9.0-beta13",
     "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
     "spdlog": "0.8.1",
@@ -53,7 +53,7 @@
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.1.1",
-    "vscode-xterm": "3.14.0-beta4",
+    "vscode-xterm": "3.14.0-beta5",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"
   },
