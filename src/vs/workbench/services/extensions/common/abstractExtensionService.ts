@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -11,16 +10,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionEnablementService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { BetterMergeId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
@@ -74,12 +68,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService protected readonly _extensionEnablementService: IExtensionEnablementService,
-		@IExtensionManagementService protected readonly _extensionManagementService: IExtensionManagementService,
-		@IWindowService protected readonly _windowService: IWindowService,
-		@IRemoteAgentService protected readonly _remoteAgentService: IRemoteAgentService,
-		@IRemoteAuthorityResolverService protected readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IConfigurationService protected readonly _configurationService: IConfigurationService,
-		@ILifecycleService protected readonly _lifecycleService: ILifecycleService,
 		@IFileService protected readonly _fileService: IFileService,
 		@IProductService protected readonly _productService: IProductService
 	) {
@@ -89,15 +77,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._register(this._fileService.onWillActivateFileSystemProvider(e => {
 			e.join(this.activateByEvent(`onFileSystem:${e.scheme}`));
 		}));
-
-		if (this._extensionEnablementService.allUserExtensionsDisabled) {
-			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
-				label: nls.localize('Reload', "Reload"),
-				run: () => {
-					this._windowService.reloadWindow();
-				}
-			}]);
-		}
 
 		this._registry = new ExtensionDescriptionRegistry([]);
 		this._installedExtensionsReady = new Barrier();
@@ -172,39 +151,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._onExtensionHostExit(code);
 	}
 
-	private _onExtensionHostCrashed(extensionHost: ExtensionHostProcessManager, code: number, signal: string | null): void {
+	protected _onExtensionHostCrashed(extensionHost: ExtensionHostProcessManager, code: number, signal: string | null): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		this._stopExtensionHostProcess();
-
-		if (extensionHost.isLocal) {
-			if (code === 55) {
-				this._notificationService.prompt(
-					Severity.Error,
-					nls.localize('extensionService.versionMismatchCrash', "Extension host cannot start: version mismatch."),
-					[{
-						label: nls.localize('relaunch', "Relaunch VS Code"),
-						run: () => {
-							this._instantiationService.invokeFunction((accessor) => {
-								const windowsService = accessor.get(IWindowsService);
-								windowsService.relaunch({});
-							});
-						}
-					}]
-				);
-				return;
-			}
-
-			this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly."),
-				[{
-					label: nls.localize('devTools', "Open Developer Tools"),
-					run: () => this._windowService.openDevTools()
-				},
-				{
-					label: nls.localize('restart', "Restart Extension Host"),
-					run: () => this._startExtensionHostProcess(false, Object.keys(this._allRequestedActivateEvents))
-				}]
-			);
-		}
 	}
 
 	//#region IExtensionService

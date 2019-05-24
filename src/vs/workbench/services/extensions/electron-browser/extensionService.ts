@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -56,14 +56,14 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IWindowService windowService: IWindowService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@IFileService fileService: IFileService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IWindowService protected readonly _windowService: IWindowService,
 	) {
 		super(
 			instantiationService,
@@ -71,19 +71,22 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			environmentService,
 			telemetryService,
 			extensionEnablementService,
-			extensionManagementService,
-			windowService,
-			remoteAgentService,
-			remoteAuthorityResolverService,
-			configurationService,
-			lifecycleService,
 			fileService,
 			productService,
 		);
 
+		if (this._extensionEnablementService.allUserExtensionsDisabled) {
+			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
+				label: nls.localize('Reload', "Reload"),
+				run: () => {
+					this._windowService.reloadWindow();
+				}
+			}]);
+		}
+
 		this._remoteExtensionsEnvironmentData = new Map<string, IRemoteAgentEnvironment>();
 
-		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${windowService.windowId}`));
+		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._windowService.windowId}`));
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 		this._deltaExtensionsQueue = [];
 
@@ -354,6 +357,40 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 
 		return result;
+	}
+
+	protected _onExtensionHostCrashed(extensionHost: ExtensionHostProcessManager, code: number, signal: string | null): void {
+		super._onExtensionHostCrashed(extensionHost, code, signal);
+
+		if (extensionHost.isLocal) {
+			if (code === 55) {
+				this._notificationService.prompt(
+					Severity.Error,
+					nls.localize('extensionService.versionMismatchCrash', "Extension host cannot start: version mismatch."),
+					[{
+						label: nls.localize('relaunch', "Relaunch VS Code"),
+						run: () => {
+							this._instantiationService.invokeFunction((accessor) => {
+								const windowsService = accessor.get(IWindowsService);
+								windowsService.relaunch({});
+							});
+						}
+					}]
+				);
+				return;
+			}
+
+			this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly."),
+				[{
+					label: nls.localize('devTools', "Open Developer Tools"),
+					run: () => this._windowService.openDevTools()
+				},
+				{
+					label: nls.localize('restart', "Restart Extension Host"),
+					run: () => this.startExtensionHost()
+				}]
+			);
+		}
 	}
 
 	// --- impl
