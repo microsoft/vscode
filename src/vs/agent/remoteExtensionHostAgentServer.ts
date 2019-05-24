@@ -288,7 +288,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					const _data = await util.promisify(fs.readFile)(filePath);
 					const data = _data.toString()
 						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
-						.replace('{{USER_HOME_DIR}}', escapeRegExpCharacters(path.join(os.userInfo().homedir, 'src', 'working_dir')));
+						.replace('{{USER_HOME_DIR}}', escapeRegExpCharacters(os.userInfo().homedir));
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
 				} else {
