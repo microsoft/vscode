@@ -5,6 +5,7 @@
 
 import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { compareIgnoreCase } from 'vs/base/common/strings';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -85,7 +86,7 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 	};
 }
 
-export const BetterMergeId = 'pprice.better-merge';
+export const BetterMergeId = new ExtensionIdentifier('pprice.better-merge');
 
 export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<string> {
 	const result = new Set<string>();

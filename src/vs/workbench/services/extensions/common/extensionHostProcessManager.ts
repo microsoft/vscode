@@ -54,6 +54,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	private _resolveAuthorityAttempt: number;
 
 	constructor(
+		public readonly isLocal: boolean,
 		extensionHostProcessWorker: IExtensionHostStarter,
 		private readonly _remoteAuthority: string,
 		initialActivationEvents: string[],
