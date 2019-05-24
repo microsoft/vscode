@@ -129,7 +129,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// see https://github.com/Microsoft/vscode/issues/41322
 		this._lifecycleService.when(LifecyclePhase.Ready).then(() => {
 			// reschedule to ensure this runs after restoring viewlets, panels, and editors
-			runWhenIdle(async () => {
+			runWhenIdle(() => {
 				this._initialize();
 			}, 50 /*max delay*/);
 		});

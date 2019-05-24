@@ -40,8 +40,6 @@ import { Schemas } from 'vs/base/common/network';
 import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/workbench/services/search/common/searchHelpers';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextMateService, IGrammar as ITextMategrammar } from 'vs/workbench/services/textMate/common/textMateService';
-import { LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
 import { IWindowConfiguration, IPath, IPathsToWaitFor, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -54,7 +52,6 @@ import { IWorkspaceContextService, Workspace, toWorkspaceFolder, IWorkspaceFolde
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Color, RGBA } from 'vs/base/common/color';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -817,26 +814,6 @@ export class SimpleTelemetryService implements ITelemetryService {
 }
 
 registerSingleton(ITelemetryService, SimpleTelemetryService);
-
-//#endregion
-
-//#region Textmate
-
-TokenizationRegistry.setColorMap([<any>null, new Color(new RGBA(212, 212, 212, 1)), new Color(new RGBA(30, 30, 30, 1))]);
-
-export class SimpleTextMateService implements ITextMateService {
-
-	_serviceBrand: any;
-
-	readonly onDidEncounterLanguage: Event<LanguageId> = Event.None;
-
-	createGrammar(modeId: string): Promise<ITextMategrammar> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-}
-
-registerSingleton(ITextMateService, SimpleTextMateService, true);
 
 //#endregion
 

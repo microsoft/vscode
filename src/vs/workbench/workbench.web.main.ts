@@ -101,7 +101,7 @@ import 'vs/platform/dialogs/browser/dialogService';
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
-// import 'vs/workbench/services/textMate/electron-browser/textMateService';
+import 'vs/workbench/services/textMate/browser/textMateService';
 // import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
 // import 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/decorations/browser/decorationsService';
