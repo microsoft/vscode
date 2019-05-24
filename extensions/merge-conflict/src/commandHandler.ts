@@ -100,7 +100,12 @@ export default class CommandHandler implements vscode.Disposable {
 		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, range, fullRange: conflict.range }) });
 
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
-		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
+		const openToTheside = mergeConflictConfig.get<boolean>('openDiffInNewEditor');
+		const opts: vscode.TextDocumentShowOptions = {
+			viewColumn: openToTheside ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active
+		};
+		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, opts);
 	}
 
 	async compareAll(editor: vscode.TextEditor) {
@@ -125,7 +130,13 @@ export default class CommandHandler implements vscode.Disposable {
 		const rightUri = leftUri.with({ query: JSON.stringify({ type: 'full', scheme, ranges: rightRanges }) });
 
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
-		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
+		const openToTheside = mergeConflictConfig.get<boolean>('openDiffInNewEditor');
+		const opts: vscode.TextDocumentShowOptions = {
+			viewColumn: openToTheside ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active
+		};
+
+		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, opts);
 	}
 
 	navigateNext(editor: vscode.TextEditor): Promise<void> {

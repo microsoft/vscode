@@ -125,6 +125,11 @@
           "type": "number",
           "description": "%config.diffViewContext%",
           "default": 0
+        },
+        "merge-conflict.openDiffInNewEditor": {
+          "type": "boolean",
+          "description": "%config.openDiffInNewEditor%",
+          "default": false
         }
       }
     }
