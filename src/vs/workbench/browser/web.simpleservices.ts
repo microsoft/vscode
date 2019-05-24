@@ -20,7 +20,6 @@ import { IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment
 import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation, IExtensionEnablementService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IPager } from 'vs/base/common/paging';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
-import { NullExtensionService, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -365,10 +364,10 @@ export class SimpleExtensionEnablementService implements IExtensionEnablementSer
 
 	readonly onEnablementChanged = Event.None;
 
-	readonly allUserExtensionsDisabled = true;
+	readonly allUserExtensionsDisabled = false;
 
 	getEnablementState(extension: IExtension): EnablementState {
-		return EnablementState.Disabled;
+		return EnablementState.Enabled;
 	}
 
 	canChangeEnablement(extension: IExtension): boolean {
@@ -380,7 +379,7 @@ export class SimpleExtensionEnablementService implements IExtensionEnablementSer
 	}
 
 	isEnabled(extension: IExtension): boolean {
-		return false;
+		return true;
 	}
 
 }
@@ -481,14 +480,6 @@ export class SimpleExtensionManagementService implements IExtensionManagementSer
 }
 
 registerSingleton(IExtensionManagementService, SimpleExtensionManagementService);
-
-//#endregion
-
-//#region Extensions
-
-export class SimpleExtensionService extends NullExtensionService { }
-
-registerSingleton(IExtensionService, SimpleExtensionService);
 
 //#endregion
 
