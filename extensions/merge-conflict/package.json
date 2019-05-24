@@ -115,10 +115,15 @@
           "description": "%config.autoNavigateNextConflictEnabled%",
           "default": false
         },
-        "merge-conflict.openDiffInNewEditor": {
-          "type": "boolean",
-          "description": "%config.openDiffInNewEditor%",
-          "default": false
+        "merge-conflict.diffViewPosition": {
+          "type": "string",
+          "enum": [
+            "Current",
+            "Beside",
+            "Below"
+          ],
+          "description": "%config.diffViewPosition%",
+          "default": "Current"
         }
       }
     }

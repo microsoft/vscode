@@ -16,5 +16,5 @@
 	"config.autoNavigateNextConflictEnabled": "Whether to automatically navigate to the next merge conflict after resolving a merge conflict.",
 	"config.codeLensEnabled": "Create a Code Lens for merge conflict blocks within editor.",
 	"config.decoratorsEnabled": "Create decorators for merge conflict blocks within editor.",
-	"config.openDiffInNewEditor": "Controls if the diff view should be opened in a new editor group when comparing changes in merge conflicts."
+	"config.diffViewPosition": "Controls where the diff view should be opened when comparing changes in merge conflicts."
 }

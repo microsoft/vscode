@@ -125,13 +125,13 @@ export default class CommandHandler implements vscode.Disposable {
 
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
 		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
-		const openToTheSide = mergeConflictConfig.get<boolean>('openDiffInNewEditor');
+		const openToTheSide = mergeConflictConfig.get<string>('diffViewPosition');
 		const opts: vscode.TextDocumentShowOptions = {
-			viewColumn: vscode.ViewColumn.Active,
+			viewColumn: openToTheSide === 'Beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
 			selection
 		};
 
-		if (openToTheSide) {
+		if (openToTheSide === 'Below') {
 			await vscode.commands.executeCommand('workbench.action.newGroupBelow');
 		}
 
