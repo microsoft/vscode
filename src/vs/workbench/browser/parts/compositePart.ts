@@ -18,7 +18,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
-import { LocalProgressService } from 'vs/workbench/services/progress/browser/localProgressService';
+import { ScopedProgressService } from 'vs/workbench/services/progress/browser/localProgressService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -171,7 +171,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Instantiate composite from registry otherwise
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
-			const localProgressService = this.instantiationService.createInstance(LocalProgressService, this.progressBar, compositeDescriptor.id, isActive);
+			const localProgressService = this.instantiationService.createInstance(ScopedProgressService, this.progressBar, compositeDescriptor.id, isActive);
 			const compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection([ILocalProgressService, localProgressService]));
 
 			const composite = compositeDescriptor.instantiate(compositeInstantiationService);
