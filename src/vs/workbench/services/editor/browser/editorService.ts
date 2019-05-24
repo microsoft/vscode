@@ -328,7 +328,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	openEditors(editors: IEditorInputWithOptions[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor[]>;
 	openEditors(editors: IResourceEditor[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor[]>;
-	openEditors(editors: Array<IEditorInputWithOptions | IResourceEditor>, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor[]> {
+	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditor>, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor[]> {
 
 		// Convert to typed editors and options
 		const typedEditors: IEditorInputWithOptions[] = [];
@@ -364,7 +364,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			result.push(group.openEditors(editorsWithOptions));
 		});
 
-		return Promise.all(result).then(editors => coalesce(editors));
+		const openedEditors = await Promise.all(result);
+
+		return coalesce(openedEditors);
 	}
 
 	//#endregion
@@ -528,7 +530,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Untitled file support
 		const untitledInput = <IUntitledResourceInput>input;
 		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource && untitledInput.resource.scheme === Schemas.untitled)) {
-			return this.untitledEditorService.createOrGet(untitledInput.resource, untitledInput.language, untitledInput.contents, untitledInput.encoding);
+			return this.untitledEditorService.createOrGet(untitledInput.resource, untitledInput.mode, untitledInput.contents, untitledInput.encoding);
 		}
 
 		// Resource Editor Support
@@ -539,13 +541,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				label = basename(resourceInput.resource); // derive the label from the path (but not for data URIs)
 			}
 
-			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding, resourceInput.forceFile) as EditorInput;
+			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding, resourceInput.mode, resourceInput.forceFile) as EditorInput;
 		}
 
 		throw new Error('Unknown input type');
 	}
 
-	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string | undefined, description: string | undefined, encoding: string | undefined, forceFile: boolean | undefined): ICachedEditorInput {
+	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string | undefined, description: string | undefined, encoding: string | undefined, mode: string | undefined, forceFile: boolean | undefined): ICachedEditorInput {
 		if (EditorService.CACHE.has(resource)) {
 			const input = EditorService.CACHE.get(resource)!;
 			if (input instanceof ResourceEditorInput) {
@@ -556,9 +558,17 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				if (description) {
 					input.setDescription(description);
 				}
+
+				if (mode) {
+					input.setPreferredMode(mode);
+				}
 			} else if (!(input instanceof DataUriEditorInput)) {
 				if (encoding) {
 					input.setPreferredEncoding(encoding);
+				}
+
+				if (mode) {
+					input.setPreferredMode(mode);
 				}
 			}
 
@@ -569,7 +579,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// File
 		if (forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(resource)) {
-			input = this.fileInputFactory.createFileInput(resource, encoding, instantiationService);
+			input = this.fileInputFactory.createFileInput(resource, encoding, mode, instantiationService);
 		}
 
 		// Data URI
@@ -579,13 +589,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Resource
 		else {
-			input = instantiationService.createInstance(ResourceEditorInput, label, description, resource);
+			input = instantiationService.createInstance(ResourceEditorInput, label, description, resource, mode);
 		}
 
+		// Add to cache and remove when input gets disposed
 		EditorService.CACHE.set(resource, input);
-		Event.once(input.onDispose)(() => {
-			EditorService.CACHE.delete(resource);
-		});
+		Event.once(input.onDispose)(() => EditorService.CACHE.delete(resource));
 
 		return input;
 	}
@@ -641,18 +650,17 @@ export class DelegatingEditorService extends EditorService {
 		this.editorOpenHandler = handler;
 	}
 
-	protected doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): Promise<IEditor | null> {
+	protected async doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): Promise<IEditor | null> {
 		if (!this.editorOpenHandler) {
 			return super.doOpenEditor(group, editor, options);
 		}
 
-		return this.editorOpenHandler(group, editor, options).then(control => {
-			if (control) {
-				return control; // the opening was handled, so return early
-			}
+		const control = await this.editorOpenHandler(group, editor, options);
+		if (control) {
+			return control; // the opening was handled, so return early
+		}
 
-			return super.doOpenEditor(group, editor, options);
-		});
+		return super.doOpenEditor(group, editor, options);
 	}
 }
 

@@ -259,8 +259,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 		// Pass to handlers
 		for (let prefix in this.mapResolvedHandlersToPrefix) {
-			const promise = this.mapResolvedHandlersToPrefix[prefix];
-			promise.then(handler => {
+			this.mapResolvedHandlersToPrefix[prefix].then(handler => {
 				this.handlerOnOpenCalled[prefix] = false;
 
 				handler.onClose(reason === HideReason.CANCELED); // Don't check if onOpen was called to preserve old behaviour for now
@@ -429,7 +428,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		});
 	}
 
-	private handleDefaultHandler(handler: QuickOpenHandlerDescriptor, value: string, token: CancellationToken): Promise<void> {
+	private async handleDefaultHandler(handler: QuickOpenHandlerDescriptor, value: string, token: CancellationToken): Promise<void> {
 
 		// Fill in history results if matching and we are configured to search in history
 		let matchingHistoryEntries: QuickOpenEntry[];
@@ -444,47 +443,41 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 
 		// Resolve
-		return this.resolveHandler(handler).then(resolvedHandler => {
-			const quickOpenModel = new QuickOpenModel(matchingHistoryEntries, this.actionProvider);
+		const resolvedHandler = await this.resolveHandler(handler);
 
-			let inputSet = false;
+		const quickOpenModel = new QuickOpenModel(matchingHistoryEntries, this.actionProvider);
 
-			// If we have matching entries from history we want to show them directly and not wait for the other results to come in
-			// This also applies when we used to have entries from a previous run and now there are no more history results matching
-			const previousInput = this.quickOpenWidget.getInput();
-			const wasShowingHistory = previousInput && previousInput.entries && previousInput.entries.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
-			if (wasShowingHistory || matchingHistoryEntries.length > 0) {
-				let responseDelay: Promise<void>;
-				if (resolvedHandler.hasShortResponseTime()) {
-					responseDelay = timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME);
-				} else {
-					responseDelay = Promise.resolve();
-				}
+		let inputSet = false;
 
-				responseDelay.then(() => {
-					if (!token.isCancellationRequested && !inputSet) {
-						this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
-						inputSet = true;
-					}
-				});
+		// If we have matching entries from history we want to show them directly and not wait for the other results to come in
+		// This also applies when we used to have entries from a previous run and now there are no more history results matching
+		const previousInput = this.quickOpenWidget.getInput();
+		const wasShowingHistory = previousInput && previousInput.entries && previousInput.entries.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
+		if (wasShowingHistory || matchingHistoryEntries.length > 0) {
+			if (resolvedHandler.hasShortResponseTime()) {
+				await timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME);
 			}
 
-			// Get results
-			return resolvedHandler.getResults(value, token).then(result => {
-				if (!token.isCancellationRequested) {
+			if (!token.isCancellationRequested && !inputSet) {
+				this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
+				inputSet = true;
+			}
+		}
 
-					// now is the time to show the input if we did not have set it before
-					if (!inputSet) {
-						this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
-						inputSet = true;
-					}
+		// Get results
+		const result = await resolvedHandler.getResults(value, token);
+		if (!token.isCancellationRequested) {
 
-					// merge history and default handler results
-					const handlerResults = (result && result.entries) || [];
-					this.mergeResults(quickOpenModel, handlerResults, types.withNullAsUndefined(resolvedHandler.getGroupLabel()));
-				}
-			});
-		});
+			// now is the time to show the input if we did not have set it before
+			if (!inputSet) {
+				this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
+				inputSet = true;
+			}
+
+			// merge history and default handler results
+			const handlerResults = (result && result.entries) || [];
+			this.mergeResults(quickOpenModel, handlerResults, types.withNullAsUndefined(resolvedHandler.getGroupLabel()));
+		}
 	}
 
 	private mergeResults(quickOpenModel: QuickOpenModel, handlerResults: QuickOpenEntry[], groupLabel: string | undefined): void {
@@ -516,46 +509,44 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 	}
 
-	private handleSpecificHandler(handlerDescriptor: QuickOpenHandlerDescriptor, value: string, token: CancellationToken): Promise<void> {
-		return this.resolveHandler(handlerDescriptor).then((resolvedHandler: QuickOpenHandler) => {
+	private async handleSpecificHandler(handlerDescriptor: QuickOpenHandlerDescriptor, value: string, token: CancellationToken): Promise<void> {
+		const resolvedHandler = await this.resolveHandler(handlerDescriptor);
 
-			// Remove handler prefix from search value
-			value = value.substr(handlerDescriptor.prefix.length);
+		// Remove handler prefix from search value
+		value = value.substr(handlerDescriptor.prefix.length);
 
-			// Return early if the handler can not run in the current environment and inform the user
-			const canRun = resolvedHandler.canRun();
-			if (types.isUndefinedOrNull(canRun) || (typeof canRun === 'boolean' && !canRun) || typeof canRun === 'string') {
-				const placeHolderLabel = (typeof canRun === 'string') ? canRun : nls.localize('canNotRunPlaceholder', "This quick open handler can not be used in the current context");
+		// Return early if the handler can not run in the current environment and inform the user
+		const canRun = resolvedHandler.canRun();
+		if (types.isUndefinedOrNull(canRun) || (typeof canRun === 'boolean' && !canRun) || typeof canRun === 'string') {
+			const placeHolderLabel = (typeof canRun === 'string') ? canRun : nls.localize('canNotRunPlaceholder', "This quick open handler can not be used in the current context");
 
-				const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(placeHolderLabel)], this.actionProvider);
+			const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(placeHolderLabel)], this.actionProvider);
+			this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), types.withNullAsUndefined(resolvedHandler.getAriaLabel()));
+
+			return;
+		}
+
+		// Support extra class from handler
+		const extraClass = resolvedHandler.getClass();
+		if (extraClass) {
+			this.quickOpenWidget.setExtraClass(extraClass);
+		}
+
+		// When handlers change, clear the result list first before loading the new results
+		if (this.previousActiveHandlerDescriptor !== handlerDescriptor) {
+			this.clearModel();
+		}
+
+		// Receive Results from Handler and apply
+		const result = await resolvedHandler.getResults(value, token);
+		if (!token.isCancellationRequested) {
+			if (!result || !result.entries.length) {
+				const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(resolvedHandler.getEmptyLabel(value))]);
 				this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), types.withNullAsUndefined(resolvedHandler.getAriaLabel()));
-
-				return Promise.resolve(undefined);
+			} else {
+				this.showModel(result, resolvedHandler.getAutoFocus(value, { model: result, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), types.withNullAsUndefined(resolvedHandler.getAriaLabel()));
 			}
-
-			// Support extra class from handler
-			const extraClass = resolvedHandler.getClass();
-			if (extraClass) {
-				this.quickOpenWidget.setExtraClass(extraClass);
-			}
-
-			// When handlers change, clear the result list first before loading the new results
-			if (this.previousActiveHandlerDescriptor !== handlerDescriptor) {
-				this.clearModel();
-			}
-
-			// Receive Results from Handler and apply
-			return resolvedHandler.getResults(value, token).then(result => {
-				if (!token.isCancellationRequested) {
-					if (!result || !result.entries.length) {
-						const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(resolvedHandler.getEmptyLabel(value))]);
-						this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), types.withNullAsUndefined(resolvedHandler.getAriaLabel()));
-					} else {
-						this.showModel(result, resolvedHandler.getAutoFocus(value, { model: result, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), types.withNullAsUndefined(resolvedHandler.getAriaLabel()));
-					}
-				}
-			});
-		});
+		}
 	}
 
 	private showModel(model: IModel<any>, autoFocus?: IAutoFocus, ariaLabel?: string): void {
@@ -588,8 +579,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		return mapEntryToPath;
 	}
 
-	private resolveHandler(handler: QuickOpenHandlerDescriptor): Promise<QuickOpenHandler> {
-		let result = this._resolveHandler(handler);
+	private async resolveHandler(handler: QuickOpenHandlerDescriptor): Promise<QuickOpenHandler> {
+		let result = this.doResolveHandler(handler);
 
 		const id = handler.getId();
 		if (!this.handlerOnOpenCalled[id]) {
@@ -603,14 +594,16 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			});
 		}
 
-		return result.then<QuickOpenHandler>(null, (error) => {
+		try {
+			return await result;
+		} catch (error) {
 			delete this.mapResolvedHandlersToPrefix[id];
 
-			return Promise.reject(new Error(`Unable to instantiate quick open handler ${handler.getId()}: ${JSON.stringify(error)}`));
-		});
+			throw new Error(`Unable to instantiate quick open handler ${handler.getId()}: ${JSON.stringify(error)}`);
+		}
 	}
 
-	private _resolveHandler(handler: QuickOpenHandlerDescriptor): Promise<QuickOpenHandler> {
+	private doResolveHandler(handler: QuickOpenHandlerDescriptor): Promise<QuickOpenHandler> {
 		const id = handler.getId();
 
 		// Return Cached
@@ -710,7 +703,7 @@ class EditorHistoryItemAccessorClass extends QuickOpenItemAccessorClass {
 	}
 
 	getItemDescription(entry: QuickOpenEntry): string | null {
-		return this.allowMatchOnDescription ? entry.getDescription() : null;
+		return this.allowMatchOnDescription ? types.withUndefinedAsNull(entry.getDescription()) : null;
 	}
 }
 
@@ -724,8 +717,8 @@ export class EditorHistoryEntryGroup extends QuickOpenEntryGroup {
 export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	private input: IEditorInput | IResourceInput;
 	private resource: URI | undefined;
-	private label: string | null;
-	private description: string | null;
+	private label: string | undefined;
+	private description?: string;
 	private dirty: boolean;
 
 	constructor(
@@ -744,8 +737,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 		if (input instanceof EditorInput) {
 			this.resource = resourceForEditorHistory(input, fileService);
-			this.label = input.getName();
-			this.description = input.getDescription();
+			this.label = types.withNullAsUndefined(input.getName());
+			this.description = types.withNullAsUndefined(input.getDescription());
 			this.dirty = input.isDirty();
 		} else {
 			const resourceInput = input as IResourceInput;
@@ -764,7 +757,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return this.dirty ? 'dirty' : '';
 	}
 
-	getLabel(): string | null {
+	getLabel(): string | undefined {
 		return this.label;
 	}
 
@@ -778,12 +771,12 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return nls.localize('entryAriaLabel', "{0}, recently opened", this.getLabel());
 	}
 
-	getDescription(): string | null {
+	getDescription(): string | undefined {
 		return this.description;
 	}
 
-	getResource(): URI | null {
-		return types.withUndefinedAsNull(this.resource);
+	getResource(): URI | undefined {
+		return this.resource;
 	}
 
 	getInput(): IEditorInput | IResourceInput {
@@ -837,7 +830,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		interface IHistoryPickEntry extends IQuickPickItem {
 			input: IEditorInput | IResourceInput;
 		}
@@ -848,17 +841,16 @@ export class RemoveFromEditorHistoryAction extends Action {
 
 			return <IHistoryPickEntry>{
 				input: h,
-				iconClasses: getIconClasses(this.modelService, this.modeService, types.withNullAsUndefined(entry.getResource())),
+				iconClasses: getIconClasses(this.modelService, this.modeService, entry.getResource()),
 				label: entry.getLabel(),
 				description: entry.getDescription()
 			};
 		});
 
-		return this.quickInputService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select an editor entry to remove from history"), matchOnDescription: true }).then(pick => {
-			if (pick) {
-				this.historyService.remove(pick.input);
-			}
-		});
+		const pick = await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickHistory', "Select an editor entry to remove from history"), matchOnDescription: true });
+		if (pick) {
+			this.historyService.remove(pick.input);
+		}
 	}
 }
 

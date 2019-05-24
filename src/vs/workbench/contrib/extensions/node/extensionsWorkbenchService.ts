@@ -16,25 +16,25 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionManagementServerService, IExtensionManagementServer
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import product from 'vs/platform/product/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion, IExtension as IPlatformExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -303,53 +303,6 @@ ${this.description}
 	}
 }
 
-class ExtensionDependencies implements IExtensionDependencies {
-
-	private _hasDependencies: boolean | null = null;
-
-	constructor(private _extension: IExtension, private _identifier: string, private _map: Map<string, IExtension>, private _dependent: IExtensionDependencies | null = null) { }
-
-	get hasDependencies(): boolean {
-		if (this._hasDependencies === null) {
-			this._hasDependencies = this.computeHasDependencies();
-		}
-		return this._hasDependencies;
-	}
-
-	get extension(): IExtension {
-		return this._extension;
-	}
-
-	get identifier(): string {
-		return this._identifier;
-	}
-
-	get dependent(): IExtensionDependencies | null {
-		return this._dependent;
-	}
-
-	get dependencies(): IExtensionDependencies[] {
-		if (!this.hasDependencies) {
-			return [];
-		}
-		return this._extension.dependencies.map(id => new ExtensionDependencies(this._map.get(id)!, id, this._map, this));
-	}
-
-	private computeHasDependencies(): boolean {
-		if (this._extension && this._extension.dependencies.length > 0) {
-			let dependent = this._dependent;
-			while (dependent !== null) {
-				if (dependent.identifier === this.identifier) {
-					return false;
-				}
-				dependent = dependent.dependent;
-			}
-			return true;
-		}
-		return false;
-	}
-}
-
 class Extensions extends Disposable {
 
 	private readonly _onChange: Emitter<Extension | undefined> = new Emitter<Extension | undefined>();
@@ -544,7 +497,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private readonly windowService: IWindowService,
 		@ILogService private readonly logService: ILogService,
-		@IProgressService2 private readonly progressService: IProgressService2,
+		@IProgressService private readonly progressService: IProgressService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IFileService private readonly fileService: IFileService
@@ -641,27 +594,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						}
 
 						return Promise.reject<IPager<IExtension>>(err);
-					});
-			});
-	}
-
-	loadDependencies(extension: IExtension, token: CancellationToken): Promise<IExtensionDependencies | null> {
-		if (!extension.dependencies.length) {
-			return Promise.resolve(null);
-		}
-
-		return this.extensionService.getExtensionsReport()
-			.then(report => {
-				const maliciousSet = getMaliciousExtensionsSet(report);
-
-				return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => ({ id })), token)
-					.then(galleryExtensions => {
-						const extensions: IExtension[] = [...this.local, ...galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension, maliciousSet))];
-						const map = new Map<string, IExtension>();
-						for (const extension of extensions) {
-							map.set(extension.identifier.id, extension);
-						}
-						return new ExtensionDependencies(extension, extension.identifier.id, map);
 					});
 			});
 	}

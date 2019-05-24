@@ -16,6 +16,24 @@
 
 declare module 'vscode' {
 
+	//#region Joh - ExecutionContext
+
+	export enum ExtensionExecutionContext {
+		Local = 1,
+		Remote = 2
+	}
+
+	export interface ExtensionContext {
+		/**
+		 * Describes the context in which this extension is executed, e.g.
+		 * a Node.js-context on the same machine or on a remote machine
+		 */
+		executionContext: ExtensionExecutionContext;
+	}
+
+	//#endregion
+
+
 	//#region Joh - call hierarchy
 
 	export enum CallHierarchyDirection {
@@ -939,15 +957,6 @@ declare module 'vscode' {
 		reactionProvider?: CommentReactionProvider;
 	}
 
-	export interface CommentController {
-		/**
-		 * The active [comment thread](#CommentThread) or `undefined`. The `activeCommentThread` is the comment thread of
-		 * the comment widget that currently has focus. It's `undefined` when the focus is not in any comment thread widget, or
-		 * the comment widget created from [comment thread template](#CommentThreadTemplate).
-		 */
-		readonly activeCommentThread: CommentThread | undefined;
-	}
-
 	namespace workspace {
 		/**
 		 * DEPRECATED
@@ -959,6 +968,131 @@ declare module 'vscode' {
 		 * Use vscode.comment.createCommentController instead and we don't differentiate document comments and workspace comments anymore.
 		 */
 		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
+	}
+
+	/**
+	 * A collection of [comments](#Comment) representing a conversation at a particular range in a document.
+	 */
+	export interface CommentThread {
+		/**
+		 * A unique identifier of the comment thread.
+		 */
+		readonly id: string;
+
+		/**
+		 * The uri of the document the thread has been created on.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Optional accept input command
+		 *
+		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
+		 * This command will be invoked when users the user accepts the value in the comment editor.
+		 * This command will disabled when the comment editor is empty.
+		 */
+		acceptInputCommand?: Command;
+	}
+
+	/**
+	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
+	 */
+	export interface Comment {
+		/**
+		 * The id of the comment
+		 */
+		id: string;
+
+		/**
+		 * The command to be executed if the comment is selected in the Comments Panel
+		 */
+		selectCommand?: Command;
+
+		/**
+		 * The command to be executed when users try to save the edits to the comment
+		 */
+		editCommand?: Command;
+	}
+
+	/**
+	 * The comment input box in Comment Widget.
+	 */
+	export interface CommentInputBox {
+		/**
+		 * Setter and getter for the contents of the comment input box
+		 */
+		value: string;
+	}
+
+	/**
+	 * Commenting range provider for a [comment controller](#CommentController).
+	 */
+	export interface CommentingRangeProvider {
+		/**
+		 * Provide a list of ranges which allow new comment threads creation or null for a given document
+		 */
+		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
+	export interface EmptyCommentThreadFactory {
+		/**
+		 * The method `createEmptyCommentThread` is called when users attempt to create new comment thread from the gutter or command palette.
+		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
+		 */
+		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<void>;
+	}
+
+	/**
+	 * A comment controller is able to provide [comments](#CommentThread) support to the editor and
+	 * provide users various ways to interact with comments.
+	 */
+	export interface CommentController {
+
+		/**
+		 * The active [comment input box](#CommentInputBox) or `undefined`. The active `inputBox` is the input box of
+		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any CommentInputBox.
+		 */
+		readonly inputBox?: CommentInputBox;
+
+		/**
+		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
+		 * and Comments Panel once created.
+		 *
+		 * @param id An `id` for the comment thread.
+		 * @param resource The uri of the document the thread has been created on.
+		 * @param range The range the comment thread is located within the document.
+		 * @param comments The ordered comments of the thread.
+		 */
+		createCommentThread(id: string, uri: Uri, range: Range, comments: Comment[]): CommentThread;
+
+		/**
+		 * Optional new comment thread factory.
+		 */
+		emptyCommentThreadFactory?: EmptyCommentThreadFactory;
+
+		/**
+		 * Optional reaction provider
+		 */
+		reactionProvider?: CommentReactionProvider;
+
+		/**
+		 * Dispose this comment controller.
+		 *
+		 * Once disposed, all [comment threads](#CommentThread) created by this comment controller will also be removed from the editor
+		 * and Comments Panel.
+		 */
+		dispose(): void;
+	}
+
+	namespace comment {
+		/**
+		 * Creates a new [comment controller](#CommentController) instance.
+		 *
+		 * @param id An `id` for the comment controller.
+		 * @param label A human-readable string for the comment controller.
+		 * @return An instance of [comment controller](#CommentController).
+		 */
+		export function createCommentController(id: string, label: string): CommentController;
 	}
 
 	//#endregion
@@ -1292,4 +1426,14 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region DocumentLink tooltip mjbvz
+
+	interface DocumentLink {
+		/**
+		 * The tooltip text when you hover over this link.
+		 */
+		tooltip?: string;
+	}
+
+	// #endregion
 }

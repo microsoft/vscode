@@ -9,7 +9,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { SelectActionViewItem, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
@@ -23,7 +23,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 
-export class StartDebugActionItem implements IActionItem {
+export class StartDebugActionViewItem implements IActionViewItem {
 
 	private static readonly SEPARATOR = '─────────';
 
@@ -171,7 +171,7 @@ export class StartDebugActionItem implements IActionItem {
 		if (this.options.length === 0) {
 			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: () => false });
 		} else {
-			this.options.push({ label: StartDebugActionItem.SEPARATOR, handler: undefined });
+			this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
 		}
 
 		const disabledIdx = this.options.length - 1;
@@ -189,7 +189,7 @@ export class StartDebugActionItem implements IActionItem {
 	}
 }
 
-export class FocusSessionActionItem extends SelectActionItem {
+export class FocusSessionActionViewItem extends SelectActionViewItem {
 	constructor(
 		action: IAction,
 		@IDebugService protected readonly debugService: IDebugService,
@@ -199,9 +199,9 @@ export class FocusSessionActionItem extends SelectActionItem {
 	) {
 		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
 
-		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
+		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(() => {
+		this._register(this.debugService.getViewModel().onDidFocusSession(() => {
 			const session = this.debugService.getViewModel().focusedSession;
 			if (session) {
 				const index = this.getSessions().indexOf(session);
@@ -209,8 +209,8 @@ export class FocusSessionActionItem extends SelectActionItem {
 			}
 		}));
 
-		this.toDispose.push(this.debugService.onDidNewSession(() => this.update()));
-		this.toDispose.push(this.debugService.onDidEndSession(() => this.update()));
+		this._register(this.debugService.onDidNewSession(() => this.update()));
+		this._register(this.debugService.onDidEndSession(() => this.update()));
 
 		this.update();
 	}

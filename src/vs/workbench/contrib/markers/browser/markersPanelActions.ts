@@ -19,7 +19,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IMarkersWorkbenchService } from 'vs/workbench/contrib/markers/browser/markers';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { BaseActionItem, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { BaseActionViewItem, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
@@ -115,7 +115,7 @@ export interface IMarkerFilterController {
 	getFilterStats(): { total: number, filtered: number };
 }
 
-export class MarkersFilterActionItem extends BaseActionItem {
+export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private delayedFilterUpdate: Delayer<void>;
 	private container: HTMLElement;
@@ -331,7 +331,7 @@ export class QuickFixAction extends Action {
 	}
 }
 
-export class QuickFixActionItem extends ActionItem {
+export class QuickFixActionViewItem extends ActionViewItem {
 
 	constructor(action: QuickFixAction,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,

@@ -33,7 +33,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { inQuickOpenContext, InQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
-import { ActionBar, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -1442,11 +1442,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private setEnabled(enabled: boolean) {
 		if (enabled !== this.enabled) {
 			this.enabled = enabled;
-			for (const item of this.ui.leftActionBar.items) {
-				(item as ActionItem).getAction().enabled = enabled;
+			for (const item of this.ui.leftActionBar.viewItems) {
+				(item as ActionViewItem).getAction().enabled = enabled;
 			}
-			for (const item of this.ui.rightActionBar.items) {
-				(item as ActionItem).getAction().enabled = enabled;
+			for (const item of this.ui.rightActionBar.viewItems) {
+				(item as ActionViewItem).getAction().enabled = enabled;
 			}
 			this.ui.checkAll.disabled = !enabled;
 			// this.ui.inputBox.enabled = enabled; Avoid loosing focus.

@@ -554,10 +554,12 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		return integrity;
 	}
 
-	private connect(path: string, retryOnBusy: boolean = true): Promise<IDatabaseConnection> {
+	private async connect(path: string, retryOnBusy: boolean = true): Promise<IDatabaseConnection> {
 		this.logger.trace(`[storage ${this.name}] open(${path}, retryOnBusy: ${retryOnBusy})`);
 
-		return this.doConnect(path).then(undefined, error => {
+		try {
+			return await this.doConnect(path);
+		} catch (error) {
 			this.logger.error(`[storage ${this.name}] open(): Unable to open DB due to ${error}`);
 
 			// SQLITE_BUSY should only arise if another process is locking the same DB we want
@@ -569,7 +571,9 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			// In this case we simply wait for some time and retry once to establish the connection.
 			//
 			if (error.code === 'SQLITE_BUSY' && retryOnBusy) {
-				return timeout(SQLiteStorageDatabase.BUSY_OPEN_TIMEOUT).then(() => this.connect(path, false /* not another retry */));
+				await timeout(SQLiteStorageDatabase.BUSY_OPEN_TIMEOUT);
+
+				return this.connect(path, false /* not another retry */);
 			}
 
 			// Otherwise, best we can do is to recover from a backup if that exists, as such we
@@ -579,17 +583,19 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			// The final fallback is to use an in-memory DB which should only happen if the target
 			// folder is really not writeable for us.
 			//
-			return unlink(path)
-				.then(() => renameIgnoreError(this.toBackupPath(path), path))
-				.then(() => this.doConnect(path))
-				.then(undefined, error => {
-					this.logger.error(`[storage ${this.name}] open(): Unable to use backup due to ${error}`);
+			try {
+				await unlink(path);
+				await renameIgnoreError(this.toBackupPath(path), path);
 
-					// In case of any error to open the DB, use an in-memory
-					// DB so that we always have a valid DB to talk to.
-					return this.doConnect(SQLiteStorageDatabase.IN_MEMORY_PATH);
-				});
-		});
+				return await this.doConnect(path);
+			} catch (error) {
+				this.logger.error(`[storage ${this.name}] open(): Unable to use backup due to ${error}`);
+
+				// In case of any error to open the DB, use an in-memory
+				// DB so that we always have a valid DB to talk to.
+				return this.doConnect(SQLiteStorageDatabase.IN_MEMORY_PATH);
+			}
+		}
 	}
 
 	private handleSQLiteError(connection: IDatabaseConnection, error: Error & { code?: string }, msg: string): void {

@@ -89,15 +89,15 @@ export class TelemetryService implements ITelemetryService {
 		return this._userOptIn && this._enabled;
 	}
 
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return this._commonProperties.then(values => {
-			// well known properties
-			let sessionId = values['sessionID'];
-			let instanceId = values['common.instanceId'];
-			let machineId = values['common.machineId'];
+	async getTelemetryInfo(): Promise<ITelemetryInfo> {
+		const values = await this._commonProperties;
 
-			return { sessionId, instanceId, machineId };
-		});
+		// well known properties
+		let sessionId = values['sessionID'];
+		let instanceId = values['common.instanceId'];
+		let machineId = values['common.machineId'];
+
+		return { sessionId, instanceId, machineId };
 	}
 
 	dispose(): void {

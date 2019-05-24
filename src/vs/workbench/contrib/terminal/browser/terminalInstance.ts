@@ -25,14 +25,14 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/browser/terminalCommandTracker';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchOptions, Terminal as XTermTerminal } from 'vscode-xterm';
+import { ISearchOptions, Terminal as XTermTerminal, IBuffer } from 'vscode-xterm';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
@@ -371,7 +371,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
 			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
 			if (this._xterm) {
-				this._xterm.emit('scroll', this._xterm._core.buffer.ydisp);
+				this._xterm._core._onScroll.fire(this._xterm.buffer.viewportY);
 			}
 		}
 
@@ -416,18 +416,17 @@ export class TerminalInstance implements ITerminalInstance {
 			// TODO: Guess whether to use canvas or dom better
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
 			// TODO: Remove this once the setting is removed upstream
-			experimentalCharAtlas: 'dynamic',
-			experimentalBufferLineImpl: 'TypedArray'
+			experimentalCharAtlas: 'dynamic'
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
-		this._xterm.on('linefeed', () => this._onLineFeed());
-		this._xterm.on('key', (key, ev) => this._onKey(key, ev));
+		this._xterm.onLineFeed(() => this._onLineFeed());
+		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 
 		if (this._processManager) {
 			this._processManager.onProcessData(data => this._onProcessData(data));
-			this._xterm.on('data', data => this._processManager!.write(data));
+			this._xterm.onData(data => this._processManager!.write(data));
 			// TODO: How does the cwd work on detached processes?
 			this.processReady.then(async () => {
 				this._linkHandler.processCwd = await this._processManager!.getInitialCwd();
@@ -439,18 +438,24 @@ export class TerminalInstance implements ITerminalInstance {
 					return;
 				}
 				if (this._processManager.os === platform.OperatingSystem.Windows) {
-					this._xterm.winptyCompatInit();
+					this._xterm.setOption('windowsMode', true);
+					// Force line data to be sent when the cursor is moved, the main purpose for
+					// this is because ConPTY will often not do a line feed but instead move the
+					// cursor, in which case we still want to send the current line's data to tasks.
+					this._xterm.addCsiHandler('H', () => {
+						this._onCursorMove();
+						return false;
+					});
 				}
 				this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager);
 			});
 		} else if (this.shellLaunchConfig.isRendererOnly) {
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, undefined, undefined);
 		}
-		this._xterm.on('focus', () => this._onFocus.fire(this));
 
 		// Register listener to trigger the onInput ext API if the terminal is a renderer only
 		if (this._shellLaunchConfig.isRendererOnly) {
-			this._xterm.on('data', (data) => this._sendRendererInput(data));
+			this._xterm.onData(data => this._sendRendererInput(data));
 		}
 
 		this._commandTracker = new TerminalCommandTracker(this._xterm);
@@ -508,6 +513,7 @@ export class TerminalInstance implements ITerminalInstance {
 			(<any>this._wrapperElement).xterm = this._xterm;
 
 			this._xterm.open(this._xtermElement);
+			this._xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 			this._xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 				// Disable all input if the terminal is exiting
 				if (this._isExiting) {
@@ -629,7 +635,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _measureRenderTime(): void {
 		const frameTimes: number[] = [];
-		const textRenderLayer = this._xterm._core.renderer._renderLayers[0];
+		const textRenderLayer = this._xterm._core._renderCoordinator._renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer.onGridChanged;
 
 		const evaluateCanvasRenderer = () => {
@@ -641,11 +647,7 @@ export class TerminalInstance implements ITerminalInstance {
 				const promptChoices: IPromptChoice[] = [
 					{
 						label: nls.localize('yes', "Yes"),
-						run: () => {
-							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
-								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "The terminal is now using the fallback renderer."));
-							});
-						}
+						run: () => this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER)
 					} as IPromptChoice,
 					{
 						label: nls.localize('no', "No"),
@@ -745,8 +747,8 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 		if (this._xterm) {
-			const buffer = (<any>this._xterm._core.buffer);
-			this._sendLineData(buffer, buffer.ybase + buffer.y);
+			const buffer = this._xterm.buffer;
+			this._sendLineData(buffer, buffer.baseY + buffer.cursorY);
 			this._xterm.dispose();
 		}
 
@@ -859,7 +861,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
-			this._xterm.emit('scroll', this._xterm._core.buffer.ydisp);
+			this._xterm._core._onScroll.fire(this._xterm.buffer.viewportY);
 			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will
@@ -970,10 +972,32 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		this._isExiting = true;
-		let exitCodeMessage: string;
+		let exitCodeMessage: string | undefined;
 
+		// Create exit code message
 		if (exitCode) {
-			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
+			if (exitCode === SHELL_PATH_INVALID_EXIT_CODE) {
+				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPath', 'The terminal shell path does not exist: {0}', this._shellLaunchConfig.executable);
+			} else if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
+				let args = '';
+				if (typeof this._shellLaunchConfig.args === 'string') {
+					args = ` ${this._shellLaunchConfig.args}`;
+				} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
+					args = ' ' + this._shellLaunchConfig.args.map(a => {
+						if (typeof a === 'string' && a.indexOf(' ') !== -1) {
+							return `'${a}'`;
+						}
+						return a;
+					}).join(' ');
+				}
+				if (this._shellLaunchConfig.executable) {
+					exitCodeMessage = nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode);
+				} else {
+					exitCodeMessage = nls.localize('terminal.integrated.launchFailedExtHost', 'The terminal process failed to launch (exit code: {0})', exitCode);
+				}
+			} else {
+				exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
+			}
 		}
 
 		this._logService.debug(`Terminal process exit (id: ${this.id})${this._processManager ? ' state ' + this._processManager.processState : ''}`);
@@ -981,8 +1005,8 @@ export class TerminalInstance implements ITerminalInstance {
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
 		if (this._shellLaunchConfig.waitOnExit && (!this._processManager || this._processManager.processState !== ProcessState.KILLED_BY_USER)) {
-			if (exitCode) {
-				this._xterm.writeln(exitCodeMessage!);
+			if (exitCodeMessage) {
+				this._xterm.writeln(exitCodeMessage);
 			}
 			if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
 				let message = this._shellLaunchConfig.waitOnExit;
@@ -997,29 +1021,14 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		} else {
 			this.dispose();
-			if (exitCode) {
+			if (exitCodeMessage) {
 				if (this._processManager && this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
-					let args = '';
-					if (typeof this._shellLaunchConfig.args === 'string') {
-						args = this._shellLaunchConfig.args;
-					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
-						args = ' ' + this._shellLaunchConfig.args.map(a => {
-							if (typeof a === 'string' && a.indexOf(' ') !== -1) {
-								return `'${a}'`;
-							}
-							return a;
-						}).join(' ');
-					}
-					if (this._shellLaunchConfig.executable) {
-						this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
-					} else {
-						this._notificationService.error(nls.localize('terminal.integrated.launchFailedExtHost', 'The terminal process failed to launch (exit code: {0})', exitCode));
-					}
+					this._notificationService.error(exitCodeMessage);
 				} else {
 					if (this._configHelper.config.showExitAlert) {
-						this._notificationService.error(exitCodeMessage!);
+						this._notificationService.error(exitCodeMessage);
 					} else {
-						console.warn(exitCodeMessage!);
+						console.warn(exitCodeMessage);
 					}
 				}
 			}
@@ -1101,17 +1110,22 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _onLineFeed(): void {
-		const buffer = (<any>this._xterm._core.buffer);
-		const newLine = buffer.lines.get(buffer.ybase + buffer.y);
-		if (!newLine.isWrapped) {
-			this._sendLineData(buffer, buffer.ybase + buffer.y - 1);
+		const buffer = this._xterm.buffer;
+		const newLine = buffer.getLine(buffer.baseY + buffer.cursorY);
+		if (newLine && !newLine.isWrapped) {
+			this._sendLineData(buffer, buffer.baseY + buffer.cursorY - 1);
 		}
 	}
 
-	private _sendLineData(buffer: any, lineIndex: number): void {
-		let lineData = buffer.translateBufferLineToString(lineIndex, true);
-		while (lineIndex >= 0 && buffer.lines.get(lineIndex--).isWrapped) {
-			lineData = buffer.translateBufferLineToString(lineIndex, false) + lineData;
+	private _onCursorMove(): void {
+		const buffer = this._xterm.buffer;
+		this._sendLineData(buffer, buffer.baseY + buffer.cursorY);
+	}
+
+	private _sendLineData(buffer: IBuffer, lineIndex: number): void {
+		let lineData = buffer.getLine(lineIndex)!.translateToString(true);
+		while (lineIndex >= 0 && buffer.getLine(lineIndex--)!.isWrapped) {
+			lineData = buffer.getLine(lineIndex)!.translateToString(false) + lineData;
 		}
 		this._onLineData.fire(lineData);
 	}
@@ -1246,7 +1260,7 @@ export class TerminalInstance implements ITerminalInstance {
 				// maximize on Windows/Linux would fire an event saying that the terminal was not
 				// visible.
 				if (this._xterm.getOption('rendererType') === 'canvas') {
-					this._xterm._core.renderer.onIntersectionChange({ intersectionRatio: 1 });
+					this._xterm._core._renderCoordinator._onIntersectionChange({ intersectionRatio: 1 });
 					// HACK: Force a refresh of the screen to ensure links are refresh corrected.
 					// This can probably be removed when the above hack is fixed in Chromium.
 					this._xterm.refresh(0, this._xterm.rows - 1);

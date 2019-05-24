@@ -17,7 +17,7 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class TextResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: ServiceIdentifier<ITextResourcePropertiesService>;
 
 	private remoteEnvironment: IRemoteAgentEnvironment | null = null;
 

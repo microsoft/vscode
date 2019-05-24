@@ -17,7 +17,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, Platform } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { timeout } from 'vs/base/common/async';
@@ -41,7 +41,7 @@ export abstract class TerminalService implements ITerminalService {
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 	public get terminalTabs(): ITerminalTab[] { return this._terminalTabs; }
 
-	private readonly _onActiveTabChanged = new Emitter<void>();
+	protected readonly _onActiveTabChanged = new Emitter<void>();
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
 	protected readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
 	public get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
@@ -104,8 +104,10 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _getWslPath(path: string): Promise<string>;
 	protected abstract _getWindowsBuildNumber(): number;
 
+	public abstract refreshActiveTab(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
+	public abstract getDefaultShell(platform: Platform): string;
 	public abstract selectDefaultWindowsShell(): Promise<string | undefined>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
@@ -426,6 +428,9 @@ export abstract class TerminalService implements ITerminalService {
 			return Promise.resolve(null);
 		}
 		const current = potentialPaths.shift();
+		if (current! === '') {
+			return this._validateShellPaths(label, potentialPaths);
+		}
 		return this._fileService.exists(URI.file(current!)).then(exists => {
 			if (!exists) {
 				return this._validateShellPaths(label, potentialPaths);

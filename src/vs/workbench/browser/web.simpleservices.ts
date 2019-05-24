@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
+import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
+import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -20,7 +20,6 @@ import { IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment
 import { IExtensionGalleryService, IQueryOptions, IGalleryExtension, InstallOperation, StatisticType, ITranslation, IGalleryExtensionVersion, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata, IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation, IExtensionEnablementService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IPager } from 'vs/base/common/paging';
 import { IExtensionManifest, ExtensionType, ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
-import { NullExtensionService, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -58,11 +57,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Color, RGBA } from 'vs/base/common/color';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IRemoteConsoleLog } from 'vs/base/common/console';
 
-export const workspaceResource = URI.from({
+export const workspaceResource = URI.file((<any>self).USER_HOME_DIR || '/').with({
 	scheme: Schemas.vscodeRemote,
-	authority: document.location.host,
-	path: (<any>self).USER_HOME_DIR || '/'
+	authority: document.location.host
 });
 
 //#region Backup File
@@ -86,20 +87,20 @@ export class SimpleBackupFileService implements IBackupFileService {
 		return Promise.resolve(undefined);
 	}
 
-	backupResource(resource: URI, content: ITextSnapshot, versionId?: number): Promise<void> {
+	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
 		this.backups.set(backupResource.toString(), content);
 
 		return Promise.resolve();
 	}
 
-	resolveBackupContent(backupResource: URI): Promise<ITextBufferFactory | undefined> {
+	resolveBackupContent<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
-			return Promise.resolve(createTextBufferFactoryFromSnapshot(snapshot));
+			return Promise.resolve({ value: createTextBufferFactoryFromSnapshot(snapshot) });
 		}
 
-		return Promise.resolve(undefined);
+		return Promise.reject('Unexpected backup resource to resolve');
 	}
 
 	getWorkspaceFileBackups(): Promise<URI[]> {
@@ -234,14 +235,14 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	args = { _: [] };
 	execPath: string;
 	cliPath: string;
-	appRoot: string = '/nodeless/';
+	appRoot: string = '/web/';
 	userHome: string;
 	userDataPath: string;
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string = '/nodeless/settings';
-	appSettingsPath: string = '/nodeless/settings/settings.json';
-	appKeybindingsPath: string = '/nodeless/settings/keybindings.json';
+	appSettingsHome: string = '/web/settings';
+	appSettingsPath: string = '/web/settings/settings.json';
+	appKeybindingsPath: string = '/web/settings/keybindings.json';
 	machineSettingsHome: string;
 	machineSettingsPath: string;
 	settingsSearchBuildId?: number;
@@ -257,14 +258,17 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	extensionsPath: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsPath?: string;
-	debugExtensionHost: IExtensionHostDebugParams;
+	debugExtensionHost: IExtensionHostDebugParams = {
+		port: null,
+		break: false
+	};
 	debugSearch: IDebugParams;
 	logExtensionHostCommunication: boolean;
 	isBuilt: boolean;
 	wait: boolean;
 	status: boolean;
 	log?: string;
-	logsPath: string = '/nodeless/logs';
+	logsPath: string = '/web/logs';
 	verbose: boolean;
 	skipGettingStarted: boolean;
 	skipReleaseNotes: boolean;
@@ -333,11 +337,6 @@ export class SimpleExtensionGalleryService implements IExtensionGalleryService {
 		return Promise.resolve(undefined);
 	}
 
-	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
 	getExtensionsReport(): Promise<IReportedExtension[]> {
 		// @ts-ignore
 		return Promise.resolve(undefined);
@@ -365,10 +364,10 @@ export class SimpleExtensionEnablementService implements IExtensionEnablementSer
 
 	readonly onEnablementChanged = Event.None;
 
-	readonly allUserExtensionsDisabled = true;
+	readonly allUserExtensionsDisabled = false;
 
 	getEnablementState(extension: IExtension): EnablementState {
-		return EnablementState.Disabled;
+		return EnablementState.Enabled;
 	}
 
 	canChangeEnablement(extension: IExtension): boolean {
@@ -380,7 +379,7 @@ export class SimpleExtensionEnablementService implements IExtensionEnablementSer
 	}
 
 	isEnabled(extension: IExtension): boolean {
-		return false;
+		return true;
 	}
 
 }
@@ -481,14 +480,6 @@ export class SimpleExtensionManagementService implements IExtensionManagementSer
 }
 
 registerSingleton(IExtensionManagementService, SimpleExtensionManagementService);
-
-//#endregion
-
-//#region Extensions
-
-export class SimpleExtensionService extends NullExtensionService { }
-
-registerSingleton(IExtensionService, SimpleExtensionService);
 
 //#endregion
 
@@ -664,9 +655,12 @@ export class SimpleProductService implements IProductService {
 
 	_serviceBrand: any;
 
-	version?: string;
+	version: string = '0.0.0';
 	commit?: string;
-
+	nameLong: string = '';
+	urlProtocol: string = '';
+	extensionAllowedProposedApi: string[] = [];
+	uiExtensions?: string[];
 	enableTelemetry: boolean = false;
 }
 
@@ -702,7 +696,8 @@ export class SimpleSearchService implements ISearchService {
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IEditorService private editorService: IEditorService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IFileService private fileService: IFileService
 	) {
 
 	}
@@ -732,8 +727,8 @@ export class SimpleSearchService implements ISearchService {
 		return Disposable.None;
 	}
 
-	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch> {
-		const localResults = new ResourceMap<IFileMatch>();
+	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch | null> {
+		const localResults = new ResourceMap<IFileMatch | null>();
 
 		if (query.type === QueryType.Text) {
 			const models = this.modelService.getModels();
@@ -754,10 +749,8 @@ export class SimpleSearchService implements ISearchService {
 					}
 				}
 
-				// Don't support other resource schemes than files for now
-				// why is that? we should search for resources from other
-				// schemes
-				else if (resource.scheme !== Schemas.file) {
+				// Block walkthrough, webview, etc.
+				else if (!this.fileService.canHandleResource(resource)) {
 					return;
 				}
 
@@ -766,8 +759,7 @@ export class SimpleSearchService implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				// @ts-ignore
-				const matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
+				const matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, query.maxResults);
 				if (matches.length) {
 					const fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
@@ -775,7 +767,6 @@ export class SimpleSearchService implements ISearchService {
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
 					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
 				} else {
-					// @ts-ignore
 					localResults.set(resource, null);
 				}
 			});
@@ -785,13 +776,6 @@ export class SimpleSearchService implements ISearchService {
 	}
 
 	private matches(resource: URI, query: ITextQuery): boolean {
-		// includes
-		if (query.includePattern) {
-			if (resource.scheme !== Schemas.file) {
-				return false; // if we match on file patterns, we have to ignore non file resources
-			}
-		}
-
 		return pathIncludedInQuery(query, resource.fsPath);
 	}
 }
@@ -938,7 +922,7 @@ export class SimpleWindowConfiguration implements IWindowConfiguration {
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
 
-	remoteAuthority?: string;
+	remoteAuthority: string = document.location.host;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
@@ -1083,6 +1067,30 @@ export class SimpleWindowService implements IWindowService {
 }
 
 registerSingleton(IWindowService, SimpleWindowService);
+
+//#endregion
+
+//#region ExtensionHostDebugService
+
+export class SimpleExtensionHostDebugService implements IExtensionHostDebugService {
+	_serviceBrand: any;
+
+	reload(sessionId: string): void { }
+	onReload: Event<IReloadSessionEvent> = Event.None;
+
+	close(sessionId: string): void { }
+	onClose: Event<ICloseSessionEvent> = Event.None;
+
+	attachSession(sessionId: string, port: number, subId?: string): void { }
+	onAttachSession: Event<IAttachSessionEvent> = Event.None;
+
+	logToSession(sessionId: string, log: IRemoteConsoleLog): void { }
+	onLogToSession: Event<ILogToSessionEvent> = Event.None;
+
+	terminateSession(sessionId: string, subId?: string): void { }
+	onTerminateSession: Event<ITerminateSessionEvent> = Event.None;
+}
+registerSingleton(IExtensionHostDebugService, SimpleExtensionHostDebugService);
 
 //#endregion
 

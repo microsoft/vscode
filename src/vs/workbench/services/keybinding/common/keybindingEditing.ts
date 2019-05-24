@@ -210,7 +210,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private resolveModelReference(): Promise<IReference<IResolvedTextEditorModel>> {
 		return this.fileService.exists(this.resource)
 			.then(exists => {
-				const EOL = this.configurationService.getValue('files', { overrideIdentifier: 'json' })['eol'];
+				const EOL = this.configurationService.getValue<{}>('files', { overrideIdentifier: 'json' })['eol'];
 				const result: Promise<any> = exists ? Promise.resolve(null) : this.textFileService.write(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
 				return result.then(() => this.textModelResolverService.createModelReference(this.resource));
 			});

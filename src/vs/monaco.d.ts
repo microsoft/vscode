@@ -5254,6 +5254,7 @@ declare namespace monaco.languages {
 	export interface ILink {
 		range: IRange;
 		url?: Uri | string;
+		tooltip?: string;
 	}
 
 	export interface ILinksList {

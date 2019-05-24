@@ -97,14 +97,14 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		this.container = element;
 
 		// Prevent showing dropdown on anything but left click
-		this.toDispose.push(addDisposableListener(this.container, 'mousedown', (e: MouseEvent) => {
+		this._register(addDisposableListener(this.container, 'mousedown', (e: MouseEvent) => {
 			if (e.button !== 0) {
 				EventHelper.stop(e, true);
 			}
 		}, true));
 
 		// Offer context menu to hide status bar entry
-		this.toDispose.push(addDisposableListener(this.container, 'contextmenu', e => {
+		this._register(addDisposableListener(this.container, 'contextmenu', e => {
 			EventHelper.stop(e, true);
 
 			this.contextMenuService.showContextMenu({

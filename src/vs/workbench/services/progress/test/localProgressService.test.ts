@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IAction, IActionItem } from 'vs/base/common/actions';
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { IEditorControl } from 'vs/workbench/common/editor';
-import { ScopedProgressService, ScopedService } from 'vs/workbench/services/progress/browser/progressService';
+import { ScopedProgressService, ScopedService } from 'vs/workbench/services/progress/browser/localProgressService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
@@ -51,7 +51,7 @@ class TestViewlet implements IViewlet {
 	/**
 	 * Returns the action item for a specific action.
 	 */
-	getActionItem(action: IAction): IActionItem {
+	getActionViewItem(action: IAction): IActionViewItem {
 		return null!;
 	}
 

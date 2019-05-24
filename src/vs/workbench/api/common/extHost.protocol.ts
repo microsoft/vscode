@@ -138,7 +138,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$unregisterCommentController(handle: number): void;
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
 	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange): modes.CommentThread2 | undefined;
-	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, label: string, comments: modes.Comment[], acceptInputCommand: modes.Command | undefined, additionalCommands: modes.Command[], deleteCommand: modes.Command | undefined, collapseState: modes.CommentThreadCollapsibleState): void;
+	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, label: string, contextValue: string | undefined, comments: modes.Comment[], acceptInputCommand: modes.Command | undefined, additionalCommands: modes.Command[], deleteCommand: modes.Command | undefined, collapseState: modes.CommentThreadCollapsibleState): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$setInputValue(handle: number, input: string): void;
 	$registerDocumentCommentProvider(handle: number, features: CommentProviderFeatures): void;
@@ -683,10 +683,8 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$acceptDAExit(handle: number, code: number | undefined, signal: string | undefined): void;
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, handle: number): Promise<void>;
 	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Promise<void>;
-	$registerDebugAdapterTrackerFactory(type: string, handle: number): Promise<any>;
 	$unregisterDebugConfigurationProvider(handle: number): void;
 	$unregisterDebugAdapterDescriptorFactory(handle: number): void;
-	$unregisterDebugAdapterTrackerFactory(handle: number): void;
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, parentSessionID: string | undefined): Promise<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
 	$appendDebugConsole(value: string): void;
@@ -998,6 +996,7 @@ export interface LinkDto {
 	cacheId?: ChainedCacheId;
 	range: IRange;
 	url?: string | UriComponents;
+	tooltip?: string;
 }
 
 export interface CodeLensDto extends ObjectIdentifier {
@@ -1210,9 +1209,11 @@ export interface ExtHostProgressShape {
 export interface ExtHostCommentsShape {
 	$provideDocumentComments(handle: number, document: UriComponents): Promise<modes.CommentInfo | null>;
 	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Promise<modes.CommentThread | null>;
+	$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange): void;
 	$onCommentWidgetInputChange(commentControllerHandle: number, document: UriComponents, range: IRange, input: string | undefined): Promise<number | undefined>;
-	$onActiveCommentThreadChange(commentControllerHandle: number, threadHandle: number | undefined): Promise<number | undefined>;
+	$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number): void;
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined>;
+	$checkStaticContribution(commentControllerHandle: number): Promise<boolean>;
 	$provideReactionGroup(commentControllerHandle: number): Promise<modes.CommentReaction[] | undefined>;
 	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
 	$createNewCommentWidgetCallback(commentControllerHandle: number, uriComponents: UriComponents, range: IRange, token: CancellationToken): Promise<void>;

@@ -12,7 +12,7 @@ import 'vs/editor/editor.all';
 // import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
 
-import 'vs/workbench/browser/nodeless.main';
+import 'vs/workbench/browser/web.main';
 
 //#endregion
 
@@ -94,7 +94,7 @@ import { IBroadcastService, NullBroadcastService } from 'vs/workbench/services/b
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
-import 'vs/workbench/browser/nodeless.simpleservices';
+import 'vs/workbench/browser/web.simpleservices';
 import 'vs/platform/dialogs/browser/dialogService';
 
 
@@ -106,7 +106,7 @@ import 'vs/workbench/services/keybinding/common/keybindingEditing';
 // import 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/decorations/browser/decorationsService';
 // import 'vs/workbench/services/search/node/searchService';
-import 'vs/workbench/services/progress/browser/progressService2';
+import 'vs/workbench/services/progress/browser/progressService';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 // import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
@@ -128,7 +128,7 @@ import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 // import 'vs/workbench/services/extensionManagement/node/extensionEnablementService';
-// import 'vs/workbench/services/extensions/electron-browser/extensionService';
+import 'vs/workbench/services/extensions/browser/extensionService';
 // import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 // import 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
 import 'vs/workbench/services/label/common/labelService';

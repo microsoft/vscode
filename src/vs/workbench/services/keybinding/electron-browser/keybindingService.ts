@@ -396,7 +396,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			const keybinding = item.keybinding;
 			if (!keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
+				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
 				for (const resolvedKeybinding of resolvedKeybindings) {
@@ -415,7 +415,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			const parts = item.parts;
 			if (parts.length === 0) {
 				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
+				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(parts);
 				for (const resolvedKeybinding of resolvedKeybindings) {

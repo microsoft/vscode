@@ -104,7 +104,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 interface ISerializedUntitledEditorInput {
 	resource: string;
 	resourceJSON: object;
-	modeId: string | null;
+	modeId: string | undefined;
 	encoding: string;
 }
 
@@ -131,7 +131,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 		const serialized: ISerializedUntitledEditorInput = {
 			resource: resource.toString(), // Keep for backwards compatibility
 			resourceJSON: resource.toJSON(),
-			modeId: untitledEditorInput.getModeId(),
+			modeId: untitledEditorInput.getMode(),
 			encoding: untitledEditorInput.getEncoding()
 		};
 
@@ -142,10 +142,10 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 		return instantiationService.invokeFunction<UntitledEditorInput>(accessor => {
 			const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
 			const resource = !!deserialized.resourceJSON ? URI.revive(<UriComponents>deserialized.resourceJSON) : URI.parse(deserialized.resource);
-			const language = deserialized.modeId;
+			const mode = deserialized.modeId;
 			const encoding = deserialized.encoding;
 
-			return accessor.get(IEditorService).createInput({ resource, language, encoding, forceUntitled: true }) as UntitledEditorInput;
+			return accessor.get(IEditorService).createInput({ resource, mode, encoding, forceUntitled: true }) as UntitledEditorInput;
 		});
 	}
 }

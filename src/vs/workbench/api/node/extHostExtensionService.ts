@@ -30,10 +30,10 @@ import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
-import { RemoteAuthorityResolverError } from 'vs/workbench/api/common/extHostTypes';
+import { RemoteAuthorityResolverError, ExtensionExecutionContext } from 'vs/workbench/api/common/extHostTypes';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 interface ITestRunner {
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
@@ -83,8 +83,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		extHostConfiguration: ExtHostConfiguration,
 		environment: IEnvironment,
 		extHostLogService: ExtHostLogService,
-		schemeTransformer: ISchemeTransformer | null,
-		outputChannelName: string
+		uriTransformer: IURITransformer | null
 	) {
 		this._hostUtils = hostUtils;
 		this._initData = initData;
@@ -134,8 +133,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			this,
 			this._extHostLogService,
 			this._storage,
-			schemeTransformer,
-			outputChannelName
+			uriTransformer
 		);
 
 		this._resolvers = Object.create(null);
@@ -362,7 +360,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				storagePath: this._storagePath.workspaceValue(extensionDescription),
 				globalStoragePath: this._storagePath.globalValue(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
-				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier)
+				logPath: that._extHostLogService.getLogDirectory(extensionDescription.identifier),
+				executionContext: this._initData.remoteAuthority ? ExtensionExecutionContext.Remote : ExtensionExecutionContext.Local
 			});
 		});
 	}
@@ -610,7 +609,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 		const resolver = this._resolvers[authorityPrefix];
 		if (!resolver) {
-			throw new Error(`No resolver available for ${authorityPrefix}`);
+			throw new Error(`No remote extension installed to resolve ${authorityPrefix}.`);
 		}
 
 		try {

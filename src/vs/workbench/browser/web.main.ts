@@ -8,7 +8,7 @@ import { domContentLoaded, addDisposableListener, EventType } from 'vs/base/brow
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { SimpleLogService, SimpleProductService, SimpleWorkbenchEnvironmentService } from 'vs/workbench/browser/nodeless.simpleservices';
+import { SimpleLogService, SimpleProductService, SimpleWorkbenchEnvironmentService } from 'vs/workbench/browser/web.simpleservices';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
@@ -26,28 +26,27 @@ class CodeRendererMain extends Disposable {
 
 	private workbench: Workbench;
 
-	open(): Promise<void> {
+	async open(): Promise<void> {
 		const services = this.initServices();
 
-		return domContentLoaded().then(() => {
-			mark('willStartWorkbench');
+		await domContentLoaded();
+		mark('willStartWorkbench');
 
-			// Create Workbench
-			this.workbench = new Workbench(
-				document.body,
-				services.serviceCollection,
-				services.logService
-			);
+		// Create Workbench
+		this.workbench = new Workbench(
+			document.body,
+			services.serviceCollection,
+			services.logService
+		);
 
-			// Layout
-			this._register(addDisposableListener(window, EventType.RESIZE, () => this.workbench.layout()));
+		// Layout
+		this._register(addDisposableListener(window, EventType.RESIZE, () => this.workbench.layout()));
 
-			// Workbench Lifecycle
-			this._register(this.workbench.onShutdown(() => this.dispose()));
+		// Workbench Lifecycle
+		this._register(this.workbench.onShutdown(() => this.dispose()));
 
-			// Startup
-			this.workbench.startup();
-		});
+		// Startup
+		this.workbench.startup();
 	}
 
 	private initServices(): { serviceCollection: ServiceCollection, logService: ILogService } {

@@ -1440,6 +1440,8 @@ export class DocumentLink {
 
 	target?: URI;
 
+	tooltip?: string;
+
 	constructor(range: Range, target: URI | undefined) {
 		if (target && !(target instanceof URI)) {
 			throw illegalArgument('target');
@@ -2297,6 +2299,12 @@ export enum CommentThreadCollapsibleState {
 	 */
 	Expanded = 1
 }
+
+export enum CommentMode {
+	Editing = 0,
+	Preview = 1
+}
+
 //#endregion
 
 @es5ClassCompat
@@ -2305,4 +2313,9 @@ export class QuickInputButtons {
 	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };
 
 	private constructor() { }
+}
+
+export enum ExtensionExecutionContext {
+	Local = 1,
+	Remote = 2
 }

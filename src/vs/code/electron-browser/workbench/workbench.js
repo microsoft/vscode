@@ -87,8 +87,8 @@ function showPartsSplash(configuration) {
 	const style = document.createElement('style');
 	style.className = 'initialShellColors';
 	document.head.appendChild(style);
-	document.body.className = `monaco-shell ${baseTheme}`;
-	style.innerHTML = `.monaco-shell { background-color: ${shellBackground}; color: ${shellForeground}; }`;
+	document.body.className = baseTheme;
+	style.innerHTML = `body { background-color: ${shellBackground}; color: ${shellForeground}; }`;
 
 	if (data && data.layoutInfo) {
 		// restore parts if possible (we might not always store layout info)
