@@ -58,7 +58,7 @@ export class EditorControl extends Disposable {
 		return this._activeControl as IVisibleEditor | null;
 	}
 
-	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
+	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
 
 		// Editor control
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
@@ -68,7 +68,8 @@ export class EditorControl extends Disposable {
 		const control = this.doShowEditorControl(descriptor);
 
 		// Set input
-		return this.doSetInput(control, editor, withUndefinedAsNull(options)).then((editorChanged => (({ control, editorChanged }))));
+		const editorChanged = await this.doSetInput(control, editor, withUndefinedAsNull(options));
+		return { control, editorChanged };
 	}
 
 	private doShowEditorControl(descriptor: IEditorDescriptor): BaseEditor {
@@ -150,7 +151,7 @@ export class EditorControl extends Disposable {
 		this._onDidSizeConstraintsChange.fire(undefined);
 	}
 
-	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions | null): Promise<boolean> {
+	private async doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions | null): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same
@@ -167,7 +168,7 @@ export class EditorControl extends Disposable {
 				control.focus();
 			}
 
-			return Promise.resolve(false);
+			return false;
 		}
 
 		// Show progress while setting input after a certain timeout. If the workbench is opening
@@ -176,7 +177,8 @@ export class EditorControl extends Disposable {
 
 		// Call into editor control
 		const editorWillChange = !inputMatches;
-		return control.setInput(editor, options, operation.token).then(() => {
+		try {
+			await control.setInput(editor, options, operation.token);
 
 			// Focus (unless prevented or another operation is running)
 			if (operation.isCurrent()) {
@@ -186,17 +188,10 @@ export class EditorControl extends Disposable {
 				}
 			}
 
-			// Operation done
-			operation.stop();
-
 			return editorWillChange;
-		}, e => {
-
-			// Operation done
+		} finally {
 			operation.stop();
-
-			return Promise.reject(e);
-		});
+		}
 	}
 
 	private doHideActiveEditorControl(): void {

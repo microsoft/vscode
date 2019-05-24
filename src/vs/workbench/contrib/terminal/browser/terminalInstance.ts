@@ -635,7 +635,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _measureRenderTime(): void {
 		const frameTimes: number[] = [];
-		const textRenderLayer = this._xterm._core.renderer._renderLayers[0];
+		const textRenderLayer = this._xterm._core._renderCoordinator._renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer.onGridChanged;
 
 		const evaluateCanvasRenderer = () => {
@@ -647,11 +647,7 @@ export class TerminalInstance implements ITerminalInstance {
 				const promptChoices: IPromptChoice[] = [
 					{
 						label: nls.localize('yes', "Yes"),
-						run: () => {
-							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
-								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "The terminal is now using the fallback renderer."));
-							});
-						}
+						run: () => this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER)
 					} as IPromptChoice,
 					{
 						label: nls.localize('no', "No"),
@@ -1264,7 +1260,7 @@ export class TerminalInstance implements ITerminalInstance {
 				// maximize on Windows/Linux would fire an event saying that the terminal was not
 				// visible.
 				if (this._xterm.getOption('rendererType') === 'canvas') {
-					this._xterm._core.renderer.onIntersectionChange({ intersectionRatio: 1 });
+					this._xterm._core._renderCoordinator._onIntersectionChange({ intersectionRatio: 1 });
 					// HACK: Force a refresh of the screen to ensure links are refresh corrected.
 					// This can probably be removed when the above hack is fixed in Chromium.
 					this._xterm.refresh(0, this._xterm.rows - 1);

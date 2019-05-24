@@ -144,7 +144,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		}
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
 
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [false]));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 
@@ -165,12 +165,12 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 			// update localizations cache
 			(localizationsService as LocalizationsService).update();
 			// cache clean ups
-			disposables.push(combinedDisposable([
+			disposables.push(combinedDisposable(
 				instantiationService2.createInstance(NodeCachedDataCleaner),
 				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
 				instantiationService2.createInstance(StorageDataCleaner),
 				instantiationService2.createInstance(LogsDataCleaner)
-			]));
+			));
 			disposables.push(extensionManagementService as ExtensionManagementService);
 		});
 	});

@@ -122,7 +122,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'breadcrumbs.enabled': {
 			description: localize('enabled', "Enable/disable navigation breadcrumbs."),
 			type: 'boolean',
-			default: false
+			default: true
 		},
 		// 'breadcrumbs.useQuickPick': {
 		// 	description: localize('useQuickPick', "Use quick pick instead of breadcrumb-pickers."),

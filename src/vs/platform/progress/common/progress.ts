@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
@@ -11,7 +11,8 @@ import { IAction } from 'vs/base/common/actions';
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
 export interface IProgressService {
-	_serviceBrand: any;
+
+	_serviceBrand: ServiceIdentifier<IProgressService>;
 
 	/**
 	 * Show progress customized with the provided flags.
@@ -49,6 +50,11 @@ export interface IProgressNotificationOptions extends IProgressOptions {
 	secondaryActions?: IAction[];
 }
 
+export interface IProgressCompositeOptions extends IProgressOptions {
+	location: ProgressLocation.Explorer | ProgressLocation.Extensions | ProgressLocation.Scm | string;
+	delay?: number;
+}
+
 export interface IProgressStep {
 	message?: string;
 	increment?: number;
@@ -58,9 +64,9 @@ export const IProgressService2 = createDecorator<IProgressService2>('progressSer
 
 export interface IProgressService2 {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IProgressService2>;
 
-	withProgress<R = any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
+	withProgress<R = any>(options: IProgressOptions | IProgressNotificationOptions | IProgressCompositeOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
 }
 
 export interface IProgressRunner {

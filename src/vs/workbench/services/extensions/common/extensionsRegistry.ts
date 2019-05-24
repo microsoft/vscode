@@ -341,6 +341,19 @@ export const schema = {
 				pattern: EXTENSION_IDENTIFIER_PATTERN
 			}
 		},
+		extensionKind: {
+			description: nls.localize('extensionKind', "Define the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote."),
+			type: 'string',
+			enum: [
+				'ui',
+				'workspace'
+			],
+			enumDescriptions: [
+				nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
+				nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+			],
+			default: 'workspace'
+		},
 		scripts: {
 			type: 'object',
 			properties: {

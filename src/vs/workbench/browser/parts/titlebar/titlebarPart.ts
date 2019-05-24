@@ -391,14 +391,13 @@ export class TitlebarPart extends Part implements ITitleService {
 			const restoreIconContainer = append(this.windowControls, $('div.window-icon-bg'));
 			this.maxRestoreControl = append(restoreIconContainer, $('div.window-icon'));
 			addClass(this.maxRestoreControl, 'window-max-restore');
-			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, e => {
-				this.windowService.isMaximized().then((maximized) => {
-					if (maximized) {
-						return this.windowService.unmaximizeWindow();
-					}
+			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
+				const maximized = await this.windowService.isMaximized();
+				if (maximized) {
+					return this.windowService.unmaximizeWindow();
+				}
 
-					return this.windowService.maximizeWindow();
-				});
+				return this.windowService.maximizeWindow();
 			}));
 
 			// Close

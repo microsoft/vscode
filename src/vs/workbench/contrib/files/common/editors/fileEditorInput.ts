@@ -273,16 +273,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.doResolveAsText();
 	}
 
-	private doResolveAsText(): Promise<TextFileEditorModel | BinaryEditorModel> {
+	private async doResolveAsText(): Promise<TextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as text
-		return this.textFileService.models.loadOrCreate(this.resource, {
-			mode: this.preferredMode,
-			encoding: this.preferredEncoding,
-			reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
-			allowBinary: this.forceOpenAsText,
-			reason: LoadReason.EDITOR
-		}).then(model => {
+		try {
+			await this.textFileService.models.loadOrCreate(this.resource, {
+				mode: this.preferredMode,
+				encoding: this.preferredEncoding,
+				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
+				allowBinary: this.forceOpenAsText,
+				reason: LoadReason.EDITOR
+			});
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
 			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
@@ -292,8 +293,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 				this.textModelReference = this.textModelResolverService.createModelReference(this.resource);
 			}
 
-			return this.textModelReference.then(ref => ref.object as TextFileEditorModel);
-		}, error => {
+			const ref = await this.textModelReference;
+
+			return ref.object as TextFileEditorModel;
+		} catch (error) {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
 			if (
@@ -304,12 +307,12 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			}
 
 			// Bubble any other error up
-			return Promise.reject(error);
-		});
+			throw error;
+		}
 	}
 
-	private doResolveAsBinary(): Promise<BinaryEditorModel> {
-		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
+	private async doResolveAsBinary(): Promise<BinaryEditorModel> {
+		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
 	}
 
 	isResolved(): boolean {

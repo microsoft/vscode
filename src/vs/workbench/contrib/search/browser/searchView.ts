@@ -342,6 +342,9 @@ export class SearchView extends ViewletPanel {
 		return this.inputPatternExcludes;
 	}
 
+	/**
+	 * Warning: a bit expensive due to updating the view title
+	 */
 	protected updateActions(): void {
 		for (const action of this.actions) {
 			action.update();
@@ -1386,6 +1389,8 @@ export class SearchView extends ViewletPanel {
 
 		let visibleMatches = 0;
 
+		let updatedActionsForFileCount = false;
+
 		// Handle UI updates in an interval to show frequent progress and results
 		const uiRefreshHandle: any = setInterval(() => {
 			if (!this.searching) {
@@ -1399,7 +1404,9 @@ export class SearchView extends ViewletPanel {
 				visibleMatches = fileCount;
 				this.refreshAndUpdateCount();
 			}
-			if (fileCount > 0) {
+
+			if (fileCount > 0 && !updatedActionsForFileCount) {
+				updatedActionsForFileCount = true;
 				this.updateActions();
 			}
 		}, 100);

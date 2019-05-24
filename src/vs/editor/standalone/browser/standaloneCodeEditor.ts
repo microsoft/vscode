@@ -5,7 +5,7 @@
 
 import * as browser from 'vs/base/browser/browser';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -227,7 +227,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		};
 
 
-		let toDispose: IDisposable[] = [];
+		const toDispose = new DisposableStore();
 
 		// Generate a unique id to allow the same descriptor.id across multiple editor instances
 		const uniqueId = this.getId() + ':' + id;
@@ -251,11 +251,9 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		// Register the keybindings
 		if (Array.isArray(keybindings)) {
-			toDispose = toDispose.concat(
-				keybindings.map((kb) => {
-					return this._standaloneKeybindingService.addDynamicKeybinding(uniqueId, kb, run, keybindingsWhen);
-				})
-			);
+			for (const kb of keybindings) {
+				toDispose.push(this._standaloneKeybindingService.addDynamicKeybinding(uniqueId, kb, run, keybindingsWhen));
+			}
 		}
 
 		// Finally, register an internal editor action
@@ -274,7 +272,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			delete this._actions[id];
 		}));
 
-		return combinedDisposable(toDispose);
+		return toDispose;
 	}
 }
 

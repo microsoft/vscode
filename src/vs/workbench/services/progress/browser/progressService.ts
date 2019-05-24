@@ -9,9 +9,10 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 namespace ProgressState {
+
 	export const enum Type {
 		None,
 		Done,
@@ -25,19 +26,21 @@ namespace ProgressState {
 	export const Infinite = new class { readonly type = Type.Infinite; };
 
 	export class While {
-		public readonly type = Type.While;
+		readonly type = Type.While;
+
 		constructor(
-			public readonly whilePromise: Promise<any>,
-			public readonly whileStart: number,
-			public readonly whileDelay: number,
+			readonly whilePromise: Promise<any>,
+			readonly whileStart: number,
+			readonly whileDelay: number,
 		) { }
 	}
 
 	export class Work {
-		public readonly type = Type.Work;
+		readonly type = Type.Work;
+
 		constructor(
-			public readonly total: number | undefined,
-			public readonly worked: number | undefined
+			readonly total: number | undefined,
+			readonly worked: number | undefined
 		) { }
 	}
 
@@ -51,7 +54,11 @@ namespace ProgressState {
 
 export abstract class ScopedService extends Disposable {
 
-	constructor(private viewletService: IViewletService, private panelService: IPanelService, private scopeId: string) {
+	constructor(
+		private viewletService: IViewletService,
+		private panelService: IPanelService,
+		private scopeId: string
+	) {
 		super();
 
 		this.registerListeners();
@@ -83,7 +90,9 @@ export abstract class ScopedService extends Disposable {
 }
 
 export class ScopedProgressService extends ScopedService implements IProgressService {
-	_serviceBrand: any;
+
+	_serviceBrand: ServiceIdentifier<IProgressService>;
+
 	private isActive: boolean;
 	private progressbar: ProgressBar;
 	private progressState: ProgressState.State = ProgressState.None;
@@ -146,6 +155,7 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 	show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
+
 		// Sort out Arguments
 		if (typeof infiniteOrTotal === 'boolean') {
 			this.progressState = ProgressState.Infinite;
@@ -208,7 +218,8 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		};
 	}
 
-	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+
 		// Join with existing running promise to ensure progress is accurate
 		if (this.progressState.type === ProgressState.Type.While) {
 			promise = Promise.all([promise, this.progressState.whilePromise]);
@@ -217,24 +228,25 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 		// Keep Promise in State
 		this.progressState = new ProgressState.While(promise, delay || 0, Date.now());
 
-		let stop = () => {
+		try {
+			this.doShowWhile(delay);
 
-			// If this is not the last promise in the list of joined promises, return early
-			if (this.progressState.type === ProgressState.Type.While && this.progressState.whilePromise !== promise) {
-				return;
+			await promise;
+		} catch (error) {
+			// ignore
+		} finally {
+
+			// If this is not the last promise in the list of joined promises, skip this
+			if (this.progressState.type !== ProgressState.Type.While || this.progressState.whilePromise === promise) {
+
+				// The while promise is either null or equal the promise we last hooked on
+				this.progressState = ProgressState.None;
+
+				if (this.isActive) {
+					this.progressbar.stop().hide();
+				}
 			}
-
-			// The while promise is either null or equal the promise we last hooked on
-			this.progressState = ProgressState.None;
-
-			if (this.isActive) {
-				this.progressbar.stop().hide();
-			}
-		};
-
-		this.doShowWhile(delay);
-
-		return promise.then(stop, stop);
+		}
 	}
 
 	private doShowWhile(delay?: number): void {
@@ -248,7 +260,7 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 
 export class ProgressService implements IProgressService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IProgressService>;
 
 	constructor(private progressbar: ProgressBar) { }
 
@@ -280,13 +292,15 @@ export class ProgressService implements IProgressService {
 		};
 	}
 
-	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
-		const stop = () => {
+	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+		try {
+			this.progressbar.infinite().show(delay);
+
+			await promise;
+		} catch (error) {
+			// ignore
+		} finally {
 			this.progressbar.stop().hide();
-		};
-
-		this.progressbar.infinite().show(delay);
-
-		return promise.then(stop, stop);
+		}
 	}
 }

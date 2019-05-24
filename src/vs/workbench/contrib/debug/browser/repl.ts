@@ -142,6 +142,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.updateTitleArea();
 		}));
 		this._register(this.themeService.onThemeChange(() => {
+			this.refreshReplElements(false);
 			if (this.isVisible()) {
 				this.updateInputDecoration();
 			}
@@ -282,7 +283,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
 		const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
 			node.children.forEach(child => {
-				text += child.element.toString() + lineDelimiter;
+				text += child.element.toString().trimRight() + lineDelimiter;
 				if (!child.collapsed && child.children.length) {
 					traverseAndAppend(child);
 				}
@@ -381,7 +382,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				supportDynamicHeights: true
 			}) as WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
 
-		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
 		this.styleElement = dom.createStyleSheet(this.container);
@@ -585,7 +586,7 @@ class ReplExpressionsRenderer implements ITreeRenderer<Expression, FuzzyScore, I
 		const expression = element.element;
 		templateData.label.set(expression.name, createMatches(element.filterData));
 		renderExpressionValue(expression, templateData.value, {
-			preserveWhitespace: !expression.hasChildren,
+			preserveWhitespace: true,
 			showHover: false,
 			colorize: true
 		});
@@ -606,7 +607,8 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, Fuz
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService
 	) { }
 
 	get templateId(): string {
@@ -649,7 +651,7 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, Fuz
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
-		const result = handleANSIOutput(element.value, this.linkDetector);
+		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService);
 		templateData.value.appendChild(result);
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
