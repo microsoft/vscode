@@ -9,9 +9,10 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 namespace ProgressState {
+
 	export const enum Type {
 		None,
 		Done,
@@ -25,19 +26,21 @@ namespace ProgressState {
 	export const Infinite = new class { readonly type = Type.Infinite; };
 
 	export class While {
-		public readonly type = Type.While;
+		readonly type = Type.While;
+
 		constructor(
-			public readonly whilePromise: Promise<any>,
-			public readonly whileStart: number,
-			public readonly whileDelay: number,
+			readonly whilePromise: Promise<any>,
+			readonly whileStart: number,
+			readonly whileDelay: number,
 		) { }
 	}
 
 	export class Work {
-		public readonly type = Type.Work;
+		readonly type = Type.Work;
+
 		constructor(
-			public readonly total: number | undefined,
-			public readonly worked: number | undefined
+			readonly total: number | undefined,
+			readonly worked: number | undefined
 		) { }
 	}
 
@@ -51,7 +54,11 @@ namespace ProgressState {
 
 export abstract class ScopedService extends Disposable {
 
-	constructor(private viewletService: IViewletService, private panelService: IPanelService, private scopeId: string) {
+	constructor(
+		private viewletService: IViewletService,
+		private panelService: IPanelService,
+		private scopeId: string
+	) {
 		super();
 
 		this.registerListeners();
@@ -83,7 +90,9 @@ export abstract class ScopedService extends Disposable {
 }
 
 export class ScopedProgressService extends ScopedService implements IProgressService {
-	_serviceBrand: any;
+
+	_serviceBrand: ServiceIdentifier<IProgressService>;
+
 	private isActive: boolean;
 	private progressbar: ProgressBar;
 	private progressState: ProgressState.State = ProgressState.None;
@@ -146,6 +155,7 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 	show(infinite: true, delay?: number): IProgressRunner;
 	show(total: number, delay?: number): IProgressRunner;
 	show(infiniteOrTotal: true | number, delay?: number): IProgressRunner {
+
 		// Sort out Arguments
 		if (typeof infiniteOrTotal === 'boolean') {
 			this.progressState = ProgressState.Infinite;
@@ -250,7 +260,7 @@ export class ScopedProgressService extends ScopedService implements IProgressSer
 
 export class ProgressService implements IProgressService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IProgressService>;
 
 	constructor(private progressbar: ProgressBar) { }
 
