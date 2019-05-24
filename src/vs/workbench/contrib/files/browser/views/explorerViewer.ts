@@ -233,12 +233,8 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			}
 		});
 
-		let ignoreDisposeAndBlur = true;
-		setTimeout(() => ignoreDisposeAndBlur = false, 100);
 		const blurDisposable = DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-			if (!ignoreDisposeAndBlur) {
-				done(inputBox.isInputValid(), true);
-			}
+			done(inputBox.isInputValid(), true);
 		});
 
 		const toDispose = [
