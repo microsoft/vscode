@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore, FuzzyScorer, FuzzyScore } from 'vs/base/common/filters';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScorer, FuzzyScore, anyScore } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
 import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionItem } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { CharCode } from 'vs/base/common/charCode';
+import { compareIgnoreCase } from 'vs/base/common/strings';
 
 type StrictCompletionItem = Required<CompletionItem>;
 
@@ -215,8 +216,15 @@ export class CompletionModel {
 					if (!match) {
 						continue; // NO match
 					}
-					item.score = anyScore(word, wordLow, 0, item.completion.label, item.labelLow, 0);
-					item.score[0] = match[0]; // use score from filterText
+					if (compareIgnoreCase(item.completion.filterText, item.completion.label) === 0) {
+						// filterText and label are actually the same -> use good highlights
+						item.score = match;
+					} else {
+						// re-run the scorer on the label in the hope of a result BUT use the rank
+						// of the filterText-match
+						item.score = anyScore(word, wordLow, wordPos, item.completion.label, item.labelLow, 0);
+						item.score[0] = match[0]; // use score from filterText
+					}
 
 				} else {
 					// by default match `word` against the `label`

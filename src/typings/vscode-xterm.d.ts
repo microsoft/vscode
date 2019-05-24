@@ -1025,9 +1025,11 @@ declare module 'vscode-xterm' {
 
 		charMeasure?: { height: number, width: number };
 
-		renderer: {
-			_renderLayers: any[];
-			onIntersectionChange: any;
+		_renderCoordinator: {
+			_renderer: {
+				_renderLayers: any[];
+			};
+			_onIntersectionChange: any;
 		};
 	}
 

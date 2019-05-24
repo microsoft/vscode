@@ -1272,6 +1272,12 @@
           "default": false,
           "description": "%config.fetchOnPull%"
         },
+        "git.pullTags": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.pullTags%"
+        },
         "git.autoStash": {
           "type": "boolean",
           "scope": "resource",

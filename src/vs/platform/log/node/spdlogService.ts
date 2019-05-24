@@ -6,14 +6,15 @@
 import * as path from 'vs/base/common/path';
 import { ILogService, LogLevel, NullLogService, AbstractLogService } from 'vs/platform/log/common/log';
 import * as spdlog from 'spdlog';
+import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 
-export function createSpdLogService(processName: string, logLevel: LogLevel, logsFolder: string): ILogService {
+export async function createSpdLogService(processName: string, logLevel: LogLevel, logsFolder: string): Promise<ILogService> {
 	// Do not crash if spdlog cannot be loaded
 	try {
 		const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
 		_spdlog.setAsyncMode(8192, 500);
 		const logfilePath = path.join(logsFolder, `${processName}.log`);
-		const logger = new _spdlog.RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
+		const logger = await _spdlog.createRotatingLoggerAsync(processName, logfilePath, 1024 * 1024 * 5, 6);
 		logger.setLevel(0);
 
 		return new SpdLogService(logger, logLevel);
@@ -26,6 +27,12 @@ export function createSpdLogService(processName: string, logLevel: LogLevel, log
 export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): spdlog.RotatingLogger {
 	const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
 	return _spdlog.createRotatingLogger(name, filename, filesize, filecount);
+}
+
+export function createBufferSpdLogService(processName: string, logLevel: LogLevel, logsFolder: string): ILogService {
+	const bufferLogService = new BufferLogService();
+	createSpdLogService(processName, logLevel, logsFolder).then(logger => bufferLogService.logger = logger);
+	return bufferLogService;
 }
 
 class SpdLogService extends AbstractLogService implements ILogService {

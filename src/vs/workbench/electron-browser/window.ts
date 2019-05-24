@@ -117,7 +117,7 @@ export class ElectronWindow extends Disposable {
 		});
 
 		// Support runAction event
-		ipc.on('vscode:runAction', (event: Event, request: IRunActionInWindowRequest) => {
+		ipc.on('vscode:runAction', async (event: Event, request: IRunActionInWindowRequest) => {
 			const args: unknown[] = request.args || [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
@@ -134,7 +134,9 @@ export class ElectronWindow extends Disposable {
 				args.push({ from: request.from }); // TODO@telemetry this is a bit weird to send this to every action?
 			}
 
-			this.commandService.executeCommand(request.id, ...args).then(_ => {
+			try {
+				await this.commandService.executeCommand(request.id, ...args);
+
 				/* __GDPR__
 					"commandExecuted" : {
 						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -142,9 +144,9 @@ export class ElectronWindow extends Disposable {
 					}
 				*/
 				this.telemetryService.publicLog('commandExecuted', { id: request.id, from: request.from });
-			}, err => {
-				this.notificationService.error(err);
-			});
+			} catch (error) {
+				this.notificationService.error(error);
+			}
 		});
 
 		// Support runKeybinding event
@@ -173,34 +175,30 @@ export class ElectronWindow extends Disposable {
 		});
 
 		// Fullscreen Events
-		ipc.on('vscode:enterFullScreen', () => {
-			this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-				browser.setFullscreen(true);
-			});
+		ipc.on('vscode:enterFullScreen', async () => {
+			await this.lifecycleService.when(LifecyclePhase.Ready);
+			browser.setFullscreen(true);
 		});
 
-		ipc.on('vscode:leaveFullScreen', () => {
-			this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-				browser.setFullscreen(false);
-			});
+		ipc.on('vscode:leaveFullScreen', async () => {
+			await this.lifecycleService.when(LifecyclePhase.Ready);
+			browser.setFullscreen(false);
 		});
 
 		// High Contrast Events
-		ipc.on('vscode:enterHighContrast', () => {
+		ipc.on('vscode:enterHighContrast', async () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-					this.themeService.setColorTheme(VS_HC_THEME, undefined);
-				});
+				await this.lifecycleService.when(LifecyclePhase.Ready);
+				this.themeService.setColorTheme(VS_HC_THEME, undefined);
 			}
 		});
 
-		ipc.on('vscode:leaveHighContrast', () => {
+		ipc.on('vscode:leaveHighContrast', async () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-					this.themeService.restoreColorTheme();
-				});
+				await this.lifecycleService.when(LifecyclePhase.Ready);
+				this.themeService.restoreColorTheme();
 			}
 		});
 
@@ -310,32 +308,28 @@ export class ElectronWindow extends Disposable {
 		};
 
 		// Emit event when vscode is ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
-			ipc.send('vscode:workbenchReady', this.windowService.windowId);
-		});
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipc.send('vscode:workbenchReady', this.windowService.windowId));
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
 
 		// Root warning
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			let isAdminPromise: Promise<boolean>;
+		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
+			let isAdmin: boolean;
 			if (isWindows) {
-				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated());
+				const isElevated = await import('native-is-elevated');
+				isAdmin = isElevated();
 			} else {
-				isAdminPromise = Promise.resolve(isRootUser());
+				isAdmin = isRootUser();
 			}
 
-			return isAdminPromise.then(isAdmin => {
+			// Update title
+			this.titleService.updateProperties({ isAdmin });
 
-				// Update title
-				this.titleService.updateProperties({ isAdmin });
-
-				// Show warning message (unix only)
-				if (isAdmin && !isWindows) {
-					this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
-				}
-			});
+			// Show warning message (unix only)
+			if (isAdmin && !isWindows) {
+				this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
+			}
 		});
 
 		// Touchbar menu (if enabled)
@@ -408,7 +402,7 @@ export class ElectronWindow extends Disposable {
 		}
 	}
 
-	private setupCrashReporter(): void {
+	private async setupCrashReporter(): Promise<void> {
 
 		// base options with product info
 		const options = {
@@ -422,18 +416,14 @@ export class ElectronWindow extends Disposable {
 		};
 
 		// mixin telemetry info
-		this.telemetryService.getTelemetryInfo()
-			.then(info => {
-				assign(options.extra, {
-					vscode_sessionId: info.sessionId
-				});
+		const info = await this.telemetryService.getTelemetryInfo();
+		assign(options.extra, { vscode_sessionId: info.sessionId });
 
-				// start crash reporter right here
-				crashReporter.start(deepClone(options));
+		// start crash reporter right here
+		crashReporter.start(deepClone(options));
 
-				// start crash reporter in the main process
-				return this.windowsService.startCrashReporter(options);
-			});
+		// start crash reporter in the main process
+		return this.windowsService.startCrashReporter(options);
 	}
 
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {
@@ -525,22 +515,21 @@ export class ElectronWindow extends Disposable {
 		});
 	}
 
-	private openResources(resources: Array<IResourceInput | IUntitledResourceInput>, diffMode: boolean): void {
-		this.lifecycleService.when(LifecyclePhase.Ready).then((): Promise<unknown> => {
+	private async openResources(resources: Array<IResourceInput | IUntitledResourceInput>, diffMode: boolean): Promise<unknown> {
+		await this.lifecycleService.when(LifecyclePhase.Ready);
 
-			// In diffMode we open 2 resources as diff
-			if (diffMode && resources.length === 2) {
-				return this.editorService.openEditor({ leftResource: resources[0].resource!, rightResource: resources[1].resource!, options: { pinned: true } });
-			}
+		// In diffMode we open 2 resources as diff
+		if (diffMode && resources.length === 2) {
+			return this.editorService.openEditor({ leftResource: resources[0].resource!, rightResource: resources[1].resource!, options: { pinned: true } });
+		}
 
-			// For one file, just put it into the current active editor
-			if (resources.length === 1) {
-				return this.editorService.openEditor(resources[0]);
-			}
+		// For one file, just put it into the current active editor
+		if (resources.length === 1) {
+			return this.editorService.openEditor(resources[0]);
+		}
 
-			// Otherwise open all
-			return this.editorService.openEditors(resources);
-		});
+		// Otherwise open all
+		return this.editorService.openEditors(resources);
 	}
 
 	dispose(): void {

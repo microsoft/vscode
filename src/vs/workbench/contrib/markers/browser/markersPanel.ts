@@ -348,7 +348,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			}
 		}));
 
-		this.tree.onContextMenu(this.onContextMenu, this, this._toDispose);
+		this._register(this.tree.onContextMenu(this.onContextMenu, this));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.filterAction.useFilesExclude && e.affectsConfiguration('files.exclude')) {

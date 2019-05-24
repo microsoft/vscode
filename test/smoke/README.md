@@ -26,8 +26,8 @@ git checkout release/1.22
 yarn
 ```
 
-In addition to the new build to be released you will need the previous stable build so that the smoketest can test the data migration. 
-The recommended way to make these builds available for the smoketest is by downloading their archive version (\*.zip) and extracting 
+In addition to the new build to be released you will need the previous stable build so that the smoketest can test the data migration.
+The recommended way to make these builds available for the smoketest is by downloading their archive version (\*.zip) and extracting
 them into two folders. Pass the folder paths to the smoketest as follows:
 
 ```bash

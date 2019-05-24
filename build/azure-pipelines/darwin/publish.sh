@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 # remove pkg from archive
 zip -d ../VSCode-darwin.zip "*.pkg"
@@ -14,6 +15,19 @@ node build/azure-pipelines/common/publish.js \
 	$VERSION \
 	true \
 	../VSCode-darwin.zip
+
+# package Remote Extension Host
+pushd .. && mv vscode-reh-darwin vscode-server-darwin && zip -Xry vscode-server-darwin.zip vscode-server-darwin && popd
+
+# publish Remote Extension Host
+node build/azure-pipelines/common/publish.js \
+	"$VSCODE_QUALITY" \
+	server-darwin \
+	archive-unsigned \
+	"vscode-server-darwin.zip" \
+	$VERSION \
+	true \
+	../vscode-server-darwin.zip
 
 # publish hockeyapp symbols
 node build/azure-pipelines/common/symbols.js "$VSCODE_MIXIN_PASSWORD" "$VSCODE_HOCKEYAPP_TOKEN" "$VSCODE_ARCH" "$VSCODE_HOCKEYAPP_ID_MACOS"

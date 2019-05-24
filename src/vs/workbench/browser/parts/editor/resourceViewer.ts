@@ -15,13 +15,13 @@ import { clamp } from 'vs/base/common/numbers';
 import { Themable } from 'vs/workbench/common/theme';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export interface IResourceDescriptor {
 	readonly resource: URI;
@@ -78,7 +78,7 @@ export class ResourceViewer {
 
 	static show(
 		descriptor: IResourceDescriptor,
-		textFileService: ITextFileService,
+		fileService: IFileService,
 		container: HTMLElement,
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate
@@ -89,7 +89,7 @@ export class ResourceViewer {
 
 		// Images
 		if (ResourceViewer.isImageResource(descriptor)) {
-			return ImageView.create(container, descriptor, textFileService, scrollbar, delegate);
+			return ImageView.create(container, descriptor, fileService, scrollbar, delegate);
 		}
 
 		// Large Files
@@ -118,12 +118,12 @@ class ImageView {
 	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
-		textFileService: ITextFileService,
+		fileService: IFileService,
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate
 	): ResourceViewerContext {
 		if (ImageView.shouldShowImageInline(descriptor)) {
-			return InlineImageView.create(container, descriptor, textFileService, scrollbar, delegate);
+			return InlineImageView.create(container, descriptor, fileService, scrollbar, delegate);
 		}
 
 		return LargeImageView.create(container, descriptor, delegate);
@@ -160,7 +160,7 @@ class LargeImageView {
 
 		DOM.clearNode(container);
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const label = document.createElement('p');
 		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", size);
@@ -175,7 +175,7 @@ class LargeImageView {
 			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openExternal(descriptor.resource)));
 		}
 
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 }
 
@@ -212,7 +212,7 @@ class FileSeemsBinaryFileView {
 
 		DOM.clearNode(container);
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const label = document.createElement('p');
 		label.textContent = nls.localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
@@ -228,7 +228,7 @@ class FileSeemsBinaryFileView {
 
 		scrollbar.scanDomNode();
 
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 }
 
@@ -359,15 +359,15 @@ class InlineImageView {
 	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
-		textFileService: ITextFileService,
+		fileService: IFileService,
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate
 	) {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const context: ResourceViewerContext = {
 			layout(dimension: DOM.Dimension) { },
-			dispose: () => combinedDisposable(disposables).dispose()
+			dispose: () => disposables.dispose()
 		};
 
 		const cacheKey = `${descriptor.resource.toString()}:${descriptor.etag}`;
@@ -557,26 +557,29 @@ class InlineImageView {
 			}
 		}));
 
-		InlineImageView.imageSrc(descriptor, textFileService).then(dataUri => {
-			const imgs = container.getElementsByTagName('img');
-			if (imgs.length) {
-				imgs[0].src = dataUri;
+		InlineImageView.imageSrc(descriptor, fileService).then(src => {
+			const img = container.querySelector('img');
+			if (img) {
+				if (typeof src === 'string') {
+					img.src = src;
+				} else {
+					const url = URL.createObjectURL(src);
+					disposables.push(toDisposable(() => URL.revokeObjectURL(url)));
+					img.src = url;
+				}
 			}
 		});
 
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor, textFileService: ITextFileService): Promise<string> {
+	private static async imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Promise<string | Blob> {
 		if (descriptor.resource.scheme === Schemas.data) {
-			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
+			return descriptor.resource.toString(true /* skip encoding */);
 		}
 
-		return textFileService.read(descriptor.resource, { encoding: 'base64' }).then(data => {
-			const mime = getMime(descriptor);
-
-			return `data:${mime};base64,${data.value}`;
-		});
+		const { value } = await fileService.readFile(descriptor.resource);
+		return new Blob([value.buffer], { type: getMime(descriptor) });
 	}
 }
 

@@ -198,6 +198,16 @@
 	background-image: url(./reaction-hc.svg);
 }
 
+.monaco-editor .review-widget .body .review-comment .comment-title .action-label {
+	display: block;
+	height: 18px;
+	line-height: 18px;
+	min-width: 28px;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
 .monaco-editor .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
 	background-image: url(./reaction.svg);
 	width: 18px;

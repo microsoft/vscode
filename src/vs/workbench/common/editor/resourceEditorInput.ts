@@ -76,31 +76,31 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 		this.preferredMode = mode;
 	}
 
-	resolve(): Promise<ITextEditorModel> {
+	async resolve(): Promise<ITextEditorModel> {
 		if (!this.modelReference) {
 			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
 		}
 
-		return this.modelReference.then(ref => {
-			const model = ref.object;
+		const ref = await this.modelReference;
 
-			// Ensure the resolved model is of expected type
-			if (!(model instanceof ResourceEditorModel)) {
-				ref.dispose();
-				this.modelReference = null;
+		const model = ref.object;
 
-				return Promise.reject(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
-			}
+		// Ensure the resolved model is of expected type
+		if (!(model instanceof ResourceEditorModel)) {
+			ref.dispose();
+			this.modelReference = null;
 
-			this.cachedModel = model;
+			throw new Error(`Unexpected model for ResourceInput: ${this.resource}`);
+		}
 
-			// Set mode if we have a preferred mode configured
-			if (this.preferredMode) {
-				model.setMode(this.preferredMode);
-			}
+		this.cachedModel = model;
 
-			return model;
-		});
+		// Set mode if we have a preferred mode configured
+		if (this.preferredMode) {
+			model.setMode(this.preferredMode);
+		}
+
+		return model;
 	}
 
 	matches(otherInput: unknown): boolean {

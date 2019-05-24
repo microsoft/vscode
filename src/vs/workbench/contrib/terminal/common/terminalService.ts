@@ -30,6 +30,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected _findWidgetVisible: IContextKey<boolean>;
 	protected _terminalContainer: HTMLElement;
 	protected _terminalTabs: ITerminalTab[] = [];
+	protected _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	protected get _terminalInstances(): ITerminalInstance[] {
 		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}
@@ -41,7 +42,7 @@ export abstract class TerminalService implements ITerminalService {
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 	public get terminalTabs(): ITerminalTab[] { return this._terminalTabs; }
 
-	private readonly _onActiveTabChanged = new Emitter<void>();
+	protected readonly _onActiveTabChanged = new Emitter<void>();
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
 	protected readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
 	public get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
@@ -103,7 +104,9 @@ export abstract class TerminalService implements ITerminalService {
 
 	protected abstract _getWslPath(path: string): Promise<string>;
 	protected abstract _getWindowsBuildNumber(): number;
+	protected abstract _showBackgroundTerminal(instance: ITerminalInstance): void;
 
+	public abstract refreshActiveTab(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract getDefaultShell(platform: Platform): string;
@@ -221,6 +224,15 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public getInstanceFromId(terminalId: number): ITerminalInstance {
+		let bgIndex = -1;
+		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {
+			if (terminalInstance.id === terminalId) {
+				bgIndex = i;
+			}
+		});
+		if (bgIndex !== -1) {
+			return this._backgroundedTerminalInstances[bgIndex];
+		}
 		return this.terminalInstances[this._getIndexFromId(terminalId)];
 	}
 
@@ -229,6 +241,11 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public setActiveInstance(terminalInstance: ITerminalInstance): void {
+		// If this was a runInBackground terminal created by the API this was triggered by show,
+		// in which case we need to create the terminal tab
+		if (terminalInstance.shellLaunchConfig.runInBackground) {
+			this._showBackgroundTerminal(terminalInstance);
+		}
 		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
 	}
 

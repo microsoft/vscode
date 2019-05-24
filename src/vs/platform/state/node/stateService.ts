@@ -26,21 +26,23 @@ export class FileStorage {
 		return this._database;
 	}
 
-	init(): Promise<void> {
-		return readFile(this.dbPath).then(contents => {
+	async init(): Promise<void> {
+		try {
+			const contents = await readFile(this.dbPath);
+
 			try {
 				this.lastFlushedSerializedDatabase = contents.toString();
 				this._database = JSON.parse(this.lastFlushedSerializedDatabase);
 			} catch (error) {
 				this._database = {};
 			}
-		}, error => {
+		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				this.onError(error);
 			}
 
 			this._database = {};
-		});
+		}
 	}
 
 	private loadSync(): object {

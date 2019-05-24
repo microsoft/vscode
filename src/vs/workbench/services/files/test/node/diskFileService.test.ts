@@ -18,7 +18,7 @@ import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameS
 import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 
@@ -125,7 +125,7 @@ suite('Disk File Service', () => {
 	let testProvider: TestDiskFileSystemProvider;
 	let testDir: string;
 
-	let disposables: IDisposable[] = [];
+	let disposables = new DisposableStore();
 
 	setup(async () => {
 		const logService = new NullLogService();
@@ -149,7 +149,8 @@ suite('Disk File Service', () => {
 	});
 
 	teardown(async () => {
-		disposables = dispose(disposables);
+		disposables.dispose();
+		disposables = new DisposableStore();
 
 		await rimraf(parentDir, RimRafMode.MOVE);
 	});
@@ -446,8 +447,7 @@ suite('Disk File Service', () => {
 			await service.del(source.resource);
 
 			return Promise.reject(new Error('Unexpected'));
-		}
-		catch (error) {
+		} catch (error) {
 			return Promise.resolve(true);
 		}
 	});
