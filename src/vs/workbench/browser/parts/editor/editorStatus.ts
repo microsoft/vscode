@@ -15,7 +15,7 @@ import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
-import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
@@ -316,7 +316,7 @@ export class EditorStatus implements IStatusbarItem {
 	private eolElement: StatusBarItem;
 	private modeElement: StatusBarItem;
 	private metadataElement: StatusBarItem;
-	private toDispose: IDisposable[];
+	private readonly toDispose = new DisposableStore();
 	private activeEditorListeners: IDisposable[];
 	private delayedRender: IDisposable | null;
 	private toRender: StateChange | null;
@@ -333,7 +333,6 @@ export class EditorStatus implements IStatusbarItem {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
-		this.toDispose = [];
 		this.activeEditorListeners = [];
 		this.state = new State();
 	}
@@ -385,20 +384,18 @@ export class EditorStatus implements IStatusbarItem {
 		this.delayedRender = null;
 		this.toRender = null;
 
-		this.toDispose.push(
-			toDisposable(() => {
-				if (this.delayedRender) {
-					this.delayedRender.dispose();
-					this.delayedRender = null;
-				}
-			}),
-			this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()),
-			this.untitledEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)),
-			this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange(e.resource)),
-			TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()),
-		);
+		this.toDispose.push(toDisposable(() => {
+			if (this.delayedRender) {
+				this.delayedRender.dispose();
+				this.delayedRender = null;
+			}
+		}));
+		this.toDispose.push(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
+		this.toDispose.push(this.untitledEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)));
+		this.toDispose.push(this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange((e.resource))));
+		this.toDispose.push(TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()));
 
-		return combinedDisposable(this.toDispose);
+		return this.toDispose;
 	}
 
 	private updateState(update: StateDelta): void {

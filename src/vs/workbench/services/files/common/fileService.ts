@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -55,14 +55,12 @@ export class FileService extends Disposable implements IFileService {
 			providerDisposables.push(provider.onDidErrorOccur(error => this._onError.fire(error)));
 		}
 
-		return combinedDisposable([
-			toDisposable(() => {
-				this._onDidChangeFileSystemProviderRegistrations.fire({ added: false, scheme, provider });
-				this.provider.delete(scheme);
+		return toDisposable(() => {
+			this._onDidChangeFileSystemProviderRegistrations.fire({ added: false, scheme, provider });
+			this.provider.delete(scheme);
 
-				dispose(providerDisposables);
-			})
-		]);
+			dispose(providerDisposables);
+		});
 	}
 
 	async activateProvider(scheme: string): Promise<void> {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ITelemetryData {
@@ -217,8 +217,8 @@ export class RadioGroup extends Disposable {
 	constructor(readonly actions: Action[]) {
 		super();
 
-		this._register(combinedDisposable(actions.map(action => {
-			return action.onDidChange(e => {
+		for (const action of actions) {
+			this._register(action.onDidChange(e => {
 				if (e.checked && action.checked) {
 					for (const candidate of actions) {
 						if (candidate !== action) {
@@ -226,7 +226,7 @@ export class RadioGroup extends Disposable {
 						}
 					}
 				}
-			});
-		})));
+			}));
+		}
 	}
 }

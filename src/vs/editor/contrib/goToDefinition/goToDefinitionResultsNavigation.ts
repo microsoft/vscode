@@ -13,7 +13,7 @@ import { registerEditorCommand, EditorCommand } from 'vs/editor/browser/editorEx
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
-import { Disposable, dispose, combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { localize } from 'vs/nls';
@@ -199,10 +199,10 @@ class EditorStatus extends Disposable {
 	}
 
 	private _onDidAddEditor(editor: ICodeEditor): void {
-		this._listener.set(editor, combinedDisposable([
+		this._listener.set(editor, combinedDisposable(
 			editor.onDidChangeCursorPosition(_ => this._onDidChange.fire({ editor })),
 			editor.onDidChangeModelContent(_ => this._onDidChange.fire({ editor })),
-		]));
+		));
 	}
 
 	private _onDidRemoveEditor(editor: ICodeEditor): void {

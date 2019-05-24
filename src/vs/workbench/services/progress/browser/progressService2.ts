@@ -6,7 +6,7 @@
 import 'vs/css!./media/progressService2';
 
 import { localize } from 'vs/nls';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -139,7 +139,7 @@ export class ProgressService2 implements IProgressService2 {
 	}
 
 	private _withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressNotificationOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
-		const toDispose: IDisposable[] = [];
+		const toDispose = new DisposableStore();
 
 		const createNotification = (message: string | undefined, increment?: number): INotificationHandle | undefined => {
 			if (!message) {
@@ -176,7 +176,7 @@ export class ProgressService2 implements IProgressService2 {
 			updateProgress(handle, increment);
 
 			Event.once(handle.onDidClose)(() => {
-				dispose(toDispose);
+				toDispose.dispose();
 			});
 
 			return handle;
@@ -279,7 +279,7 @@ export class ProgressService2 implements IProgressService2 {
 	}
 
 	private _withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressOptions, task: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 		const allowableCommands = [
 			'workbench.action.quit',
 			'workbench.action.reloadWindow'

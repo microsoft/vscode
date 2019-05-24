@@ -34,7 +34,7 @@ export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T 
 	}
 }
 
-export function combinedDisposable(disposables: IDisposable[]): IDisposable {
+export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	return { dispose: () => dispose(disposables) };
 }
 
@@ -42,19 +42,17 @@ export function toDisposable(fn: () => void): IDisposable {
 	return { dispose() { fn(); } };
 }
 
-
 export class DisposableStore implements IDisposable {
 	private _toDispose: IDisposable[] = [];
-
-	private _lifecycle_disposable_isDisposed = false;
+	private _isDisposed = false;
 
 	public dispose(): void {
-		this._lifecycle_disposable_isDisposed = true;
+		this._isDisposed = true;
 		this._toDispose = dispose(this._toDispose);
 	}
 
 	public push<T extends IDisposable>(t: T): T {
-		if (this._lifecycle_disposable_isDisposed) {
+		if (this._isDisposed) {
 			console.warn('Registering disposable on object that has already been disposed.');
 			t.dispose();
 		} else {
