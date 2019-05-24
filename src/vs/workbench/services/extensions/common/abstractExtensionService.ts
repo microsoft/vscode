@@ -82,7 +82,7 @@ export abstract class CommonExtensionService extends Disposable implements IExte
 	protected readonly _isDev: boolean;
 	private readonly _extensionsMessages: Map<string, IMessage[]>;
 	protected readonly _allRequestedActivateEvents: { [activationEvent: string]: boolean; };
-	protected readonly _proposedApiController: ProposedApiController;
+	private readonly _proposedApiController: ProposedApiController;
 	private readonly _isExtensionDevHost: boolean;
 	protected readonly _isExtensionDevTestFromCli: boolean;
 
@@ -365,6 +365,12 @@ export abstract class CommonExtensionService extends Disposable implements IExte
 	//#endregion
 
 	// --- impl
+
+	protected _checkEnableProposedApi(extensions: IExtensionDescription[]): void {
+		for (let extension of extensions) {
+			this._proposedApiController.updateEnableProposedApi(extension);
+		}
+	}
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
 		const affectedExtensionPoints: { [extPointName: string]: boolean; } = Object.create(null);
@@ -838,6 +844,8 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 		const extensionHost = this._extensionHostProcessManagers[0];
 
 		let localExtensions = await this._extensionScanner.scannedExtensions;
+		// enable or disable proposed API per extension
+		this._checkEnableProposedApi(localExtensions);
 
 		if (remoteAuthority) {
 			let resolvedAuthority: ResolvedAuthority;
@@ -886,6 +894,9 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 			remoteEnv.extensions.forEach((extension) => {
 				(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
 			});
+
+			// enable or disable proposed API per extension
+			this._checkEnableProposedApi(remoteEnv.extensions);
 
 			// remove UI extensions from the remote extensions
 			remoteEnv.extensions = remoteEnv.extensions.filter(extension => !isUIExtension(extension, this._productService, this._configurationService));
@@ -969,7 +980,7 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 
 		for (const extension of allExtensions) {
 			if (this._isEnabled(extension)) {
-				runtimeExtensions.push(this._proposedApiController.updateEnableProposedApi(extension));
+				runtimeExtensions.push(extension);
 			}
 		}
 
@@ -1015,7 +1026,7 @@ class ProposedApiController {
 		}
 	}
 
-	public updateEnableProposedApi(extension: IExtensionDescription): IExtensionDescription {
+	public updateEnableProposedApi(extension: IExtensionDescription): void {
 		if (this._allowProposedApiFromProduct(extension.identifier)) {
 			// fast lane -> proposed api is available to all extensions
 			// that are listed in product.json-files
@@ -1035,7 +1046,6 @@ class ProposedApiController {
 				console.warn(`Extension '${extension.identifier.value}' uses PROPOSED API which is subject to change and removal without notice.`);
 			}
 		}
-		return extension;
 	}
 
 	private _allowProposedApiFromProduct(id: ExtensionIdentifier): boolean {
