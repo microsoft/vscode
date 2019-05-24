@@ -5,14 +5,10 @@
 
 import * as nls from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionEnablementService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -34,14 +30,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IWindowService windowService: IWindowService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@IFileService fileService: IFileService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		super(
 			instantiationService,
@@ -49,12 +40,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			environmentService,
 			telemetryService,
 			extensionEnablementService,
-			extensionManagementService,
-			windowService,
-			remoteAgentService,
-			remoteAuthorityResolverService,
-			configurationService,
-			lifecycleService,
 			fileService,
 			productService,
 		);
@@ -108,16 +93,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	public _onExtensionHostExit(code: number): void {
-		// Expected development extension termination: When the extension host goes down we also shutdown the window
-		if (!this._isExtensionDevTestFromCli) {
-			this._windowService.closeWindow();
-		}
-
-		// When CLI testing make sure to exit with proper exit code
-		else {
-			console.log(`vscode:exit`, code);
-			// ipc.send('vscode:exit', code);
-		}
+		console.log(`vscode:exit`, code);
+		// ipc.send('vscode:exit', code);
 	}
 }
 
