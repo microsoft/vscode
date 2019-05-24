@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
@@ -21,7 +21,7 @@ import * as vscode from 'vscode';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: ExtHostSearch;
-let disposables: vscode.Disposable[] = [];
+const disposables = new DisposableStore();
 
 let mockMainThreadSearch: MockMainThreadSearch;
 class MockMainThreadSearch implements MainThreadSearchShape {
@@ -139,7 +139,7 @@ suite('ExtHostSearch', () => {
 	});
 
 	teardown(() => {
-		dispose(disposables);
+		disposables.clear();
 		return rpcProtocol.sync();
 	});
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -18,7 +18,7 @@ suite('CodeAction', () => {
 	let langId = new LanguageIdentifier('fooLang', 17);
 	let uri = URI.parse('untitled:path');
 	let model: TextModel;
-	let disposables: IDisposable[] = [];
+	const disposables = new DisposableStore();
 	let testData = {
 		diagnostics: {
 			abc: {
@@ -79,12 +79,13 @@ suite('CodeAction', () => {
 	};
 
 	setup(function () {
+		disposables.clear();
 		model = TextModel.createFromString('test1\ntest2\ntest3', undefined, langId, uri);
-		disposables = [model];
+		disposables.push(model);
 	});
 
 	teardown(function () {
-		dispose(disposables);
+		disposables.clear();
 	});
 
 	test('CodeActions are sorted by type, #38623', async function () {

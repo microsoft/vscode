@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -26,10 +26,10 @@ suite('CodeAction', () => {
 	let model: TextModel;
 	let markerService: MarkerService;
 	let editor: ICodeEditor;
-	let disposables: IDisposable[];
+	const disposables = new DisposableStore();
 
 	setup(() => {
-		disposables = [];
+		disposables.clear();
 		markerService = new MarkerService();
 		model = TextModel.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
 		editor = createTestCodeEditor({ model: model });
@@ -37,7 +37,7 @@ suite('CodeAction', () => {
 	});
 
 	teardown(() => {
-		dispose(disposables);
+		disposables.clear();
 		editor.dispose();
 		model.dispose();
 		markerService.dispose();
