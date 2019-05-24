@@ -960,7 +960,7 @@ export class DirtyDiffModel extends Disposable {
 	private diffDelayer: ThrottledDelayer<IChange[] | null> | null;
 	private _originalURIPromise?: Promise<URI | null>;
 	private repositoryDisposables = new Set<IDisposable>();
-	private originalModelDisposables: IDisposable = Disposable.None;
+	private readonly originalModelDisposables = this._register(new DisposableStore());
 
 	private _onDidChange = new Emitter<ISplice<IChange>[]>();
 	readonly onDidChange: Event<ISplice<IChange>[]> = this._onDidChange.event;
@@ -1069,12 +1069,9 @@ export class DirtyDiffModel extends Disposable {
 
 				this._originalModel = ref.object.textEditorModel;
 
-				const originalModelDisposables = new DisposableStore();
-				originalModelDisposables.push(ref);
-				originalModelDisposables.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
-
-				this.originalModelDisposables.dispose();
-				this.originalModelDisposables = originalModelDisposables;
+				this.originalModelDisposables.clear();
+				this.originalModelDisposables.push(ref);
+				this.originalModelDisposables.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 
 				return originalUri;
 			});
@@ -1131,7 +1128,6 @@ export class DirtyDiffModel extends Disposable {
 	}
 
 	dispose(): void {
-		this.originalModelDisposables = dispose(this.originalModelDisposables);
 		super.dispose();
 
 		this._editorModel = null;

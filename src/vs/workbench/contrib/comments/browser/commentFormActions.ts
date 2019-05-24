@@ -6,14 +6,14 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IAction } from 'vs/base/common/actions';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-export class CommentFormActions {
+export class CommentFormActions implements IDisposable {
 	private _buttonElements: HTMLElement[] = [];
-	private _toDispose = new DisposableStore();
+	private readonly _toDispose = new DisposableStore();
 
 	constructor(
 		private container: HTMLElement,
@@ -22,8 +22,7 @@ export class CommentFormActions {
 	) { }
 
 	setActions(menu: IMenu) {
-		this._toDispose.dispose();
-		this._toDispose = new DisposableStore();
+		this._toDispose.clear();
 
 		this._buttonElements.forEach(b => DOM.removeNode(b));
 
@@ -43,5 +42,9 @@ export class CommentFormActions {
 				button.label = action.label;
 			});
 		}
+	}
+
+	dispose() {
+		this._toDispose.dispose();
 	}
 }
