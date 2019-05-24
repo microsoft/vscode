@@ -48,6 +48,7 @@ import pkg from 'vs/platform/product/node/package';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { getMachineId } from 'vs/base/node/id';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 
 export interface IExtensionsManagementProcessInitData {
 	args: ParsedArgs;
@@ -83,13 +84,20 @@ export class ManagementConnection {
 		this._disconnectWaitTimer = null;
 
 		this._protocol.onClose(() => this._cleanResources());
-		this._protocol.onSocketClose(() => {
-			// The socket has closed, let's give the renderer a certain amount of time to reconnect
-			this._disconnectWaitTimer = setTimeout(() => {
-				this._disconnectWaitTimer = null;
+		if (protocol.getSocket() instanceof NodeSocket) {
+			this._protocol.onSocketClose(() => {
+				// The socket has closed, let's give the renderer a certain amount of time to reconnect
+				this._disconnectWaitTimer = setTimeout(() => {
+					this._disconnectWaitTimer = null;
+					this._cleanResources();
+				}, ProtocolConstants.ReconnectionGraceTime);
+			});
+		} else {
+			protocol.onSocketClose(() => {
+				// Do not wait for web companion to reconnect
 				this._cleanResources();
-			}, ProtocolConstants.ReconnectionGraceTime);
-		});
+			});
+		}
 		managementServer.socketServer.acceptConnection(this._protocol, this.onClose);
 	}
 
