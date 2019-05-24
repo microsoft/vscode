@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as net from 'net';
-import * as objects from 'vs/base/common/objects';
 import * as cp from 'child_process';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IRemoteConsoleLog } from 'vs/base/common/console';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import * as net from 'net';
 import { getNLSConfiguration } from 'vs/agent/remoteLanguagePacks';
-import { IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { uriTransformerPath } from 'vs/agent/remoteUriTransformer';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { IRemoteConsoleLog } from 'vs/base/common/console';
+import { Emitter, Event } from 'vs/base/common/event';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { getShellEnvironment } from 'vs/code/node/shellEnv';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
+import { IExtHostReadyMessage, IExtHostSocketMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 export class ExtensionHostConnection {
 
@@ -99,16 +100,22 @@ export class ExtensionHostConnection {
 				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=0.0.0.0:${startParams.port}`];
 			}
 
+			// TODO@Rob/Alex, we can't get a real log service here because the loglevel is sent over the management connection
+			const userShellEnv = await getShellEnvironment(new StubLogService());
 			const opts = {
-				env: objects.mixin(objects.deepClone(process.env), {
-					AMD_ENTRYPOINT: 'vs/agent/remoteExtensionHostProcess',
-					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: true,
-					VSCODE_EXTHOST_WILL_SEND_SOCKET: true,
-					VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-					VSCODE_LOG_STACK: false,
-					VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig, undefined, 0)
-				}),
+				env: {
+					...process.env,
+					...userShellEnv,
+					...{
+						AMD_ENTRYPOINT: 'vs/agent/remoteExtensionHostProcess',
+						PIPE_LOGGING: 'true',
+						VERBOSE_LOGGING: 'true',
+						VSCODE_EXTHOST_WILL_SEND_SOCKET: 'true',
+						VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
+						VSCODE_LOG_STACK: 'false',
+						VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig, undefined, 0)
+					}
+				},
 				execArgv,
 				silent: true
 			};
@@ -170,4 +177,28 @@ export class ExtensionHostConnection {
 			}
 		}
 	}
+}
+
+class StubLogService implements ILogService {
+	_serviceBrand: any;
+
+	onDidChangeLogLevel: Event<LogLevel>;
+
+	getLevel(): LogLevel { return LogLevel.Off; }
+
+	setLevel(level: LogLevel): void { }
+
+	trace(message: string, ...args: any[]): void { }
+
+	debug(message: string, ...args: any[]): void { }
+
+	info(message: string, ...args: any[]): void { }
+
+	warn(message: string, ...args: any[]): void { }
+
+	error(message: string | Error, ...args: any[]): void { }
+
+	critical(message: string | Error, ...args: any[]): void { }
+
+	dispose(): void { }
 }
