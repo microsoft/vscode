@@ -178,7 +178,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			const disposables = new DisposableStore();
 
 			// Remember as Instantiated
-			this.instantiatedCompositeItems.set(id, { composite, disposable: disposables, localProgressService: localProgressService });
+			this.instantiatedCompositeItems.set(id, { composite, disposable: disposables, localProgressService });
 
 			// Register to title area update events from the composite
 			disposables.push(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this));
