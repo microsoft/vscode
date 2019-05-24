@@ -17,6 +17,24 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 	return compareIgnoreCase(a.id, b.id) === 0;
 }
 
+export class ExtensionIdentifierWithVersion {
+	constructor(
+		readonly identifier: IExtensionIdentifier,
+		readonly version: string
+	) { }
+
+	key(): string {
+		return `${this.identifier.id}-${this.version}`;
+	}
+
+	equals(o: any): boolean {
+		if (!(o instanceof ExtensionIdentifierWithVersion)) {
+			return false;
+		}
+		return areSameExtensions(this.identifier, o.identifier) && this.version === o.version;
+	}
+}
+
 export function adoptToGalleryExtensionId(id: string): string {
 	return id.toLocaleLowerCase();
 }
