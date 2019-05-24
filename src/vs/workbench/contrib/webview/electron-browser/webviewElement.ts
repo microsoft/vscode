@@ -509,7 +509,7 @@ export class WebviewElement extends Disposable implements Webview {
 		}
 
 		this.style(themeService.getTheme());
-		themeService.onThemeChange(this.style, this, this._toDispose);
+		this._register(themeService.onThemeChange(this.style, this));
 	}
 
 	public mountTo(parent: HTMLElement) {

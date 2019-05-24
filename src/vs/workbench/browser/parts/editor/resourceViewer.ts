@@ -15,7 +15,7 @@ import { clamp } from 'vs/base/common/numbers';
 import { Themable } from 'vs/workbench/common/theme';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDisposable, Disposable, combinedDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -160,7 +160,7 @@ class LargeImageView {
 
 		DOM.clearNode(container);
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const label = document.createElement('p');
 		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", size);
@@ -175,7 +175,7 @@ class LargeImageView {
 			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openExternal(descriptor.resource)));
 		}
 
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 }
 
@@ -212,7 +212,7 @@ class FileSeemsBinaryFileView {
 
 		DOM.clearNode(container);
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const label = document.createElement('p');
 		label.textContent = nls.localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
@@ -228,7 +228,7 @@ class FileSeemsBinaryFileView {
 
 		scrollbar.scanDomNode();
 
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 }
 
@@ -363,11 +363,11 @@ class InlineImageView {
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate
 	) {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const context: ResourceViewerContext = {
 			layout(dimension: DOM.Dimension) { },
-			dispose: () => dispose(disposables)
+			dispose: () => disposables.dispose()
 		};
 
 		const cacheKey = `${descriptor.resource.toString()}:${descriptor.etag}`;

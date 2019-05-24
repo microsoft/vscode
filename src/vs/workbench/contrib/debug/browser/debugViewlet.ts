@@ -112,7 +112,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 
 		if (!this.debugToolBarMenu) {
 			this.debugToolBarMenu = this.menuService.createMenu(MenuId.DebugToolBar, this.contextKeyService);
-			this.toDispose.push(this.debugToolBarMenu);
+			this._register(this.debugToolBarMenu);
 		}
 		return DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
 	}

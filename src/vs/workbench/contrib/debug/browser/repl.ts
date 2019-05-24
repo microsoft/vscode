@@ -381,7 +381,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				supportDynamicHeights: true
 			}) as WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
 
-		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
 		this.styleElement = dom.createStyleSheet(this.container);

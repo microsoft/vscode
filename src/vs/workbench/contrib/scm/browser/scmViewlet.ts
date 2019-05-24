@@ -1106,15 +1106,15 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		super(VIEWLET_ID, SCMViewlet.STATE_KEY, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
-		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.toDispose);
+		this._register(this.menus.onDidChangeTitle(this.updateTitleArea, this));
 
 		this.message = $('.empty-message', { tabIndex: 0 }, localize('no open repo', "No source control providers registered."));
 
-		configurationService.onDidChangeConfiguration(e => {
+		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.alwaysShowProviders')) {
 				this.onDidChangeRepositories();
 			}
-		}, this.toDispose);
+		}));
 	}
 
 	create(parent: HTMLElement): void {
@@ -1124,8 +1124,8 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		addClasses(parent, 'scm-viewlet', 'empty');
 		append(parent, this.message);
 
-		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.toDispose);
-		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.toDispose);
+		this._register(this.scmService.onDidAddRepository(this.onDidAddRepository, this));
+		this._register(this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this));
 		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
 	}
 

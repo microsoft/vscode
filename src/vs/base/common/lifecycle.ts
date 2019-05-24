@@ -42,12 +42,9 @@ export function toDisposable(fn: () => void): IDisposable {
 	return { dispose() { fn(); } };
 }
 
-export abstract class Disposable implements IDisposable {
 
-	static None = Object.freeze<IDisposable>({ dispose() { } });
-
-	protected _toDispose: IDisposable[] = [];
-	protected get toDispose(): IDisposable[] { return this._toDispose; }
+export class DisposableStore implements IDisposable {
+	private _toDispose: IDisposable[] = [];
 
 	private _lifecycle_disposable_isDisposed = false;
 
@@ -56,7 +53,7 @@ export abstract class Disposable implements IDisposable {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	protected _register<T extends IDisposable>(t: T): T {
+	public push<T extends IDisposable>(t: T): T {
 		if (this._lifecycle_disposable_isDisposed) {
 			console.warn('Registering disposable on object that has already been disposed.');
 			t.dispose();
@@ -65,6 +62,21 @@ export abstract class Disposable implements IDisposable {
 		}
 
 		return t;
+	}
+}
+
+export abstract class Disposable implements IDisposable {
+
+	static None = Object.freeze<IDisposable>({ dispose() { } });
+
+	private readonly _store = new DisposableStore();
+
+	public dispose(): void {
+		this._store.dispose();
+	}
+
+	protected _register<T extends IDisposable>(t: T): T {
+		return this._store.push(t);
 	}
 }
 
