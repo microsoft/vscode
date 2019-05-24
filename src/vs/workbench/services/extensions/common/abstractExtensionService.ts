@@ -231,12 +231,7 @@ export abstract class CommonExtensionService extends Disposable implements IExte
 				return;
 			}
 
-			let message = nls.localize('extensionService.crash', "Extension host terminated unexpectedly.");
-			if (code === 87) {
-				message = nls.localize('extensionService.unresponsiveCrash', "Extension host terminated because it was not responsive.");
-			}
-
-			this._notificationService.prompt(Severity.Error, message,
+			this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly."),
 				[{
 					label: nls.localize('devTools', "Open Developer Tools"),
 					run: () => this._windowService.openDevTools()
