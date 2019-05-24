@@ -17,14 +17,14 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/product';
-import { CommonExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { browserWebSocketFactory } from 'vs/platform/remote/browser/browserWebSocketFactory';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
 import { RemoteExtensionHostClient, IInitDataProvider } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
-export class ExtensionService extends CommonExtensionService implements IExtensionService {
+export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
 	private _remoteExtensionsEnvironmentData: IRemoteAgentEnvironment | null;
 
