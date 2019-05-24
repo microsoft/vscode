@@ -192,6 +192,15 @@ export interface IShellLaunchConfig {
 	 * provided as nothing will be inherited from the process or any configuration.
 	 */
 	strictEnv?: boolean;
+
+	/**
+	 * When enabled the terminal will run the process as normal but not be surfaced to the user
+	 * until `Terminal.show` is called. The typical usage for this is when you need to run
+	 * something that may need interactivity but only want to tell the user about it when
+	 * interaction is needed. Note that the terminals will still be exposed to all extensions
+	 * as normal.
+	 */
+	runInBackground?: boolean;
 }
 
 export interface ITerminalService {

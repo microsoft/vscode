@@ -1123,9 +1123,17 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _sendLineData(buffer: IBuffer, lineIndex: number): void {
-		let lineData = buffer.getLine(lineIndex)!.translateToString(true);
-		while (lineIndex >= 0 && buffer.getLine(lineIndex--)!.isWrapped) {
-			lineData = buffer.getLine(lineIndex)!.translateToString(false) + lineData;
+		let line = buffer.getLine(lineIndex);
+		if (!line) {
+			return;
+		}
+		let lineData = line.translateToString(true);
+		while (lineIndex > 0 && line.isWrapped) {
+			line = buffer.getLine(--lineIndex);
+			if (!line) {
+				break;
+			}
+			lineData = line.translateToString(false) + lineData;
 		}
 		this._onLineData.fire(lineData);
 	}

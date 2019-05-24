@@ -140,7 +140,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 
 		const kb = this._keybindingService.lookupKeybinding('editor.gotoNextSymbolFromResult');
 		const message = kb
-			? localize('location.kb', "Symbol {0} of {1}, press {2} to reveal next", this._currentIdx + 1, this._currentModel!.references.length, kb.getLabel())
+			? localize('location.kb', "Symbol {0} of {1}, {2} for next", this._currentIdx + 1, this._currentModel!.references.length, kb.getLabel())
 			: localize('location', "Symbol {0} of {1}", this._currentIdx + 1, this._currentModel!.references.length);
 
 		this._currentMessage = this._statusbarService.setStatusMessage(message);

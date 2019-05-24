@@ -10,9 +10,25 @@ import { IAction } from 'vs/base/common/actions';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
+/**
+ * A progress service that can be used to report progress to various locations of the UI.
+ */
 export interface IProgressService {
 
 	_serviceBrand: ServiceIdentifier<IProgressService>;
+
+	withProgress<R = any>(options: IProgressOptions | IProgressNotificationOptions | IProgressCompositeOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
+}
+
+export const ILocalProgressService = createDecorator<ILocalProgressService>('localProgressService');
+
+/**
+ * A progress service that will report progress local to the UI piece triggered from. E.g.
+ * if used from an action of a viewlet, the progress will be reported in that viewlet.
+ */
+export interface ILocalProgressService {
+
+	_serviceBrand: ServiceIdentifier<ILocalProgressService>;
 
 	/**
 	 * Show progress customized with the provided flags.
@@ -58,15 +74,6 @@ export interface IProgressCompositeOptions extends IProgressOptions {
 export interface IProgressStep {
 	message?: string;
 	increment?: number;
-}
-
-export const IProgressService2 = createDecorator<IProgressService2>('progressService2');
-
-export interface IProgressService2 {
-
-	_serviceBrand: ServiceIdentifier<IProgressService2>;
-
-	withProgress<R = any>(options: IProgressOptions | IProgressNotificationOptions | IProgressCompositeOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
 }
 
 export interface IProgressRunner {
@@ -124,7 +131,7 @@ export class LongRunningOperation {
 	private currentProgressTimeout: any;
 
 	constructor(
-		private progressService: IProgressService
+		private localProgressService: ILocalProgressService
 	) { }
 
 	start(progressDelay: number): IOperation {
@@ -137,7 +144,7 @@ export class LongRunningOperation {
 		const newOperationToken = new CancellationTokenSource();
 		this.currentProgressTimeout = setTimeout(() => {
 			if (newOperationId === this.currentOperationId) {
-				this.currentProgressRunner = this.progressService.show(true);
+				this.currentProgressRunner = this.localProgressService.show(true);
 			}
 		}, progressDelay);
 

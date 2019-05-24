@@ -50,6 +50,15 @@ export abstract class TerminalService extends CommonTerminalService implements I
 	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
+		if (shell.runInBackground) {
+			const instance = this.createInstance(this._terminalFocusContextKey,
+				this.configHelper,
+				undefined,
+				shell,
+				true);
+			this._backgroundedTerminalInstances.push(instance);
+			return instance;
+		}
 		const terminalTab = this._instantiationService.createInstance(TerminalTab,
 			this._terminalFocusContextKey,
 			this.configHelper,
@@ -66,6 +75,25 @@ export abstract class TerminalService extends CommonTerminalService implements I
 		}
 		this._onInstancesChanged.fire();
 		return instance;
+	}
+
+	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
+		this._backgroundedTerminalInstances = this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
+		instance.shellLaunchConfig.runInBackground = false;
+		const terminalTab = this._instantiationService.createInstance(TerminalTab,
+			this._terminalFocusContextKey,
+			this.configHelper,
+			this._terminalContainer,
+			instance);
+		this._terminalTabs.push(terminalTab);
+		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
+		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		this._initInstanceListeners(instance);
+		if (this.terminalInstances.length === 1) {
+			// It's the first instance so it should be made active automatically
+			this.setActiveInstanceByIndex(0);
+		}
+		this._onInstancesChanged.fire();
 	}
 
 	public focusFindWidget(): Promise<void> {
