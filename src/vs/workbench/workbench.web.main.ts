@@ -128,7 +128,7 @@ import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 // import 'vs/workbench/services/extensionManagement/node/extensionEnablementService';
-// import 'vs/workbench/services/extensions/electron-browser/extensionService';
+import 'vs/workbench/services/extensions/browser/extensionService';
 // import 'vs/workbench/services/contextmenu/electron-browser/contextmenuService';
 // import 'vs/workbench/services/extensionManagement/node/multiExtensionManagement';
 import 'vs/workbench/services/label/common/labelService';

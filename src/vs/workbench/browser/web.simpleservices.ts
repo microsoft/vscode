@@ -59,6 +59,8 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { IRemoteConsoleLog } from 'vs/base/common/console';
 
 export const workspaceResource = URI.file((<any>self).USER_HOME_DIR || '/').with({
 	scheme: Schemas.vscodeRemote,
@@ -257,7 +259,10 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	extensionsPath: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsPath?: string;
-	debugExtensionHost: IExtensionHostDebugParams;
+	debugExtensionHost: IExtensionHostDebugParams = {
+		port: null,
+		break: false
+	};
 	debugSearch: IDebugParams;
 	logExtensionHostCommunication: boolean;
 	isBuilt: boolean;
@@ -926,7 +931,7 @@ export class SimpleWindowConfiguration implements IWindowConfiguration {
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
 
-	remoteAuthority?: string;
+	remoteAuthority: string = document.location.host;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
@@ -1071,6 +1076,30 @@ export class SimpleWindowService implements IWindowService {
 }
 
 registerSingleton(IWindowService, SimpleWindowService);
+
+//#endregion
+
+//#region ExtensionHostDebugService
+
+export class SimpleExtensionHostDebugService implements IExtensionHostDebugService {
+	_serviceBrand: any;
+
+	reload(sessionId: string): void { }
+	onReload: Event<IReloadSessionEvent> = Event.None;
+
+	close(sessionId: string): void { }
+	onClose: Event<ICloseSessionEvent> = Event.None;
+
+	attachSession(sessionId: string, port: number, subId?: string): void { }
+	onAttachSession: Event<IAttachSessionEvent> = Event.None;
+
+	logToSession(sessionId: string, log: IRemoteConsoleLog): void { }
+	onLogToSession: Event<ILogToSessionEvent> = Event.None;
+
+	terminateSession(sessionId: string, subId?: string): void { }
+	onTerminateSession: Event<ITerminateSessionEvent> = Event.None;
+}
+registerSingleton(IExtensionHostDebugService, SimpleExtensionHostDebugService);
 
 //#endregion
 
