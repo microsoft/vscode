@@ -221,12 +221,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			this.mapCompositeToCompositeContainer[composite.getId()] = compositeContainer;
 		}
 
-		// Report progress for slow loading composites (but only if we did not create the composites before already)
-		const compositeItem = this.instantiatedCompositeItems.get(composite.getId());
-		if (compositeItem && !compositeContainer) {
-			compositeItem.progressService.showWhile(Promise.resolve(), this.layoutService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
-		}
-
 		// Fill Content and Actions
 		// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
 		if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
