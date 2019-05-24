@@ -844,8 +844,12 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 		const extensionHost = this._extensionHostProcessManagers[0];
 
 		let localExtensions = await this._extensionScanner.scannedExtensions;
+
 		// enable or disable proposed API per extension
 		this._checkEnableProposedApi(localExtensions);
+
+		// remove disabled extensions
+		localExtensions = localExtensions.filter(extension => this._isEnabled(extension));
 
 		if (remoteAuthority) {
 			let resolvedAuthority: ResolvedAuthority;
@@ -898,6 +902,9 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 			// enable or disable proposed API per extension
 			this._checkEnableProposedApi(remoteEnv.extensions);
 
+			// remove disabled extensions
+			remoteEnv.extensions = remoteEnv.extensions.filter(extension => this._isEnabled(extension));
+
 			// remove UI extensions from the remote extensions
 			remoteEnv.extensions = remoteEnv.extensions.filter(extension => !isUIExtension(extension, this._productService, this._configurationService));
 
@@ -909,19 +916,10 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 			remoteEnv.extensions.forEach(extension => isRemoteExtension.add(ExtensionIdentifier.toKey(extension.identifier)));
 			localExtensions = localExtensions.filter(extension => !isRemoteExtension.has(ExtensionIdentifier.toKey(extension.identifier)));
 
-			// compute enabled extensions
-			const enabledExtensions = await this._getRuntimeExtensions((<IExtensionDescription[]>[]).concat(remoteEnv.extensions).concat(localExtensions));
-
-			// remove disabled extensions
-			const isEnabled = new Set<string>();
-			enabledExtensions.forEach(extension => isEnabled.add(ExtensionIdentifier.toKey(extension.identifier)));
-			remoteEnv.extensions = remoteEnv.extensions.filter(extension => isEnabled.has(ExtensionIdentifier.toKey(extension.identifier)));
-			localExtensions = localExtensions.filter(extension => isEnabled.has(ExtensionIdentifier.toKey(extension.identifier)));
-
 			// save for remote extension's init data
 			this._remoteExtensionsEnvironmentData.set(remoteAuthority, remoteEnv);
 
-			this._handleExtensionPoints(enabledExtensions);
+			this._handleExtensionPoints((<IExtensionDescription[]>[]).concat(remoteEnv.extensions).concat(localExtensions));
 			extensionHost.start(localExtensions.map(extension => extension.identifier));
 
 		} else {
@@ -930,10 +928,8 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 	}
 
 	private async _startLocalExtensionHost(extensionHost: ExtensionHostProcessManager, localExtensions: IExtensionDescription[]): Promise<void> {
-		const enabledExtensions = await this._getRuntimeExtensions(localExtensions);
-
-		this._handleExtensionPoints(enabledExtensions);
-		extensionHost.start(enabledExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
+		this._handleExtensionPoints(localExtensions);
+		extensionHost.start(localExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
 	}
 
 	private _handleExtensionPoints(allExtensions: IExtensionDescription[]): void {
@@ -972,24 +968,6 @@ export abstract class AbstractExtensionService extends CommonExtensionService im
 		}
 
 		return this._extensionEnablementService.isEnabled(toExtension(extension));
-	}
-
-	private async _getRuntimeExtensions(allExtensions: IExtensionDescription[]): Promise<IExtensionDescription[]> {
-
-		const runtimeExtensions: IExtensionDescription[] = [];
-
-		for (const extension of allExtensions) {
-			if (this._isEnabled(extension)) {
-				runtimeExtensions.push(extension);
-			}
-		}
-
-		this._telemetryService.publicLog('extensionsScanned', {
-			totalCount: runtimeExtensions.length,
-			disabledCount: allExtensions.length - runtimeExtensions.length
-		});
-
-		return runtimeExtensions;
 	}
 
 	public abstract _onExtensionHostExit(code: number): void;
