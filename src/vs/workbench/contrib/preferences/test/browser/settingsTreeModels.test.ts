@@ -35,6 +35,20 @@ suite('SettingsTree', () => {
 				category: '',
 				label: 'Foo'
 			});
+
+		assert.deepEqual(
+			settingKeyToDisplayFormat('foo.1leading.number'),
+			{
+				category: 'Foo › 1leading',
+				label: 'Number'
+			});
+
+		assert.deepEqual(
+			settingKeyToDisplayFormat('foo.1Leading.number'),
+			{
+				category: 'Foo › 1 Leading',
+				label: 'Number'
+			});
 	});
 
 	test('settingKeyToDisplayFormat - with category', () => {
@@ -103,6 +117,22 @@ suite('SettingsTree', () => {
 			});
 	});
 
+	test('settingKeyToDisplayFormat - known acronym/term', () => {
+		assert.deepEqual(
+			settingKeyToDisplayFormat('css.someCssSetting'),
+			{
+				category: 'CSS',
+				label: 'Some CSS Setting'
+			});
+
+		assert.deepEqual(
+			settingKeyToDisplayFormat('powershell.somePowerShellSetting'),
+			{
+				category: 'PowerShell',
+				label: 'Some PowerShell Setting'
+			});
+	});
+
 	test('parseQuery', () => {
 		function testParseQuery(input: string, expected: IParsedQuery) {
 			assert.deepEqual(
@@ -116,6 +146,7 @@ suite('SettingsTree', () => {
 			'',
 			<IParsedQuery>{
 				tags: [],
+				extensionFilters: [],
 				query: ''
 			});
 
@@ -123,6 +154,7 @@ suite('SettingsTree', () => {
 			'@modified',
 			<IParsedQuery>{
 				tags: ['modified'],
+				extensionFilters: [],
 				query: ''
 			});
 
@@ -130,6 +162,7 @@ suite('SettingsTree', () => {
 			'@tag:foo',
 			<IParsedQuery>{
 				tags: ['foo'],
+				extensionFilters: [],
 				query: ''
 			});
 
@@ -137,6 +170,7 @@ suite('SettingsTree', () => {
 			'@modified foo',
 			<IParsedQuery>{
 				tags: ['modified'],
+				extensionFilters: [],
 				query: 'foo'
 			});
 
@@ -144,6 +178,7 @@ suite('SettingsTree', () => {
 			'@tag:foo @modified',
 			<IParsedQuery>{
 				tags: ['foo', 'modified'],
+				extensionFilters: [],
 				query: ''
 			});
 
@@ -151,6 +186,7 @@ suite('SettingsTree', () => {
 			'@tag:foo @modified my query',
 			<IParsedQuery>{
 				tags: ['foo', 'modified'],
+				extensionFilters: [],
 				query: 'my query'
 			});
 
@@ -158,6 +194,7 @@ suite('SettingsTree', () => {
 			'test @modified query',
 			<IParsedQuery>{
 				tags: ['modified'],
+				extensionFilters: [],
 				query: 'test  query'
 			});
 
@@ -165,6 +202,7 @@ suite('SettingsTree', () => {
 			'test @modified',
 			<IParsedQuery>{
 				tags: ['modified'],
+				extensionFilters: [],
 				query: 'test'
 			});
 
@@ -172,7 +210,24 @@ suite('SettingsTree', () => {
 			'query has @ for some reason',
 			<IParsedQuery>{
 				tags: [],
+				extensionFilters: [],
 				query: 'query has @ for some reason'
+			});
+
+		testParseQuery(
+			'@ext:github.vscode-pull-request-github',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: ['github.vscode-pull-request-github'],
+				query: ''
+			});
+
+		testParseQuery(
+			'@ext:github.vscode-pull-request-github,vscode.git',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: ['github.vscode-pull-request-github', 'vscode.git'],
+				query: ''
 			});
 	});
 });

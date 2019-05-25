@@ -112,6 +112,8 @@ class SelectRefactorCommand implements Command {
 }
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
+	public static readonly minVersion = API.v240;
+
 	private static readonly extractFunctionKind = vscode.CodeActionKind.RefactorExtract.append('function');
 	private static readonly extractConstantKind = vscode.CodeActionKind.RefactorExtract.append('constant');
 	private static readonly moveKind = vscode.CodeActionKind.Refactor.append('move');
@@ -236,7 +238,7 @@ export function register(
 	commandManager: CommandManager,
 	telemetryReporter: TelemetryReporter,
 ) {
-	return new VersionDependentRegistration(client, API.v240, () => {
+	return new VersionDependentRegistration(client, TypeScriptRefactorProvider.minVersion, () => {
 		return vscode.languages.registerCodeActionsProvider(selector,
 			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager, telemetryReporter),
 			TypeScriptRefactorProvider.metadata);

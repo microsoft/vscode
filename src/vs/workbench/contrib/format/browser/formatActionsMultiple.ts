@@ -36,7 +36,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 	static configName = 'editor.defaultFormatter';
 
-	static extensionIds: string[] = [];
+	static extensionIds: (string | null)[] = [];
 	static extensionDescriptions: string[] = [];
 
 	constructor(
@@ -60,6 +60,10 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 		DefaultFormatter.extensionIds.length = 0;
 		DefaultFormatter.extensionDescriptions.length = 0;
+
+		DefaultFormatter.extensionIds.push(null);
+		DefaultFormatter.extensionDescriptions.push(nls.localize('nullFormatterDescription', "None"));
+
 		for (const extension of extensions) {
 			if (extension.main) {
 				DefaultFormatter.extensionIds.push(extension.identifier.value);
@@ -127,7 +131,8 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		const picks = formatter.map((formatter, index) => {
 			return <IIndexedPick>{
 				index,
-				label: formatter.displayName || formatter.extensionId || '?'
+				label: formatter.displayName || formatter.extensionId || '?',
+				description: formatter.extensionId && formatter.extensionId.value
 			};
 		});
 		const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
@@ -156,7 +161,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[DefaultFormatter.configName]: {
 			description: nls.localize('formatter.default', "Defines a default formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
-			type: 'string',
+			type: ['string', 'null'],
 			default: null,
 			enum: DefaultFormatter.extensionIds,
 			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
@@ -196,19 +201,34 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 	const overrides = { resource: model.uri, overrideIdentifier: model.getModeId() };
 	const defaultFormatter = configService.getValue<string>(DefaultFormatter.configName, overrides);
 
+	let defaultFormatterPick: IIndexedPick | undefined;
+
 	const picks = formatters.map((provider, index) => {
-		return <IIndexedPick>{
+		const isDefault = ExtensionIdentifier.equals(provider.extensionId, defaultFormatter);
+		const pick = <IIndexedPick>{
 			index,
 			label: provider.displayName || '',
-			description: ExtensionIdentifier.equals(provider.extensionId, defaultFormatter) ? nls.localize('def', "(default)") : undefined,
+			description: isDefault ? nls.localize('def', "(default)") : undefined,
 		};
+
+		if (isDefault) {
+			// autofocus default pick
+			defaultFormatterPick = pick;
+		}
+
+		return pick;
 	});
 
 	const configurePick: IQuickPickItem = {
 		label: nls.localize('config', "Configure Default Formatter...")
 	};
 
-	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick], { placeHolder: nls.localize('format.placeHolder', "Select a formatter") });
+	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick],
+		{
+			placeHolder: nls.localize('format.placeHolder', "Select a formatter"),
+			activeItem: defaultFormatterPick
+		}
+	);
 	if (!pick) {
 		// dismissed
 		return undefined;

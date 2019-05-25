@@ -6,9 +6,11 @@
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as os from 'os';
+import * as fs from 'fs';
 import { tmpName } from 'tmp';
 import { IDriver, connect as connectDriver, IDisposable, IElement, Thenable } from './driver';
 import { Logger } from '../logger';
+import { ncp } from 'ncp';
 
 const repoPath = path.join(__dirname, '../../../..');
 
@@ -90,6 +92,7 @@ export interface SpawnOptions {
 	verbose?: boolean;
 	extraArgs?: string[];
 	log?: string;
+	remote?: boolean;
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -119,6 +122,24 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		`--user-data-dir=${options.userDataDir}`,
 		'--driver', handle
 	];
+
+	if (options.remote) {
+		// Replace workspace path with URI
+		args.shift();
+		args.push(
+			`--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri`,
+			`vscode-remote://test+test${options.workspacePath}`,
+		);
+		if (codePath) {
+			// running against a build: copy the test resolver extension
+			const testResolverExtPath = path.join(options.extensionsPath, 'vscode-test-resolver');
+			if (!fs.existsSync(testResolverExtPath)) {
+				const orig = path.join(repoPath, 'extensions', 'vscode-test-resolver');
+				await new Promise((c, e) => ncp(orig, testResolverExtPath, err => err ? e(err) : c()));
+			}
+		}
+		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
+	}
 
 	if (!codePath) {
 		args.unshift(repoPath);

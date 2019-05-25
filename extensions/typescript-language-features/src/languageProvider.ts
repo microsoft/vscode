@@ -55,27 +55,30 @@ export default class LanguageProvider extends Disposable {
 
 		const cachedResponse = new CachedResponse();
 
-		this._register((await import('./features/completions')).register(selector, this.description.id, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.onCompletionAccepted));
-		this._register((await import('./features/definitions')).register(selector, this.client));
-		this._register((await import('./features/directiveCommentCompletions')).register(selector, this.client));
-		this._register((await import('./features/documentHighlight')).register(selector, this.client));
-		this._register((await import('./features/documentSymbol')).register(selector, this.client, cachedResponse));
-		this._register((await import('./features/folding')).register(selector, this.client));
-		this._register((await import('./features/formatting')).register(selector, this.description.id, this.client, this.fileConfigurationManager));
-		this._register((await import('./features/hover')).register(selector, this.client));
-		this._register((await import('./features/implementations')).register(selector, this.client));
-		this._register((await import('./features/implementationsCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
-		this._register((await import('./features/jsDocCompletions')).register(selector, this.description.id, this.client));
-		this._register((await import('./features/organizeImports')).register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter));
-		this._register((await import('./features/quickFix')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter));
-		this._register((await import('./features/fixAll')).register(selector, this.client, this.fileConfigurationManager, this.client.diagnosticsManager));
-		this._register((await import('./features/refactor')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter));
-		this._register((await import('./features/references')).register(selector, this.client));
-		this._register((await import('./features/referencesCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
-		this._register((await import('./features/rename')).register(selector, this.client, this.fileConfigurationManager));
-		this._register((await import('./features/signatureHelp')).register(selector, this.client));
-		this._register((await import('./features/tagClosing')).register(selector, this.description.id, this.client));
-		this._register((await import('./features/typeDefinitions')).register(selector, this.client));
+		await Promise.all([
+			import('./features/completions').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.telemetryReporter, this.onCompletionAccepted))),
+			import('./features/definitions').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/directiveCommentCompletions').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/documentHighlight').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/documentSymbol').then(provider => this._register(provider.register(selector, this.client, cachedResponse))),
+			import('./features/folding').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/formatting').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
+			import('./features/hover').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/implementations').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/implementationsCodeLens').then(provider => this._register(provider.register(selector, this.description.id, this.client, cachedResponse))),
+			import('./features/jsDocCompletions').then(provider => this._register(provider.register(selector, this.description.id, this.client))),
+			import('./features/organizeImports').then(provider => this._register(provider.register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter))),
+			import('./features/quickFix').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter))),
+			import('./features/fixAll').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.client.diagnosticsManager))),
+			import('./features/refactor').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter))),
+			import('./features/references').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description.id, this.client, cachedResponse))),
+			import('./features/rename').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager))),
+			import('./features/smartSelect').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/signatureHelp').then(provider => this._register(provider.register(selector, this.client))),
+			import('./features/tagClosing').then(provider => this._register(provider.register(selector, this.description.id, this.client))),
+			import('./features/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
+		]);
 	}
 
 	private configurationChanged(): void {

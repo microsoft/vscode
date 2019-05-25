@@ -46,7 +46,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 			title: input.getName(),
 			options: input.options,
 			extensionLocation: input.extension ? input.extension.location : undefined,
-			extensionId: input.extension ? input.extension.id.value : undefined,
+			extensionId: input.extension && input.extension.id ? input.extension.id.value : undefined,
 			state: input.state,
 			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
 			group: input.group

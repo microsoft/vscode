@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugAdapterTrackerFactory, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/node/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -34,6 +34,7 @@ import { launchSchema, debuggersExtPoint, breakpointsExtPoint } from 'vs/workben
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -51,7 +52,6 @@ export class ConfigurationManager implements IConfigurationManager {
 	private _onDidSelectConfigurationName = new Emitter<void>();
 	private configProviders: IDebugConfigurationProvider[];
 	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
-	private adapterTrackerFactories: IDebugAdapterTrackerFactory[];
 	private debugAdapterFactories: Map<string, IDebugAdapterFactory>;
 	private terminalLauncher: ITerminalLauncher;
 	private debugConfigurationTypeContext: IContextKey<string>;
@@ -71,7 +71,6 @@ export class ConfigurationManager implements IConfigurationManager {
 	) {
 		this.configProviders = [];
 		this.adapterDescriptorFactories = [];
-		this.adapterTrackerFactories = [];
 		this.debuggers = [];
 		this.toDispose = [];
 		this.registerListeners(lifecycleService);
@@ -163,24 +162,6 @@ export class ConfigurationManager implements IConfigurationManager {
 		return Promise.resolve(undefined);
 	}
 
-	// debug adapter trackers
-
-	registerDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): IDisposable {
-		this.adapterTrackerFactories.push(debugAdapterTrackerFactory);
-		return {
-			dispose: () => {
-				this.unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory);
-			}
-		};
-	}
-
-	unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): void {
-		const ix = this.adapterTrackerFactories.indexOf(debugAdapterTrackerFactory);
-		if (ix >= 0) {
-			this.adapterTrackerFactories.splice(ix, 1);
-		}
-	}
-
 	// debug configurations
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable {
@@ -202,13 +183,6 @@ export class ConfigurationManager implements IConfigurationManager {
 	hasDebugConfigurationProvider(debugType: string): boolean {
 		// check if there are providers for the given type that contribute a provideDebugConfigurations method
 		const providers = this.configProviders.filter(p => p.provideDebugConfigurations && (p.type === debugType));
-		return providers.length > 0;
-	}
-
-	needsToRunInExtHost(debugType: string): boolean {
-
-		// if the given debugType matches any registered tracker factory we need to run the DA in the EH
-		const providers = this.adapterTrackerFactories.filter(p => p.type === debugType || p.type === '*');
 		return providers.length > 0;
 	}
 
@@ -535,6 +509,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 		private configurationManager: ConfigurationManager,
 		public workspace: IWorkspaceFolder,
 		@IFileService private readonly fileService: IFileService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
@@ -557,7 +532,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 		const resource = this.uri;
 		let created = false;
 
-		return this.fileService.resolveContent(resource).then(content => content.value, err => {
+		return this.fileService.readFile(resource).then(content => content.value, err => {
 			// launch.json not found: create one by collecting launch configs from debugConfigProviders
 			return this.configurationManager.guessDebugger(type).then(adapter => {
 				if (adapter) {
@@ -574,19 +549,17 @@ class Launch extends AbstractLaunch implements ILaunch {
 				}
 
 				created = true; // pin only if config file is created #8727
-				return this.fileService.updateContent(resource, content).then(() => {
-					// convert string into IContent; see #32135
-					return content;
-				});
+				return this.textFileService.write(resource, content).then(() => content);
 			});
 		}).then(content => {
 			if (!content) {
 				return { editor: null, created: false };
 			}
-			const index = content.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);
+			const contentValue = content.toString();
+			const index = contentValue.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);
 			let startLineNumber = 1;
 			for (let i = 0; i < index; i++) {
-				if (content.charAt(i) === '\n') {
+				if (contentValue.charAt(i) === '\n') {
 					startLineNumber++;
 				}
 			}

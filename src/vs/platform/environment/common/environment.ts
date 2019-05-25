@@ -18,7 +18,6 @@ export interface ParsedArgs {
 	waitMarkerFilePath?: string;
 	diff?: boolean;
 	add?: boolean;
-	gitCredential?: string;
 	goto?: boolean;
 	'new-window'?: boolean;
 	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
@@ -70,7 +69,6 @@ export interface ParsedArgs {
 	'driver'?: string;
 	'driver-verbose'?: boolean;
 	remote?: string;
-	'nodeless'?: boolean; // TODO@ben revisit electron5 nodeless support
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -101,6 +99,9 @@ export interface IEnvironmentService {
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
+
+	machineSettingsHome: string;
+	machineSettingsPath: string;
 
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;

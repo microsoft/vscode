@@ -84,7 +84,7 @@ class InspectTokens extends EditorAction {
 			id: 'editor.action.inspectTokens',
 			label: InspectTokensNLS.inspectTokensAction,
 			alias: 'Developer: Inspect Tokens',
-			precondition: null
+			precondition: undefined
 		});
 	}
 

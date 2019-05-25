@@ -47,11 +47,3 @@
 .extension-ratings.small > .count {
 	margin-left: 2px;
 }
-
-.extension-remote-badge {
-	width: 22px;
-	height: 22px;
-	line-height: 22px;
-	border-radius: 20px;
-	text-align: center;
-}

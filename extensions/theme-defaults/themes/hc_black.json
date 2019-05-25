@@ -4,7 +4,8 @@
 	"include": "./hc_black_defaults.json",
 	"colors": {
 		"selection.background": "#008000",
-		"editor.selectionBackground": "#FFFFFF"
+		"editor.selectionBackground": "#FFFFFF",
+		"statusBarItem.remoteBackground": "#00000000"
 	},
 	"tokenColors": [
 		{
@@ -65,7 +66,13 @@
 		},
 		{
 			"name": "Control flow keywords",
-			"scope": "keyword.control",
+			"scope": [
+				"keyword.control",
+				"keyword.operator.new.cpp",
+				"keyword.operator.delete.cpp",
+				"keyword.other.using",
+				"keyword.other.operator"
+			],
 			"settings": {
 				"foreground": "#C586C0"
 			}

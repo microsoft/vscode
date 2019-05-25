@@ -55,7 +55,7 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 					logService.trace('Sending some foreground love to the running instance:', processId);
 
 					try {
-						const { allowSetForegroundWindow } = <any>require.__$__nodeRequire('windows-foreground-love');
+						const { allowSetForegroundWindow } = require.__$__nodeRequire('windows-foreground-love');
 						allowSetForegroundWindow(processId);
 					} catch (e) {
 						// noop
@@ -288,7 +288,7 @@ function startup(args: ParsedArgs): void {
 				return Promise.reject(error);
 			})
 			.then(mainIpcServer => {
-				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
+				createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath).then(logger => bufferLogService.logger = logger);
 
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
 			});
@@ -307,7 +307,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(ILogService, logService);
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStateService, new SyncDescriptor(StateService));
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 

@@ -645,67 +645,6 @@ suite('Event utils', () => {
 		});
 	});
 
-	suite('echo', () => {
-
-		test('should echo events', () => {
-			const result: number[] = [];
-			const emitter = new Emitter<number>();
-			const event = emitter.event;
-			const echoEvent = Event.echo(event);
-
-			emitter.fire(1);
-			emitter.fire(2);
-			emitter.fire(3);
-			assert.deepEqual(result, []);
-
-			const listener = echoEvent(num => result.push(num));
-			assert.deepEqual(result, [1, 2, 3]);
-
-			emitter.fire(4);
-			assert.deepEqual(result, [1, 2, 3, 4]);
-
-			listener.dispose();
-			emitter.fire(5);
-			assert.deepEqual(result, [1, 2, 3, 4]);
-		});
-
-		test('should echo events for every listener', () => {
-			const result1: number[] = [];
-			const result2: number[] = [];
-			const emitter = new Emitter<number>();
-			const event = emitter.event;
-			const echoEvent = Event.echo(event);
-
-			emitter.fire(1);
-			emitter.fire(2);
-			emitter.fire(3);
-			assert.deepEqual(result1, []);
-			assert.deepEqual(result2, []);
-
-			const listener1 = echoEvent(num => result1.push(num));
-			assert.deepEqual(result1, [1, 2, 3]);
-			assert.deepEqual(result2, []);
-
-			emitter.fire(4);
-			assert.deepEqual(result1, [1, 2, 3, 4]);
-			assert.deepEqual(result2, []);
-
-			const listener2 = echoEvent(num => result2.push(num));
-			assert.deepEqual(result1, [1, 2, 3, 4]);
-			assert.deepEqual(result2, [1, 2, 3, 4]);
-
-			emitter.fire(5);
-			assert.deepEqual(result1, [1, 2, 3, 4, 5]);
-			assert.deepEqual(result2, [1, 2, 3, 4, 5]);
-
-			listener1.dispose();
-			listener2.dispose();
-			emitter.fire(6);
-			assert.deepEqual(result1, [1, 2, 3, 4, 5]);
-			assert.deepEqual(result2, [1, 2, 3, 4, 5]);
-		});
-	});
-
 	suite('EventMultiplexer', () => {
 
 		test('works', () => {

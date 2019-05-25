@@ -50,7 +50,8 @@ const opts = minimist(args, {
 		'log'
 	],
 	boolean: [
-		'verbose'
+		'verbose',
+		'remote'
 	],
 	default: {
 		verbose: false
@@ -204,7 +205,8 @@ function createOptions(): ApplicationOptions {
 		logger: new MultiLogger(loggers),
 		verbose: opts.verbose,
 		log,
-		screenshotsPath
+		screenshotsPath,
+		remote: opts.remote
 	};
 }
 

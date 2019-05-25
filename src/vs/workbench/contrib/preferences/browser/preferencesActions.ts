@@ -48,7 +48,7 @@ export class OpenSettings2Action extends Action {
 	}
 
 	run(event?: any): Promise<any> {
-		return this.preferencesService.openSettings(false);
+		return this.preferencesService.openSettings(false, undefined);
 	}
 }
 
@@ -66,7 +66,7 @@ export class OpenSettingsJsonAction extends Action {
 	}
 
 	run(event?: any): Promise<any> {
-		return this.preferencesService.openSettings(true);
+		return this.preferencesService.openSettings(true, undefined);
 	}
 }
 

@@ -9,7 +9,7 @@ import { Expression, Variable, ExpressionContainer } from 'vs/workbench/contrib/
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -127,7 +127,7 @@ export interface IExpressionTemplateData {
 	value: HTMLSpanElement;
 	inputBoxContainer: HTMLElement;
 	enableInputBox(expression: IExpression, options: IInputBoxOptions): void;
-	toDispose: IDisposable[];
+	readonly toDispose: IDisposable;
 	label: HighlightedLabel;
 }
 
@@ -148,7 +148,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		const label = new HighlightedLabel(name, false);
 
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
-		const toDispose: IDisposable[] = [];
+		const toDispose = new DisposableStore();
 
 		const enableInputBox = (expression: IExpression, options: IInputBoxOptions) => {
 			name.style.display = 'none';
@@ -161,7 +161,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 			});
 			const styler = attachInputBoxStyler(inputBox, this.themeService);
 
-			inputBox.value = options.initialValue;
+			inputBox.value = replaceWhitespace(options.initialValue);
 			inputBox.focus();
 			inputBox.select();
 
@@ -180,7 +180,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 					name.style.display = 'initial';
 					value.style.display = 'initial';
 					inputBoxContainer.style.display = 'none';
-					dispose(toDispose);
+					toDispose.dispose();
 				}
 			};
 

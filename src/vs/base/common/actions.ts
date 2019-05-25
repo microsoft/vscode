@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ITelemetryData {
@@ -29,7 +29,7 @@ export interface IActionRunner extends IDisposable {
 	onDidBeforeRun: Event<IRunEvent>;
 }
 
-export interface IActionItem {
+export interface IActionViewItem {
 	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: any /* HTMLElement */): void;
@@ -191,18 +191,19 @@ export class ActionRunner extends Disposable implements IActionRunner {
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
 
-	run(action: IAction, context?: any): Promise<any> {
+	async run(action: IAction, context?: any): Promise<any> {
 		if (!action.enabled) {
 			return Promise.resolve(null);
 		}
 
 		this._onDidBeforeRun.fire({ action: action });
 
-		return this.runAction(action, context).then((result: any) => {
+		try {
+			const result = await this.runAction(action, context);
 			this._onDidRun.fire({ action: action, result: result });
-		}, (error: any) => {
+		} catch (error) {
 			this._onDidRun.fire({ action: action, error: error });
-		});
+		}
 	}
 
 	protected runAction(action: IAction, context?: any): Promise<any> {
@@ -216,8 +217,8 @@ export class RadioGroup extends Disposable {
 	constructor(readonly actions: Action[]) {
 		super();
 
-		this._register(combinedDisposable(actions.map(action => {
-			return action.onDidChange(e => {
+		for (const action of actions) {
+			this._register(action.onDidChange(e => {
 				if (e.checked && action.checked) {
 					for (const candidate of actions) {
 						if (candidate !== action) {
@@ -225,7 +226,7 @@ export class RadioGroup extends Disposable {
 						}
 					}
 				}
-			});
-		})));
+			}));
+		}
 	}
 }

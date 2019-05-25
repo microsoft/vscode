@@ -13,12 +13,13 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, DisabledLabelAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/electron-browser/extensionsWidgets';
+import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget } from 'vs/workbench/contrib/extensions/electron-browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;
@@ -65,7 +66,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const element = append(root, $('.extension'));
 		const iconContainer = append(element, $('.icon-container'));
 		const icon = append(iconContainer, $<HTMLImageElement>('img.icon'));
-		const badgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer);
+		const iconRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, false);
 		const details = append(element, $('.details'));
 		const headerContainer = append(details, $('.header-container'));
 		const header = append(headerContainer, $('.header'));
@@ -73,38 +74,46 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const version = append(header, $('span.version'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
+		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
 		const actionbar = new ActionBar(footer, {
 			animated: false,
-			actionItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: Action) => {
 				if (action.id === ManageExtensionAction.ID) {
-					return (<ManageExtensionAction>action).createActionItem();
+					return (<ManageExtensionAction>action).createActionViewItem();
 				}
-				return new ExtensionActionItem(null, action, actionOptions);
+				return new ExtensionActionViewItem(null, action, actionOptions);
 			}
 		});
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
+		const systemDisabledWarningAction = this.instantiationService.createInstance(SystemDisabledWarningAction);
+		const reloadAction = this.instantiationService.createInstance(ReloadAction);
+		const actions = [
+			this.instantiationService.createInstance(StatusLabelAction),
+			this.instantiationService.createInstance(UpdateAction),
+			reloadAction,
+			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(RemoteInstallAction),
+			this.instantiationService.createInstance(LocalInstallAction),
+			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
+			systemDisabledWarningAction,
+			this.instantiationService.createInstance(ManageExtensionAction)
+		];
+		const disabledLabelAction = this.instantiationService.createInstance(DisabledLabelAction, systemDisabledWarningAction);
+		const tooltipWidget = this.instantiationService.createInstance(TooltipWidget, root, disabledLabelAction, recommendationWidget, reloadAction);
 		const widgets = [
 			recommendationWidget,
-			badgeWidget,
+			iconRemoteBadgeWidget,
+			headerRemoteBadgeWidget,
+			tooltipWidget,
 			this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
 			this.instantiationService.createInstance(RatingsWidget, ratings, true)
 		];
-		const actions = [
-			this.instantiationService.createInstance(StatusLabelAction),
-			this.instantiationService.createInstance(UpdateAction),
-			this.instantiationService.createInstance(ReloadAction),
-			this.instantiationService.createInstance(InstallAction),
-			this.instantiationService.createInstance(RemoteInstallAction),
-			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
-			this.instantiationService.createInstance(SystemDisabledWarningAction),
-			this.instantiationService.createInstance(ManageExtensionAction)
-		];
-		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
+		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, disabledLabelAction]);
 
 		actionbar.push(actions, actionOptions);
 		const disposables = [...actions, ...widgets, actionbar, extensionContainers];
@@ -144,7 +153,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const updateEnablement = async () => {
 			const runningExtensions = await this.extensionService.getExtensions();
-			if (extension.local) {
+			if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
 				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, extension.identifier))[0];
 				const isSameExtensionRunning = runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation);
 				toggleClass(data.root, 'disabled', !isSameExtensionRunning);
@@ -179,13 +188,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		this.extensionViewState.onFocus(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.items.forEach(item => (<ExtensionActionItem>item).setFocus(true));
+				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(true));
 			}
 		}, this, data.extensionDisposables);
 
 		this.extensionViewState.onBlur(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.items.forEach(item => (<ExtensionActionItem>item).setFocus(false));
+				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(false));
 			}
 		}, this, data.extensionDisposables);
 	}

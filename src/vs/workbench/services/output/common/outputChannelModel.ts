@@ -96,12 +96,11 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		} else {
 			this.model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
 			this.onModelCreated(this.model);
-			const disposables: IDisposable[] = [];
-			disposables.push(this.model.onWillDispose(() => {
+			const disposable = this.model.onWillDispose(() => {
 				this.onModelWillDispose(this.model);
 				this.model = null;
-				dispose(disposables);
-			}));
+				dispose(disposable);
+			});
 		}
 		return this.model;
 	}
@@ -210,11 +209,11 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 
 	loadModel(): Promise<ITextModel> {
-		this.loadModelPromise = this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
+		this.loadModelPromise = this.fileService.readFile(this.file, { position: this.startOffset })
 			.then(content => {
-				this.endOffset = this.startOffset + this.getByteLength(content.value);
+				this.endOffset = this.startOffset + content.value.byteLength;
 				this.etag = content.etag;
-				return this.createModel(content.value);
+				return this.createModel(content.value.toString());
 			});
 		return this.loadModelPromise;
 	}
@@ -233,12 +232,12 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 
 	protected updateModel(): void {
 		if (this.model) {
-			this.fileService.resolveContent(this.file, { position: this.endOffset, encoding: 'utf8' })
+			this.fileService.readFile(this.file, { position: this.endOffset })
 				.then(content => {
 					this.etag = content.etag;
 					if (content.value) {
-						this.endOffset = this.endOffset + this.getByteLength(content.value);
-						this.appendToModel(content.value);
+						this.endOffset = this.endOffset + content.value.byteLength;
+						this.appendToModel(content.value.toString());
 					}
 					this.updateInProgress = false;
 				}, () => this.updateInProgress = false);
@@ -340,11 +339,10 @@ export class BufferredOutputChannel extends Disposable implements IOutputChannel
 
 	private createModel(content: string): ITextModel {
 		const model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
-		const disposables: IDisposable[] = [];
-		disposables.push(model.onWillDispose(() => {
+		const disposable = model.onWillDispose(() => {
 			this.model = null;
-			dispose(disposables);
-		}));
+			dispose(disposable);
+		});
 		return model;
 	}
 

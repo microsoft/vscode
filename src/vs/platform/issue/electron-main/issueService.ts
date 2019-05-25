@@ -75,6 +75,23 @@ export class IssueService implements IIssueService {
 			event.sender.send('vscode:listProcessesResponse', processes);
 		});
 
+		ipcMain.on('vscode:issueReporterClipboard', (event: Event) => {
+			const messageOptions = {
+				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub. Would you like to write the information to the clipboard so that it can be pasted?"),
+				type: 'warning',
+				buttons: [
+					localize('yes', "Yes"),
+					localize('cancel', "Cancel")
+				]
+			};
+
+			if (this._issueWindow) {
+				dialog.showMessageBox(this._issueWindow, messageOptions, response => {
+					event.sender.send('vscode:issueReporterClipboardResponse', response === 0);
+				});
+			}
+		});
+
 		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Event) => {
 			this.getPerformanceInfo().then(msg => {
 				event.sender.send('vscode:issuePerformanceInfoResponse', msg);

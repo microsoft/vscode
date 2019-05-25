@@ -31,7 +31,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ILocalProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -94,7 +94,7 @@ export class PreferencesEditor extends BaseEditor {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IProgressService private readonly progressService: IProgressService,
+		@ILocalProgressService private readonly progressService: ILocalProgressService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
@@ -154,14 +154,14 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	setInput(newInput: PreferencesEditorInput, options: SettingsEditorOptions, token: CancellationToken): Promise<void> {
+	setInput(newInput: EditorInput, options: SettingsEditorOptions, token: CancellationToken): Promise<void> {
 		this.defaultSettingsEditorContextKey.set(true);
 		this.defaultSettingsJSONEditorContextKey.set(true);
 		if (options && options.query) {
 			this.focusSearch(options.query);
 		}
 
-		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput, options, token));
+		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput as PreferencesEditorInput, options, token));
 	}
 
 	layout(dimension: DOM.Dimension): void {
@@ -256,8 +256,8 @@ export class PreferencesEditor extends BaseEditor {
 		}
 		const promise: Promise<boolean> = this.input && this.input.isDirty() ? this.input.save() : Promise.resolve(true);
 		promise.then(() => {
-			if (target === ConfigurationTarget.USER) {
-				this.preferencesService.switchSettings(ConfigurationTarget.USER, this.preferencesService.userSettingsResource, true);
+			if (target === ConfigurationTarget.USER_LOCAL) {
+				this.preferencesService.switchSettings(ConfigurationTarget.USER_LOCAL, this.preferencesService.userSettingsResource, true);
 			} else if (target === ConfigurationTarget.WORKSPACE) {
 				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE, this.preferencesService.workspaceSettingsResource!, true);
 			} else if (target instanceof URI) {
@@ -507,7 +507,7 @@ class PreferencesRenderersController extends Disposable {
 	private searchAllSettingsTargets(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, token?: CancellationToken): Promise<void> {
 		const searchPs = [
 			this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.WORKSPACE, groupId, groupLabel, groupOrder, token),
-			this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.USER, groupId, groupLabel, groupOrder, token)
+			this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.USER_LOCAL, groupId, groupLabel, groupOrder, token)
 		];
 
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
@@ -541,9 +541,10 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	private async getPreferencesEditorModel(target: SettingsTarget | undefined): Promise<ISettingsEditorModel | undefined> {
-		const resource = target === ConfigurationTarget.USER ? this.preferencesService.userSettingsResource :
-			target === ConfigurationTarget.WORKSPACE ? this.preferencesService.workspaceSettingsResource :
-				target;
+		const resource = target === ConfigurationTarget.USER_LOCAL ? this.preferencesService.userSettingsResource :
+			target === ConfigurationTarget.USER_REMOTE ? this.preferencesService.userSettingsResource :
+				target === ConfigurationTarget.WORKSPACE ? this.preferencesService.workspaceSettingsResource :
+					target;
 
 		if (!resource) {
 			return undefined;
@@ -821,7 +822,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.editablePreferencesEditorContainer = DOM.$('.editable-preferences-editor-container');
 		const editablePreferencesHeaderContainer = DOM.append(this.editablePreferencesEditorContainer, DOM.$('.preferences-header-container'));
-		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, editablePreferencesHeaderContainer));
+		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, editablePreferencesHeaderContainer, undefined));
 		this._register(this.settingsTargetsWidget.onDidTargetChange(target => this._onDidSettingsTargetChange.fire(target)));
 
 		this._register(attachStylerCallback(this.themeService, { scrollbarShadow }, colors => {
@@ -865,7 +866,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private getDefaultPreferencesHeaderText(target: ConfigurationTarget): string {
 		switch (target) {
-			case ConfigurationTarget.USER:
+			case ConfigurationTarget.USER_LOCAL:
 				return nls.localize('defaultUserSettings', "Default User Settings");
 			case ConfigurationTarget.WORKSPACE:
 				return nls.localize('defaultWorkspaceSettings', "Default Workspace Settings");
@@ -942,7 +943,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private getSettingsTarget(resource: URI): SettingsTarget {
 		if (this.preferencesService.userSettingsResource.toString() === resource.toString()) {
-			return ConfigurationTarget.USER;
+			return ConfigurationTarget.USER_LOCAL;
 		}
 
 		const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
@@ -955,7 +956,7 @@ class SideBySidePreferencesWidget extends Widget {
 			return folder.uri;
 		}
 
-		return ConfigurationTarget.USER;
+		return ConfigurationTarget.USER_LOCAL;
 	}
 
 	private disposeEditors(): void {
@@ -1202,7 +1203,7 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 				.then<any>(settingsModel => {
 					if (settingsModel instanceof SettingsEditorModel && this.editor.getModel()) {
 						switch (settingsModel.configurationTarget) {
-							case ConfigurationTarget.USER:
+							case ConfigurationTarget.USER_LOCAL:
 								return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel);
 							case ConfigurationTarget.WORKSPACE:
 								return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel);

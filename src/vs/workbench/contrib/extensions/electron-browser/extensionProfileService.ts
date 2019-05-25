@@ -21,6 +21,7 @@ import { randomPort } from 'vs/base/node/ports';
 import product from 'vs/platform/product/node/product';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 
@@ -76,7 +77,8 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			return null;
 		}
 
-		if (!this._extensionService.canProfileExtensionHost()) {
+		const inspectPort = this._extensionService.getInspectPort();
+		if (!inspectPort) {
 			return this._dialogService.confirm({
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
@@ -92,7 +94,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 		this._setState(ProfileSessionState.Starting);
 
-		return this._extensionService.startExtensionHostProfile().then((value) => {
+		return this._instantiationService.createInstance(ExtensionHostProfiler, inspectPort).start().then((value) => {
 			this._profileSession = value;
 			this._setState(ProfileSessionState.Running);
 		}, (err) => {

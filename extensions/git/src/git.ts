@@ -12,7 +12,7 @@ import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
 import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
-import { CancellationToken, Uri } from 'vscode';
+import { CancellationToken, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
 
@@ -306,6 +306,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.BranchAlreadyExists;
 	} else if (/'.+' is not a valid branch name/.test(stderr)) {
 		return GitErrorCodes.InvalidBranchName;
+	} else if (/Please,? commit your changes or stash them/.test(stderr)) {
+		return GitErrorCodes.DirtyWorkTree;
 	}
 
 	return undefined;
@@ -1360,7 +1362,12 @@ export class Repository {
 	}
 
 	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
-		const args = ['pull', '--tags'];
+		const args = ['pull'];
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+
+		if (config.get<boolean>('pullTags')) {
+			args.push('--tags');
+		}
 
 		if (options.unshallow) {
 			args.push('--unshallow');

@@ -1,18 +1,16 @@
 {
+	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
 		"noEmit": true,
+		"types": [],
+		"paths": {},
 		"module": "amd",
 		"moduleResolution": "classic",
-		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "es5",
 		"sourceMap": false,
-		"experimentalDecorators": true,
-		"declaration": true,
-		"noImplicitReturns": true,
-		"baseUrl": ".",
-		"types": []
+		"declaration": true
 	},
 	"include": [
 		"typings/require.d.ts",

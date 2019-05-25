@@ -106,19 +106,27 @@ suite('Notifications', () => {
 		assert.equal(item6.actions.primary!.length, 1);
 
 		// Links
-		let item7 = NotificationViewItem.create({ severity: Severity.Info, message: 'Unable to [Link 1](http://link1.com) open [Link 2](https://link2.com) and [Invalid Link3](ftp://link3.com)' })!;
+		let item7 = NotificationViewItem.create({ severity: Severity.Info, message: 'Unable to [Link 1](http://link1.com) open [Link 2](command:open.me "Open This") and [Link 3](command:without.title) and [Invalid Link4](ftp://link4.com)' })!;
 
 		const links = item7.message.links;
-		assert.equal(links.length, 2);
+		assert.equal(links.length, 3);
 		assert.equal(links[0].name, 'Link 1');
 		assert.equal(links[0].href, 'http://link1.com');
+		assert.equal(links[0].title, 'http://link1.com');
 		assert.equal(links[0].length, '[Link 1](http://link1.com)'.length);
 		assert.equal(links[0].offset, 'Unable to '.length);
 
 		assert.equal(links[1].name, 'Link 2');
-		assert.equal(links[1].href, 'https://link2.com');
-		assert.equal(links[1].length, '[Link 2](https://link2.com)'.length);
+		assert.equal(links[1].href, 'command:open.me');
+		assert.equal(links[1].title, 'Open This');
+		assert.equal(links[1].length, '[Link 2](command:open.me "Open This")'.length);
 		assert.equal(links[1].offset, 'Unable to [Link 1](http://link1.com) open '.length);
+
+		assert.equal(links[2].name, 'Link 3');
+		assert.equal(links[2].href, 'command:without.title');
+		assert.equal(links[2].title, 'Click to execute command \'without.title\'');
+		assert.equal(links[2].length, '[Link 3](command:without.title)'.length);
+		assert.equal(links[2].offset, 'Unable to [Link 1](http://link1.com) open [Link 2](command:open.me "Open This") and '.length);
 	});
 
 	test('Model', () => {

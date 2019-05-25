@@ -185,7 +185,7 @@ interface IconThemeDocument extends IconsAssociation {
 }
 
 function _loadIconThemeDocument(fileService: IFileService, location: URI): Promise<IconThemeDocument> {
-	return fileService.resolveContent(location, { encoding: 'utf8' }).then((content) => {
+	return fileService.readFile(location).then((content) => {
 		let errors: Json.ParseError[] = [];
 		let contentValue = Json.parse(content.value.toString(), errors);
 		if (errors.length > 0 || !contentValue) {

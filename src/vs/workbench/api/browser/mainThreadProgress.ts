@@ -3,20 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProgress, IProgressService2, IProgressStep, IProgressOptions } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgressOptions, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
 import { MainThreadProgressShape, MainContext, IExtHostContext, ExtHostProgressShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { Action } from 'vs/base/common/actions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { localize } from 'vs/nls';
+
+class ManageExtensionAction extends Action {
+	constructor(id: ExtensionIdentifier, label: string, commandService: ICommandService) {
+		super(id.value, label, undefined, true, () => {
+			return commandService.executeCommand('_extensions.manage', id.value);
+		});
+	}
+}
 
 @extHostNamedCustomer(MainContext.MainThreadProgress)
 export class MainThreadProgress implements MainThreadProgressShape {
 
-	private readonly _progressService: IProgressService2;
+	private readonly _progressService: IProgressService;
 	private _progress = new Map<number, { resolve: () => void, progress: IProgress<IProgressStep> }>();
 	private readonly _proxy: ExtHostProgressShape;
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IProgressService2 progressService: IProgressService2
+		@IProgressService progressService: IProgressService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostProgress);
 		this._progressService = progressService;
@@ -27,8 +40,18 @@ export class MainThreadProgress implements MainThreadProgressShape {
 		this._progress.clear();
 	}
 
-	$startProgress(handle: number, options: IProgressOptions): void {
+	$startProgress(handle: number, options: IProgressOptions, extension?: IExtensionDescription): void {
 		const task = this._createTask(handle);
+
+		if (options.location === ProgressLocation.Notification && extension && !extension.isUnderDevelopment) {
+			const notificationOptions: IProgressNotificationOptions = {
+				...options,
+				location: ProgressLocation.Notification,
+				secondaryActions: [new ManageExtensionAction(extension.identifier, localize('manageExtension', "Manage Extension"), this._commandService)]
+			};
+
+			options = notificationOptions;
+		}
 
 		this._progressService.withProgress(options, task, () => this._proxy.$acceptProgressCanceled(handle));
 	}

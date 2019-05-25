@@ -6,36 +6,28 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
-import { URI } from 'vs/base/common/uri';
+import { IExtensionHostDebugService, IAttachSessionEvent, ITerminateSessionEvent, ILogToSessionEvent, IReloadSessionEvent, ICloseSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { ipcRenderer as ipc } from 'electron';
 
-interface IReloadBroadcast {
+interface IReloadBroadcast extends IReloadSessionEvent {
 	type: 'vscode:extensionReload';
-	resource: string;
 }
 
-interface IAttachSessionBroadcast {
+interface IAttachSessionBroadcast extends IAttachSessionEvent {
 	type: 'vscode:extensionAttach';
-	id: string;
-	port: number;
 }
 
-interface ICloseBroadcast {
+interface ICloseBroadcast extends ICloseSessionEvent {
 	type: 'vscode:extensionCloseExtensionHost';
-	resource: string;
 }
 
-interface ILogToSessionBroadcast {
+interface ILogToSessionBroadcast extends ILogToSessionEvent {
 	type: 'vscode:extensionLog';
-	id: string;
-	log: IRemoteConsoleLog;
 }
 
-interface ITerminateSessionBroadcast {
+interface ITerminateSessionBroadcast extends ITerminateSessionEvent {
 	type: 'vscode:extensionTerminate';
-	id: string;
 }
 
 const CHANNEL = 'vscode:extensionHostDebug';
@@ -44,11 +36,11 @@ class ExtensionHostDebugService implements IExtensionHostDebugService {
 	_serviceBrand: any;
 
 	private windowId: number;
-	private readonly _onReload = new Emitter<URI>();
-	private readonly _onClose = new Emitter<URI>();
-	private readonly _onAttachSession = new Emitter<{ id: string, port: number }>();
-	private readonly _onLogToSession = new Emitter<{ id: string, log: IRemoteConsoleLog }>();
-	private readonly _onTerminateSession = new Emitter<string>();
+	private readonly _onReload = new Emitter<IReloadSessionEvent>();
+	private readonly _onClose = new Emitter<ICloseSessionEvent>();
+	private readonly _onAttachSession = new Emitter<IAttachSessionEvent>();
+	private readonly _onLogToSession = new Emitter<ILogToSessionEvent>();
+	private readonly _onTerminateSession = new Emitter<ITerminateSessionEvent>();
 
 	constructor(
 		@IWindowService readonly windowService: IWindowService,
@@ -56,78 +48,82 @@ class ExtensionHostDebugService implements IExtensionHostDebugService {
 		this.windowId = windowService.windowId;
 
 		ipc.on(CHANNEL, (_: unknown, broadcast: IReloadBroadcast | ICloseBroadcast | IAttachSessionBroadcast | ILogToSessionBroadcast | ITerminateSessionBroadcast) => {
-			if (broadcast.type === 'vscode:extensionReload') {
-				this._onReload.fire(URI.parse(broadcast.resource));
-			}
-			if (broadcast.type === 'vscode:extensionCloseExtensionHost') {
-				this._onClose.fire(URI.parse(broadcast.resource));
-			}
-			if (broadcast.type === 'vscode:extensionAttach') {
-				this._onAttachSession.fire({ id: broadcast.id, port: broadcast.port });
-			}
-			if (broadcast.type === 'vscode:extensionLog') {
-				this._onLogToSession.fire({ id: broadcast.id, log: broadcast.log });
-			}
-			if (broadcast.type === 'vscode:extensionTerminate') {
-				this._onTerminateSession.fire(broadcast.id);
+			switch (broadcast.type) {
+				case 'vscode:extensionReload':
+					this._onReload.fire(broadcast);
+					break;
+				case 'vscode:extensionCloseExtensionHost':
+					this._onClose.fire(broadcast);
+					break;
+				case 'vscode:extensionAttach':
+					this._onAttachSession.fire(broadcast);
+					break;
+				case 'vscode:extensionLog':
+					this._onLogToSession.fire(broadcast);
+					break;
+				case 'vscode:extensionTerminate':
+					this._onTerminateSession.fire(broadcast);
+					break;
 			}
 		});
 	}
 
-	reload(resource: URI): void {
+	reload(sessionId: string): void {
 		ipc.send(CHANNEL, this.windowId, <IReloadBroadcast>{
 			type: 'vscode:extensionReload',
-			resource: resource.toString()
+			sessionId
 		});
 	}
 
-	get onReload(): Event<URI> {
+	get onReload(): Event<IReloadSessionEvent> {
 		return this._onReload.event;
 	}
 
-	close(resource: URI): void {
+	close(sessionId: string): void {
 		ipc.send(CHANNEL, this.windowId, <ICloseBroadcast>{
 			type: 'vscode:extensionCloseExtensionHost',
-			resource: resource.toString()
+			sessionId
 		});
 	}
 
-	get onClose(): Event<URI> {
+	get onClose(): Event<ICloseSessionEvent> {
 		return this._onClose.event;
 	}
 
-	attachSession(id: string, port: number): void {
+	attachSession(sessionId: string, port: number, subId?: string): void {
 		ipc.send(CHANNEL, this.windowId, <IAttachSessionBroadcast>{
 			type: 'vscode:extensionAttach',
-			id,
-			port
+			sessionId,
+			port,
+			subId
 		});
 	}
 
-	get onAttachSession(): Event<{ id: string, port: number }> {
+	get onAttachSession(): Event<IAttachSessionEvent> {
 		return this._onAttachSession.event;
 	}
 
-	logToSession(id: string, log: IRemoteConsoleLog): void {
+	logToSession(sessionId: string, log: IRemoteConsoleLog): void {
 		ipc.send(CHANNEL, this.windowId, <ILogToSessionBroadcast>{
 			type: 'vscode:extensionLog',
-			id,
+			sessionId,
 			log
 		});
 	}
 
-	get onLogToSession(): Event<{ id: string, log: IRemoteConsoleLog }> {
+	get onLogToSession(): Event<ILogToSessionEvent> {
 		return this._onLogToSession.event;
 	}
 
-	terminateSession(id: string): void {
+	terminateSession(sessionId: string, subId?: string): void {
 		ipc.send(CHANNEL, this.windowId, <ITerminateSessionBroadcast>{
 			type: 'vscode:extensionTerminate',
-			id
+			sessionId,
+			subId
 		});
 	}
 
-	get onTerminateSession(): Event<string> {
+	get onTerminateSession(): Event<ITerminateSessionEvent> {
 		return this._onTerminateSession.event;
 	}
 }

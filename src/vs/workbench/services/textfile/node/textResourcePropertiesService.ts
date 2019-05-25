@@ -13,10 +13,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class TextResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<ITextResourcePropertiesService>;
 
 	private remoteEnvironment: IRemoteAgentEnvironment | null = null;
 
@@ -40,6 +41,7 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 
 	private getOS(resource: URI): OperatingSystem {
 		let os = OS;
+
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		if (remoteAuthority) {
 			if (resource.scheme !== Schemas.file) {
@@ -48,6 +50,7 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 				this.storageService.store(osCacheKey, os, StorageScope.WORKSPACE);
 			}
 		}
+
 		return os;
 	}
 }

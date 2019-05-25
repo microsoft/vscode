@@ -11,9 +11,17 @@ export class ProductService implements IProductService {
 
 	_serviceBrand: any;
 
-	get version(): string | undefined { return pkg.version; }
+	get version(): string { return pkg.version; }
 
 	get commit(): string | undefined { return product.commit; }
+
+	get nameLong(): string { return product.nameLong; }
+
+	get urlProtocol(): string { return product.urlProtocol; }
+
+	get extensionAllowedProposedApi(): string[] { return product.extensionAllowedProposedApi; }
+
+	get uiExtensions(): string[] | undefined { return product.uiExtensions; }
 
 	get enableTelemetry(): boolean { return product.enableTelemetry; }
 }

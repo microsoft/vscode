@@ -9,14 +9,14 @@ import { assign } from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
-import { SortBy, SortOrder, IQueryOptions, IExtensionTipsService, IExtensionRecommendation, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { SortBy, SortOrder, IQueryOptions, IExtensionTipsService, IExtensionRecommendation, IExtensionManagementServer, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer, IExtensionsViewState } from 'vs/workbench/contrib/extensions/electron-browser/extensionsList';
-import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
+import { IExtension, IExtensionsWorkbenchService, ExtensionState } from '../common/extensions';
 import { Query } from '../common/extensionQuery';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -41,13 +41,12 @@ import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAction } from 'vs/base/common/actions';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import product from 'vs/platform/product/node/product';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { IProductService } from 'vs/platform/product/common/product';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -96,7 +95,9 @@ export class ExtensionsListView extends ViewletPanel {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IExperimentService private readonly experimentService: IExperimentService,
-		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
+		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IProductService protected readonly productService: IProductService,
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 		this.server = options.server;
@@ -234,7 +235,7 @@ export class ExtensionsListView extends ViewletPanel {
 		if (ids.length) {
 			return this.queryByIds(ids, options, token);
 		}
-		if (ExtensionsListView.isInstalledExtensionsQuery(query.value) || /@builtin/.test(query.value)) {
+		if (ExtensionsListView.isLocalExtensionsQuery(query.value) || /@builtin/.test(query.value)) {
 			return this.queryLocal(query, options);
 		}
 		return this.queryGallery(query, options, token);
@@ -329,7 +330,37 @@ export class ExtensionsListView extends ViewletPanel {
 					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
 					&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
-			return this.getPagedModel(this.sortExtensions(result, options));
+			if (options.sortBy !== undefined) {
+				result = this.sortExtensions(result, options);
+			} else {
+				const runningExtensions = await this.extensionService.getExtensions();
+				const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(ExtensionIdentifier.toKey(e.identifier.value), e); return result; }, new Map<string, IExtensionDescription>());
+				result = result.sort((e1, e2) => {
+					const running1 = runningExtensionsById.get(ExtensionIdentifier.toKey(e1.identifier.id));
+					const isE1Running = running1 && this.extensionManagementServerService.getExtensionManagementServer(running1.extensionLocation) === e1.server;
+					const running2 = runningExtensionsById.get(ExtensionIdentifier.toKey(e2.identifier.id));
+					const isE2Running = running2 && this.extensionManagementServerService.getExtensionManagementServer(running2.extensionLocation) === e2.server;
+					if ((isE1Running && isE2Running)) {
+						return e1.displayName.localeCompare(e2.displayName);
+					}
+					const isE1LanguagePackExtension = e1.local && isLanguagePackExtension(e1.local.manifest);
+					const isE2LanguagePackExtension = e2.local && isLanguagePackExtension(e2.local.manifest);
+					if (!isE1Running && !isE2Running) {
+						if (isE1LanguagePackExtension) {
+							return -1;
+						}
+						if (isE2LanguagePackExtension) {
+							return 1;
+						}
+						return e1.displayName.localeCompare(e2.displayName);
+					}
+					if ((isE1Running && isE2LanguagePackExtension) || (isE2Running && isE1LanguagePackExtension)) {
+						return e1.displayName.localeCompare(e2.displayName);
+					}
+					return isE1Running ? -1 : 1;
+				});
+			}
+			return this.getPagedModel(result);
 		}
 
 
@@ -687,6 +718,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	private openExtension(extension: IExtension): void {
+		extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0] || extension;
 		this.extensionsWorkbenchService.open(extension).then(undefined, err => this.onError(err));
 	}
 
@@ -746,12 +778,28 @@ export class ExtensionsListView extends ViewletPanel {
 		return /^\s*@builtin\s*$/i.test(query);
 	}
 
-	static isInstalledExtensionsQuery(query: string): boolean {
-		return /@installed|@outdated|@enabled|@disabled/i.test(query);
+	static isLocalExtensionsQuery(query: string): boolean {
+		return this.isInstalledExtensionsQuery(query)
+			|| this.isOutdatedExtensionsQuery(query)
+			|| this.isEnabledExtensionsQuery(query)
+			|| this.isDisabledExtensionsQuery(query)
+			|| this.isBuiltInExtensionsQuery(query);
 	}
 
-	static isServerExtensionsQuery(query: string): boolean {
-		return /@installed|@outdated/i.test(query);
+	static isInstalledExtensionsQuery(query: string): boolean {
+		return /@installed/i.test(query);
+	}
+
+	static isOutdatedExtensionsQuery(query: string): boolean {
+		return /@outdated/i.test(query);
+	}
+
+	static isEnabledExtensionsQuery(query: string): boolean {
+		return /@enabled/i.test(query);
+	}
+
+	static isDisabledExtensionsQuery(query: string): boolean {
+		return /@disabled/i.test(query);
 	}
 
 	static isRecommendedExtensionsQuery(query: string): boolean {
@@ -783,14 +831,11 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 }
 
-function getServerLabel(server: IExtensionManagementServer, labelService: ILabelService, workbenchEnvironmentService: IWorkbenchEnvironmentService): string {
-	return workbenchEnvironmentService.configuration.remoteAuthority === server.authority ? labelService.getHostLabel(REMOTE_HOST_SCHEME, server.authority) || server.label : server.label;
-}
-
 export class ServerExtensionsView extends ExtensionsListView {
 
 	constructor(
 		server: IExtensionManagementServer,
+		onDidChangeTitle: Event<string>,
 		options: ExtensionsListViewOptions,
 		@INotificationService notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -807,18 +852,17 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IExperimentService experimentService: IExperimentService,
 		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@ILabelService labelService: ILabelService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
+		@IProductService productService: IProductService,
 	) {
-		options.title = getServerLabel(server, labelService, workbenchEnvironmentService);
 		options.server = server;
-		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, modeService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService);
-		this.disposables.push(labelService.onDidChangeFormatters(() => this.updateTitle(getServerLabel(server, labelService, workbenchEnvironmentService))));
+		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, modeService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService);
+		this.disposables.push(onDidChangeTitle(title => this.updateTitle(title)));
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query ? query : '@installed';
-		if (!ExtensionsListView.isInstalledExtensionsQuery(query) && !ExtensionsListView.isBuiltInExtensionsQuery(query)) {
+		if (!ExtensionsListView.isLocalExtensionsQuery(query) && !ExtensionsListView.isBuiltInExtensionsQuery(query)) {
 			query = query += ' @installed';
 		}
 		return super.show(query.trim());
@@ -954,6 +998,12 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 
 	private getRecommendationsToInstall(): Promise<IExtensionRecommendation[]> {
 		return this.tipsService.getWorkspaceRecommendations()
-			.then(recommendations => recommendations.filter(({ extensionId }) => !this.extensionsWorkbenchService.local.some(i => areSameExtensions({ id: extensionId }, i.identifier))));
+			.then(recommendations => recommendations.filter(({ extensionId }) => {
+				const extension = this.extensionsWorkbenchService.local.filter(i => areSameExtensions({ id: extensionId }, i.identifier))[0];
+				if (!extension || !extension.local || extension.state !== ExtensionState.Installed) {
+					return true;
+				}
+				return isUIExtension(extension.local.manifest, this.productService, this.configurationService) ? extension.server !== this.extensionManagementServerService.localExtensionManagementServer : extension.server !== this.extensionManagementServerService.remoteExtensionManagementServer;
+			}));
 	}
 }

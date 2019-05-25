@@ -185,9 +185,9 @@ export function registerCommands(): void {
 			if (!session || !session.getId) {
 				session = debugService.getViewModel().focusedSession;
 				const configurationService = accessor.get(IConfigurationService);
-				const hideSubSessions = configurationService.getValue<IDebugConfiguration>('debug').hideSubSessions;
+				const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 				// Stop should be sent to the root parent session
-				while (hideSubSessions && session && session.parentSession) {
+				while (!showSubSessions && session && session.parentSession) {
 					session = session.parentSession;
 				}
 			}

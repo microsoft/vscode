@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as crypto from 'crypto';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, IFileStat, IResolveFileResult, IContent } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -20,6 +20,7 @@ import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspa
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { joinPath } from 'vs/base/common/resources';
+import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -52,6 +53,7 @@ const ModulesToLookFor = [
 	// JS frameworks
 	'react',
 	'react-native',
+	'rnpm-plugin-windows',
 	'@angular/core',
 	'@ionic',
 	'vue',
@@ -193,14 +195,14 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 	});
 }
 
-export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
+export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, textFileService: ITextFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
 	const path = workspaceUri.path;
 	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
 	return fileService.exists(uri).then(exists => {
 		if (!exists) {
 			return [];
 		}
-		return fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+		return textFileService.read(uri, { acceptTextOnly: true }).then(
 			content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
 			err => [] // ignore missing or binary file
 		);
@@ -221,7 +223,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@IWindowService private readonly windowService: IWindowService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		this.report();
 	}
@@ -244,8 +247,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	/* __GDPR__FRAGMENT__
 		"WorkspaceTags" : {
-			"workbench.filesToOpen" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workbench.filesToCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workbench.filesToOpenOrCreate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workbench.filesToDiff" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"workspace.roots" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -267,6 +269,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.npm.hapi" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.socket.io" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.restify" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.rnpm-plugin-windows" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@angular/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.vue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -287,6 +290,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.ionic" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
 			"workspace.nativeScript" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
+			"workspace.java.pom" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.requirements" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.requirements.star" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.Pipfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -350,9 +354,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		tags['workspace.id'] = workspaceId;
 
-		const { filesToOpen, filesToCreate, filesToDiff } = configuration;
-		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || 0;
-		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || 0;
+		const { filesToOpenOrCreate, filesToDiff } = configuration;
+		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || 0;
 
 		const isEmpty = state === WorkbenchState.EMPTY;
@@ -386,6 +389,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
 			tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
 			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
+
+			tags['workspace.java.pom'] = nameSet.has('pom.xml');
 
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
@@ -434,7 +439,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			function getFilePromises(filename: string, fileService: IFileService, contentHandler: (content: IContent) => void): Promise<void>[] {
+			function getFilePromises(filename: string, fileService: IFileService, textFileService: ITextFileService, contentHandler: (content: ITextFileContent) => void): Promise<void>[] {
 				return !nameSet.has(filename) ? [] : (folders as URI[]).map(workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
 					return fileService.exists(uri).then(exists => {
@@ -442,7 +447,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 							return undefined;
 						}
 
-						return fileService.resolveContent(uri, { acceptTextOnly: true }).then(contentHandler);
+						return textFileService.read(uri, { acceptTextOnly: true }).then(contentHandler);
 					}, err => {
 						// Ignore missing file
 					});
@@ -468,7 +473,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 			}
 
-			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
+			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, this.textFileService, content => {
 				const dependencies: string[] = content.value.split(/\r\n|\r|\n/);
 				for (let dependency of dependencies) {
 					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
@@ -479,7 +484,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 			});
 
-			const pipfilePromises = getFilePromises('pipfile', this.fileService, content => {
+			const pipfilePromises = getFilePromises('pipfile', this.fileService, this.textFileService, content => {
 				let dependencies: string[] = content.value.split(/\r\n|\r|\n/);
 
 				// We're only interested in the '[packages]' section of the Pipfile
@@ -499,26 +504,27 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 			});
 
-			const packageJsonPromises = getFilePromises('package.json', this.fileService, content => {
+			const packageJsonPromises = getFilePromises('package.json', this.fileService, this.textFileService, content => {
 				try {
 					const packageJsonContents = JSON.parse(content.value);
-					if (packageJsonContents['dependencies']) {
-						for (let module of ModulesToLookFor) {
-							if ('react-native' === module) {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.reactNative'] = true;
-								}
-							} else if ('tns-core-modules' === module) {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.nativescript'] = true;
-								}
-							} else {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.npm.' + module] = true;
-								}
+					let dependencies = packageJsonContents['dependencies'];
+					let devDependencies = packageJsonContents['devDependencies'];
+					for (let module of ModulesToLookFor) {
+						if ('react-native' === module) {
+							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
+								tags['workspace.reactNative'] = true;
+							}
+						} else if ('tns-core-modules' === module) {
+							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
+								tags['workspace.nativescript'] = true;
+							}
+						} else {
+							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
+								tags['workspace.npm.' + module] = true;
 							}
 						}
 					}
+
 				}
 				catch (e) {
 					// Ignore errors when resolving file or parsing file contents
@@ -533,7 +539,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		const workspace = this.contextService.getWorkspace();
 
 		// Handle top-level workspace files for local single folder workspace
-		if (state === WorkbenchState.FOLDER && workspace.folders[0].uri.scheme === Schemas.file) {
+		if (state === WorkbenchState.FOLDER) {
 			const workspaceFiles = rootFiles.filter(hasWorkspaceFileExtension);
 			if (workspaceFiles.length > 0) {
 				this.doHandleWorkspaceFiles(workspace.folders[0].uri, workspaceFiles);
@@ -584,11 +590,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return folder && [folder];
 	}
 
-	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IWindowConfiguration): URI | undefined {
-		if (filesToOpen && filesToOpen.length) {
-			return this.parentURI(filesToOpen[0].fileUri);
-		} else if (filesToCreate && filesToCreate.length) {
-			return this.parentURI(filesToCreate[0].fileUri);
+	private findFolder({ filesToOpenOrCreate, filesToDiff }: IWindowConfiguration): URI | undefined {
+		if (filesToOpenOrCreate && filesToOpenOrCreate.length) {
+			return this.parentURI(filesToOpenOrCreate[0].fileUri);
 		} else if (filesToDiff && filesToDiff.length) {
 			return this.parentURI(filesToDiff[0].fileUri);
 		}
@@ -624,7 +628,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				if (!exists) {
 					return [];
 				}
-				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+				return this.textFileService.read(uri, { acceptTextOnly: true }).then(
 					content => getDomainsOfRemotes(content.value, SecondLevelDomainWhitelist),
 					err => [] // ignore missing or binary file
 				);
@@ -644,7 +648,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private reportRemotes(workspaceUris: URI[]): void {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
-			return getHashedRemotesFromUri(workspaceUri, this.fileService, true);
+			return getHashedRemotesFromUri(workspaceUri, this.fileService, this.textFileService, true);
 		})).then(hashedRemotes => {
 			/* __GDPR__
 					"workspace.hashedRemotes" : {
@@ -693,7 +697,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				if (!exists) {
 					return false;
 				}
-				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+				return this.textFileService.read(uri, { acceptTextOnly: true }).then(
 					content => !!content.value.match(/azure/i),
 					err => false
 				);

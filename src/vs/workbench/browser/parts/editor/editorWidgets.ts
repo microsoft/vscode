@@ -139,7 +139,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			return false; // we need a model
 		}
 
-		if (!hasWorkspaceFileExtension(model.uri.fsPath)) {
+		if (!hasWorkspaceFileExtension(model.uri)) {
 			return false; // we need a workspace file
 		}
 
@@ -163,7 +163,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			this._register(this.openWorkspaceButton.onClick(() => {
 				const model = this.editor.getModel();
 				if (model) {
-					this.windowService.openWindow([{ fileUri: model.uri }]);
+					this.windowService.openWindow([{ workspaceUri: model.uri }]);
 				}
 			}));
 

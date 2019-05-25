@@ -7,7 +7,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IWebviewOptions } from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -64,12 +64,12 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		super();
 
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
-		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
-		_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this, this._toDispose);
+		this._register(_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
+		this._register(_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this));
 
 		// This reviver's only job is to activate webview extensions
 		// This should trigger the real reviver to be registered from the extension host side.
-		this._toDispose.push(_webviewService.registerReviver({
+		this._register(_webviewService.registerReviver({
 			canRevive: (webview) => {
 				const viewType = webview.state.viewType;
 				if (viewType) {
@@ -80,9 +80,9 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			reviveWebview: () => { throw new Error('not implemented'); }
 		}));
 
-		lifecycleService.onBeforeShutdown(e => {
+		this._register(lifecycleService.onBeforeShutdown(e => {
 			e.veto(this._onBeforeShutdown());
-		}, this, this._toDispose);
+		}, this));
 	}
 
 	public $createWebviewPanel(
@@ -122,7 +122,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	$createWebviewCodeInset(
 		handle: WebviewInsetHandle,
 		symbolId: string,
-		options: IWebviewOptions,
+		options: modes.IWebviewOptions,
 		extensionId: ExtensionIdentifier,
 		extensionLocation: UriComponents
 	): void {
@@ -182,14 +182,14 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 	public $setHtml(handle: WebviewPanelHandle | WebviewInsetHandle, value: string): void {
 		if (typeof handle === 'number') {
-			this.getWebviewElement(handle).contents = value;
+			this.getWebviewElement(handle).html = value;
 		} else {
 			const webview = this.getWebview(handle);
 			webview.html = value;
 		}
 	}
 
-	public $setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: IWebviewOptions): void {
+	public $setOptions(handle: WebviewPanelHandle | WebviewInsetHandle, options: modes.IWebviewOptions): void {
 		if (typeof handle === 'number') {
 			this.getWebviewElement(handle).options = reviveWebviewOptions(options as any /*todo@mat */);
 		} else {
@@ -210,11 +210,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}
 	}
 
-	public $postMessage(handle: WebviewPanelHandle | WebviewInsetHandle, message: any): Promise<boolean> {
+	public async $postMessage(handle: WebviewPanelHandle | WebviewInsetHandle, message: any): Promise<boolean> {
 		if (typeof handle === 'number') {
 			this.getWebviewElement(handle).sendMessage(message);
-			return Promise.resolve(true);
-
+			return true;
 		} else {
 			const webview = this.getWebview(handle);
 			const editors = this._editorService.visibleControls
@@ -222,11 +221,17 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				.map(e => e as WebviewEditor)
 				.filter(e => e.input!.matches(webview));
 
-			for (const editor of editors) {
-				editor.sendMessage(message);
+			if (editors.length > 0) {
+				editors[0].sendMessage(message);
+				return true;
 			}
 
-			return Promise.resolve(editors.length > 0);
+			if (webview.webview) {
+				webview.webview.sendMessage(message);
+				return true;
+			}
+
+			return false;
 		}
 	}
 
@@ -414,7 +419,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 function reviveWebviewOptions(options: WebviewInputOptions): WebviewInputOptions {
 	return {
 		...options,
-		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined,
+		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(r => URI.revive(r)) : undefined,
 	};
 }
 

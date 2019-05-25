@@ -5,18 +5,19 @@
 
 import 'vs/css!./media/extensionsWidgets';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from '../common/extensions';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState } from '../common/extensions';
 import { append, $, addClass } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { extensionButtonProminentBackground, extensionButtonProminentForeground, DisabledLabelAction, ReloadAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension;
@@ -142,10 +143,71 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 }
 
+export class TooltipWidget extends ExtensionWidget {
+
+	constructor(
+		private readonly parent: HTMLElement,
+		private readonly disabledLabelAction: DisabledLabelAction,
+		private readonly recommendationWidget: RecommendationWidget,
+		private readonly reloadAction: ReloadAction,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+	) {
+		super();
+		this._register(Event.any<any>(
+			this.disabledLabelAction.onDidChange,
+			this.reloadAction.onDidChange,
+			this.recommendationWidget.onDidChangeTooltip,
+			this.labelService.onDidChangeFormatters
+		)(() => this.render()));
+	}
+
+	render(): void {
+		this.parent.title = '';
+		this.parent.removeAttribute('aria-label');
+		this.parent.title = this.getTooltip();
+		if (this.extension) {
+			this.parent.setAttribute('aria-label', localize('extension-arialabel', "{0}. Press enter for extension details.", this.extension.displayName));
+		}
+	}
+
+	private getTooltip(): string {
+		if (!this.extension) {
+			return '';
+		}
+		if (this.reloadAction.enabled) {
+			return this.reloadAction.tooltip;
+		}
+		if (this.disabledLabelAction.label) {
+			return this.disabledLabelAction.label;
+		}
+		if (this.extension.local && this.extension.state === ExtensionState.Installed) {
+			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
+				return localize('extension enabled on remote', "Extension is enabled on '{0}'", this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.workbenchEnvironmentService.configuration.remoteAuthority));
+			}
+			return localize('extension enabled locally', "Extension is enabled locally.");
+		}
+		return this.recommendationWidget.tooltip;
+	}
+
+}
+
 export class RecommendationWidget extends ExtensionWidget {
 
 	private element?: HTMLElement;
 	private disposables: IDisposable[] = [];
+
+	private _tooltip: string;
+	get tooltip(): string { return this._tooltip; }
+	set tooltip(tooltip: string) {
+		if (this._tooltip !== tooltip) {
+			this._tooltip = tooltip;
+			this._onDidChangeTooltip.fire();
+		}
+	}
+	private _onDidChangeTooltip: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeTooltip: Event<void> = this._onDidChangeTooltip.event;
 
 	constructor(
 		private parent: HTMLElement,
@@ -159,7 +221,7 @@ export class RecommendationWidget extends ExtensionWidget {
 	}
 
 	private clear(): void {
-		this.parent.title = '';
+		this.tooltip = '';
 		this.parent.setAttribute('aria-label', this.extension ? localize('viewExtensionDetailsAria', "{0}. Press enter for extension details.", this.extension.displayName) : '');
 		if (this.element) {
 			this.parent.removeChild(this.element);
@@ -186,37 +248,37 @@ export class RecommendationWidget extends ExtensionWidget {
 			};
 			applyBookmarkStyle(this.themeService.getTheme());
 			this.themeService.onThemeChange(applyBookmarkStyle, this, this.disposables);
-			this.parent.title = extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText;
-			this.parent.setAttribute('aria-label', localize('viewRecommendedExtensionDetailsAria', "{0}. {1} Press enter for extension details.", this.extension.displayName, extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText));
+			this.tooltip = extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText;
 		}
 	}
 
 }
 
-
 export class RemoteBadgeWidget extends ExtensionWidget {
 
-	private element: HTMLElement | null;
+	private remoteBadge: RemoteBadge | null;
 	private disposables: IDisposable[] = [];
 
+	private element: HTMLElement;
+
 	constructor(
-		private parent: HTMLElement,
-		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService private readonly themeService: IThemeService,
+		parent: HTMLElement,
+		private readonly tooltip: boolean,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
+		this.element = append(parent, $('.extension-remote-badge-container'));
 		this.render();
 		this._register(toDisposable(() => this.clear()));
 	}
 
 	private clear(): void {
-		if (this.element) {
-			this.parent.removeChild(this.element);
+		if (this.remoteBadge) {
+			this.element.removeChild(this.remoteBadge.element);
+			this.remoteBadge.dispose();
 		}
-		this.element = null;
+		this.remoteBadge = null;
 		this.disposables = dispose(this.disposables);
 	}
 
@@ -226,30 +288,57 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 			return;
 		}
 		if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
-			this.element = append(this.parent, $('div.extension-remote-badge'));
-			append(this.element, $('span.octicon.octicon-file-symlink-directory'));
+			this.remoteBadge = this.instantiationService.createInstance(RemoteBadge, this.tooltip);
+			append(this.element, this.remoteBadge.element);
+		}
+	}
 
-			const applyBadgeStyle = () => {
-				if (!this.element) {
-					return;
-				}
-				const bgColor = this.themeService.getTheme().getColor(STATUS_BAR_HOST_NAME_BACKGROUND);
-				const fgColor = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY ? this.themeService.getTheme().getColor(STATUS_BAR_NO_FOLDER_FOREGROUND) : this.themeService.getTheme().getColor(STATUS_BAR_FOREGROUND);
-				this.element.style.backgroundColor = bgColor ? bgColor.toString() : '';
-				this.element.style.color = fgColor ? fgColor.toString() : '';
-			};
-			applyBadgeStyle();
-			this.themeService.onThemeChange(applyBadgeStyle, this, this.disposables);
-			this.workspaceContextService.onDidChangeWorkbenchState(applyBadgeStyle, this, this.disposables);
+	dispose(): void {
+		if (this.remoteBadge) {
+			this.remoteBadge.dispose();
+		}
+		super.dispose();
+	}
+}
 
+class RemoteBadge extends Disposable {
+
+	readonly element: HTMLElement;
+
+	constructor(
+		private readonly tooltip: boolean,
+		@ILabelService private readonly labelService: ILabelService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+	) {
+		super();
+		this.element = $('div.extension-remote-badge');
+		this.render();
+	}
+
+	private render(): void {
+		append(this.element, $('span.octicon.octicon-remote'));
+
+		const applyBadgeStyle = () => {
+			if (!this.element) {
+				return;
+			}
+			const bgColor = this.themeService.getTheme().getColor(EXTENSION_BADGE_REMOTE_BACKGROUND);
+			const fgColor = this.themeService.getTheme().getColor(EXTENSION_BADGE_REMOTE_FOREGROUND);
+			this.element.style.backgroundColor = bgColor ? bgColor.toString() : '';
+			this.element.style.color = fgColor ? fgColor.toString() : '';
+		};
+		applyBadgeStyle();
+		this._register(this.themeService.onThemeChange(() => applyBadgeStyle()));
+
+		if (this.tooltip) {
 			const updateTitle = () => {
 				if (this.element) {
 					this.element.title = localize('remote extension title', "Extension in {0}", this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.environmentService.configuration.remoteAuthority));
 				}
 			};
-			this.labelService.onDidChangeFormatters(() => updateTitle(), this, this.disposables);
+			this._register(this.labelService.onDidChangeFormatters(() => updateTitle()));
 			updateTitle();
 		}
 	}
-
 }

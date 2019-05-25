@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
 import { sep } from 'vs/base/common/path';
@@ -13,7 +13,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/contrib/files/browser/saveErrorHandler';
@@ -37,11 +37,13 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
+import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
+import { Schemas } from 'vs/base/common/network';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
-	public static readonly ID = VIEWLET_ID;
-	public static readonly LABEL = nls.localize('showExplorerViewlet', "Show Explorer");
+	static readonly ID = VIEWLET_ID;
+	static readonly LABEL = nls.localize('showExplorerViewlet', "Show Explorer");
 
 	constructor(
 		id: string,
@@ -58,7 +60,7 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 
 	constructor(@ILabelService labelService: ILabelService) {
 		labelService.registerFormatter({
-			scheme: 'file',
+			scheme: Schemas.file,
 			formatting: {
 				label: '${authority}${path}',
 				separator: sep,
@@ -122,8 +124,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 // Register default file input factory
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileInputFactory({
-	createFileInput: (resource, encoding, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, encoding);
+	createFileInput: (resource, encoding, mode, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, encoding, mode);
 	},
 
 	isFileInput: (obj): obj is IFileEditorInput => {
@@ -135,6 +137,7 @@ interface ISerializedFileInput {
 	resource: string;
 	resourceJSON: object;
 	encoding?: string;
+	modeId?: string;
 }
 
 // Register Editor Input Factory
@@ -142,25 +145,27 @@ class FileEditorInputFactory implements IEditorInputFactory {
 
 	constructor() { }
 
-	public serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
 		const resource = fileEditorInput.getResource();
 		const fileInput: ISerializedFileInput = {
 			resource: resource.toString(), // Keep for backwards compatibility
 			resourceJSON: resource.toJSON(),
-			encoding: fileEditorInput.getEncoding()
+			encoding: fileEditorInput.getEncoding(),
+			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
 		};
 
 		return JSON.stringify(fileInput);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
 		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
 			const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
-			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
+			const resource = !!fileInput.resourceJSON ? URI.revive(<UriComponents>fileInput.resourceJSON) : URI.parse(fileInput.resource);
 			const encoding = fileInput.encoding;
+			const mode = fileInput.modeId;
 
-			return accessor.get(IEditorService).createInput({ resource, encoding, forceFile: true }) as FileEditorInput;
+			return accessor.get(IEditorService).createInput({ resource, encoding, mode, forceFile: true }) as FileEditorInput;
 		});
 	}
 }
@@ -304,6 +309,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.hotExit': {
 			'type': 'string',
+			'scope': ConfigurationScope.APPLICATION,
 			'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
 			'default': HotExitConfiguration.ON_EXIT,
 			'markdownEnumDescriptions': [
@@ -321,6 +327,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 4096,
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line.")
+		},
+		'files.simpleDialog.enable': {
+			'type': 'boolean',
+			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
+			'default': false,
 		}
 	}
 });

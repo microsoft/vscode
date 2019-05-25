@@ -186,8 +186,8 @@ class WindowDriver implements IWindowDriver {
 
 		const lines: string[] = [];
 
-		for (let i = 0; i < xterm._core.buffer.lines.length; i++) {
-			lines.push(xterm._core.buffer.translateBufferLineToString(i, true));
+		for (let i = 0; i < xterm.buffer.length; i++) {
+			lines.push(xterm.buffer.getLine(i)!.translateToString(true));
 		}
 
 		return lines;

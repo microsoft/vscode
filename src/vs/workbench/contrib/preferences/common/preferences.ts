@@ -108,5 +108,6 @@ export const KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS = 'keybindings.editor.show
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 
 export const MODIFIED_SETTING_TAG = 'modified';
+export const EXTENSION_SETTING_TAG = 'ext:';
 
 export const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';

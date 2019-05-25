@@ -28,7 +28,7 @@ import { IExtensionManagementService, IExtensionManagementServerService, IExtens
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInExtensionsView, BuiltInThemesExtensionsView, BuiltInBasicsExtensionsView, ServerExtensionsView, DefaultRecommendedExtensionsView } from './extensionsViews';
 import { OpenGlobalSettingsAction } from 'vs/workbench/contrib/preferences/browser/preferencesActions';
-import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import Severity from 'vs/base/common/severity';
 import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -53,8 +53,11 @@ import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { RemoteAuthorityContext as RemoteAuthorityContext } from 'vs/workbench/common/contextkeys';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { RemoteAuthorityContext } from 'vs/workbench/browser/contextkeys';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -64,7 +67,10 @@ interface SearchInputEvent extends Event {
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
-const SearchServerExtensionsContext = new RawContextKey<boolean>('searchServerExtensions', false);
+const SearchIntalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
+const SearchOutdatedExtensionsContext = new RawContextKey<boolean>('searchOutdatedExtensions', false);
+const SearchEnabledExtensionsContext = new RawContextKey<boolean>('searchEnabledExtensions', false);
+const SearchDisabledExtensionsContext = new RawContextKey<boolean>('searchDisabledExtensions', false);
 const HasInstalledExtensionsContext = new RawContextKey<boolean>('hasInstalledExtensions', true);
 const SearchBuiltInExtensionsContext = new RawContextKey<boolean>('searchBuiltInExtensions', false);
 const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
@@ -72,7 +78,9 @@ const DefaultRecommendedExtensionsContext = new RawContextKey<boolean>('defaultR
 const viewIdNameMappings: { [id: string]: string } = {
 	'extensions.listView': localize('marketPlace', "Marketplace"),
 	'extensions.enabledExtensionList': localize('enabledExtensions', "Enabled"),
+	'extensions.enabledExtensionList2': localize('enabledExtensions', "Enabled"),
 	'extensions.disabledExtensionList': localize('disabledExtensions', "Disabled"),
+	'extensions.disabledExtensionList2': localize('disabledExtensions', "Disabled"),
 	'extensions.popularExtensionsList': localize('popularExtensions', "Popular"),
 	'extensions.recommendedList': localize('recommendedExtensions', "Recommended"),
 	'extensions.otherrecommendedList': localize('otherRecommendedExtensions', "Other Recommendations"),
@@ -85,7 +93,9 @@ const viewIdNameMappings: { [id: string]: string } = {
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
 
 	constructor(
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		this.registerViews();
 	}
@@ -96,6 +106,8 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		viewDescriptors.push(this.createDefaultEnabledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createDefaultDisabledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createDefaultPopularExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createEnabledExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createDisabledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createBuiltInExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createBuiltInBasicsExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createBuiltInThemesExtensionsListViewDescriptor());
@@ -169,16 +181,32 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createExtensionsViewDescriptorsForServer(server: IExtensionManagementServer): IViewDescriptor[] {
+		const getViewName = (viewTitle: string, server: IExtensionManagementServer): string => {
+			const serverLabel = this.workbenchEnvironmentService.configuration.remoteAuthority === server.authority ? this.labelService.getHostLabel(REMOTE_HOST_SCHEME, server.authority) || server.label : server.label;
+			if (viewTitle && this.workbenchEnvironmentService.configuration.remoteAuthority) {
+				return `${serverLabel} - ${viewTitle}`;
+			}
+			return viewTitle ? viewTitle : serverLabel;
+		};
+		const getInstalledViewName = (): string => getViewName(localize('installed', "Installed"), server);
+		const getOutdatedViewName = (): string => getViewName(localize('outdated', "Outdated"), server);
+		const onDidChangeServerLabel: EventOf<void> = this.workbenchEnvironmentService.configuration.remoteAuthority ? EventOf.map(this.labelService.onDidChangeFormatters, () => undefined) : EventOf.None;
 		return [{
 			id: `extensions.${server.authority}.installed`,
-			name: server.label,
-			ctorDescriptor: { ctor: ServerExtensionsView, arguments: [server] },
-			when: ContextKeyExpr.and(ContextKeyExpr.has('searchServerExtensions')),
+			get name() { return getInstalledViewName(); },
+			ctorDescriptor: { ctor: ServerExtensionsView, arguments: [server, EventOf.map<void, string>(onDidChangeServerLabel, () => getInstalledViewName())] },
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchInstalledExtensions')),
+			weight: 100
+		}, {
+			id: `extensions.${server.authority}.outdated`,
+			get name() { return getOutdatedViewName(); },
+			ctorDescriptor: { ctor: ServerExtensionsView, arguments: [server, EventOf.map<void, string>(onDidChangeServerLabel, () => getOutdatedViewName())] },
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchOutdatedExtensions')),
 			weight: 100
 		}, {
 			id: `extensions.${server.authority}.default`,
-			name: server.label,
-			ctorDescriptor: { ctor: ServerExtensionsView, arguments: [server] },
+			get name() { return getInstalledViewName(); },
+			ctorDescriptor: { ctor: ServerExtensionsView, arguments: [server, EventOf.map<void, string>(onDidChangeServerLabel, () => getInstalledViewName())] },
 			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), RemoteAuthorityContext.notEqualsTo('')),
 			weight: 40,
 			order: 1
@@ -211,7 +239,6 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			ctorDescriptor: { ctor: RecommendedExtensionsView },
 			when: ContextKeyExpr.has('recommendedExtensions'),
 			weight: 50,
-			canToggleVisibility: true,
 			order: 2
 		};
 	}
@@ -226,8 +253,32 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			ctorDescriptor: { ctor: WorkspaceRecommendedExtensionsView },
 			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
 			weight: 50,
-			canToggleVisibility: true,
 			order: 1
+		};
+	}
+
+	private createEnabledExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.enabledExtensionList2';
+		return {
+			id,
+			name: viewIdNameMappings[id],
+			ctorDescriptor: { ctor: EnabledExtensionsView },
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchEnabledExtensions')),
+			weight: 40,
+			order: 1
+		};
+	}
+
+	private createDisabledExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.disabledExtensionList2';
+		return {
+			id,
+			name: viewIdNameMappings[id],
+			ctorDescriptor: { ctor: DisabledExtensionsView },
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchDisabledExtensions')),
+			weight: 10,
+			order: 3,
+			collapsed: true
 		};
 	}
 
@@ -238,8 +289,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: viewIdNameMappings[id],
 			ctorDescriptor: { ctor: BuiltInExtensionsView },
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
-			weight: 100,
-			canToggleVisibility: true
+			weight: 100
 		};
 	}
 
@@ -250,8 +300,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: viewIdNameMappings[id],
 			ctorDescriptor: { ctor: BuiltInThemesExtensionsView },
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
-			weight: 100,
-			canToggleVisibility: true
+			weight: 100
 		};
 	}
 
@@ -262,8 +311,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: viewIdNameMappings[id],
 			ctorDescriptor: { ctor: BuiltInBasicsExtensionsView },
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
-			weight: 100,
-			canToggleVisibility: true
+			weight: 100
 		};
 	}
 }
@@ -274,7 +322,10 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private nonEmptyWorkspaceContextKey: IContextKey<boolean>;
 	private defaultViewsContextKey: IContextKey<boolean>;
 	private searchMarketplaceExtensionsContextKey: IContextKey<boolean>;
-	private searchServerExtensionsContextKey: IContextKey<boolean>;
+	private searchInstalledExtensionsContextKey: IContextKey<boolean>;
+	private searchOutdatedExtensionsContextKey: IContextKey<boolean>;
+	private searchEnabledExtensionsContextKey: IContextKey<boolean>;
+	private searchDisabledExtensionsContextKey: IContextKey<boolean>;
 	private hasInstalledExtensionsContextKey: IContextKey<boolean>;
 	private searchBuiltInExtensionsContextKey: IContextKey<boolean>;
 	private recommendedExtensionsContextKey: IContextKey<boolean>;
@@ -293,7 +344,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IProgressService2 private readonly progressService: IProgressService2,
+		@IProgressService private readonly progressService: IProgressService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
@@ -313,7 +364,10 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);
 		this.defaultViewsContextKey = DefaultViewsContext.bindTo(contextKeyService);
 		this.searchMarketplaceExtensionsContextKey = SearchMarketplaceExtensionsContext.bindTo(contextKeyService);
-		this.searchServerExtensionsContextKey = SearchServerExtensionsContext.bindTo(contextKeyService);
+		this.searchInstalledExtensionsContextKey = SearchIntalledExtensionsContext.bindTo(contextKeyService);
+		this.searchOutdatedExtensionsContextKey = SearchOutdatedExtensionsContext.bindTo(contextKeyService);
+		this.searchEnabledExtensionsContextKey = SearchEnabledExtensionsContext.bindTo(contextKeyService);
+		this.searchDisabledExtensionsContextKey = SearchDisabledExtensionsContext.bindTo(contextKeyService);
 		this.hasInstalledExtensionsContextKey = HasInstalledExtensionsContext.bindTo(contextKeyService);
 		this.searchBuiltInExtensionsContextKey = SearchBuiltInExtensionsContext.bindTo(contextKeyService);
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
@@ -451,7 +505,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	protected saveState(): void {
 		const value = this.searchBox.getValue();
-		if (ExtensionsListView.isInstalledExtensionsQuery(value)) {
+		if (ExtensionsListView.isLocalExtensionsQuery(value)) {
 			this.searchViewletState['query.value'] = value;
 		} else {
 			this.searchViewletState['query.value'] = '';
@@ -461,15 +515,16 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	private doSearch(): Promise<void> {
 		const value = this.normalizedQuery();
-		this.defaultViewsContextKey.set(!value);
-		const isServerExtensionsQuery = ExtensionsListView.isServerExtensionsQuery(value);
-		const isBuiltInExtensionsQuery = ExtensionsListView.isBuiltInExtensionsQuery(value);
 		const isRecommendedExtensionsQuery = ExtensionsListView.isRecommendedExtensionsQuery(value);
-		this.searchServerExtensionsContextKey.set(isServerExtensionsQuery);
-		this.searchBuiltInExtensionsContextKey.set(isBuiltInExtensionsQuery);
+		this.searchInstalledExtensionsContextKey.set(ExtensionsListView.isInstalledExtensionsQuery(value));
+		this.searchOutdatedExtensionsContextKey.set(ExtensionsListView.isOutdatedExtensionsQuery(value));
+		this.searchEnabledExtensionsContextKey.set(ExtensionsListView.isEnabledExtensionsQuery(value));
+		this.searchDisabledExtensionsContextKey.set(ExtensionsListView.isDisabledExtensionsQuery(value));
+		this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
 		this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
-		this.searchMarketplaceExtensionsContextKey.set(!!value && !isServerExtensionsQuery && !isBuiltInExtensionsQuery && !isRecommendedExtensionsQuery);
+		this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery);
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
+		this.defaultViewsContextKey.set(!value);
 
 		return this.progress(Promise.all(this.panels.map(view =>
 			(<ExtensionsListView>view).show(this.normalizedQuery())

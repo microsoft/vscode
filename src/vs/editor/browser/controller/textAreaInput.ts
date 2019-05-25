@@ -344,7 +344,7 @@ export class TextAreaInput extends Disposable {
 		//
 		// The problems with the `selectionchange` event are:
 		//  * the event is emitted when the textarea is focused programmatically -- textarea.focus()
-		//  * the event is emitted when the selection is changed in the textarea programatically -- textarea.setSelectionRange(...)
+		//  * the event is emitted when the selection is changed in the textarea programmatically -- textarea.setSelectionRange(...)
 		//  * the event is emitted when the value of the textarea is changed programmatically -- textarea.value = '...'
 		//  * the event is emitted when tabbing into the textarea
 		//  * the event is emitted asynchronously (sometimes with a delay as high as a few tens of ms)
