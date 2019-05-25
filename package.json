@@ -54,7 +54,7 @@
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.1.1",
     "vscode-xterm": "3.14.0-beta5",
-    "yauzl": "^2.9.1",
+    "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
   "devDependencies": {
