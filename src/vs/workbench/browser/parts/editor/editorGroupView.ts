@@ -824,34 +824,36 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.doShowEditor(editor, !!openEditorOptions.active, options);
 	}
 
-	private doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | null> {
+	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | null> {
 
 		// Show in editor control if the active editor changed
-		let openEditorPromise: Promise<IEditor | null>;
+		const openEditorPromise = this.editorControl.openEditor(editor, options);
+
+		// Show in title control after editor control because some actions depend on it
+		this.titleAreaControl.openEditor(editor);
+
+		// Return opened editor to caller (can be NULL)
+		let openedEditor: IEditor | null = null;
 		if (active) {
-			openEditorPromise = this.editorControl.openEditor(editor, options).then(result => {
+			try {
+				const result = await openEditorPromise;
 
 				// Editor change event
 				if (result.editorChanged) {
 					this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
 				}
 
-				return result.control;
-			}, error => {
+				openedEditor = result.control;
+			} catch (error) {
 
 				// Handle errors but do not bubble them up
 				this.doHandleOpenEditorError(error, editor, options);
-
-				return null; // error: return NULL as result to signal this
-			});
+			}
 		} else {
-			openEditorPromise = Promise.resolve(null); // inactive: return NULL as result to signal this
+			openedEditor = null; // inactive: return NULL as result to signal this
 		}
 
-		// Show in title control after editor control because some actions depend on it
-		this.titleAreaControl.openEditor(editor);
-
-		return openEditorPromise;
+		return openedEditor;
 	}
 
 	private doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): void {
@@ -895,29 +897,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Do not modify original array
 		editors = editors.slice(0);
 
-		let result: IEditor | null;
-
 		// Use the first editor as active editor
 		const { editor, options } = editors.shift()!;
-		return this.openEditor(editor, options).then(activeEditor => {
-			result = activeEditor; // this can be NULL if the opening failed
+		let firstOpenedEditor = await this.openEditor(editor, options);
 
-			const startingIndex = this.getIndexOfEditor(editor) + 1;
+		// Open the other ones inactive
+		const startingIndex = this.getIndexOfEditor(editor) + 1;
+		await Promise.all(editors.map(async ({ editor, options }, index) => {
+			const adjustedEditorOptions = options || new EditorOptions();
+			adjustedEditorOptions.inactive = true;
+			adjustedEditorOptions.pinned = true;
+			adjustedEditorOptions.index = startingIndex + index;
 
-			// Open the other ones inactive
-			return Promise.all(editors.map(({ editor, options }, index) => {
-				const adjustedEditorOptions = options || new EditorOptions();
-				adjustedEditorOptions.inactive = true;
-				adjustedEditorOptions.pinned = true;
-				adjustedEditorOptions.index = startingIndex + index;
+			const openedEditor = await this.openEditor(editor, adjustedEditorOptions);
+			if (!firstOpenedEditor) {
+				firstOpenedEditor = openedEditor; // only take if the first editor opening failed
+			}
+		}));
 
-				return this.openEditor(editor, adjustedEditorOptions).then(activeEditor => {
-					if (!result) {
-						result = activeEditor; // only take if the first editor opening failed
-					}
-				});
-			})).then(() => result);
-		});
+		return firstOpenedEditor;
 	}
 
 	//#endregion
