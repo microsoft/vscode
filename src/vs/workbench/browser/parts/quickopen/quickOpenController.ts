@@ -454,14 +454,16 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const previousInput = this.quickOpenWidget.getInput();
 		const wasShowingHistory = previousInput && previousInput.entries && previousInput.entries.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
 		if (wasShowingHistory || matchingHistoryEntries.length > 0) {
-			if (resolvedHandler.hasShortResponseTime()) {
-				await timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME);
-			}
+			(async () => {
+				if (resolvedHandler.hasShortResponseTime()) {
+					await timeout(QuickOpenController.MAX_SHORT_RESPONSE_TIME);
+				}
 
-			if (!token.isCancellationRequested && !inputSet) {
-				this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
-				inputSet = true;
-			}
+				if (!token.isCancellationRequested && !inputSet) {
+					this.quickOpenWidget.setInput(quickOpenModel, { autoFocusFirstEntry: true });
+					inputSet = true;
+				}
+			})();
 		}
 
 		// Get results
