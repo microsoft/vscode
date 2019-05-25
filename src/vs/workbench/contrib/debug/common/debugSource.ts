@@ -92,7 +92,6 @@ export class Source {
 			options: {
 				preserveFocus,
 				selection,
-				revealIfVisible: true,
 				revealIfOpened: true,
 				revealInCenterIfOutsideViewport: true,
 				pinned: pinned || (!preserveFocus && !this.inMemory)

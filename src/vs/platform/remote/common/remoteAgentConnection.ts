@@ -3,17 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Client, PersistentProtocol, ISocket } from 'vs/base/parts/ipc/common/ipc.net';
+import { Client, PersistentProtocol, ISocket, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { VSBuffer } from 'vs/base/common/buffer';
+import * as platform from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
+import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export const enum ConnectionType {
 	Management = 1,
 	ExtensionHost = 2,
 	Tunnel = 3,
 }
+
+export interface AuthRequest {
+	type: 'auth';
+	auth: string;
+}
+
+export interface SignRequest {
+	type: 'sign';
+	data: string;
+}
+
+export interface ConnectionTypeRequest {
+	type: 'connectionType';
+	commit?: string;
+	signedData?: string;
+	desiredConnectionType?: ConnectionType;
+	args?: any;
+	isBuilt: boolean;
+}
+
+export interface ErrorMessage {
+	type: 'error';
+	reason: string;
+}
+
+export interface OKMessage {
+	type: 'ok';
+}
+
+export type HandshakeMessage = AuthRequest | SignRequest | ConnectionTypeRequest | ErrorMessage | OKMessage;
+
 
 interface ISimpleConnectionOptions {
 	isBuilt: boolean;
@@ -34,7 +69,84 @@ export interface IWebSocketFactory {
 }
 
 async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptions, connectionType: ConnectionType, args: any | undefined): Promise<PersistentProtocol> {
-	throw new Error(`Not implemented`);
+	const protocol = await new Promise<PersistentProtocol>((c, e) => {
+		options.webSocketFactory.connect(
+			options.host,
+			options.port,
+			`reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`,
+			(err: any, socket: ISocket) => {
+				if (err) {
+					e(err);
+					return;
+				}
+
+				if (options.reconnectionProtocol) {
+					options.reconnectionProtocol.beginAcceptReconnection(socket, null);
+					c(options.reconnectionProtocol);
+				} else {
+					c(new PersistentProtocol(socket, null));
+				}
+			}
+		);
+	});
+
+	return new Promise<PersistentProtocol>((c, e) => {
+
+		const messageRegistration = protocol.onControlMessage(raw => {
+			const msg = <HandshakeMessage>JSON.parse(raw.toString());
+			// Stop listening for further events
+			messageRegistration.dispose();
+
+			const error = getErrorFromMessage(msg);
+			if (error) {
+				return e(error);
+			}
+
+			if (msg.type === 'sign') {
+
+				let signed = msg.data;
+				if (platform.isNative) {
+					try {
+						const vsda = <any>require.__$__nodeRequire('vsda');
+						const signer = new vsda.signer();
+						if (signer) {
+							signed = signer.sign(msg.data);
+						}
+					} catch (e) {
+						console.error('signer.sign: ' + e);
+					}
+				} else {
+					signed = (<any>self).CONNECTION_AUTH_TOKEN;
+				}
+
+				const connTypeRequest: ConnectionTypeRequest = {
+					type: 'connectionType',
+					commit: options.commit,
+					signedData: signed,
+					desiredConnectionType: connectionType,
+					isBuilt: options.isBuilt
+				};
+				if (args) {
+					connTypeRequest.args = args;
+				}
+				protocol.sendControl(VSBuffer.fromString(JSON.stringify(connTypeRequest)));
+				c(protocol);
+			} else {
+				e(new Error('handshake error'));
+			}
+		});
+
+		setTimeout(() => {
+			e(new Error('handshake timeout'));
+		}, 2000);
+
+		// TODO@vs-remote: use real nonce here
+		const authRequest: AuthRequest = {
+			type: 'auth',
+			auth: '00000000000000000000'
+		};
+		protocol.sendControl(VSBuffer.fromString(JSON.stringify(authRequest)));
+	});
 }
 
 interface IManagementConnectionResult {
@@ -148,6 +260,12 @@ export async function connectRemoteAgentTunnel(options: IConnectionOptions, tunn
 	return protocol;
 }
 
+function sleep(seconds: number): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		setTimeout(resolve, seconds * 1000);
+	});
+}
+
 export const enum PersistenConnectionEventType {
 	ConnectionLost,
 	ReconnectionWait,
@@ -184,11 +302,99 @@ abstract class PersistentConnection extends Disposable {
 	public readonly reconnectionToken: string;
 	public readonly protocol: PersistentProtocol;
 
+	private _isReconnecting: boolean;
+	private _permanentFailure: boolean;
+
 	constructor(options: IConnectionOptions, reconnectionToken: string, protocol: PersistentProtocol) {
 		super();
 		this._options = options;
 		this.reconnectionToken = reconnectionToken;
 		this.protocol = protocol;
+		this._isReconnecting = false;
+		this._permanentFailure = false;
+
+		this._register(protocol.onSocketClose(() => this._beginReconnecting()));
+		this._register(protocol.onSocketTimeout(() => this._beginReconnecting()));
+	}
+
+	private async _beginReconnecting(): Promise<void> {
+		// Only have one reconnection loop active at a time.
+		if (this._isReconnecting) {
+			return;
+		}
+		try {
+			this._isReconnecting = true;
+			await this._runReconnectingLoop();
+		} finally {
+			this._isReconnecting = false;
+		}
+	}
+
+	private async _runReconnectingLoop(): Promise<void> {
+		if (this._permanentFailure) {
+			// no more attempts!
+			return;
+		}
+		this._onDidStateChange.fire(new ConnectionLostEvent());
+		const TIMES = [5, 5, 10, 10, 10, 10, 10, 30];
+		const disconnectStartTime = Date.now();
+		let attempt = -1;
+		do {
+			attempt++;
+			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : TIMES[TIMES.length - 1]);
+			try {
+				this._onDidStateChange.fire(new ReconnectionWaitEvent(waitTime));
+				await sleep(waitTime);
+
+				// connection was lost, let's try to re-establish it
+				this._onDidStateChange.fire(new ReconnectionRunningEvent());
+				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol);
+				await connectWithTimeLimit(this._reconnect(simpleOptions), 30 * 1000 /*30s*/);
+				this._onDidStateChange.fire(new ConnectionGainEvent());
+
+				break;
+			} catch (err) {
+				if (err.code === 'VSCODE_CONNECTION_ERROR') {
+					console.error(`A permanent connection error occurred`);
+					console.error(err);
+					this._permanentFailure = true;
+					this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+					this.protocol.acceptDisconnect();
+					break;
+				}
+				if (Date.now() - disconnectStartTime > ProtocolConstants.ReconnectionGraceTime) {
+					console.error(`Giving up after reconnection grace time has expired!`);
+					this._permanentFailure = true;
+					this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+					this.protocol.acceptDisconnect();
+					break;
+				}
+				if (RemoteAuthorityResolverError.isTemporarilyNotAvailable(err)) {
+					console.warn(`A temporarily not available error occured while trying to reconnect:`);
+					console.warn(err);
+					// try again!
+					continue;
+				}
+				if ((err.code === 'ETIMEDOUT' || err.code === 'ENETUNREACH' || err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') && err.syscall === 'connect') {
+					console.warn(`A connect error occured while trying to reconnect:`);
+					console.warn(err);
+					// try again!
+					continue;
+				}
+				if (isPromiseCanceledError(err)) {
+					console.warn(`A cancel error occured while trying to reconnect:`);
+					console.warn(err);
+					// try again!
+					continue;
+				}
+				console.error(`An error occured while trying to reconnect:`);
+				console.error(err);
+				this._permanentFailure = true;
+				this._onDidStateChange.fire(new ReconnectionPermanentFailureEvent());
+				this.protocol.acceptDisconnect();
+				break;
+			}
+		} while (!this._permanentFailure);
 	}
 
 	protected abstract _reconnect(options: ISimpleConnectionOptions): Promise<void>;
@@ -225,6 +431,24 @@ export class ExtensionHostPersistentConnection extends PersistentConnection {
 	protected async _reconnect(options: ISimpleConnectionOptions): Promise<void> {
 		await doConnectRemoteAgentExtensionHost(options, this._startArguments);
 	}
+}
+
+function connectWithTimeLimit(p: Promise<void>, timeLimit: number): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		let timeout = setTimeout(() => {
+			const err: any = new Error('Time limit reached');
+			err.code = 'ETIMEDOUT';
+			err.syscall = 'connect';
+			reject(err);
+		}, timeLimit);
+		p.then(() => {
+			clearTimeout(timeout);
+			resolve();
+		}, (err) => {
+			clearTimeout(timeout);
+			reject(err);
+		});
+	});
 }
 
 function getErrorFromMessage(msg: any): Error | null {

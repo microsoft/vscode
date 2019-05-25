@@ -14,8 +14,8 @@ import { URI } from 'vs/base/common/uri';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 /**
  * An implementation of editor for binary files like images.
@@ -30,7 +30,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@IWindowsService private readonly windowsService: IWindowsService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService storageService: IStorageService,
-		@ITextFileService textFileService: ITextFileService,
+		@IFileService fileService: IFileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(
@@ -41,30 +41,25 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			},
 			telemetryService,
 			themeService,
-			textFileService,
+			fileService,
 			environmentService,
 			storageService,
 		);
 	}
 
-	private openInternal(input: EditorInput, options: EditorOptions): Promise<void> {
+	private async openInternal(input: EditorInput, options: EditorOptions): Promise<void> {
 		if (input instanceof FileEditorInput) {
 			input.setForceOpenAsText();
 
-			return this.editorService.openEditor(input, options, this.group).then(() => undefined);
+			await this.editorService.openEditor(input, options, this.group);
 		}
-
-		return Promise.resolve();
 	}
 
-	private openExternal(resource: URI): void {
-		this.windowsService.openExternal(resource.toString()).then(didOpen => {
-			if (!didOpen) {
-				return this.windowsService.showItemInFolder(resource);
-			}
-
-			return undefined;
-		});
+	private async openExternal(resource: URI): Promise<void> {
+		const didOpen = await this.windowsService.openExternal(resource.toString());
+		if (!didOpen) {
+			return this.windowsService.showItemInFolder(resource);
+		}
 	}
 
 	getTitle(): string | null {

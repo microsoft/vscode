@@ -689,6 +689,8 @@ export class RefreshExplorerView extends Action {
 	public static readonly ID = 'workbench.files.action.refreshFilesExplorer';
 	public static readonly LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
 
+	private toDispose: IDisposable[];
+
 	constructor(
 		id: string,
 		label: string,
@@ -696,12 +698,22 @@ export class RefreshExplorerView extends Action {
 		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super(id, label, 'explorer-action refresh-explorer');
+		this.toDispose = [];
+		this.toDispose.push(explorerService.onDidChangeEditable(e => {
+			const elementIsBeingEdited = explorerService.isEditable(e);
+			this.enabled = !elementIsBeingEdited;
+		}));
 	}
 
 	public run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID).then(() =>
 			this.explorerService.refresh()
 		);
+	}
+
+	dispose(): void {
+		super.dispose();
+		dispose(this.toDispose);
 	}
 }
 

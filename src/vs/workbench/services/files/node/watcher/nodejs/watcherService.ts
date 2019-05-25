@@ -5,7 +5,8 @@
 
 import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files/node/watcher/watcher';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { statLink, readlink } from 'vs/base/node/pfs';
+import { statLink } from 'vs/base/node/pfs';
+import { realpath } from 'vs/base/node/extpath';
 import { watchFolder, watchFile, CHANGE_BUFFER_DELAY } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -40,7 +41,7 @@ export class FileWatcher extends Disposable {
 			let pathToWatch = this.path;
 			if (isSymbolicLink) {
 				try {
-					pathToWatch = await readlink(pathToWatch);
+					pathToWatch = await realpath(pathToWatch);
 				} catch (error) {
 					this.onError(error);
 				}

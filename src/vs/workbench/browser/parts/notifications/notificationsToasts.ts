@@ -93,18 +93,17 @@ export class NotificationsToasts extends Themable {
 		});
 	}
 
-	private onCanShowNotifications(): Promise<void> {
+	private async onCanShowNotifications(): Promise<void> {
 
 		// Wait for the running phase to ensure we can draw notifications properly
-		return this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
+		await this.lifecycleService.when(LifecyclePhase.Ready);
 
-			// Push notificiations out until either workbench is restored
-			// or some time has ellapsed to reduce pressure on the startup
-			return Promise.race([
-				this.lifecycleService.when(LifecyclePhase.Restored),
-				timeout(2000)
-			]);
-		});
+		// Push notificiations out until either workbench is restored
+		// or some time has ellapsed to reduce pressure on the startup
+		return Promise.race([
+			this.lifecycleService.when(LifecyclePhase.Restored),
+			timeout(2000)
+		]);
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {

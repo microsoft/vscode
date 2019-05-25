@@ -143,15 +143,13 @@ export class TextFileContentProvider implements ITextModelContentProvider {
 		@IModelService private readonly modelService: IModelService
 	) { }
 
-	static open(resource: URI, scheme: string, label: string, editorService: IEditorService, options?: ITextEditorOptions): Promise<void> {
-		return editorService.openEditor(
-			{
-				leftResource: TextFileContentProvider.resourceToTextFile(scheme, resource),
-				rightResource: resource,
-				label,
-				options
-			}
-		).then();
+	static async open(resource: URI, scheme: string, label: string, editorService: IEditorService, options?: ITextEditorOptions): Promise<void> {
+		await editorService.openEditor({
+			leftResource: TextFileContentProvider.resourceToTextFile(scheme, resource),
+			rightResource: resource,
+			label,
+			options
+		});
 	}
 
 	private static resourceToTextFile(scheme: string, resource: URI): URI {
@@ -162,56 +160,55 @@ export class TextFileContentProvider implements ITextModelContentProvider {
 		return resource.with({ scheme: JSON.parse(resource.query)['scheme'], query: null });
 	}
 
-	provideTextContent(resource: URI): Promise<ITextModel> {
+	async provideTextContent(resource: URI): Promise<ITextModel> {
 		const savedFileResource = TextFileContentProvider.textFileToResource(resource);
 
 		// Make sure our text file is resolved up to date
-		return this.resolveEditorModel(resource).then(codeEditorModel => {
+		const codeEditorModel = await this.resolveEditorModel(resource);
 
-			// Make sure to keep contents up to date when it changes
-			if (!this.fileWatcherDisposable) {
-				this.fileWatcherDisposable = this.fileService.onFileChanges(changes => {
-					if (changes.contains(savedFileResource, FileChangeType.UPDATED)) {
-						this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
-					}
-				});
-
-				if (codeEditorModel) {
-					once(codeEditorModel.onWillDispose)(() => {
-						dispose(this.fileWatcherDisposable);
-						this.fileWatcherDisposable = undefined;
-					});
+		// Make sure to keep contents up to date when it changes
+		if (!this.fileWatcherDisposable) {
+			this.fileWatcherDisposable = this.fileService.onFileChanges(changes => {
+				if (changes.contains(savedFileResource, FileChangeType.UPDATED)) {
+					this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
 				}
-			}
+			});
 
-			return codeEditorModel;
-		});
+			if (codeEditorModel) {
+				once(codeEditorModel.onWillDispose)(() => {
+					dispose(this.fileWatcherDisposable);
+					this.fileWatcherDisposable = undefined;
+				});
+			}
+		}
+
+		return codeEditorModel;
 	}
 
 	private resolveEditorModel(resource: URI, createAsNeeded?: true): Promise<ITextModel>;
 	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Promise<ITextModel | null>;
-	private resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
+	private async resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
 		const savedFileResource = TextFileContentProvider.textFileToResource(resource);
 
-		return this.textFileService.readStream(savedFileResource).then(content => {
-			let codeEditorModel = this.modelService.getModel(resource);
-			if (codeEditorModel) {
-				this.modelService.updateModel(codeEditorModel, content.value);
-			} else if (createAsNeeded) {
-				const textFileModel = this.modelService.getModel(savedFileResource);
+		const content = await this.textFileService.readStream(savedFileResource);
 
-				let languageSelector: ILanguageSelection;
-				if (textFileModel) {
-					languageSelector = this.modeService.create(textFileModel.getModeId());
-				} else {
-					languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource.path);
-				}
+		let codeEditorModel = this.modelService.getModel(resource);
+		if (codeEditorModel) {
+			this.modelService.updateModel(codeEditorModel, content.value);
+		} else if (createAsNeeded) {
+			const textFileModel = this.modelService.getModel(savedFileResource);
 
-				codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);
+			let languageSelector: ILanguageSelection;
+			if (textFileModel) {
+				languageSelector = this.modeService.create(textFileModel.getModeId());
+			} else {
+				languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource.path);
 			}
 
-			return codeEditorModel;
-		});
+			codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);
+		}
+
+		return codeEditorModel;
 	}
 
 	dispose(): void {

@@ -147,7 +147,7 @@ class ServerReadyDetector extends vscode.Disposable {
 						webRoot: args.webRoot || WEB_ROOT
 					}, session);
 				} else {
-					const errMsg = localize('server.ready.chrome.not.installed', "The action 'debugWithChrome' requires the '{0}'", 'Debugger for Chrome');
+					const errMsg = localize('server.ready.chrome.not.installed', "The action '{0}' requires the '{1}' extension.", 'debugWithChrome', 'Debugger for Chrome');
 					vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
 				}
 				break;

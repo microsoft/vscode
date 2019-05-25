@@ -307,11 +307,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		const handle = this._trackerFactoryHandleCounter++;
 		this._trackerFactories.push({ type, handle, factory });
 
-		this._debugServiceProxy.$registerDebugAdapterTrackerFactory(type, handle);
-
 		return new Disposable(() => {
 			this._trackerFactories = this._trackerFactories.filter(p => p.factory !== factory);		// remove
-			this._debugServiceProxy.$unregisterDebugAdapterTrackerFactory(handle);
 		});
 	}
 

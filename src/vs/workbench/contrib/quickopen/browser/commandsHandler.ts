@@ -294,7 +294,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		this.onBeforeRun(this.commandId);
 
 		// Use a timeout to give the quick open widget a chance to close itself first
-		setTimeout(() => {
+		setTimeout(async () => {
 			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
 					/* __GDPR__
@@ -304,11 +304,17 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 						}
 					*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
-					(action.run() || Promise.resolve()).then(() => {
-						if (action instanceof Action) {
-							action.dispose();
+
+					const promise = action.run();
+					if (promise) {
+						try {
+							await promise;
+						} finally {
+							if (action instanceof Action) {
+								action.dispose();
+							}
 						}
-					}, err => this.onError(err));
+					}
 				} catch (error) {
 					this.onError(error);
 				}
@@ -402,7 +408,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
+	async getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		if (this.waitedForExtensionsRegistered) {
 			return this.doGetResults(searchValue, token);
 		}
@@ -411,11 +417,10 @@ export class CommandsHandler extends QuickOpenHandler {
 		// a chance to register so that the complete set of commands shows up as result
 		// We do not want to delay functionality beyond that time though to keep the commands
 		// functional.
-		return Promise.race([timeout(800), this.extensionService.whenInstalledExtensionsRegistered().then(() => undefined)]).then(() => {
-			this.waitedForExtensionsRegistered = true;
+		await Promise.race([timeout(800).then(), this.extensionService.whenInstalledExtensionsRegistered()]);
+		this.waitedForExtensionsRegistered = true;
 
-			return this.doGetResults(searchValue, token);
-		});
+		return this.doGetResults(searchValue, token);
 	}
 
 	private doGetResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {

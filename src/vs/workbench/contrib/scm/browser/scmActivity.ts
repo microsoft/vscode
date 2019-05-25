@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/resources';
-import { IDisposable, dispose, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -46,7 +46,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 			this.render();
 		});
 
-		const disposable = combinedDisposable([changeDisposable, removeDisposable]);
+		const disposable = combinedDisposable(changeDisposable, removeDisposable);
 		this.disposables.push(disposable);
 	}
 
@@ -151,7 +151,7 @@ export class StatusBarController implements IWorkbenchContribution {
 			}
 		});
 
-		const disposable = combinedDisposable([changeDisposable, removeDisposable]);
+		const disposable = combinedDisposable(changeDisposable, removeDisposable);
 		this.disposables.push(disposable);
 
 		if (!this.focusedRepository) {
@@ -187,14 +187,17 @@ export class StatusBarController implements IWorkbenchContribution {
 			? `${basename(repository.provider.rootUri)} (${repository.provider.label})`
 			: repository.provider.label;
 
-		const disposables = commands.map(c => this.statusbarService.addEntry({
-			text: c.title,
-			tooltip: `${label} - ${c.tooltip}`,
-			command: c.id,
-			arguments: c.arguments
-		}, MainThreadStatusBarAlignment.LEFT, 10000));
+		const disposables = new DisposableStore();
+		for (const c of commands) {
+			disposables.push(this.statusbarService.addEntry({
+				text: c.title,
+				tooltip: `${label} - ${c.tooltip}`,
+				command: c.id,
+				arguments: c.arguments
+			}, MainThreadStatusBarAlignment.LEFT, 10000));
+		}
 
-		this.statusBarDisposable = combinedDisposable(disposables);
+		this.statusBarDisposable = disposables;
 	}
 
 	dispose(): void {

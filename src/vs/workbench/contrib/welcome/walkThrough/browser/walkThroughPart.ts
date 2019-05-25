@@ -8,7 +8,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -56,7 +56,7 @@ export class WalkThroughPart extends BaseEditor {
 
 	static readonly ID: string = 'workbench.editor.walkThroughPart';
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 	private contentDisposables: IDisposable[] = [];
 	private content: HTMLDivElement;
 	private scrollbar: DomScrollableElement;
@@ -514,7 +514,7 @@ export class WalkThroughPart extends BaseEditor {
 	dispose(): void {
 		this.editorFocus.reset();
 		this.contentDisposables = dispose(this.contentDisposables);
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }

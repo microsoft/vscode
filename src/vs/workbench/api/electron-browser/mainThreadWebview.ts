@@ -64,12 +64,12 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		super();
 
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
-		_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this._toDispose);
-		_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this, this._toDispose);
+		this._register(_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
+		this._register(_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this));
 
 		// This reviver's only job is to activate webview extensions
 		// This should trigger the real reviver to be registered from the extension host side.
-		this._toDispose.push(_webviewService.registerReviver({
+		this._register(_webviewService.registerReviver({
 			canRevive: (webview) => {
 				const viewType = webview.state.viewType;
 				if (viewType) {
@@ -80,9 +80,9 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			reviveWebview: () => { throw new Error('not implemented'); }
 		}));
 
-		lifecycleService.onBeforeShutdown(e => {
+		this._register(lifecycleService.onBeforeShutdown(e => {
 			e.veto(this._onBeforeShutdown());
-		}, this, this._toDispose);
+		}, this));
 	}
 
 	public $createWebviewPanel(
@@ -210,11 +210,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}
 	}
 
-	public $postMessage(handle: WebviewPanelHandle | WebviewInsetHandle, message: any): Promise<boolean> {
+	public async $postMessage(handle: WebviewPanelHandle | WebviewInsetHandle, message: any): Promise<boolean> {
 		if (typeof handle === 'number') {
 			this.getWebviewElement(handle).sendMessage(message);
-			return Promise.resolve(true);
-
+			return true;
 		} else {
 			const webview = this.getWebview(handle);
 			const editors = this._editorService.visibleControls
@@ -222,11 +221,17 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				.map(e => e as WebviewEditor)
 				.filter(e => e.input!.matches(webview));
 
-			for (const editor of editors) {
-				editor.sendMessage(message);
+			if (editors.length > 0) {
+				editors[0].sendMessage(message);
+				return true;
 			}
 
-			return Promise.resolve(editors.length > 0);
+			if (webview.webview) {
+				webview.webview.sendMessage(message);
+				return true;
+			}
+
+			return false;
 		}
 	}
 

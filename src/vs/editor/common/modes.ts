@@ -1000,6 +1000,7 @@ export interface IInplaceReplaceSupportResult {
 export interface ILink {
 	range: IRange;
 	url?: URI | string;
+	tooltip?: string;
 }
 
 export interface ILinksList {
@@ -1288,6 +1289,7 @@ export interface CommentThread2 {
 	resource: string | null;
 	range: IRange;
 	label: string;
+	contextValue: string | undefined;
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
@@ -1326,6 +1328,7 @@ export interface CommentThread {
 	collapsibleState?: CommentThreadCollapsibleState;
 	reply?: Command;
 	isDisposed?: boolean;
+	contextValue?: string;
 }
 
 /**
@@ -1350,11 +1353,21 @@ export interface CommentReaction {
 /**
  * @internal
  */
+export enum CommentMode {
+	Editing = 0,
+	Preview = 1
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly commentId: string;
+	readonly uniqueIdInThread?: number;
 	readonly body: IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;
+	readonly contextValue?: string;
 	readonly canEdit?: boolean;
 	readonly canDelete?: boolean;
 	readonly selectCommand?: Command;
@@ -1363,6 +1376,7 @@ export interface Comment {
 	readonly isDraft?: boolean;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
+	readonly mode?: CommentMode;
 }
 
 /**
