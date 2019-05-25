@@ -13,7 +13,6 @@ import { keys, ResourceMap, values } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI as uri } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -425,6 +424,7 @@ export class DiskSearch implements ISearchResultProvider {
 		searchDebug: IDebugParams | undefined,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		const timeout = this.configService.getValue<ISearchConfiguration>().search.maintainFileSearchCache ?
 			Number.MAX_VALUE :
@@ -465,7 +465,7 @@ export class DiskSearch implements ISearchResultProvider {
 
 	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		const folderQueries = query.folderQueries || [];
-		return Promise.all(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
+		return Promise.all(folderQueries.map(q => this.fileService.exists(q.folder)))
 			.then(exists => {
 				if (token && token.isCancellationRequested) {
 					throw canceled();
@@ -480,7 +480,7 @@ export class DiskSearch implements ISearchResultProvider {
 
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 		const folderQueries = query.folderQueries || [];
-		return Promise.all(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
+		return Promise.all(folderQueries.map(q => this.fileService.exists(q.folder)))
 			.then(exists => {
 				if (token && token.isCancellationRequested) {
 					throw canceled();
