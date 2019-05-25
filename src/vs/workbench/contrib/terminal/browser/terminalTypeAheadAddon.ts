@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { Terminal as XTermTerminal } from 'xterm';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 

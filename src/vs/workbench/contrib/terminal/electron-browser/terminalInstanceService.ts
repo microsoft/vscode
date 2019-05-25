@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { Terminal as XTermTerminal } from 'xterm';
 import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITerminalProcessManager, IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -32,10 +32,10 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
-			Terminal = (await import('vscode-xterm')).Terminal;
+			Terminal = (await import('xterm')).Terminal;
 			// Enable xterm.js addons
-			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/search/search'));
-			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/webLinks/webLinks'));
+			Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/search/search'));
+			Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/webLinks/webLinks'));
 			Terminal.applyAddon(typeAheadAddon);
 			// Localize strings
 			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');

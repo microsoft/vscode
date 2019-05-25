@@ -506,7 +506,7 @@
 			{
 				"target": "**/vs/workbench/contrib/terminal/browser/**",
 				"restrictions": [
-					"vscode-xterm",
+					"xterm",
 					"**/vs/**"
 				]
 			},
