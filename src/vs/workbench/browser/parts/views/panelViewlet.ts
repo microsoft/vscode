@@ -355,7 +355,7 @@ export class PanelViewlet extends Viewlet {
 			headerBorder: SIDE_BAR_SECTION_HEADER_BORDER,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, panel);
-		const disposable = combinedDisposable([onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange]);
+		const disposable = combinedDisposable(onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
 		this.panelItems.splice(index, 0, panelItem);

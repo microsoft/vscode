@@ -50,6 +50,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/electron-browser/extensionsDependencyChecker';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ActiveViewletContext } from 'vs/workbench/common/viewlet';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -405,6 +406,37 @@ CommandsRegistry.registerCommand({
 				const vsix = URI.revive(arg);
 				await extensionManagementService.install(vsix);
 			}
+		} catch (e) {
+			onUnexpectedError(e);
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.extensions.uninstallExtension',
+	description: {
+		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
+		args: [
+			{
+				name: localize('workbench.extensions.uninstallExtension.arg.name', "Id of the extension to uninstall"),
+				schema: {
+					'type': 'string'
+				}
+			}
+		]
+	},
+	handler: async (accessor, id: string) => {
+		if (!id) {
+			throw new Error(localize('id required', "Extension id required."));
+		}
+		const extensionManagementService = accessor.get(IExtensionManagementService);
+		try {
+			const installed = await extensionManagementService.getInstalled(ExtensionType.User);
+			const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
+			if (!extensionToUninstall) {
+				return Promise.reject(new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, eg: ms-vscode.csharp.", id)));
+			}
+			await extensionManagementService.uninstall(extensionToUninstall, true);
 		} catch (e) {
 			onUnexpectedError(e);
 		}

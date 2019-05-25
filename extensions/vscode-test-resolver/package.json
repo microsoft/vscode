@@ -1,0 +1,89 @@
+{
+	"name": "vscode-test-resolver",
+	"description": "Test resolver for VS Code",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"enableProposedApi": true,
+	"private": true,
+	"engines": {
+		"vscode": "^1.25.0"
+	},
+	"extensionKind": "ui",
+	"scripts": {
+		"compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-test-resolver ./tsconfig.json"
+	},
+	"activationEvents": [
+		"onResolveRemoteAuthority:test",
+		"onCommand:vscode-testresolver.newWindow",
+		"onCommand:vscode-testresolver.newWindowWithError",
+		"onCommand:vscode-testresolver.showLog"
+	],
+	"main": "./out/extension",
+	"devDependencies": {
+		"@types/node": "^10.12.21",
+		"vscode": "1.1.5"
+	},
+	"contributes": {
+		"resourceLabelFormatters": [
+			{
+				"scheme": "vscode-remote",
+				"authority": "test+*",
+				"formatting": {
+					"label": "${path}",
+					"separator": "/",
+					"tildify": true,
+					"workspaceSuffix": "TestResolver"
+				}
+			}
+		],
+		"commands": [
+			{
+				"title": "New Window",
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.newWindow"
+			},
+			{
+				"title": "New Window with Error",
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.newWindowWithError"
+			},
+			{
+				"title": "Show Log",
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.showLog"
+			}
+		],
+		"menus": {
+			"statusBar/windowIndicator": [
+				{
+					"command": "vscode-testresolver.newWindow",
+					"when": "!remoteAuthority",
+					"group": "9_local_testresolver@2"
+				},
+				{
+					"command": "vscode-testresolver.newWindowWithError",
+					"when": "!remoteAuthority",
+					"group": "9_local_testresolver@3"
+				},
+				{
+					"command": "vscode-testresolver.showLog",
+					"when": "remoteAuthority =~ /^test\\+.*$/",
+					"group": "1_remote_testresolver_open@3"
+				},
+				{
+					"command": "vscode-testresolver.newWindow",
+					"when": "remoteAuthority =~ /^test\\+.*$/",
+					"group": "1_remote_testresolver_open@1"
+				},
+				{
+					"command": "vscode-testresolver.newWindowWithError",
+					"when": "remoteAuthority =~ /^test\\+.*$/",
+					"group": "1_remote_testresolver_open@2"
+				}
+			]
+		}
+	}
+
+
+}

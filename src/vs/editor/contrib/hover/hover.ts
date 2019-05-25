@@ -7,7 +7,7 @@ import 'vs/css!./hover';
 import * as nls from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -34,7 +34,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.hover';
 
-	private _toUnhook: IDisposable[];
+	private readonly _toUnhook = new DisposableStore();
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
 	private _contentWidget: ModesContentHoverWidget;
@@ -73,8 +73,6 @@ export class ModesHoverController implements IEditorContribution {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
-		this._toUnhook = [];
-
 		this._isMouseDown = false;
 		this._hoverClicked = false;
 
@@ -111,7 +109,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _unhookEvents(): void {
-		this._toUnhook = dispose(this._toUnhook);
+		this._toUnhook.clear();
 	}
 
 	private _onModelDecorationsChanged(): void {
@@ -227,6 +225,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	public dispose(): void {
 		this._unhookEvents();
+		this._toUnhook.dispose();
 		this._didChangeConfigurationHandler.dispose();
 
 		if (this._glyphWidget) {

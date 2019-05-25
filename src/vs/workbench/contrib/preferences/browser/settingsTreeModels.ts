@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { ITOCEntry, knownAcronyms } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
+import { ITOCEntry, knownAcronyms, knownTermMappings } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 
@@ -404,8 +404,8 @@ export function settingKeyToDisplayFormat(key: string, groupId = ''): { category
 }
 
 function wordifyKey(key: string): string {
-	return key
-		.replace(/\.([a-z0-9])/g, (match, p1) => ` › ${p1.toUpperCase()}`) // Replace dot with spaced '>'
+	key = key
+		.replace(/\.([a-z0-9])/g, (_, p1) => ` › ${p1.toUpperCase()}`) // Replace dot with spaced '>'
 		.replace(/([a-z0-9])([A-Z])/g, '$1 $2') // Camel case to spacing, fooBar => foo Bar
 		.replace(/^[a-z]/g, match => match.toUpperCase()) // Upper casing all first letters, foo => Foo
 		.replace(/\b\w+\b/g, match => { // Upper casing known acronyms
@@ -413,6 +413,12 @@ function wordifyKey(key: string): string {
 				match.toUpperCase() :
 				match;
 		});
+
+	for (let [k, v] of knownTermMappings) {
+		key = key.replace(new RegExp(`\\b${k}\\b`, 'gi'), v);
+	}
+
+	return key;
 }
 
 function trimCategoryForGroup(category: string, groupId: string): string {

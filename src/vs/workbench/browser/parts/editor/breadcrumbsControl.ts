@@ -384,14 +384,14 @@ export class BreadcrumbsControl {
 				this._breadcrumbsPickerShowing = true;
 				this._updateCkBreadcrumbsActive();
 
-				return combinedDisposable([
+				return combinedDisposable(
 					picker,
 					selectListener,
 					focusListener,
 					zoomListener,
 					focusTracker,
 					blurListener
-				]);
+				);
 			},
 			getAnchor: () => {
 				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;

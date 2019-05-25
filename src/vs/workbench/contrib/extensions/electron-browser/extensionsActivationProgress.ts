@@ -5,7 +5,7 @@
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
@@ -17,7 +17,7 @@ export class ExtensionActivationProgress implements IWorkbenchContribution {
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
-		@IProgressService2 progressService: IProgressService2,
+		@IProgressService progressService: IProgressService,
 		@ILogService logService: ILogService,
 	) {
 

@@ -376,6 +376,12 @@ export function anyScore(pattern: string, lowPattern: string, _patternPos: numbe
 			score += 1;
 			matches += 2 ** wordPos;
 			idx = wordPos + 1;
+
+		} else if (matches !== 0) {
+			// once we have started matching things
+			// we need to match the remaining pattern
+			// characters
+			break;
 		}
 	}
 	return [score, matches, _wordPos];
@@ -510,7 +516,7 @@ export namespace FuzzyScore {
 	/**
 	 * No matches and value `-100`
 	 */
-	export const Default: [-100, 0, 0] = [-100, 0, 0];
+	export const Default: [-100, 0, 0] = <[-100, 0, 0]>Object.freeze([-100, 0, 0]);
 
 	export function isDefault(score?: FuzzyScore): score is [-100, 0, 0] {
 		return !score || (score[0] === -100 && score[1] === 0 && score[2] === 0);

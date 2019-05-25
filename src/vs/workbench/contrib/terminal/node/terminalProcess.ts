@@ -62,13 +62,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			!is32ProcessOn64Windows &&
 			getWindowsBuildNumber() >= 18309;
 
-		const options: pty.IPtyForkOptions = {
+		const options: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions = {
 			name: shellName,
 			cwd,
 			env,
 			cols,
 			rows,
-			experimentalUseConpty: useConpty
+			experimentalUseConpty: useConpty,
+			conptyInheritCursor: true
 		};
 
 		// TODO: Need to verify whether executable is on $PATH, otherwise things like cmd.exe will break
@@ -91,14 +92,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessIdReady(() => c());
 		});
-		ptyProcess.on('data', (data) => {
+		ptyProcess.on('data', data => {
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
 		});
-		ptyProcess.on('exit', (code) => {
+		ptyProcess.on('exit', code => {
 			this._exitCode = code;
 			this._queueProcessExit();
 		});
@@ -126,12 +127,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		setTimeout(() => {
 			this._sendProcessTitle(ptyProcess);
 		}, 0);
-		// Setup polling
-		this._titleInterval = setInterval(() => {
-			if (this._currentTitle !== ptyProcess.process) {
-				this._sendProcessTitle(ptyProcess);
-			}
-		}, 200);
+		// Setup polling for non-Windows, for Windows `process` doesn't change
+		if (!platform.isWindows) {
+			this._titleInterval = setInterval(() => {
+				if (this._currentTitle !== ptyProcess.process) {
+					this._sendProcessTitle(ptyProcess);
+				}
+			}, 200);
+		}
 	}
 
 	// Allow any trailing data events to be sent before the exit event is sent.
@@ -189,7 +192,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		if (this._isDisposed || !this._ptyProcess) {
 			return;
 		}
-		this._logService.trace('IPty#write', data);
+		this._logService.trace('IPty#write', `${data.length} characters`);
 		this._ptyProcess.write(data);
 	}
 

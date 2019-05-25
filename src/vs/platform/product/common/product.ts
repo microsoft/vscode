@@ -10,8 +10,13 @@ export const IProductService = createDecorator<IProductService>('productService'
 export interface IProductService {
 	_serviceBrand: any;
 
-	version?: string;
+	version: string;
 	commit?: string;
+
+	nameLong: string;
+	urlProtocol: string;
+	extensionAllowedProposedApi: string[];
+	uiExtensions?: string[];
 
 	enableTelemetry: boolean;
 }

@@ -479,7 +479,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.doSetFileIconTheme(newIconTheme);
 
 			// remember theme data for a quick restore
-			if (newIconTheme.isLoaded && newIconTheme.location && !getRemoteAuthority(newIconTheme.location)) {
+			if (newIconTheme.isLoaded && (!newIconTheme.location || !getRemoteAuthority(newIconTheme.location))) {
 				this.storageService.store(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData(), StorageScope.GLOBAL);
 			}
 

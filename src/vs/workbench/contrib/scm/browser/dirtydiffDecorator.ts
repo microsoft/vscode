@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 
 import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer, first } from 'vs/base/common/async';
-import { IDisposable, dispose, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -554,7 +554,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-export class DirtyDiffController implements IEditorContribution {
+export class DirtyDiffController extends Disposable implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.dirtydiff';
 
@@ -571,20 +571,20 @@ export class DirtyDiffController implements IEditorContribution {
 	private session: IDisposable = Disposable.None;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private enabled = false;
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		private editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
+		super();
 		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
 
 		if (this.enabled) {
 			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
-			this.disposables.push(editor.onMouseDown(e => this.onEditorMouseDown(e)));
-			this.disposables.push(editor.onMouseUp(e => this.onEditorMouseUp(e)));
-			this.disposables.push(editor.onDidChangeModel(() => this.close()));
+			this._register(editor.onMouseDown(e => this.onEditorMouseDown(e)));
+			this._register(editor.onMouseUp(e => this.onEditorMouseUp(e)));
+			this._register(editor.onDidChangeModel(() => this.close()));
 		}
 	}
 
@@ -674,22 +674,20 @@ export class DirtyDiffController implements IEditorContribution {
 		this.widget = this.instantiationService.createInstance(DirtyDiffWidget, this.editor, model);
 		this.isDirtyDiffVisible.set(true);
 
-		const disposables: IDisposable[] = [];
-		Event.once(this.widget.onDidClose)(this.close, this, disposables);
-		model.onDidChange(this.onDidModelChange, this, disposables);
+		const disposables = new DisposableStore();
+		disposables.push(Event.once(this.widget.onDidClose)(this.close, this));
+		disposables.push(model.onDidChange(this.onDidModelChange, this));
 
-		disposables.push(
-			this.widget,
-			toDisposable(() => {
-				this.model = null;
-				this.widget = null;
-				this.currentIndex = -1;
-				this.isDirtyDiffVisible.set(false);
-				this.editor.focus();
-			})
-		);
+		disposables.push(this.widget);
+		disposables.push(toDisposable(() => {
+			this.model = null;
+			this.widget = null;
+			this.currentIndex = -1;
+			this.isDirtyDiffVisible.set(false);
+			this.editor.focus();
+		}));
 
-		this.session = combinedDisposable(disposables);
+		this.session = disposables;
 		return true;
 	}
 
@@ -808,10 +806,6 @@ export class DirtyDiffController implements IEditorContribution {
 
 		return model.changes;
 	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-	}
 }
 
 export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
@@ -837,7 +831,7 @@ export const overviewRulerModifiedForeground = registerColor('editorOverviewRule
 export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
 export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
 
-class DirtyDiffDecorator {
+class DirtyDiffDecorator extends Disposable {
 
 	static createDecoration(className: string, foregroundColor: string, options: { gutter: boolean, overview: boolean, isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
@@ -862,7 +856,6 @@ class DirtyDiffDecorator {
 	private addedOptions: ModelDecorationOptions;
 	private deletedOptions: ModelDecorationOptions;
 	private decorations: string[] = [];
-	private disposables: IDisposable[] = [];
 	private editorModel: ITextModel | null;
 
 	constructor(
@@ -870,6 +863,7 @@ class DirtyDiffDecorator {
 		private model: DirtyDiffModel,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		super();
 		this.editorModel = editorModel;
 		const decorations = configurationService.getValue<string>('scm.diffDecorations');
 		const gutter = decorations === 'all' || decorations === 'gutter';
@@ -880,7 +874,7 @@ class DirtyDiffDecorator {
 		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', overviewRulerAddedForeground, options);
 		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', overviewRulerDeletedForeground, { ...options, isWholeLine: false });
 
-		model.onDidChange(this.onDidChange, this, this.disposables);
+		this._register(model.onDidChange(this.onDidChange, this));
 	}
 
 	private onDidChange(): void {
@@ -924,7 +918,7 @@ class DirtyDiffDecorator {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		super.dispose();
 
 		if (this.editorModel && !this.editorModel.isDisposed()) {
 			this.editorModel.deltaDecorations(this.decorations, []);
@@ -957,7 +951,7 @@ function compareChanges(a: IChange, b: IChange): number {
 	return a.originalEndLineNumber - b.originalEndLineNumber;
 }
 
-export class DirtyDiffModel {
+export class DirtyDiffModel extends Disposable {
 
 	private _originalModel: ITextModel | null;
 	get original(): ITextModel | null { return this._originalModel; }
@@ -965,9 +959,8 @@ export class DirtyDiffModel {
 
 	private diffDelayer: ThrottledDelayer<IChange[] | null> | null;
 	private _originalURIPromise?: Promise<URI | null>;
-	private repositoryDisposables = new Set<IDisposable[]>();
-	private originalModelDisposables: IDisposable[] = [];
-	private disposables: IDisposable[] = [];
+	private repositoryDisposables = new Set<IDisposable>();
+	private readonly originalModelDisposables = this._register(new DisposableStore());
 
 	private _onDidChange = new Emitter<ISplice<IChange>[]>();
 	readonly onDidChange: Event<ISplice<IChange>[]> = this._onDidChange.event;
@@ -985,27 +978,28 @@ export class DirtyDiffModel {
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
+		super();
 		this._editorModel = editorModel;
 		this.diffDelayer = new ThrottledDelayer<IChange[]>(200);
 
-		this.disposables.push(editorModel.onDidChangeContent(() => this.triggerDiff()));
-		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+		this._register(editorModel.onDidChangeContent(() => this.triggerDiff()));
+		this._register(scmService.onDidAddRepository(this.onDidAddRepository, this));
 		scmService.repositories.forEach(r => this.onDidAddRepository(r));
 
 		this.triggerDiff();
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		this.repositoryDisposables.add(disposables);
 		disposables.push(toDisposable(() => this.repositoryDisposables.delete(disposables)));
 
 		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
-		onDidChange(this.triggerDiff, this, disposables);
+		disposables.push(onDidChange(this.triggerDiff, this));
 
 		const onDidRemoveThis = Event.filter(this.scmService.onDidRemoveRepository, r => r === repository);
-		onDidRemoveThis(() => dispose(disposables), null, disposables);
+		disposables.push(onDidRemoveThis(() => dispose(disposables), null));
 
 		this.triggerDiff();
 	}
@@ -1075,12 +1069,9 @@ export class DirtyDiffModel {
 
 				this._originalModel = ref.object.textEditorModel;
 
-				const originalModelDisposables: IDisposable[] = [];
-				originalModelDisposables.push(ref);
-				originalModelDisposables.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
-
-				dispose(this.originalModelDisposables);
-				this.originalModelDisposables = originalModelDisposables;
+				this.originalModelDisposables.clear();
+				this.originalModelDisposables.push(ref);
+				this.originalModelDisposables.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 
 				return originalUri;
 			});
@@ -1137,8 +1128,7 @@ export class DirtyDiffModel {
 	}
 
 	dispose(): void {
-		this.originalModelDisposables = dispose(this.originalModelDisposables);
-		this.disposables = dispose(this.disposables);
+		super.dispose();
 
 		this._editorModel = null;
 		this._originalModel = null;
@@ -1163,25 +1153,25 @@ class DirtyDiffItem {
 	}
 }
 
-export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution, IModelRegistry {
+export class DirtyDiffWorkbenchController extends Disposable implements ext.IWorkbenchContribution, IModelRegistry {
 
 	private enabled = false;
 	private models: ITextModel[] = [];
 	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
 	private transientDisposables: IDisposable[] = [];
 	private stylesheet: HTMLStyleElement;
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
+		super();
 		this.stylesheet = createStyleSheet();
-		this.disposables.push(toDisposable(() => this.stylesheet.parentElement!.removeChild(this.stylesheet)));
+		this._register(toDisposable(() => this.stylesheet.parentElement!.removeChild(this.stylesheet)));
 
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
-		onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
+		this._register(onDidChangeConfiguration(this.onDidChangeConfiguration, this));
 		this.onDidChangeConfiguration();
 
 		const onDidChangeDiffWidthConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterWidth'));
@@ -1284,7 +1274,7 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 
 	dispose(): void {
 		this.disable();
-		this.disposables = dispose(this.disposables);
+		super.dispose();
 	}
 }
 

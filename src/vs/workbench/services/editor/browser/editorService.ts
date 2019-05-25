@@ -328,7 +328,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	openEditors(editors: IEditorInputWithOptions[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor[]>;
 	openEditors(editors: IResourceEditor[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor[]>;
-	openEditors(editors: Array<IEditorInputWithOptions | IResourceEditor>, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor[]> {
+	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditor>, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor[]> {
 
 		// Convert to typed editors and options
 		const typedEditors: IEditorInputWithOptions[] = [];
@@ -364,7 +364,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			result.push(group.openEditors(editorsWithOptions));
 		});
 
-		return Promise.all(result).then(editors => coalesce(editors));
+		const openedEditors = await Promise.all(result);
+
+		return coalesce(openedEditors);
 	}
 
 	//#endregion
@@ -648,18 +650,17 @@ export class DelegatingEditorService extends EditorService {
 		this.editorOpenHandler = handler;
 	}
 
-	protected doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): Promise<IEditor | null> {
+	protected async doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): Promise<IEditor | null> {
 		if (!this.editorOpenHandler) {
 			return super.doOpenEditor(group, editor, options);
 		}
 
-		return this.editorOpenHandler(group, editor, options).then(control => {
-			if (control) {
-				return control; // the opening was handled, so return early
-			}
+		const control = await this.editorOpenHandler(group, editor, options);
+		if (control) {
+			return control; // the opening was handled, so return early
+		}
 
-			return super.doOpenEditor(group, editor, options);
-		});
+		return super.doOpenEditor(group, editor, options);
 	}
 }
 

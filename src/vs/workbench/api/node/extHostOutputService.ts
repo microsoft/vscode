@@ -51,7 +51,7 @@ export const LogOutputChannelFactory = new class implements IOutputChannelFactor
 		try {
 			const outputDirPath = join(logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 			const outputDir = await dirExists(outputDirPath).then(exists => exists ? exists : mkdirp(outputDirPath).then(() => true)).then(() => outputDirPath);
-			const fileName = `${this._namePool++}-${name}`;
+			const fileName = `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}`;
 			const file = URI.file(join(outputDir, `${fileName}.log`));
 			const appender = new OutputAppender(fileName, file.fsPath);
 			return new ExtHostOutputChannelBackedByFile(name, appender, proxy);

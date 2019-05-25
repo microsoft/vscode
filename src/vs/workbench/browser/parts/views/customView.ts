@@ -17,7 +17,7 @@ import { IViewsService, ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeVie
 import { IViewletViewOptions, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProgressService2 } from 'vs/platform/progress/common/progress';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -216,7 +216,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProgressService2 private readonly progressService: IProgressService2
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
 		this.root = new Root();
@@ -251,15 +251,13 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	set dataProvider(dataProvider: ITreeViewDataProvider | null) {
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
-				getChildren(node: ITreeItem): Promise<ITreeItem[]> {
+				async getChildren(node: ITreeItem): Promise<ITreeItem[]> {
 					if (node && node.children) {
 						return Promise.resolve(node.children);
 					}
-					const promise = node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node);
-					return promise.then(children => {
-						node.children = children;
-						return children;
-					});
+					const children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
+					node.children = children;
+					return children;
 				}
 			};
 			this.updateMessage();
@@ -524,19 +522,16 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	private refreshing: boolean = false;
-	private doRefresh(elements: ITreeItem[]): Promise<void> {
+	private async doRefresh(elements: ITreeItem[]): Promise<void> {
 		if (this.tree) {
 			this.refreshing = true;
-			return Promise.all(elements.map(e => this.tree.refresh(e)))
-				.then(() => {
-					this.refreshing = false;
-					this.updateContentAreas();
-					if (this.focused) {
-						this.focus();
-					}
-				});
+			await Promise.all(elements.map(e => this.tree.refresh(e)));
+			this.refreshing = false;
+			this.updateContentAreas();
+			if (this.focused) {
+				this.focus();
+			}
 		}
-		return Promise.resolve(undefined);
 	}
 
 	private updateContentAreas(): void {

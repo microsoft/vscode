@@ -170,53 +170,52 @@ export class ResourcesDropHandler {
 	) {
 	}
 
-	handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): void {
+	async handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): Promise<void> {
 		const untitledOrFileResources = extractResources(event).filter(r => this.fileService.canHandleResource(r.resource) || r.resource.scheme === Schemas.untitled);
 		if (!untitledOrFileResources.length) {
 			return;
 		}
 
 		// Make the window active to handle the drop properly within
-		this.windowService.focusWindow().then(() => {
+		await this.windowService.focusWindow();
 
-			// Check for special things being dropped
-			return this.doHandleDrop(untitledOrFileResources).then(isWorkspaceOpening => {
-				if (isWorkspaceOpening) {
-					return undefined; // return early if the drop operation resulted in this window changing to a workspace
-				}
+		// Check for special things being dropped
+		const isWorkspaceOpening = await this.doHandleDrop(untitledOrFileResources);
 
-				// Add external ones to recently open list unless dropped resource is a workspace
-				const recents: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
-				if (recents.length) {
-					this.windowsService.addRecentlyOpened(recents);
-				}
+		if (isWorkspaceOpening) {
+			return; // return early if the drop operation resulted in this window changing to a workspace
+		}
 
-				const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
-					resource: untitledOrFileResource.resource,
-					options: {
-						pinned: true,
-						index: targetIndex,
-						viewState: (untitledOrFileResource as IDraggedEditor).viewState
-					}
-				}));
+		// Add external ones to recently open list unless dropped resource is a workspace
+		const recents: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
+		if (recents.length) {
+			this.windowsService.addRecentlyOpened(recents);
+		}
 
-				// Open in Editor
-				const targetGroup = resolveTargetGroup();
-				return this.editorService.openEditors(editors, targetGroup).then(() => {
+		const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
+			resource: untitledOrFileResource.resource,
+			options: {
+				pinned: true,
+				index: targetIndex,
+				viewState: (untitledOrFileResource as IDraggedEditor).viewState
+			}
+		}));
 
-					// Finish with provided function
-					afterDrop(targetGroup);
-				});
-			});
-		});
+		// Open in Editor
+		const targetGroup = resolveTargetGroup();
+		await this.editorService.openEditors(editors, targetGroup);
+
+		// Finish with provided function
+		afterDrop(targetGroup);
 	}
 
-	private doHandleDrop(untitledOrFileResources: Array<IDraggedResource | IDraggedEditor>): Promise<boolean> {
+	private async doHandleDrop(untitledOrFileResources: Array<IDraggedResource | IDraggedEditor>): Promise<boolean> {
 
 		// Check for dirty editors being dropped
 		const resourcesWithBackups: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
 		if (resourcesWithBackups.length > 0) {
-			return Promise.all(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup))).then(() => false);
+			await Promise.all(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup)));
+			return false;
 		}
 
 		// Check for workspace file being dropped if we are allowed to do so
@@ -227,10 +226,10 @@ export class ResourcesDropHandler {
 			}
 		}
 
-		return Promise.resolve(false);
+		return false;
 	}
 
-	private handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Promise<boolean> {
+	private async handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Promise<boolean> {
 
 		// Untitled: always ensure that we open a new untitled for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
@@ -239,15 +238,18 @@ export class ResourcesDropHandler {
 
 		// Return early if the resource is already dirty in target or opened already
 		if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpen({ resource: droppedDirtyEditor.resource })) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		// Resolve the contents of the dropped dirty resource from source
-		return this.backupFileService.resolveBackupContent(droppedDirtyEditor.backupResource!).then(content => {
+		try {
+			const content = await this.backupFileService.resolveBackupContent((droppedDirtyEditor.backupResource!));
+			await this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
+		} catch (e) {
+			// Ignore error
+		}
 
-			// Set the contents of to the resource to the target
-			return this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
-		}).then(() => false, () => false /* ignore any error */);
+		return false;
 	}
 
 	private getDefaultEOL(): DefaultEndOfLine {
@@ -259,44 +261,50 @@ export class ResourcesDropHandler {
 		return DefaultEndOfLine.LF;
 	}
 
-	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
+	private async handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
 		const urisToOpen: IURIToOpen[] = [];
 		const folderURIs: IWorkspaceFolderCreationData[] = [];
 
-		return Promise.all(fileOnDiskResources.map(fileOnDiskResource => {
+		await Promise.all(fileOnDiskResources.map(async fileOnDiskResource => {
 
 			// Check for Workspace
 			if (hasWorkspaceFileExtension(fileOnDiskResource)) {
 				urisToOpen.push({ workspaceUri: fileOnDiskResource });
 
-				return undefined;
+				return;
 			}
 
 			// Check for Folder
-			return this.fileService.resolve(fileOnDiskResource).then(stat => {
+			try {
+				const stat = await this.fileService.resolve(fileOnDiskResource);
 				if (stat.isDirectory) {
 					urisToOpen.push({ folderUri: stat.resource });
 					folderURIs.push({ uri: stat.resource });
 				}
-			}, error => undefined);
-		})).then(_ => {
-
-			// Return early if no external resource is a folder or workspace
-			if (urisToOpen.length === 0) {
-				return false;
+			} catch (error) {
+				// Ignore error
 			}
+		}));
 
-			// Pass focus to window
-			this.windowService.focusWindow();
+		// Return early if no external resource is a folder or workspace
+		if (urisToOpen.length === 0) {
+			return false;
+		}
 
-			// Open in separate windows if we drop workspaces or just one folder
-			if (urisToOpen.length > folderURIs.length || folderURIs.length === 1) {
-				return this.windowService.openWindow(urisToOpen, { forceReuseWindow: true }).then(_ => true);
-			}
+		// Pass focus to window
+		this.windowService.focusWindow();
 
-			// folders.length > 1: Multiple folders: Create new workspace with folders and open
-			return this.workspaceEditingService.createAndEnterWorkspace(folderURIs).then(_ => true);
-		});
+		// Open in separate windows if we drop workspaces or just one folder
+		if (urisToOpen.length > folderURIs.length || folderURIs.length === 1) {
+			await this.windowService.openWindow(urisToOpen, { forceReuseWindow: true });
+		}
+
+		// folders.length > 1: Multiple folders: Create new workspace with folders and open
+		else {
+			await this.workspaceEditingService.createAndEnterWorkspace(folderURIs);
+		}
+
+		return true;
 	}
 }
 

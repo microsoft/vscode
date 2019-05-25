@@ -37,7 +37,6 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED = new RawContextKey
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
-export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
 // The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
@@ -193,6 +192,15 @@ export interface IShellLaunchConfig {
 	 * provided as nothing will be inherited from the process or any configuration.
 	 */
 	strictEnv?: boolean;
+
+	/**
+	 * When enabled the terminal will run the process as normal but not be surfaced to the user
+	 * until `Terminal.show` is called. The typical usage for this is when you need to run
+	 * something that may need interactivity but only want to tell the user about it when
+	 * interaction is needed. Note that the terminals will still be exposed to all extensions
+	 * as normal.
+	 */
+	runInBackground?: boolean;
 }
 
 export interface ITerminalService {
@@ -216,10 +224,8 @@ export interface ITerminalService {
 	/**
 	 * Creates a terminal.
 	 * @param shell The shell launch configuration to use.
-	 * @param wasNewTerminalAction Whether this was triggered by a new terminal action, if so a
-	 * default shell selection dialog may display.
 	 */
-	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	createTerminal(shell?: IShellLaunchConfig): ITerminalInstance;
 
 	/**
 	 * Creates a terminal renderer.
@@ -244,6 +250,12 @@ export interface ITerminalService {
 	setActiveTabToNext(): void;
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
+
+	/**
+	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
+	 * among other things.
+	 */
+	refreshActiveTab(): void;
 
 	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;
