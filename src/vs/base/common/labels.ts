@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { sep, posix, normalize } from 'vs/base/common/path';
+import { sep, posix, win32, normalize } from 'vs/base/common/path';
 import { endsWith, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
@@ -385,14 +385,15 @@ export function unmnemonicLabel(label: string): string {
 }
 
 /**
- * Splits a path in name and parent path, supporting both '/' and '\'
+ * Splits a path in name and parent path, supporting both '/' and '\' and trailing slash
  */
 export function splitName(fullPath: string): { name: string, parentPath: string } {
-	for (let i = fullPath.length - 1; i >= 1; i--) {
-		const code = fullPath.charCodeAt(i);
+	const trimmedPath = rtrim(rtrim(fullPath, posix.sep), win32.sep);
+	for (let i = trimmedPath.length - 1; i >= 1; i--) {
+		const code = trimmedPath.charCodeAt(i);
 		if (code === CharCode.Slash || code === CharCode.Backslash) {
-			return { parentPath: fullPath.substr(0, i), name: fullPath.substr(i + 1) };
+			return { parentPath: trimmedPath.substr(0, i), name: trimmedPath.substr(i + 1) };
 		}
 	}
-	return { parentPath: '', name: fullPath };
+	return { parentPath: '', name: trimmedPath };
 }
