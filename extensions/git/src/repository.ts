@@ -294,6 +294,7 @@ export const enum Operation {
 	Merge = 'Merge',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
+	DeleteTag = 'DeleteTag',
 	Stash = 'Stash',
 	CheckIgnore = 'CheckIgnore',
 	GetObjectDetails = 'GetObjectDetails',
@@ -899,6 +900,10 @@ export class Repository implements Disposable {
 
 	async tag(name: string, message?: string): Promise<void> {
 		await this.run(Operation.Tag, () => this.repository.tag(name, message));
+	}
+
+	async deleteTag(name: string): Promise<void> {
+		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
 	async checkout(treeish: string): Promise<void> {

@@ -1258,6 +1258,11 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async deleteTag(name: string): Promise<void> {
+		let args = ['tag', '-d', name];
+		await this.run(args);
+	}
+
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths, p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);

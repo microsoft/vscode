@@ -266,6 +266,11 @@
         "category": "Git"
       },
       {
+        "command": "git.deleteTag",
+        "title": "%command.deleteTag%",
+        "category": "Git"
+      },
+      {
         "command": "git.fetch",
         "title": "%command.fetch%",
         "category": "Git"
@@ -551,6 +556,10 @@
         },
         {
           "command": "git.createTag",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.deleteTag",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {

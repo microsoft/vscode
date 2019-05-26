@@ -1631,6 +1631,22 @@ export class CommandCenter {
 		await repository.tag(name, message);
 	}
 
+	@command('git.deleteTag', { repository: true })
+	async deleteTag(repository: Repository): Promise<void> {
+		const inputTagName = await window.showInputBox({
+			placeHolder: localize('tag name', "Tag name"),
+			prompt: localize('provide tag name', "Please provide a tag name"),
+			ignoreFocusOut: true
+		});
+
+		if (!inputTagName) {
+			return;
+		}
+
+		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
+		await repository.deleteTag(name);
+	}
+
 	@command('git.fetch', { repository: true })
 	async fetch(repository: Repository): Promise<void> {
 		if (repository.remotes.length === 0) {
