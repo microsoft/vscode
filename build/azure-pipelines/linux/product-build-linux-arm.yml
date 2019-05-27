@@ -7,6 +7,12 @@ steps:
   inputs:
     versionSpec: "1.10.1"
 
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
 - script: |
     set -e
 
@@ -15,5 +21,5 @@ steps:
     password $(devops-pat)
     EOF
 
-    ./build/azure-pipelines/linux/arm/build-arm.sh
+    ./build/azure-pipelines/linux/build-arm.sh
   displayName: 'Build ARM'
