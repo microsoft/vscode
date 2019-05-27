@@ -13,7 +13,7 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
 import { StatusBarCommands } from './statusbar';
-import { Branch, Ref, Remote, RefType, GitErrorCodes, Status, LogOptions, Change, TrackingShip } from './api/git';
+import { Branch, Ref, Remote, RefType, GitErrorCodes, Status, LogOptions, Change } from './api/git';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -299,7 +299,7 @@ export const enum Operation {
 	GetObjectDetails = 'GetObjectDetails',
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
-	GetTracking = 'GetTracking',
+	FindTrackingBranches = 'GetTracking',
 	Apply = 'Apply',
 	Blame = 'Blame',
 	Log = 'Log',
@@ -910,8 +910,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { track: true }));
 	}
 
-	async getTracking(treeish: string): Promise<TrackingShip[]> {
-		return await this.run(Operation.GetTracking, () => this.repository.GetTracking(treeish));
+	async findTrackingBranches(upstreamRef: string): Promise<Branch[]> {
+		return await this.run(Operation.FindTrackingBranches, () => this.repository.findTrackingBranches(upstreamRef));
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
