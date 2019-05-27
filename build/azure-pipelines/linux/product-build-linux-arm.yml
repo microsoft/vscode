@@ -13,6 +13,15 @@ steps:
     azureSubscription: 'vscode-builds-subscription'
     KeyVaultName: vscode
 
+- task: Docker@1
+  displayName: 'Pull image'
+  inputs:
+    azureSubscriptionEndpoint: 'vscode-builds-subscription'
+    azureContainerRegistry: vscodehub.azurecr.io
+    command: 'Pull the image'
+    imageName: 'vscode-linux-build-agent:armhf'
+    containerCommand: uname
+
 - script: |
     set -e
 
