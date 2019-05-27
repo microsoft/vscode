@@ -199,8 +199,18 @@ export class MinimapCharRenderer {
 		}
 	}
 
-	public x1RenderChar(target: ImageData, dx: number, dy: number, chCode: number, color: RGBA8, backgroundColor: RGBA8, useLighterFont: boolean): void {
-		if (dx + Constants.x1_CHAR_WIDTH > target.width || dy + Constants.x1_CHAR_HEIGHT > target.height) {
+	public x1RenderChar(
+		target: ImageData,
+		dx: number,
+		dy: number,
+		chCode: number,
+		color: RGBA8,
+		backgroundColor: RGBA8,
+		useLighterFont: boolean,
+		oneline: boolean = false
+	): void {
+		if (dx + Constants.x1_CHAR_WIDTH > target.width
+			|| dy + (oneline ? 1 : Constants.x1_CHAR_HEIGHT) > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
@@ -220,19 +230,26 @@ export class MinimapCharRenderer {
 		const dest = target.data;
 		const sourceOffset = chIndex * Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH;
 		let destOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
-		{
-			const c = x1CharData[sourceOffset] / 255;
+		if (oneline) {
+			const c = (x1CharData[sourceOffset] + x1CharData[sourceOffset + 1]) / 511;
 			dest[destOffset + 0] = backgroundR + deltaR * c;
 			dest[destOffset + 1] = backgroundG + deltaG * c;
 			dest[destOffset + 2] = backgroundB + deltaB * c;
-		}
+		} else {
+			{
+				const c = x1CharData[sourceOffset] / 255;
+				dest[destOffset + 0] = backgroundR + deltaR * c;
+				dest[destOffset + 1] = backgroundG + deltaG * c;
+				dest[destOffset + 2] = backgroundB + deltaB * c;
+			}
+			destOffset += outWidth;
 
-		destOffset += outWidth;
-		{
-			const c = x1CharData[sourceOffset + 1] / 255;
-			dest[destOffset + 0] = backgroundR + deltaR * c;
-			dest[destOffset + 1] = backgroundG + deltaG * c;
-			dest[destOffset + 2] = backgroundB + deltaB * c;
+			{
+				const c = x1CharData[sourceOffset + 1] / 255;
+				dest[destOffset + 0] = backgroundR + deltaR * c;
+				dest[destOffset + 1] = backgroundG + deltaG * c;
+				dest[destOffset + 2] = backgroundB + deltaB * c;
+			}
 		}
 	}
 
@@ -308,8 +325,17 @@ export class MinimapCharRenderer {
 		}
 	}
 
-	public x1BlockRenderChar(target: ImageData, dx: number, dy: number, color: RGBA8, backgroundColor: RGBA8, useLighterFont: boolean): void {
-		if (dx + Constants.x1_CHAR_WIDTH > target.width || dy + Constants.x1_CHAR_HEIGHT > target.height) {
+	public x1BlockRenderChar(
+		target: ImageData,
+		dx: number,
+		dy: number,
+		color: RGBA8,
+		backgroundColor: RGBA8,
+		useLighterFont: boolean,
+		oneline: boolean = false
+	): void {
+		if (dx + Constants.x1_CHAR_WIDTH > target.width
+			|| dy + (oneline ? 1 : Constants.x1_CHAR_HEIGHT) > target.height) {
 			console.warn('bad render request outside image data');
 			return;
 		}
@@ -338,9 +364,8 @@ export class MinimapCharRenderer {
 			dest[destOffset + 1] = colorG;
 			dest[destOffset + 2] = colorB;
 		}
-
-		destOffset += outWidth;
-		{
+		if (!oneline) {
+			destOffset += outWidth;
 			dest[destOffset + 0] = colorR;
 			dest[destOffset + 1] = colorG;
 			dest[destOffset + 2] = colorB;

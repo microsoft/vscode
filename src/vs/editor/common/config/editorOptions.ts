@@ -137,6 +137,10 @@ export interface IEditorMinimapOptions {
 	 * Defaults to 120.
 	 */
 	maxColumn?: number;
+	/**
+	 * Minimap covers entire document.
+	 */
+	entireDocument?: boolean;
 }
 
 /**
@@ -917,6 +921,7 @@ export interface InternalEditorMinimapOptions {
 	readonly showSlider: 'always' | 'mouseover';
 	readonly renderCharacters: boolean;
 	readonly maxColumn: number;
+	readonly entireDocument: boolean;
 }
 
 export interface InternalEditorFindOptions {
@@ -1350,6 +1355,7 @@ export class InternalEditorOptions {
 			&& a.showSlider === b.showSlider
 			&& a.renderCharacters === b.renderCharacters
 			&& a.maxColumn === b.maxColumn
+			&& a.entireDocument === b.entireDocument
 		);
 	}
 
@@ -1892,6 +1898,7 @@ export class EditorOptionsValidator {
 			showSlider: _stringSet<'always' | 'mouseover'>(opts.showSlider, defaults.showSlider, ['always', 'mouseover']),
 			renderCharacters: _boolean(opts.renderCharacters, defaults.renderCharacters),
 			maxColumn: _clampedInt(opts.maxColumn, defaults.maxColumn, 1, 10000),
+			entireDocument: _boolean(opts.entireDocument, defaults.entireDocument)
 		};
 	}
 
@@ -2201,7 +2208,8 @@ export class InternalEditorOptionsFactory {
 					side: opts.viewInfo.minimap.side,
 					renderCharacters: opts.viewInfo.minimap.renderCharacters,
 					showSlider: opts.viewInfo.minimap.showSlider,
-					maxColumn: opts.viewInfo.minimap.maxColumn
+					maxColumn: opts.viewInfo.minimap.maxColumn,
+					entireDocument: opts.viewInfo.minimap.entireDocument
 				},
 				fixedOverflowWidgets: opts.viewInfo.fixedOverflowWidgets
 			},
@@ -2288,6 +2296,7 @@ export class InternalEditorOptionsFactory {
 			minimapSide: opts.viewInfo.minimap.side,
 			minimapRenderCharacters: opts.viewInfo.minimap.renderCharacters,
 			minimapMaxColumn: opts.viewInfo.minimap.maxColumn,
+			minimapEntireDocument: opts.viewInfo.minimap.entireDocument,
 			pixelRatio: env.pixelRatio
 		});
 
@@ -2426,6 +2435,7 @@ export interface IEditorLayoutProviderOpts {
 	readonly minimapSide: string;
 	readonly minimapRenderCharacters: boolean;
 	readonly minimapMaxColumn: number;
+	readonly minimapEntireDocument: boolean;
 	readonly pixelRatio: number;
 }
 
@@ -2679,7 +2689,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			side: 'right',
 			showSlider: 'mouseover',
 			renderCharacters: true,
-			maxColumn: 120
+			maxColumn: 120,
+			entireDocument: false
 		},
 		fixedOverflowWidgets: false,
 	},

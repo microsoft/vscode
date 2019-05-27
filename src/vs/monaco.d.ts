@@ -2484,6 +2484,10 @@ declare namespace monaco.editor {
 		 * Defaults to 120.
 		 */
 		maxColumn?: number;
+		/**
+		 * Minimap covers entire document.
+		 */
+		entireDocument?: boolean;
 	}
 
 	/**
@@ -3197,6 +3201,7 @@ declare namespace monaco.editor {
 		readonly showSlider: 'always' | 'mouseover';
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
+		readonly entireDocument: boolean;
 	}
 
 	export interface InternalEditorFindOptions {

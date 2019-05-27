@@ -363,6 +363,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.maxColumn,
 			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
 		},
+		'editor.minimap.entireDocument': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.entireDocument,
+			'description': nls.localize('minimap.entireDocument', "Show entire document in the minimap.")
+		},
 		'editor.hover.enabled': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.hover.enabled,

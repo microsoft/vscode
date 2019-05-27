@@ -33,6 +33,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 1,
 		}, {
 				width: 1000,
@@ -91,6 +92,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 1,
 		}, {
 				width: 1000,
@@ -149,6 +151,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 1,
 		}, {
 				width: 900,
@@ -207,6 +210,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 1,
 		}, {
 				width: 900,
@@ -265,6 +269,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 1,
 		}, {
 				width: 900,
@@ -323,6 +328,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 1,
 		}, {
 				width: 900,
@@ -381,6 +387,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 1,
 		}, {
 				width: 900,
@@ -439,6 +446,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 1,
 		}, {
 				width: 900,
@@ -497,6 +505,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 1,
 		}, {
 				width: 900,
@@ -555,6 +564,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 1,
 		}, {
 				width: 900,
@@ -613,6 +623,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 1,
 		}, {
 				width: 1000,
@@ -671,6 +682,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 2,
 		}, {
 				width: 1000,
@@ -729,6 +741,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 4,
 		}, {
 				width: 1000,
@@ -787,6 +800,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'left',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
+			minimapEntireDocument: false,
 			pixelRatio: 4,
 		}, {
 				width: 1000,
@@ -845,6 +859,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 120,
+			minimapEntireDocument: false,
 			pixelRatio: 2
 		}, {
 				width: 1201,
