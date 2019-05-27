@@ -47,7 +47,7 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 	_serviceBrand: any;
 
 	private buffer: ILog[] = [];
-	private _loggerPromise: Promise<spdlog.RotatingLogger | null> | undefined = undefined;
+	private _loggerCreationPromise: Promise<void> | undefined = undefined;
 	private _logger: spdlog.RotatingLogger | undefined;
 
 	constructor(private readonly name: string, private readonly logsFolder: string, level: LogLevel) {
@@ -61,20 +61,21 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 		}));
 	}
 
-	private _createSpdLogLogger() {
-		if (!this._loggerPromise) {
-			this._loggerPromise = createSpdLogLogger(this.name, this.logsFolder);
-			this._loggerPromise.then(logger => {
-				if (logger) {
-					this._logger = logger;
-					this._logger.setLevel(this.getLevel());
-					for (const { level, message } of this.buffer) {
-						log(this._logger, level, message);
+	private _createSpdLogLogger(): Promise<void> {
+		if (!this._loggerCreationPromise) {
+			this._loggerCreationPromise = createSpdLogLogger(this.name, this.logsFolder)
+				.then(logger => {
+					if (logger) {
+						this._logger = logger;
+						this._logger.setLevel(this.getLevel());
+						for (const { level, message } of this.buffer) {
+							log(this._logger, level, message);
+						}
+						this.buffer = [];
 					}
-				}
-			});
+				});
 		}
-		this.buffer = [];
+		return this._loggerCreationPromise;
 	}
 
 	private _log(level: LogLevel, message: string): void {
@@ -132,10 +133,10 @@ export class SpdLogService extends AbstractLogService implements ILogService {
 	dispose(): void {
 		if (this._logger) {
 			this.disposeLogger();
-		} else if (this._loggerPromise) {
-			this._loggerPromise.then(() => this.disposeLogger());
+		} else if (this._loggerCreationPromise) {
+			this._loggerCreationPromise.then(() => this.disposeLogger());
 		}
-		this._loggerPromise = undefined;
+		this._loggerCreationPromise = undefined;
 	}
 
 	private disposeLogger(): void {
