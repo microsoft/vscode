@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorgroupview';
 
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -214,6 +214,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private handleGroupContextKeys(contextKeyServcie: IContextKeyService): void {
 		const groupActiveEditorDirtyContextKey = EditorGroupActiveEditorDirtyContext.bindTo(contextKeyServcie);
+		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(contextKeyServcie);
 
 		let activeEditorListener: IDisposable;
 
@@ -229,12 +230,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		};
 
-		// Track the active editor and update context key that reflects
-		// the dirty state of this editor
+		// Update group contexts based on group changes
 		this._register(this.onDidGroupChange(e => {
+
+			// Track the active editor and update context key that reflects
+			// the dirty state of this editor
 			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
 				observeActiveEditor();
 			}
+
+			// Group editors count context
+			groupEditorsCountContext.set(this.count);
 		}));
 
 		observeActiveEditor();
