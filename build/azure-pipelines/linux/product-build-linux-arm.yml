@@ -19,7 +19,16 @@ steps:
     cat << EOF > ~/.netrc
     machine monacotools.visualstudio.com
     password $(devops-pat)
+    machine github.com
+    login vscode
+    password $(github-distro-mixin-password)
     EOF
+
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+    git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+    git fetch distro
+    git merge $(node -p "require('./package.json').distro")
 
     ./build/azure-pipelines/linux/build-arm.sh
   displayName: 'Build ARM'
