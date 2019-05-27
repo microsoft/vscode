@@ -721,7 +721,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		});
 	}
 
-	private tokenizeRange(model: ITextModel, start: number, end: number, isCompleteDocument?: boolean) {
+	private tokenizeRange(model: ITextModel, start: number, end: number) {
 		for (let lineNumber = start, len = end; lineNumber <= len; ++lineNumber) {
 			const lineContent = model.getLineContent(lineNumber);
 
@@ -729,7 +729,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
 				continue;
 			}
-			if (isCompleteDocument) {
+			if (start === 1 && end === model.getLineCount()) {
 				model.forceTokenization(lineNumber);
 			}
 			const lineTokens = model.getLineTokens(lineNumber);
@@ -759,7 +759,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private tokenizeCompleteDocument(model: ITextModel): void {
 		// For every word in every line, map its ranges for fast lookup
-		this.tokenizeRange(model, 1, model.getLineCount(), true);
+		this.tokenizeRange(model, 1, model.getLineCount());
 	}
 
 	private getWordToPositionsMap(): Map<string, Position[]> {
@@ -772,16 +772,15 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			this.tokenizeViewPort(model);
 
-			this.editor.onDidScrollChange(() => {
+			this.toDispose.push(this.editor.onDidScrollChange(() => {
 				this.editor.getVisibleRanges().forEach(visibleRange => {
 					if (model.isCheapToTokenize(visibleRange.endLineNumber)) {
 						this.tokenizeCompleteDocument(model);
-					}
-					else {
+					} else {
 						this.tokenizeViewPort(model);
 					}
 				});
-			});
+			}));
 		}
 
 		return this.wordToLineNumbersMap;
