@@ -45,6 +45,10 @@ namespace schema {
 			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
+			case 'comments/commentThread/title': return MenuId.CommentThreadTitle;
+			case 'comments/commentThread/context': return MenuId.CommentThreadActions;
+			case 'comments/comment/title': return MenuId.CommentTitle;
+			case 'comments/comment/context': return MenuId.CommentActions;
 		}
 
 		return undefined;
@@ -109,7 +113,7 @@ namespace schema {
 		}
 	};
 
-	export const menusContribtion: IJSONSchema = {
+	export const menusContribution: IJSONSchema = {
 		description: localize('vscode.extension.contributes.menus', "Contributes menu items to the editor"),
 		type: 'object',
 		properties: {
@@ -182,7 +186,27 @@ namespace schema {
 				description: localize('view.itemContext', "The contributed view item context menu"),
 				type: 'array',
 				items: menuItem
-			}
+			},
+			'comments/commentThread/title': {
+				description: localize('commentThread.title', "The contributed comment thread title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'comments/commentThread/actions': {
+				description: localize('commentThread.actions', "The contributed comment thread actions"),
+				type: 'array',
+				items: menuItem
+			},
+			'comments/comment/title': {
+				description: localize('comment.title', "The contributed comment title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'comments/comment/actions': {
+				description: localize('comment.actions', "The contributed comment actions"),
+				type: 'array',
+				items: menuItem
+			},
 		}
 	};
 
@@ -191,6 +215,7 @@ namespace schema {
 	export interface IUserFriendlyCommand {
 		command: string;
 		title: string | ILocalizedString;
+		enablement?: string;
 		category?: string | ILocalizedString;
 		icon?: IUserFriendlyIcon;
 	}
@@ -207,6 +232,10 @@ namespace schema {
 			return false;
 		}
 		if (!isValidLocalizedString(command.title, collector, 'title')) {
+			return false;
+		}
+		if (command.enablement && typeof command.enablement !== 'string') {
+			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'precondition'));
 			return false;
 		}
 		if (command.category && !isValidLocalizedString(command.category, collector, 'category')) {
@@ -262,6 +291,10 @@ namespace schema {
 				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by the command is grouped in the UI'),
 				type: 'string'
 			},
+			enablement: {
+				description: localize('vscode.extension.contributes.commandType.precondition', '(Optional) Condition which must be true to enable the command'),
+				type: 'string'
+			},
 			icon: {
 				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path or a themable configuration'),
 				anyOf: [{
@@ -309,7 +342,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 			return;
 		}
 
-		const { icon, category, title, command } = userFriendlyCommand;
+		const { icon, enablement, category, title, command } = userFriendlyCommand;
 
 		let absoluteIcon: { dark: URI; light?: URI; } | undefined;
 		if (icon) {
@@ -326,7 +359,13 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 		if (MenuRegistry.getCommand(command)) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
-		const registration = MenuRegistry.addCommand({ id: command, title, category, iconLocation: absoluteIcon });
+		const registration = MenuRegistry.addCommand({
+			id: command,
+			title,
+			category,
+			precondition: ContextKeyExpr.deserialize(enablement),
+			iconLocation: absoluteIcon
+		});
 		disposables.push(registration);
 	}
 
@@ -349,7 +388,7 @@ let _menuRegistrations: IDisposable[] = [];
 
 ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>({
 	extensionPoint: 'menus',
-	jsonSchema: schema.menusContribtion
+	jsonSchema: schema.menusContribution
 }).setHandler(extensions => {
 
 	// remove all previous menu registrations

@@ -96,12 +96,11 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		} else {
 			this.model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
 			this.onModelCreated(this.model);
-			const disposables: IDisposable[] = [];
-			disposables.push(this.model.onWillDispose(() => {
+			const disposable = this.model.onWillDispose(() => {
 				this.onModelWillDispose(this.model);
 				this.model = null;
-				dispose(disposables);
-			}));
+				dispose(disposable);
+			});
 		}
 		return this.model;
 	}
@@ -340,11 +339,10 @@ export class BufferredOutputChannel extends Disposable implements IOutputChannel
 
 	private createModel(content: string): ITextModel {
 		const model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
-		const disposables: IDisposable[] = [];
-		disposables.push(model.onWillDispose(() => {
+		const disposable = model.onWillDispose(() => {
 			this.model = null;
-			dispose(disposables);
-		}));
+			dispose(disposable);
+		});
 		return model;
 	}
 

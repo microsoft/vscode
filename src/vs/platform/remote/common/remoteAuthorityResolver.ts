@@ -27,7 +27,8 @@ export class RemoteAuthorityResolverError extends Error {
 				return true;
 			}
 		}
-		return false;
+
+		return this.isTemporarilyNotAvailable(err);
 	}
 
 	public static isTemporarilyNotAvailable(err: any): boolean {

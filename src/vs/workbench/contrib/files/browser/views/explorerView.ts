@@ -20,7 +20,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
@@ -369,11 +369,21 @@ export class ExplorerView extends ViewletPanel {
 		}
 	}
 
+	private setContextKeys(stat: ExplorerItem | null): void {
+		const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
+		const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : null;
+		this.resourceContext.set(resource);
+		this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
+		this.readonlyContext.set(!!stat && stat.isReadonly);
+		this.rootContext.set(!stat || (stat && stat.isRoot));
+	}
+
 	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
 		const stat = e.element;
 
 		// update dynamic contexts
 		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
+		this.setContextKeys(stat);
 
 		const selection = this.tree.getSelection();
 		this.contextMenuService.showContextMenu({
@@ -398,13 +408,8 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	private onFocusChanged(elements: ExplorerItem[]): void {
-		const stat = elements && elements.length ? elements[0] : undefined;
-		const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
-		const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : null;
-		this.resourceContext.set(resource);
-		this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
-		this.readonlyContext.set(!!stat && stat.isReadonly);
-		this.rootContext.set(!stat || (stat && stat.isRoot));
+		const stat = elements && elements.length ? elements[0] : null;
+		this.setContextKeys(stat);
 
 		if (stat) {
 			const enableTrash = this.configurationService.getValue<IFilesConfiguration>().files.enableTrash;
@@ -490,7 +495,11 @@ export class ExplorerView extends ViewletPanel {
 			}
 		});
 
-		this.progressService.showWhile(promise, this.layoutService.isRestored() ? 800 : 1200 /* less ugly initial startup */);
+		this.progressService.withProgress({
+			location: ProgressLocation.Explorer,
+			delay: this.layoutService.isRestored() ? 800 : 1200 // less ugly initial startup
+		}, _progress => promise);
+
 		return promise;
 	}
 

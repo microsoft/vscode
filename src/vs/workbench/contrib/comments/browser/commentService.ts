@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CommentThread, DocumentCommentProvider, CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread2 } from 'vs/editor/common/modes';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -14,6 +14,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { assign } from 'vs/base/common/objects';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
+import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -37,9 +38,7 @@ export interface ICommentService {
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
-	readonly onDidChangeActiveCommentThread: Event<CommentThread | null>;
 	readonly onDidChangeActiveCommentingRange: Event<{ range: Range, commentingRangesInfo: CommentingRanges }>;
-	readonly onDidChangeInput: Event<string>;
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string>;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
@@ -47,9 +46,13 @@ export interface ICommentService {
 	removeWorkspaceComments(owner: string): void;
 	registerCommentController(owner: string, commentControl: MainThreadCommentController): void;
 	unregisterCommentController(owner: string): void;
+	getCommentController(owner: string): MainThreadCommentController | undefined;
+	createCommentThreadTemplate(owner: string, resource: URI, range: Range): void;
+	getCommentMenus(owner: string): CommentMenus;
 	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider): void;
 	unregisterDataProvider(owner: string): void;
 	updateComments(ownerId: string, event: CommentThreadChangedEvent): void;
+	disposeCommentThread(ownerId: string, threadId: string): void;
 	createNewCommentThread(owner: string, resource: URI, range: Range, text: string): Promise<CommentThread | null>;
 	replyToCommentThread(owner: string, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread | null>;
 	editComment(owner: string, resource: URI, comment: Comment, text: string): Promise<void>;
@@ -66,9 +69,6 @@ export interface ICommentService {
 	deleteReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	getReactionGroup(owner: string): CommentReaction[] | undefined;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread2, comment: Comment, reaction: CommentReaction): Promise<void>;
-	getCommentThreadFromTemplate(owner: string, resource: URI, range: IRange, ): CommentThread2 | undefined;
-	setActiveCommentThread(commentThread: CommentThread | null): void;
-	setInput(input: string): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -89,11 +89,6 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentThreads: Emitter<ICommentThreadChangedEvent> = this._register(new Emitter<ICommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
-	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
-	readonly onDidChangeActiveCommentThread: Event<CommentThread | null> = this._onDidChangeActiveCommentThread.event;
-
-	private readonly _onDidChangeInput: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidChangeInput: Event<string> = this._onDidChangeInput.event;
 	private readonly _onDidChangeActiveCommentingRange: Emitter<{
 		range: Range, commentingRangesInfo:
 		CommentingRanges
@@ -106,17 +101,12 @@ export class CommentService extends Disposable implements ICommentService {
 	private _commentProviders = new Map<string, DocumentCommentProvider>();
 
 	private _commentControls = new Map<string, MainThreadCommentController>();
+	private _commentMenus = new Map<string, CommentMenus>();
 
-	constructor() {
+	constructor(
+		@IInstantiationService protected instantiationService: IInstantiationService
+	) {
 		super();
-	}
-
-	setActiveCommentThread(commentThread: CommentThread | null) {
-		this._onDidChangeActiveCommentThread.fire(commentThread);
-	}
-
-	setInput(input: string) {
-		this._onDidChangeInput.fire(input);
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {
@@ -139,6 +129,39 @@ export class CommentService extends Disposable implements ICommentService {
 	unregisterCommentController(owner: string): void {
 		this._commentControls.delete(owner);
 		this._onDidDeleteDataProvider.fire(owner);
+	}
+
+	getCommentController(owner: string): MainThreadCommentController | undefined {
+		return this._commentControls.get(owner);
+	}
+
+	createCommentThreadTemplate(owner: string, resource: URI, range: Range): void {
+		const commentController = this._commentControls.get(owner);
+
+		if (!commentController) {
+			return;
+		}
+
+		commentController.createCommentThreadTemplate(resource, range);
+	}
+
+	disposeCommentThread(owner: string, threadId: string) {
+		let controller = this.getCommentController(owner);
+		if (controller) {
+			controller.deleteCommentThreadMain(threadId);
+		}
+	}
+
+	getCommentMenus(owner: string): CommentMenus {
+		if (this._commentMenus.get(owner)) {
+			return this._commentMenus.get(owner)!;
+		}
+
+		let controller = this._commentControls.get(owner);
+
+		let menu = this.instantiationService.createInstance(CommentMenus, controller!);
+		this._commentMenus.set(owner, menu);
+		return menu;
 	}
 
 	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider): void {
@@ -254,16 +277,6 @@ export class CommentService extends Disposable implements ICommentService {
 		} else {
 			throw new Error('Not supported');
 		}
-	}
-
-	getCommentThreadFromTemplate(owner: string, resource: URI, range: IRange, ): CommentThread2 | undefined {
-		const commentController = this._commentControls.get(owner);
-
-		if (commentController) {
-			return commentController.getCommentThreadFromTemplate(resource, range);
-		}
-
-		return undefined;
 	}
 
 	getReactionGroup(owner: string): CommentReaction[] | undefined {

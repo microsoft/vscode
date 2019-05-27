@@ -24,7 +24,7 @@ import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExte
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
@@ -111,7 +111,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 }
 
 export interface IDebugger {
-	createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter>;
+	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter>;
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
 	getCustomTelemetryService(): Promise<TelemetryService | undefined>;
 }
@@ -573,13 +573,7 @@ export interface ITerminalSettings {
 		osxExec: string,
 		linuxExec: string
 	};
-	integrated: {
-		shell: {
-			osx: string,
-			windows: string,
-			linux: string
-		}
-	};
+	integrated: ITerminalConfiguration;
 }
 
 export interface IConfigurationManager {
@@ -609,7 +603,6 @@ export interface IConfigurationManager {
 
 	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
 
-	needsToRunInExtHost(debugType: string): boolean;
 	hasDebugConfigurationProvider(debugType: string): boolean;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
@@ -617,9 +610,6 @@ export interface IConfigurationManager {
 
 	registerDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): IDisposable;
 	unregisterDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): void;
-
-	registerDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): IDisposable;
-	unregisterDebugAdapterTrackerFactory(debugAdapterTrackerFactory: IDebugAdapterTrackerFactory): void;
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): Promise<any>;
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;

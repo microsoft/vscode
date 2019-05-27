@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/resources';
-import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass, addClasses } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -162,14 +162,14 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
 		const actionBar = new ActionBar(provider, { actionViewItemProvider: a => new StatusBarActionViewItem(a as StatusBarAction) });
 		const disposable = Disposable.None;
-		const templateDisposable = combinedDisposable([actionBar, badgeStyler]);
+		const templateDisposable = combinedDisposable(actionBar, badgeStyler);
 
 		return { title, type, countContainer, count, actionBar, disposable, templateDisposable };
 	}
 
 	renderElement(repository: ISCMRepository, index: number, templateData: RepositoryTemplateData): void {
 		templateData.disposable.dispose();
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		if (repository.provider.rootUri) {
 			templateData.title.textContent = basename(repository.provider.rootUri);
@@ -198,10 +198,10 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 			this._onDidRenderElement.fire(repository);
 		};
 
-		repository.provider.onDidChange(update, null, disposables);
+		disposables.push(repository.provider.onDidChange(update, null));
 		update();
 
-		templateData.disposable = combinedDisposable(disposables);
+		templateData.disposable = disposables;
 	}
 
 	disposeTemplate(templateData: RepositoryTemplateData): void {
@@ -396,14 +396,14 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		template.actionBar.clear();
 		template.actionBar.context = group;
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getResourceGroupMenu(group), template.actionBar));
 
 		const updateCount = () => template.count.setCount(group.elements.length);
-		group.onDidSplice(updateCount, null, disposables);
+		disposables.push(group.onDidSplice(updateCount, null));
 		updateCount();
 
-		template.elementDisposable = combinedDisposable(disposables);
+		template.elementDisposable = disposables;
 	}
 
 	disposeElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
@@ -489,7 +489,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		template.fileLabel.setFile(resource.sourceUri, { fileDecorations: { colors: false, badges: !icon, data: resource.decorations } });
 		template.actionBar.context = resource;
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resource.resourceGroup), template.actionBar));
 
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
@@ -505,7 +505,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		}
 
 		template.element.setAttribute('data-tooltip', resource.decorations.tooltip || '');
-		template.elementDisposable = combinedDisposable(disposables);
+		template.elementDisposable = disposables;
 	}
 
 	disposeElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
@@ -602,10 +602,10 @@ class ResourceGroupSplicer {
 				absoluteToInsert.push(element);
 			}
 
-			const disposable = combinedDisposable([
+			const disposable = combinedDisposable(
 				group.onDidChange(() => this.onDidChangeGroup(group)),
 				group.onDidSplice(splice => this.onDidSpliceGroup(group, splice))
-			]);
+			);
 
 			itemsToInsert.push({ group, visible, disposable });
 		}
@@ -1106,15 +1106,15 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		super(VIEWLET_ID, SCMViewlet.STATE_KEY, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
-		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.toDispose);
+		this._register(this.menus.onDidChangeTitle(this.updateTitleArea, this));
 
 		this.message = $('.empty-message', { tabIndex: 0 }, localize('no open repo', "No source control providers registered."));
 
-		configurationService.onDidChangeConfiguration(e => {
+		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.alwaysShowProviders')) {
 				this.onDidChangeRepositories();
 			}
-		}, this.toDispose);
+		}));
 	}
 
 	create(parent: HTMLElement): void {
@@ -1124,8 +1124,8 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		addClasses(parent, 'scm-viewlet', 'empty');
 		append(parent, this.message);
 
-		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.toDispose);
-		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.toDispose);
+		this._register(this.scmService.onDidAddRepository(this.onDidAddRepository, this));
+		this._register(this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this));
 		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
 	}
 

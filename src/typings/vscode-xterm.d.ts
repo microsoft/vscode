@@ -275,7 +275,7 @@ declare module 'vscode-xterm' {
 		 * A callback that fires when the mouse leaves a link. Note that this can
 		 * happen even when tooltipCallback hasn't fired for the link yet.
 		 */
-		leaveCallback?: (event: MouseEvent, uri: string) => boolean | void;
+		leaveCallback?: () => void;
 
 		/**
 		 * The priority of the link matcher, this defines the order in which the link
@@ -354,6 +354,13 @@ declare module 'vscode-xterm' {
 		 * `Terminal.resize` for when the terminal exists.
 		 */
 		readonly cols: number;
+
+		/**
+		 * (EXPERIMENTAL) The terminal's current buffer, this might be either the
+		 * normal buffer or the alt buffer depending on what's running in the
+		 * terminal.
+		 */
+		readonly buffer: IBuffer;
 
 		/**
 		 * (EXPERIMENTAL) Get all markers registered against the buffer. If the alt
@@ -547,12 +554,6 @@ declare module 'vscode-xterm' {
 		resize(columns: number, rows: number): void;
 
 		/**
-		 * Writes text to the terminal, followed by a break line character (\n).
-		 * @param data The text to write to the terminal.
-		 */
-		writeln(data: string): void;
-
-		/**
 		 * Opens the terminal within an element.
 		 * @param parent The element to create the terminal within. This element
 		 * must be visible (have dimensions) when `open` is called as several DOM-
@@ -670,9 +671,22 @@ declare module 'vscode-xterm' {
 		getSelection(): string;
 
 		/**
+		 * Gets the selection position or undefined if there is no selection.
+		 */
+		getSelectionPosition(): ISelectionPosition | undefined;
+
+		/**
 		 * Clears the current terminal selection.
 		 */
 		clearSelection(): void;
+
+		/**
+		 * Selects text within the terminal.
+		 * @param column The column the selection starts at..
+		 * @param row The row the selection starts at.
+		 * @param length The length of the selection.
+		 */
+		select(column: number, row: number, length: number): void;
 
 		/**
 		 * Selects all text within the terminal.
@@ -739,6 +753,20 @@ declare module 'vscode-xterm' {
 		write(data: string): void;
 
 		/**
+		 * Writes text to the terminal, followed by a break line character (\n).
+		 * @param data The text to write to the terminal.
+		 */
+		writeln(data: string): void;
+
+		/**
+		 * Writes UTF8 data to the terminal.
+		 * This has a slight performance advantage over the string based write method
+		 * due to lesser data conversions needed on the way from the pty to xterm.js.
+		 * @param data The data to write to the terminal.
+		 */
+		writeUtf8(data: Uint8Array): void;
+
+		/**
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
 		 */
@@ -747,7 +775,7 @@ declare module 'vscode-xterm' {
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
 		 */
-		getOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'rightClickSelectsWord' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell'): boolean;
+		getOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'rightClickSelectsWord' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell' | 'windowsMode'): boolean;
 		/**
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
@@ -798,7 +826,7 @@ declare module 'vscode-xterm' {
 		 * @param key The option key.
 		 * @param value The option value.
 		 */
-		setOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'popOnBell' | 'rightClickSelectsWord' | 'screenKeys' | 'useFlowControl' | 'visualBell', value: boolean): void;
+		setOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'popOnBell' | 'rightClickSelectsWord' | 'screenKeys' | 'useFlowControl' | 'visualBell' | 'windowsMode', value: boolean): void;
 		/**
 		 * Sets an option on the terminal.
 		 * @param key The option key.
@@ -853,8 +881,134 @@ declare module 'vscode-xterm' {
 		 * Applies an addon to the Terminal prototype, making it available to all
 		 * newly created Terminals.
 		 * @param addon The addon to apply.
+		 * @deprecated Use the new loadAddon API/addon format.
 		 */
 		static applyAddon(addon: any): void;
+
+		/**
+		 * (EXPERIMENTAL) Loads an addon into this instance of xterm.js.
+		 * @param addon The addon to load.
+		 */
+		loadAddon(addon: ITerminalAddon): void;
+	}
+
+	/**
+	 * An addon that can provide additional functionality to the terminal.
+	 */
+	export interface ITerminalAddon extends IDisposable {
+		/**
+		 * (EXPERIMENTAL) This is called when the addon is activated within xterm.js.
+		 */
+		activate(terminal: Terminal): void;
+	}
+
+	/**
+	 * An object representing a selecrtion within the terminal.
+	 */
+	interface ISelectionPosition {
+		/**
+		 * The start column of the selection.
+		 */
+		startColumn: number;
+
+		/**
+		 * The start row of the selection.
+		 */
+		startRow: number;
+
+		/**
+		 * The end column of the selection.
+		 */
+		endColumn: number;
+
+		/**
+		 * The end row of the selection.
+		 */
+		endRow: number;
+	}
+
+	interface IBuffer {
+		/**
+		 * The y position of the cursor. This ranges between `0` (when the
+		 * cursor is at baseY) and `Terminal.rows - 1` (when the cursor is on the
+		 * last row).
+		 */
+		readonly cursorY: number;
+
+		/**
+		 * The x position of the cursor. This ranges between `0` (left side) and
+		 * `Terminal.cols - 1` (right side).
+		 */
+		readonly cursorX: number;
+
+		/**
+		 * The line within the buffer where the top of the viewport is.
+		 */
+		readonly viewportY: number;
+
+		/**
+		 * The line within the buffer where the top of the bottom page is (when
+		 * fully scrolled down);
+		 */
+		readonly baseY: number;
+
+		/**
+		 * The amount of lines in the buffer.
+		 */
+		readonly length: number;
+
+		/**
+		 * Gets a line from the buffer, or undefined if the line index does not exist.
+		 *
+		 * Note that the result of this function should be used immediately after calling as when the
+		 * terminal updates it could lead to unexpected behavior.
+		 *
+		 * @param y The line index to get.
+		 */
+		getLine(y: number): IBufferLine | undefined;
+	}
+
+	interface IBufferLine {
+		/**
+		 * Whether the line is wrapped from the previous line.
+		 */
+		readonly isWrapped: boolean;
+
+		/**
+		 * Gets a cell from the line, or undefined if the line index does not exist.
+		 *
+		 * Note that the result of this function should be used immediately after calling as when the
+		 * terminal updates it could lead to unexpected behavior.
+		 *
+		 * @param x The character index to get.
+		 */
+		getCell(x: number): IBufferCell;
+
+		/**
+		 * Gets the line as a string. Note that this is gets only the string for the line, not taking
+		 * isWrapped into account.
+		 *
+		 * @param trimRight Whether to trim any whitespace at the right of the line.
+		 * @param startColumn The column to start from (inclusive).
+		 * @param endColumn The column to end at (exclusive).
+		 */
+		translateToString(trimRight?: boolean, startColumn?: number, endColumn?: number): string;
+	}
+
+	interface IBufferCell {
+		/**
+		 * The character within the cell.
+		 */
+		readonly char: string;
+
+		/**
+		 * The width of the character. Some examples:
+		 *
+		 * - This is `1` for most cells.
+		 * - This is `2` for wide character like CJK glyphs.
+		 * - This is `0` for cells immediately following cells with a width of `2`.
+		 */
+		readonly width: number;
 	}
 }
 
@@ -864,16 +1018,6 @@ declare module 'vscode-xterm' {
 	interface TerminalCore {
 		debug: boolean;
 
-		buffer: {
-			y: number;
-			ybase: number;
-			ydisp: number;
-			x: number;
-			lines: any[];
-
-			translateBufferLineToString(lineIndex: number, trimRight: boolean): string;
-		};
-
 		handler(text: string): void;
 
 		_onScroll: IEventEmitter2<number>;
@@ -881,9 +1025,11 @@ declare module 'vscode-xterm' {
 
 		charMeasure?: { height: number, width: number };
 
-		renderer: {
-			_renderLayers: any[];
-			onIntersectionChange: any;
+		_renderCoordinator: {
+			_renderer: {
+				_renderLayers: any[];
+			};
+			_onIntersectionChange: any;
 		};
 	}
 

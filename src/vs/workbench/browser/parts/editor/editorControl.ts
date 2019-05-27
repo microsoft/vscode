@@ -11,7 +11,7 @@ import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } fr
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
+import { ILocalProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -47,18 +47,18 @@ export class EditorControl extends Disposable {
 		private groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProgressService progressService: IProgressService
+		@ILocalProgressService localProgressService: ILocalProgressService
 	) {
 		super();
 
-		this.editorOperation = this._register(new LongRunningOperation(progressService));
+		this.editorOperation = this._register(new LongRunningOperation(localProgressService));
 	}
 
 	get activeControl(): IVisibleEditor | null {
 		return this._activeControl as IVisibleEditor | null;
 	}
 
-	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
+	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
 
 		// Editor control
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
@@ -68,7 +68,8 @@ export class EditorControl extends Disposable {
 		const control = this.doShowEditorControl(descriptor);
 
 		// Set input
-		return this.doSetInput(control, editor, withUndefinedAsNull(options)).then((editorChanged => (({ control, editorChanged }))));
+		const editorChanged = await this.doSetInput(control, editor, withUndefinedAsNull(options));
+		return { control, editorChanged };
 	}
 
 	private doShowEditorControl(descriptor: IEditorDescriptor): BaseEditor {
@@ -150,7 +151,7 @@ export class EditorControl extends Disposable {
 		this._onDidSizeConstraintsChange.fire(undefined);
 	}
 
-	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions | null): Promise<boolean> {
+	private async doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions | null): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same
@@ -167,7 +168,7 @@ export class EditorControl extends Disposable {
 				control.focus();
 			}
 
-			return Promise.resolve(false);
+			return false;
 		}
 
 		// Show progress while setting input after a certain timeout. If the workbench is opening
@@ -176,7 +177,8 @@ export class EditorControl extends Disposable {
 
 		// Call into editor control
 		const editorWillChange = !inputMatches;
-		return control.setInput(editor, options, operation.token).then(() => {
+		try {
+			await control.setInput(editor, options, operation.token);
 
 			// Focus (unless prevented or another operation is running)
 			if (operation.isCurrent()) {
@@ -186,17 +188,10 @@ export class EditorControl extends Disposable {
 				}
 			}
 
-			// Operation done
-			operation.stop();
-
 			return editorWillChange;
-		}, e => {
-
-			// Operation done
+		} finally {
 			operation.stop();
-
-			return Promise.reject(e);
-		});
+		}
 	}
 
 	private doHideActiveEditorControl(): void {

@@ -40,7 +40,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -482,7 +482,7 @@ class TaskService extends Disposable implements ITaskService {
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IProgressService2 private readonly progressService: IProgressService2,
+		@IProgressService private readonly progressService: IProgressService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -1973,7 +1973,7 @@ class TaskService extends Disposable implements ITaskService {
 	}
 
 	private showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
-		let _createEntries = (): Promise<TaskQuickPickEntry[]> => {
+		let _createEntries = (): Promise<QuickPickInput<TaskQuickPickEntry>[]> => {
 			if (Array.isArray(tasks)) {
 				return Promise.resolve(this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
 			} else {
@@ -1983,8 +1983,8 @@ class TaskService extends Disposable implements ITaskService {
 		return this.quickInputService.pick(_createEntries().then((entries) => {
 			if ((entries.length === 0) && defaultEntry) {
 				entries.push(defaultEntry);
-			}
-			else if (entries.length > 1 && additionalEntries && additionalEntries.length > 0) {
+			} else if (entries.length > 1 && additionalEntries && additionalEntries.length > 0) {
+				entries.push({ type: 'separator', label: '' });
 				entries.push(additionalEntries[0]);
 			}
 			return entries;
@@ -2218,7 +2218,7 @@ class TaskService extends Disposable implements ITaskService {
 		}
 		let runQuickPick = (promise?: Promise<Task[]>) => {
 			this.showQuickPick(promise || this.getActiveTasks(),
-				nls.localize('TaskService.taskToTerminate', 'Select task to terminate'),
+				nls.localize('TaskService.taskToTerminate', 'Select a task to terminate'),
 				{
 					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
 					task: undefined
@@ -2226,7 +2226,7 @@ class TaskService extends Disposable implements ITaskService {
 				false, true,
 				undefined,
 				[{
-					label: nls.localize('TaskService.terminateAllRunningTasks', 'All running tasks'),
+					label: nls.localize('TaskService.terminateAllRunningTasks', 'All Running Tasks'),
 					id: 'terminateAll',
 					task: undefined
 				}]

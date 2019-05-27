@@ -14,6 +14,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { Location, LocationLink } from 'vs/editor/common/modes';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Position } from 'vs/editor/common/core/position';
+import { IMatch } from 'vs/base/common/filters';
 
 export class OneReference {
 	readonly id: string;
@@ -61,7 +62,7 @@ export class FilePreview implements IDisposable {
 		dispose(this._modelReference);
 	}
 
-	preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } | undefined {
+	preview(range: IRange, n: number = 8): { value: string; highlight: IMatch } | undefined {
 		const model = this._modelReference.object.textEditorModel;
 
 		if (!model) {
@@ -73,13 +74,14 @@ export class FilePreview implements IDisposable {
 		const beforeRange = new Range(startLineNumber, word.startColumn, startLineNumber, startColumn);
 		const afterRange = new Range(endLineNumber, endColumn, endLineNumber, Number.MAX_VALUE);
 
-		const ret = {
-			before: model.getValueInRange(beforeRange).replace(/^\s+/, strings.empty),
-			inside: model.getValueInRange(range),
-			after: model.getValueInRange(afterRange).replace(/\s+$/, strings.empty)
-		};
+		const before = model.getValueInRange(beforeRange).replace(/^\s+/, strings.empty);
+		const inside = model.getValueInRange(range);
+		const after = model.getValueInRange(afterRange).replace(/\s+$/, strings.empty);
 
-		return ret;
+		return {
+			value: before + inside + after,
+			highlight: { start: before.length, end: before.length + inside.length }
+		};
 	}
 }
 

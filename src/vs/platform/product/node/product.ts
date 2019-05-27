@@ -61,6 +61,7 @@ export interface IProductConfiguration {
 	keyboardShortcutsUrlWin: string;
 	introductoryVideosUrl: string;
 	tipsAndTricksUrl: string;
+	newsletterSignupUrl: string;
 	twitterUrl: string;
 	requestFeatureUrl: string;
 	reportIssueUrl: string;

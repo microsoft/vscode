@@ -5,29 +5,37 @@
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { getGalleryExtensionId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import product from 'vs/platform/product/node/product';
+import { IProductService } from 'vs/platform/product/common/product';
 
-export function isUIExtension(manifest: IExtensionManifest, uiContributions: string[], configurationService: IConfigurationService): boolean {
+export function isUIExtension(manifest: IExtensionManifest, productService: IProductService, configurationService: IConfigurationService): boolean {
+	const uiContributions = ExtensionsRegistry.getExtensionPoints().filter(e => e.defaultExtensionKind !== 'workspace').map(e => e.name);
 	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
 	const extensionKind = getExtensionKind(manifest, configurationService);
 	switch (extensionKind) {
 		case 'ui': return true;
 		case 'workspace': return false;
 		default: {
-			if (isNonEmptyArray(product.uiExtensions) && product.uiExtensions.some(id => areSameExtensions({ id }, { id: extensionId }))) {
+			// Tagged as UI extension in product
+			if (isNonEmptyArray(productService.uiExtensions) && productService.uiExtensions.some(id => areSameExtensions({ id }, { id: extensionId }))) {
 				return true;
 			}
+			// Not an UI extension if it has main
 			if (manifest.main) {
 				return false;
 			}
+			// Not an UI extension if it has dependencies or an extension pack
+			if (isNonEmptyArray(manifest.extensionDependencies) || isNonEmptyArray(manifest.extensionPack)) {
+				return false;
+			}
 			if (manifest.contributes) {
+				// Not an UI extension if it has no ui contributions
 				if (!uiContributions.length || Object.keys(manifest.contributes).some(contribution => uiContributions.indexOf(contribution) === -1)) {
 					return false;
 				}
 			}
-			// Default is UI Extension
 			return true;
 		}
 	}
