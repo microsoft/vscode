@@ -46,8 +46,20 @@ export class DisposableStore implements IDisposable {
 	private _toDispose: IDisposable[] = [];
 	private _isDisposed = false;
 
+	/**
+	 * Dispose of all registered disposables and mark this object as disposed.
+	 *
+	 * Any future disposables added to this object will be disposed of on `push`.
+	 */
 	public dispose(): void {
 		this._isDisposed = true;
+		this.clear();
+	}
+
+	/**
+	 * Dispose of all registered disposables but do not mark this object as disposed.
+	 */
+	public clear(): void {
 		this._toDispose = dispose(this._toDispose);
 	}
 

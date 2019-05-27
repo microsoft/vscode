@@ -32,11 +32,12 @@ import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { IDiagnosticsService, DiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -47,61 +48,35 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 	const environmentService = accessor.get(IEnvironmentService);
 	const instantiationService = accessor.get(IInstantiationService);
 
-	function allowSetForegroundWindow(service: LaunchChannelClient): Promise<void> {
-		let promise: Promise<void> = Promise.resolve();
+	async function windowsAllowSetForegroundWindow(service: LaunchChannelClient): Promise<void> {
 		if (platform.isWindows) {
-			promise = service.getMainProcessId()
-				.then(processId => {
-					logService.trace('Sending some foreground love to the running instance:', processId);
+			const processId = await service.getMainProcessId();
 
-					try {
-						const { allowSetForegroundWindow } = require.__$__nodeRequire('windows-foreground-love');
-						allowSetForegroundWindow(processId);
-					} catch (e) {
-						// noop
-					}
-				});
+			logService.trace('Sending some foreground love to the running instance:', processId);
+
+			try {
+				(await import('windows-foreground-love')).allowSetForegroundWindow(processId);
+			} catch (error) {
+				logService.error(error);
+			}
 		}
-
-		return promise;
 	}
 
-	function setup(retry: boolean): Promise<Server> {
-		return serve(environmentService.mainIPCHandle).then(server => {
-
-			// Print --status usage info
-			if (environmentService.args.status) {
-				logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
-				throw new ExpectedError('Terminating...');
-			}
-
-			// Log uploader usage info
-			if (typeof environmentService.args['upload-logs'] !== 'undefined') {
-				logService.warn('Warning: The --upload-logs argument can only be used if Code is already running. Please run it again after Code has started.');
-				throw new ExpectedError('Terminating...');
-			}
-
-			// dock might be hidden at this case due to a retry
-			if (platform.isMacintosh) {
-				app.dock.show();
-			}
-
-			// Set the VSCODE_PID variable here when we are sure we are the first
-			// instance to startup. Otherwise we would wrongly overwrite the PID
-			process.env['VSCODE_PID'] = String(process.pid);
-
-			return server;
-		}, err => {
+	async function setup(retry: boolean): Promise<Server> {
+		let server: Server;
+		try {
+			server = await serve(environmentService.mainIPCHandle);
+		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that
 			// indicates a second instance of Code is running)
-			if (err.code !== 'EADDRINUSE') {
+			if (error.code !== 'EADDRINUSE') {
 
 				// Show a dialog for errors that can be resolved by the user
-				handleStartupDataDirError(environmentService, err);
+				handleStartupDataDirError(environmentService, error);
 
 				// Any other runtime error is just printed to the console
-				return Promise.reject<Server>(err);
+				throw error;
 			}
 
 			// Since we are the second instance, we do not want to show the dock
@@ -110,93 +85,120 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 			}
 
 			// there's a running instance, let's connect to it
-			return connect(environmentService.mainIPCHandle, 'main').then(
-				client => {
+			try {
+				const client = await connect(environmentService.mainIPCHandle, 'main');
 
-					// Tests from CLI require to be the only instance currently
-					if (environmentService.extensionTestsLocationURI && !environmentService.debugExtensionHost.break) {
-						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
-						logService.error(msg);
-						client.dispose();
+				// Tests from CLI require to be the only instance currently
+				if (environmentService.extensionTestsLocationURI && !environmentService.debugExtensionHost.break) {
+					const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
+					logService.error(msg);
+					client.dispose();
 
-						return Promise.reject(new Error(msg));
-					}
-
-					// Show a warning dialog after some timeout if it takes long to talk to the other instance
-					// Skip this if we are running with --wait where it is expected that we wait for a while.
-					// Also skip when gathering diagnostics (--status) which can take a longer time.
-					let startupWarningDialogHandle: NodeJS.Timeout;
-					if (!environmentService.wait && !environmentService.status && !environmentService.args['upload-logs']) {
-						startupWarningDialogHandle = setTimeout(() => {
-							showStartupWarningDialog(
-								localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),
-								localize('secondInstanceNoResponseDetail', "Please close all other instances and try again.")
-							);
-						}, 10000);
-					}
-
-					const channel = client.getChannel('launch');
-					const service = new LaunchChannelClient(channel);
-
-					// Process Info
-					if (environmentService.args.status) {
-						return instantiationService.invokeFunction(accessor => {
-							return accessor.get(IDiagnosticsService).getDiagnostics(service).then(diagnostics => {
-								console.log(diagnostics);
-								return Promise.reject(new ExpectedError());
-							});
-						});
-					}
-
-					// Log uploader
-					if (typeof environmentService.args['upload-logs'] !== 'undefined') {
-						return instantiationService.invokeFunction(accessor => {
-							return uploadLogs(service, accessor.get(IRequestService), environmentService)
-								.then(() => Promise.reject(new ExpectedError()));
-						});
-					}
-
-					logService.trace('Sending env to running instance...');
-
-					return allowSetForegroundWindow(service)
-						.then(() => service.start(environmentService.args, process.env as platform.IProcessEnvironment))
-						.then(() => client.dispose())
-						.then(() => {
-
-							// Now that we started, make sure the warning dialog is prevented
-							if (startupWarningDialogHandle) {
-								clearTimeout(startupWarningDialogHandle);
-							}
-
-							return Promise.reject(new ExpectedError('Sent env to running instance. Terminating...'));
-						});
-				},
-				err => {
-					if (!retry || platform.isWindows || err.code !== 'ECONNREFUSED') {
-						if (err.code === 'EPERM') {
-							showStartupWarningDialog(
-								localize('secondInstanceAdmin', "A second instance of {0} is already running as administrator.", product.nameShort),
-								localize('secondInstanceAdminDetail', "Please close the other instance and try again.")
-							);
-						}
-
-						return Promise.reject<Server>(err);
-					}
-
-					// it happens on Linux and OS X that the pipe is left behind
-					// let's delete it, since we can't connect to it
-					// and then retry the whole thing
-					try {
-						fs.unlinkSync(environmentService.mainIPCHandle);
-					} catch (e) {
-						logService.warn('Could not delete obsolete instance handle', e);
-						return Promise.reject<Server>(e);
-					}
-
-					return setup(false);
+					throw new Error(msg);
 				}
-			);
-		});
+
+				// Show a warning dialog after some timeout if it takes long to talk to the other instance
+				// Skip this if we are running with --wait where it is expected that we wait for a while.
+				// Also skip when gathering diagnostics (--status) which can take a longer time.
+				let startupWarningDialogHandle: NodeJS.Timeout | undefined = undefined;
+				if (!environmentService.wait && !environmentService.status && !environmentService.args['upload-logs']) {
+					startupWarningDialogHandle = setTimeout(() => {
+						showStartupWarningDialog(
+							localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),
+							localize('secondInstanceNoResponseDetail', "Please close all other instances and try again.")
+						);
+					}, 10000);
+				}
+
+				const channel = client.getChannel('launch');
+				const service = new LaunchChannelClient(channel);
+
+				// Process Info
+				if (environmentService.args.status) {
+					return instantiationService.invokeFunction(async accessor => {
+						const diagnostics = await accessor.get(IDiagnosticsService).getDiagnostics(service);
+
+						console.log(diagnostics);
+						throw new ExpectedError();
+					});
+				}
+
+				// Log uploader
+				if (typeof environmentService.args['upload-logs'] !== 'undefined') {
+					return instantiationService.invokeFunction(async accessor => {
+						await uploadLogs(service, accessor.get(IRequestService), environmentService);
+
+						throw new ExpectedError();
+					});
+				}
+
+
+				// Windows: allow to set foreground
+				if (platform.isWindows) {
+					await windowsAllowSetForegroundWindow(service);
+				}
+
+				// Send environment over...
+				logService.trace('Sending env to running instance...');
+				await service.start(environmentService.args, process.env as platform.IProcessEnvironment);
+
+				// Cleanup
+				await client.dispose();
+
+				// Now that we started, make sure the warning dialog is prevented
+				if (startupWarningDialogHandle) {
+					clearTimeout(startupWarningDialogHandle);
+				}
+
+				throw new ExpectedError('Sent env to running instance. Terminating...');
+			} catch (error) {
+				if (!retry || platform.isWindows || error.code !== 'ECONNREFUSED') {
+					if (error.code === 'EPERM') {
+						showStartupWarningDialog(
+							localize('secondInstanceAdmin', "A second instance of {0} is already running as administrator.", product.nameShort),
+							localize('secondInstanceAdminDetail', "Please close the other instance and try again.")
+						);
+					}
+
+					throw error;
+				}
+
+				// it happens on Linux and OS X that the pipe is left behind
+				// let's delete it, since we can't connect to it
+				// and then retry the whole thing
+				try {
+					fs.unlinkSync(environmentService.mainIPCHandle);
+				} catch (error) {
+					logService.warn('Could not delete obsolete instance handle', error);
+					throw error;
+				}
+
+				return setup(false);
+			}
+		}
+
+		// Print --status usage info
+		if (environmentService.args.status) {
+			logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
+			throw new ExpectedError('Terminating...');
+		}
+
+		// Log uploader usage info
+		if (typeof environmentService.args['upload-logs'] !== 'undefined') {
+			logService.warn('Warning: The --upload-logs argument can only be used if Code is already running. Please run it again after Code has started.');
+			throw new ExpectedError('Terminating...');
+		}
+
+		// dock might be hidden at this case due to a retry
+		if (platform.isMacintosh) {
+			app.dock.show();
+		}
+
+		// Set the VSCODE_PID variable here when we are sure we are the first
+		// instance to startup. Otherwise we would wrongly overwrite the PID
+		process.env['VSCODE_PID'] = String(process.pid);
+
+		return server;
 	}
 
 	return setup(true);
@@ -263,7 +265,7 @@ function patchEnvironment(environmentService: IEnvironmentService): typeof proce
 	return instanceEnvironment;
 }
 
-function startup(args: ParsedArgs): void {
+async function startup(args: ParsedArgs): Promise<void> {
 
 	// We need to buffer the spdlog logs until we are sure
 	// we are the only instance running, otherwise we'll have concurrent
@@ -271,28 +273,32 @@ function startup(args: ParsedArgs): void {
 	const bufferLogService = new BufferLogService();
 
 	const instantiationService = createServices(args, bufferLogService);
-	instantiationService.invokeFunction(accessor => {
-		const environmentService = accessor.get(IEnvironmentService);
-		const stateService = accessor.get(IStateService);
+	try {
+		await instantiationService.invokeFunction(async accessor => {
+			const environmentService = accessor.get(IEnvironmentService);
+			const stateService = accessor.get(IStateService);
 
-		// Patch `process.env` with the instance's environment
-		const instanceEnvironment = patchEnvironment(environmentService);
+			// Patch `process.env` with the instance's environment
+			const instanceEnvironment = patchEnvironment(environmentService);
 
-		// Startup
-		return initServices(environmentService, stateService as StateService)
-			.then(() => instantiationService.invokeFunction(setupIPC), error => {
+			// Startup
+			try {
+				await initServices(environmentService, stateService as StateService);
+			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
 				handleStartupDataDirError(environmentService, error);
 
-				return Promise.reject(error);
-			})
-			.then(mainIpcServer => {
-				createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath).then(logger => bufferLogService.logger = logger);
+				throw error;
+			}
 
-				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
-			});
-	}).then(null, err => instantiationService.invokeFunction(quit, err));
+			const mainIpcServer = await instantiationService.invokeFunction(setupIPC);
+			bufferLogService.logger = new SpdLogService('main', environmentService.logsPath, bufferLogService.getLevel());
+			return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
+		});
+	} catch (error) {
+		instantiationService.invokeFunction(quit, error);
+	}
 }
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
@@ -310,6 +316,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
+	services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 
 	return new InstantiationService(services, true);
 }

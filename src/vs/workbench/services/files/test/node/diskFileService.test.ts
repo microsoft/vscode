@@ -125,7 +125,7 @@ suite('Disk File Service', () => {
 	let testProvider: TestDiskFileSystemProvider;
 	let testDir: string;
 
-	let disposables = new DisposableStore();
+	const disposables = new DisposableStore();
 
 	setup(async () => {
 		const logService = new NullLogService();
@@ -149,8 +149,7 @@ suite('Disk File Service', () => {
 	});
 
 	teardown(async () => {
-		disposables.dispose();
-		disposables = new DisposableStore();
+		disposables.clear();
 
 		await rimraf(parentDir, RimRafMode.MOVE);
 	});

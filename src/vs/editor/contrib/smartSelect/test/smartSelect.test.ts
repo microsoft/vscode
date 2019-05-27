@@ -326,9 +326,9 @@ suite('SmartSelect', () => {
 		const reg = SelectionRangeRegistry.register('*', {
 			provideSelectionRanges() {
 				return [[
-					{ range: { startLineNumber: 1, startColumn: 10, endLineNumber: 1, endColumn: 11 }, kind: 'somekind' },
-					{ range: { startLineNumber: 1, startColumn: 10, endLineNumber: 3, endColumn: 2 }, kind: 'somekind' },
-					{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 3, endColumn: 2 }, kind: 'somekind' },
+					{ range: { startLineNumber: 1, startColumn: 10, endLineNumber: 1, endColumn: 11 } },
+					{ range: { startLineNumber: 1, startColumn: 10, endLineNumber: 3, endColumn: 2 } },
+					{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 3, endColumn: 2 } },
 				]];
 			}
 		});

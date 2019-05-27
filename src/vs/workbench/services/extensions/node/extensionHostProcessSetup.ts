@@ -16,12 +16,12 @@ import { IInitData, MainThreadConsoleShape } from 'vs/workbench/api/common/extHo
 import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services/extensions/node/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { createBufferSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
@@ -82,7 +82,7 @@ function patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
 	};
 }
 
-const createLogService: ILogServiceFn = initData => createBufferSpdLogService(ExtensionHostLogFileName, initData.logLevel, initData.logsLocation.fsPath);
+const createLogService: ILogServiceFn = initData => new SpdLogService(ExtensionHostLogFileName, initData.logsLocation.fsPath, initData.logLevel);
 
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;

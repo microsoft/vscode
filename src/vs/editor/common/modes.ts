@@ -1094,7 +1094,6 @@ export interface DocumentColorProvider {
 }
 
 export interface SelectionRange {
-	kind: string;
 	range: IRange;
 }
 

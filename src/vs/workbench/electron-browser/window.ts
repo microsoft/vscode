@@ -317,8 +317,7 @@ export class ElectronWindow extends Disposable {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
 			let isAdmin: boolean;
 			if (isWindows) {
-				const isElevated = await import('native-is-elevated');
-				isAdmin = isElevated();
+				isAdmin = (await import('native-is-elevated'))();
 			} else {
 				isAdmin = isRootUser();
 			}

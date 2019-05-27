@@ -34,7 +34,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.hover';
 
-	private _toUnhook = new DisposableStore();
+	private readonly _toUnhook = new DisposableStore();
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
 	private _contentWidget: ModesContentHoverWidget;
@@ -109,8 +109,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _unhookEvents(): void {
-		this._toUnhook.dispose();
-		this._toUnhook = new DisposableStore();
+		this._toUnhook.clear();
 	}
 
 	private _onModelDecorationsChanged(): void {
@@ -226,6 +225,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	public dispose(): void {
 		this._unhookEvents();
+		this._toUnhook.dispose();
 		this._didChangeConfigurationHandler.dispose();
 
 		if (this._glyphWidget) {

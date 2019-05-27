@@ -494,9 +494,6 @@ export class RemoteFileDialog {
 			// Changing the active items will trigger the onDidActiveItemsChanged. Clear the autocomplete first, then set it after.
 			this.autoCompletePathSegment = '';
 			this.filePickBox.activeItems = [quickPickItem];
-			this.autoCompletePathSegment = this.trimTrailingSlash(itemBasename.substr(startingBasename.length));
-			this.insertText(startingValue + this.autoCompletePathSegment, this.autoCompletePathSegment);
-			this.filePickBox.valueSelection = [startingValue.length, this.filePickBox.value.length];
 			return true;
 		} else if (force && (!equalsIgnoreCase(quickPickItem.label, (this.userEnteredPathSegment + this.autoCompletePathSegment)))) {
 			this.userEnteredPathSegment = '';

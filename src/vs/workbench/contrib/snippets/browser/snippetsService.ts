@@ -295,10 +295,10 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: IDisposable[]): Promise<any> {
-		let disposables = new DisposableStore();
-		let addFolderSnippets = (type?: FileChangeType) => {
-			disposables.dispose();
-			disposables = new DisposableStore();
+		const disposables = new DisposableStore();
+		const addFolderSnippets = (type?: FileChangeType) => {
+			disposables.clear();
+
 			if (type === FileChangeType.DELETED) {
 				return Promise.resolve();
 			}

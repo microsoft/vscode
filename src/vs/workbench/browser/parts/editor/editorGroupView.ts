@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorgroupview';
 
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -214,6 +214,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private handleGroupContextKeys(contextKeyServcie: IContextKeyService): void {
 		const groupActiveEditorDirtyContextKey = EditorGroupActiveEditorDirtyContext.bindTo(contextKeyServcie);
+		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(contextKeyServcie);
 
 		let activeEditorListener: IDisposable;
 
@@ -229,12 +230,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		};
 
-		// Track the active editor and update context key that reflects
-		// the dirty state of this editor
+		// Update group contexts based on group changes
 		this._register(this.onDidGroupChange(e => {
+
+			// Track the active editor and update context key that reflects
+			// the dirty state of this editor
 			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
 				observeActiveEditor();
 			}
+
+			// Group editors count context
+			groupEditorsCountContext.set(this.count);
 		}));
 
 		observeActiveEditor();
@@ -824,34 +830,36 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.doShowEditor(editor, !!openEditorOptions.active, options);
 	}
 
-	private doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | null> {
+	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | null> {
 
 		// Show in editor control if the active editor changed
-		let openEditorPromise: Promise<IEditor | null>;
+		const openEditorPromise = this.editorControl.openEditor(editor, options);
+
+		// Show in title control after editor control because some actions depend on it
+		this.titleAreaControl.openEditor(editor);
+
+		// Return opened editor to caller (can be NULL)
+		let openedEditor: IEditor | null = null;
 		if (active) {
-			openEditorPromise = this.editorControl.openEditor(editor, options).then(result => {
+			try {
+				const result = await openEditorPromise;
 
 				// Editor change event
 				if (result.editorChanged) {
 					this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
 				}
 
-				return result.control;
-			}, error => {
+				openedEditor = result.control;
+			} catch (error) {
 
 				// Handle errors but do not bubble them up
 				this.doHandleOpenEditorError(error, editor, options);
-
-				return null; // error: return NULL as result to signal this
-			});
+			}
 		} else {
-			openEditorPromise = Promise.resolve(null); // inactive: return NULL as result to signal this
+			openedEditor = null; // inactive: return NULL as result to signal this
 		}
 
-		// Show in title control after editor control because some actions depend on it
-		this.titleAreaControl.openEditor(editor);
-
-		return openEditorPromise;
+		return openedEditor;
 	}
 
 	private doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): void {
@@ -895,29 +903,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Do not modify original array
 		editors = editors.slice(0);
 
-		let result: IEditor | null;
-
 		// Use the first editor as active editor
 		const { editor, options } = editors.shift()!;
-		return this.openEditor(editor, options).then(activeEditor => {
-			result = activeEditor; // this can be NULL if the opening failed
+		let firstOpenedEditor = await this.openEditor(editor, options);
 
-			const startingIndex = this.getIndexOfEditor(editor) + 1;
+		// Open the other ones inactive
+		const startingIndex = this.getIndexOfEditor(editor) + 1;
+		await Promise.all(editors.map(async ({ editor, options }, index) => {
+			const adjustedEditorOptions = options || new EditorOptions();
+			adjustedEditorOptions.inactive = true;
+			adjustedEditorOptions.pinned = true;
+			adjustedEditorOptions.index = startingIndex + index;
 
-			// Open the other ones inactive
-			return Promise.all(editors.map(({ editor, options }, index) => {
-				const adjustedEditorOptions = options || new EditorOptions();
-				adjustedEditorOptions.inactive = true;
-				adjustedEditorOptions.pinned = true;
-				adjustedEditorOptions.index = startingIndex + index;
+			const openedEditor = await this.openEditor(editor, adjustedEditorOptions);
+			if (!firstOpenedEditor) {
+				firstOpenedEditor = openedEditor; // only take if the first editor opening failed
+			}
+		}));
 
-				return this.openEditor(editor, adjustedEditorOptions).then(activeEditor => {
-					if (!result) {
-						result = activeEditor; // only take if the first editor opening failed
-					}
-				});
-			})).then(() => result);
-		});
+		return firstOpenedEditor;
 	}
 
 	//#endregion

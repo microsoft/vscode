@@ -1,7 +1,7 @@
 @font-face {
     font-family: "octicons";
-    src: url("./octicons.ttf?91284a5a76ea88faeb754359b7f7cd03") format("truetype"),
-url("./octicons.svg?91284a5a76ea88faeb754359b7f7cd03#octicons") format("svg");
+    src: url("./octicons.ttf?dfb57cc8cb38865560532de9049096c2") format("truetype"),
+url("./octicons.svg?dfb57cc8cb38865560532de9049096c2#octicons") format("svg");
 }
 
 .octicon, .mega-octicon {
@@ -235,10 +235,15 @@ url("./octicons.svg?91284a5a76ea88faeb754359b7f7cd03#octicons") format("svg");
 .octicon-zap:before { content: "\26a1" }
 .octicon-archive:before { content: "\f101" }
 .octicon-arrow-both:before { content: "\f102" }
-.octicon-eye-closed:before { content: "\f103" }
-.octicon-fold-down:before { content: "\f104" }
-.octicon-fold-up:before { content: "\f105" }
-.octicon-github-action:before { content: "\f106" }
-.octicon-play:before { content: "\f107" }
-.octicon-remote:before { content: "\f108" }
-.octicon-request-changes:before { content: "\f109" }
+.octicon-configure:before { content: "\f103" }
+.octicon-error:before { content: "\f104" }
+.octicon-eye-closed:before { content: "\f105" }
+.octicon-fold-down:before { content: "\f106" }
+.octicon-fold-up:before { content: "\f107" }
+.octicon-github-action:before { content: "\f108" }
+.octicon-play:before { content: "\f109" }
+.octicon-remote:before { content: "\f10a" }
+.octicon-request-changes:before { content: "\f10b" }
+.octicon-smile:before { content: "\f10c" }
+.octicon-tasks:before { content: "\f10d" }
+.octicon-warning:before { content: "\f10e" }
