@@ -52,11 +52,20 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 
 	async run(repository: Repository): Promise<void> {
-		if (!this.ref.name) {
+		const ref = this.ref.name;
+		if (!ref) {
 			return;
 		}
 
-		await repository.checkoutTracking(this.ref.name);
+		// Check whether there's a local branch which already has the target branch as an upstream
+		const trackings = await repository.getTracking(ref);
+		if (trackings.length > 0) {
+			//Just checkout the local branch
+			await repository.checkout(trackings[0].local);
+		} else {
+			// Default: checkout a new local branch tracking the upstream
+			await repository.checkoutTracking(ref);
+		}
 	}
 }
 
