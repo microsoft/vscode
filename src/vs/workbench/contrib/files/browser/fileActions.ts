@@ -1056,6 +1056,7 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
+	const textFileService = accessor.get(ITextFileService);
 	const notificationService = accessor.get(INotificationService);
 	const editorService = accessor.get(IEditorService);
 
@@ -1083,8 +1084,8 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 
 				const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwirte: pasteShouldMove });
 
-				// Copy File
-				return pasteShouldMove ? fileService.move(fileToPaste, targetFile) : fileService.copy(fileToPaste, targetFile);
+				// Move/Copy File
+				return pasteShouldMove ? textFileService.move(fileToPaste, targetFile) : fileService.copy(fileToPaste, targetFile);
 			}, error => {
 				onError(notificationService, new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
 			});
