@@ -47,23 +47,18 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 	const environmentService = accessor.get(IEnvironmentService);
 	const instantiationService = accessor.get(IInstantiationService);
 
-	function allowSetForegroundWindow(service: LaunchChannelClient): Promise<void> {
-		let promise: Promise<void> = Promise.resolve();
+	async function windowsAllowSetForegroundWindow(service: LaunchChannelClient): Promise<void> {
 		if (platform.isWindows) {
-			promise = service.getMainProcessId()
-				.then(processId => {
-					logService.trace('Sending some foreground love to the running instance:', processId);
+			const processId = await service.getMainProcessId();
 
-					try {
-						const { allowSetForegroundWindow } = require.__$__nodeRequire('windows-foreground-love');
-						allowSetForegroundWindow(processId);
-					} catch (e) {
-						// noop
-					}
-				});
+			logService.trace('Sending some foreground love to the running instance:', processId);
+
+			try {
+				(await import('windows-foreground-love')).allowSetForegroundWindow(processId);
+			} catch (error) {
+				logService.error(error);
+			}
 		}
-
-		return promise;
 	}
 
 	function setup(retry: boolean): Promise<Server> {
@@ -158,7 +153,7 @@ function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 
 					logService.trace('Sending env to running instance...');
 
-					return allowSetForegroundWindow(service)
+					return windowsAllowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env as platform.IProcessEnvironment))
 						.then(() => client.dispose())
 						.then(() => {
