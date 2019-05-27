@@ -92,7 +92,7 @@ async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptio
 
 	return new Promise<PersistentProtocol>((c, e) => {
 
-		const messageRegistration = protocol.onControlMessage(raw => {
+		const messageRegistration = protocol.onControlMessage(async raw => {
 			const msg = <HandshakeMessage>JSON.parse(raw.toString());
 			// Stop listening for further events
 			messageRegistration.dispose();
@@ -107,7 +107,7 @@ async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptio
 				let signed = msg.data;
 				if (platform.isNative) {
 					try {
-						const vsda = <any>require.__$__nodeRequire('vsda');
+						const vsda = await import('vsda');
 						const signer = new vsda.signer();
 						if (signer) {
 							signed = signer.sign(msg.data);
