@@ -29,10 +29,9 @@
 		"decreaseIndentPattern": "^\\s*(\\bcase\\b.*:|\\bdefault\\b:|}[)}]*[),]?|\\)[,]?)$"
 	},
 	"folding": {
-		"offSide": false,
 		"markers": {
-			"start": "^//\\s?Region\\b",
-			"end": "^//\\s?EndRegion\\b"
+			"start": "^\\s*//\\s*#?region\\b",
+			"end": "^\\s*//\\s*#?endregion\\b"
 		}
 	}
 }
