@@ -13,9 +13,9 @@ import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpen
 export class TestQuickOpenService implements IQuickOpenService {
 	public _serviceBrand: any;
 
-	private callback: (prefix: string) => void;
+	private callback?: (prefix?: string) => void;
 
-	constructor(callback?: (prefix: string) => void) {
+	constructor(callback?: (prefix?: string) => void) {
 		this.callback = callback;
 	}
 
@@ -28,7 +28,7 @@ export class TestQuickOpenService implements IQuickOpenService {
 	close(): void {
 	}
 
-	show(prefix?: string, options?: any): Thenable<void> {
+	show(prefix?: string, options?: any): Promise<void> {
 		if (this.callback) {
 			this.callback(prefix);
 		}
@@ -37,11 +37,11 @@ export class TestQuickOpenService implements IQuickOpenService {
 	}
 
 	get onShow(): Event<void> {
-		return null;
+		return null!;
 	}
 
 	get onHide(): Event<void> {
-		return null;
+		return null!;
 	}
 
 	public dispose() { }
@@ -59,7 +59,7 @@ suite('QuickOpen', () => {
 			'testhandler',
 			',',
 			'Handler',
-			null
+			null!
 		);
 
 		registry.registerQuickOpenHandler(handler);
@@ -71,7 +71,7 @@ suite('QuickOpen', () => {
 	});
 
 	test('QuickOpen Action', () => {
-		let defaultAction = new QuickOpenAction('id', 'label', void 0, new TestQuickOpenService((prefix: string) => assert(!prefix)));
+		let defaultAction = new QuickOpenAction('id', 'label', (undefined)!, new TestQuickOpenService((prefix: string) => assert(!prefix)));
 		let prefixAction = new QuickOpenAction('id', 'label', ',', new TestQuickOpenService((prefix: string) => assert(!!prefix)));
 
 		defaultAction.run();

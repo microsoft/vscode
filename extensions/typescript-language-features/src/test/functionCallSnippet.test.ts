@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { snippetForFunctionCall } from "../utils/snippetForFunctionCall";
+import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
 
 suite('typescript function call snippets', () => {
 	test('Should use label as function name', async () => {
@@ -106,5 +106,23 @@ suite('typescript function call snippets', () => {
 				[{ "text": "(", "kind": "punctuation" }, { "text": "method", "kind": "text" }, { "text": ")", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "methoda", "kind": "propertyName" }, { "text": "(", "kind": "punctuation" }, { "text": "x", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "void", "kind": "keyword" }]
 			).snippet.value,
 			'methoda(${1:x})$0');
+	});
+
+	test('Should escape snippet syntax in method name', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: '$abc', },
+				[]
+			).snippet.value,
+			'\\$abc()$0');
+	});
+
+	test('Should not include object key signature in completion, #66297', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: 'foobar', },
+				[{ "text": "function", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "foobar", "kind": "functionName" }, { "text": "(", "kind": "punctuation" }, { "text": "param", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "{", "kind": "punctuation" }, { "text": "\n", "kind": "lineBreak" }, { "text": "    ", "kind": "space" }, { "text": "[", "kind": "punctuation" }, { "text": "key", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": "]", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": ";", "kind": "punctuation" }, { "text": "\n", "kind": "lineBreak" }, { "text": "}", "kind": "punctuation" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "void", "kind": "keyword" }]
+			).snippet.value,
+			'foobar(${1:param})$0');
 	});
 });

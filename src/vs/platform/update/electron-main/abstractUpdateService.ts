@@ -5,9 +5,9 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, getMigratedSettingValue } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -40,47 +40,52 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService private lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
 	) {
 		if (this.environmentService.disableUpdates) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled by the environment');
 			return;
 		}
 
 		if (!product.updateUrl || !product.commit) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled as there is no update URL');
 			return;
 		}
 
-		const quality = this.getProductQuality();
+		const updateMode = getMigratedSettingValue<string>(this.configurationService, 'update.mode', 'update.channel');
+		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled by user preference');
 			return;
 		}
 
 		this.url = this.buildUpdateFeedUrl(quality);
 		if (!this.url) {
-			this.logService.info('update#ctor - updates are disabled');
+			this.logService.info('update#ctor - updates are disabled as the update URL is badly formed');
 			return;
 		}
 
 		this.setState(State.Idle(this.getUpdateType()));
 
+		if (updateMode === 'manual') {
+			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
+			return;
+		}
+
 		// Start checking for updates after 30 seconds
 		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 	}
 
-	private getProductQuality(): string | undefined {
-		const quality = this.configurationService.getValue<string>('update.channel');
-		return quality === 'none' ? undefined : product.quality;
+	private getProductQuality(updateMode: string): string | undefined {
+		return updateMode === 'none' ? undefined : product.quality;
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Thenable<void> {
+	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
 		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
 			.then(() => {
@@ -127,11 +132,11 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	quitAndInstall(): Thenable<void> {
+	quitAndInstall(): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
@@ -146,10 +151,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			this.doQuitAndInstall();
 		});
 
-		return Promise.resolve(void 0);
+		return Promise.resolve(undefined);
 	}
 
-	isLatestVersion(): Thenable<boolean | undefined> {
+	isLatestVersion(): Promise<boolean | undefined> {
 		if (!this.url) {
 			return Promise.resolve(undefined);
 		}

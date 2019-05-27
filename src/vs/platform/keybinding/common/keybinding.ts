@@ -28,6 +28,8 @@ export interface IKeybindingEvent {
 }
 
 export interface IKeyboardEvent {
+	readonly _standardKeyboardEventBrand: true;
+
 	readonly ctrlKey: boolean;
 	readonly shiftKey: boolean;
 	readonly altKey: boolean;
@@ -62,6 +64,8 @@ export interface IKeybindingService {
 	 */
 	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null;
 
+	dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void;
+
 	/**
 	 * Look up keybindings for a command.
 	 * Use `lookupKeybinding` if you are interested in the preferred keybinding.
@@ -72,7 +76,7 @@ export interface IKeybindingService {
 	 * Look up the preferred (last defined) keybinding for a command.
 	 * @returns The preferred keybinding or null if the command is not bound.
 	 */
-	lookupKeybinding(commandId: string): ResolvedKeybinding | null;
+	lookupKeybinding(commandId: string): ResolvedKeybinding | undefined;
 
 	getDefaultKeybindingsContent(): string;
 
@@ -87,5 +91,7 @@ export interface IKeybindingService {
 	 * text box. *Note* that the results of this function can be incorrect.
 	 */
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
+
+	_dumpDebugInfo(): string;
 }
 

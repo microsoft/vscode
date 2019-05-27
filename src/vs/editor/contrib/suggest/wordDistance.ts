@@ -17,7 +17,7 @@ export abstract class WordDistance {
 		distance() { return 0; }
 	};
 
-	static create(service: IEditorWorkerService, editor: ICodeEditor): Thenable<WordDistance> {
+	static create(service: IEditorWorkerService, editor: ICodeEditor): Promise<WordDistance> {
 
 		if (!editor.getConfiguration().contribInfo.suggest.localityBonus) {
 			return Promise.resolve(WordDistance.None);
@@ -34,11 +34,11 @@ export abstract class WordDistance {
 			return Promise.resolve(WordDistance.None);
 		}
 
-		return new BracketSelectionRangeProvider().provideSelectionRanges(model, position).then(ranges => {
-			if (!ranges || ranges.length === 0) {
+		return new BracketSelectionRangeProvider().provideSelectionRanges(model, [position]).then(ranges => {
+			if (!ranges || ranges.length === 0 || ranges[0].length === 0) {
 				return WordDistance.None;
 			}
-			return service.computeWordRanges(model.uri, ranges[0]).then(wordRanges => {
+			return service.computeWordRanges(model.uri, ranges[0][0].range).then(wordRanges => {
 				return new class extends WordDistance {
 					distance(anchor: IPosition, suggestion: CompletionItem) {
 						if (!wordRanges || !position.equals(editor.getPosition())) {
@@ -55,8 +55,8 @@ export abstract class WordDistance {
 						let idx = binarySearch(wordLines, Range.fromPositions(anchor), Range.compareRangesUsingStarts);
 						let bestWordRange = idx >= 0 ? wordLines[idx] : wordLines[Math.max(0, ~idx - 1)];
 						let blockDistance = ranges.length;
-						for (const range of ranges) {
-							if (!Range.containsRange(range, bestWordRange)) {
+						for (const range of ranges[0]) {
+							if (!Range.containsRange(range.range, bestWordRange)) {
 								break;
 							}
 							blockDistance -= 1;

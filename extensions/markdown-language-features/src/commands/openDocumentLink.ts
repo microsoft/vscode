@@ -25,7 +25,7 @@ export class OpenDocumentLinkCommand implements Command {
 		path: string,
 		fragment: string
 	): vscode.Uri {
-		return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify({ path, fragment }))}`);
+		return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify({ path: encodeURIComponent(path), fragment }))}`);
 	}
 
 	public constructor(
@@ -39,9 +39,9 @@ export class OpenDocumentLinkCommand implements Command {
 				return this.tryOpen(p + '.md', args);
 			}
 			const resource = vscode.Uri.file(p);
-			return Promise.resolve(void 0)
+			return Promise.resolve(undefined)
 				.then(() => vscode.commands.executeCommand('vscode.open', resource))
-				.then(() => void 0);
+				.then(() => undefined);
 		});
 	}
 

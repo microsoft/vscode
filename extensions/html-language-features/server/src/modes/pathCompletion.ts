@@ -139,9 +139,9 @@ function pathToSuggestion(p: string, valueBeforeCursor: string, fullValue: strin
 }
 
 function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {
-	for (let i = 0; i < workspaceFolders.length; i++) {
-		if (startsWith(activeDoc.uri, workspaceFolders[i].uri)) {
-			return path.resolve(URI.parse(workspaceFolders[i].uri).fsPath);
+	for (const folder of workspaceFolders) {
+		if (startsWith(activeDoc.uri, folder.uri)) {
+			return path.resolve(URI.parse(folder.uri).fsPath);
 		}
 	}
 	return undefined;
@@ -160,6 +160,7 @@ function shiftRange(range: Range, startOffset: number, endOffset: number): Range
 const PATH_TAG_AND_ATTR: { [tag: string]: string | string[] } = {
 	// HTML 4
 	a: 'href',
+	area: 'href',
 	body: 'background',
 	del: 'cite',
 	form: 'action',
@@ -176,7 +177,7 @@ const PATH_TAG_AND_ATTR: { [tag: string]: string | string[] } = {
 	command: 'icon',
 	embed: 'src',
 	html: 'manifest',
-	input: 'formaction',
+	input: ['src', 'formaction'],
 	source: 'src',
 	track: 'src',
 	video: ['src', 'poster']

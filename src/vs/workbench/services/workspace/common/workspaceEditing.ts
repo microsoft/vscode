@@ -17,38 +17,43 @@ export interface IWorkspaceEditingService {
 	 * Add folders to the existing workspace.
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
-	addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Thenable<void>;
+	addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
 
 	/**
 	 * Remove folders from the existing workspace
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
-	removeFolders(folders: URI[], donotNotifyError?: boolean): Thenable<void>;
+	removeFolders(folders: URI[], donotNotifyError?: boolean): Promise<void>;
 
 	/**
 	 * Allows to add and remove folders to the existing workspace at once.
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Thenable<void>;
+	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
 
 	/**
 	 * enters the workspace with the provided path.
 	 */
-	enterWorkspace(path: string): Thenable<void>;
+	enterWorkspace(path: URI): Promise<void>;
 
 	/**
 	 * creates a new workspace with the provided folders and opens it. if path is provided
 	 * the workspace will be saved into that location.
 	 */
-	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): Thenable<void>;
+	createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void>;
 
 	/**
-	 * saves the workspace to the provided path and opens it. requires a workspace to be opened.
+	 * saves the current workspace to the provided path and opens it. requires a workspace to be opened.
 	 */
-	saveAndEnterWorkspace(path: string): Thenable<void>;
+	saveAndEnterWorkspace(path: URI): Promise<void>;
 
 	/**
 	 * copies current workspace settings to the target workspace.
 	 */
-	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Thenable<void>;
+	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void>;
+
+	/**
+	 * picks a new workspace path
+	 */
+	pickNewWorkspacePath(): Promise<URI | undefined>;
 }

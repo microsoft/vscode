@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./accessibilityHelp';
-import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
@@ -30,6 +29,8 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { contrastBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -43,8 +44,8 @@ class AccessibilityHelpController extends Disposable
 		);
 	}
 
-	private _editor: ICodeEditor;
-	private _widget: AccessibilityHelpWidget;
+	private readonly _editor: ICodeEditor;
+	private readonly _widget: AccessibilityHelpWidget;
 
 	constructor(
 		editor: ICodeEditor,
@@ -71,31 +72,26 @@ class AccessibilityHelpController extends Disposable
 	}
 }
 
-const nlsNoSelection = nls.localize("noSelection", "No selection");
-const nlsSingleSelectionRange = nls.localize("singleSelectionRange", "Line {0}, Column {1} ({2} selected)");
-const nlsSingleSelection = nls.localize("singleSelection", "Line {0}, Column {1}");
-const nlsMultiSelectionRange = nls.localize("multiSelectionRange", "{0} selections ({1} characters selected)");
-const nlsMultiSelection = nls.localize("multiSelection", "{0} selections");
 
 function getSelectionLabel(selections: Selection[] | null, charactersSelected: number): string {
 	if (!selections || selections.length === 0) {
-		return nlsNoSelection;
+		return AccessibilityHelpNLS.noSelection;
 	}
 
 	if (selections.length === 1) {
 		if (charactersSelected) {
-			return strings.format(nlsSingleSelectionRange, selections[0].positionLineNumber, selections[0].positionColumn, charactersSelected);
+			return strings.format(AccessibilityHelpNLS.singleSelectionRange, selections[0].positionLineNumber, selections[0].positionColumn, charactersSelected);
 		}
 
-		return strings.format(nlsSingleSelection, selections[0].positionLineNumber, selections[0].positionColumn);
+		return strings.format(AccessibilityHelpNLS.singleSelection, selections[0].positionLineNumber, selections[0].positionColumn);
 	}
 
 	if (charactersSelected) {
-		return strings.format(nlsMultiSelectionRange, selections.length, charactersSelected);
+		return strings.format(AccessibilityHelpNLS.multiSelectionRange, selections.length, charactersSelected);
 	}
 
 	if (selections.length > 0) {
-		return strings.format(nlsMultiSelection, selections.length);
+		return strings.format(AccessibilityHelpNLS.multiSelection, selections.length);
 	}
 
 	return '';
@@ -106,11 +102,11 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	private static readonly WIDTH = 500;
 	private static readonly HEIGHT = 300;
 
-	private _editor: ICodeEditor;
-	private _domNode: FastDomNode<HTMLElement>;
-	private _contentDomNode: FastDomNode<HTMLElement>;
+	private readonly _editor: ICodeEditor;
+	private readonly _domNode: FastDomNode<HTMLElement>;
+	private readonly _contentDomNode: FastDomNode<HTMLElement>;
 	private _isVisible: boolean;
-	private _isVisibleKey: IContextKey<boolean>;
+	private readonly _isVisibleKey: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -150,7 +146,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			}
 
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_E)) {
-				alert(nls.localize("emergencyConfOn", "Now changing the setting `accessibilitySupport` to 'on'."));
+				alert(AccessibilityHelpNLS.emergencyConfOn);
 
 				this._editor.updateOptions({
 					accessibilitySupport: 'on'
@@ -165,7 +161,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			}
 
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_H)) {
-				alert(nls.localize("openingDocs", "Now opening the Editor Accessibility documentation page."));
+				alert(AccessibilityHelpNLS.openingDocs);
 
 				let url = (<IEditorConstructionOptions>this._editor.getRawConfiguration()).accessibilityHelpUrl;
 				if (typeof url === 'undefined') {
@@ -245,56 +241,52 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		if (opts.wrappingInfo.inDiffEditor) {
 			if (opts.readOnly) {
-				text += nls.localize("readonlyDiffEditor", " in a read-only pane of a diff editor.");
+				text += AccessibilityHelpNLS.readonlyDiffEditor;
 			} else {
-				text += nls.localize("editableDiffEditor", " in a pane of a diff editor.");
+				text += AccessibilityHelpNLS.editableDiffEditor;
 			}
 		} else {
 			if (opts.readOnly) {
-				text += nls.localize("readonlyEditor", " in a read-only code editor");
+				text += AccessibilityHelpNLS.readonlyEditor;
 			} else {
-				text += nls.localize("editableEditor", " in a code editor");
+				text += AccessibilityHelpNLS.editableEditor;
 			}
 		}
 
 		const turnOnMessage = (
 			platform.isMacintosh
-				? nls.localize("changeConfigToOnMac", "To configure the editor to be optimized for usage with a Screen Reader press Command+E now.")
-				: nls.localize("changeConfigToOnWinLinux", "To configure the editor to be optimized for usage with a Screen Reader press Control+E now.")
+				? AccessibilityHelpNLS.changeConfigToOnMac
+				: AccessibilityHelpNLS.changeConfigToOnWinLinux
 		);
 		switch (opts.accessibilitySupport) {
-			case platform.AccessibilitySupport.Unknown:
+			case AccessibilitySupport.Unknown:
 				text += '\n\n - ' + turnOnMessage;
 				break;
-			case platform.AccessibilitySupport.Enabled:
-				text += '\n\n - ' + nls.localize("auto_on", "The editor is configured to be optimized for usage with a Screen Reader.");
+			case AccessibilitySupport.Enabled:
+				text += '\n\n - ' + AccessibilityHelpNLS.auto_on;
 				break;
-			case platform.AccessibilitySupport.Disabled:
-				text += '\n\n - ' + nls.localize("auto_off", "The editor is configured to never be optimized for usage with a Screen Reader, which is not the case at this time.");
+			case AccessibilitySupport.Disabled:
+				text += '\n\n - ' + AccessibilityHelpNLS.auto_off;
 				text += ' ' + turnOnMessage;
 				break;
 		}
 
-		const NLS_TAB_FOCUS_MODE_ON = nls.localize("tabFocusModeOnMsg", "Pressing Tab in the current editor will move focus to the next focusable element. Toggle this behavior by pressing {0}.");
-		const NLS_TAB_FOCUS_MODE_ON_NO_KB = nls.localize("tabFocusModeOnMsgNoKb", "Pressing Tab in the current editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
-		const NLS_TAB_FOCUS_MODE_OFF = nls.localize("tabFocusModeOffMsg", "Pressing Tab in the current editor will insert the tab character. Toggle this behavior by pressing {0}.");
-		const NLS_TAB_FOCUS_MODE_OFF_NO_KB = nls.localize("tabFocusModeOffMsgNoKb", "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
 
 		if (opts.tabFocusMode) {
-			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB);
+			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb);
 		} else {
-			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
+			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb);
 		}
 
 		const openDocMessage = (
 			platform.isMacintosh
-				? nls.localize("openDocMac", "Press Command+H now to open a browser window with more information related to editor accessibility.")
-				: nls.localize("openDocWinLinux", "Press Control+H now to open a browser window with more information related to editor accessibility.")
+				? AccessibilityHelpNLS.openDocMac
+				: AccessibilityHelpNLS.openDocWinLinux
 		);
 
 		text += '\n\n - ' + openDocMessage;
 
-		text += '\n\n' + nls.localize("outroMsg", "You can dismiss this tooltip and return to the editor by pressing Escape or Shift+Escape.");
+		text += '\n\n' + AccessibilityHelpNLS.outroMsg;
 
 		this._contentDomNode.domNode.appendChild(renderFormattedText(text));
 		// Per https://www.w3.org/TR/wai-aria/roles#document, Authors SHOULD provide a title or label for documents
@@ -336,9 +328,9 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.showAccessibilityHelp',
-			label: nls.localize("ShowAccessibilityHelpAction", "Show Accessibility Help"),
+			label: AccessibilityHelpNLS.showAccessibilityHelpAction,
 			alias: 'Show Accessibility Help',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: (browser.isIE ? KeyMod.CtrlCmd | KeyCode.F1 : KeyMod.Alt | KeyCode.F1),

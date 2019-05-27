@@ -763,7 +763,7 @@ export class LcsDiff {
 				change.modifiedStart++;
 			}
 
-			let mergedChangeArr: (DiffChange | null)[] = [null];
+			let mergedChangeArr: Array<DiffChange | null> = [null];
 			if (i < changes.length - 1 && this.ChangesOverlap(changes[i], changes[i + 1], mergedChangeArr)) {
 				changes[i] = mergedChangeArr[0]!;
 				changes.splice(i + 1, 1);
@@ -913,7 +913,7 @@ export class LcsDiff {
 	 * @param mergedChange The merged change if the two overlap, null otherwise
 	 * @returns True if the two changes overlap
 	 */
-	private ChangesOverlap(left: DiffChange, right: DiffChange, mergedChangeArr: (DiffChange | null)[]): boolean {
+	private ChangesOverlap(left: DiffChange, right: DiffChange, mergedChangeArr: Array<DiffChange | null>): boolean {
 		Debug.Assert(left.originalStart <= right.originalStart, 'Left change is not less than or equal to right change');
 		Debug.Assert(left.modifiedStart <= right.modifiedStart, 'Left change is not less than or equal to right change');
 

@@ -15,8 +15,7 @@ var ShakeLevel;
     ShakeLevel[ShakeLevel["ClassMembers"] = 2] = "ClassMembers";
 })(ShakeLevel = exports.ShakeLevel || (exports.ShakeLevel = {}));
 function printDiagnostics(diagnostics) {
-    for (let i = 0; i < diagnostics.length; i++) {
-        const diag = diagnostics[i];
+    for (const diag of diagnostics) {
         let result = '';
         if (diag.file) {
             result += `${diag.file.fileName}: `;
@@ -95,6 +94,11 @@ function discoverAndReadFiles(options) {
         if (fs.existsSync(dts_filename)) {
             const dts_filecontents = fs.readFileSync(dts_filename).toString();
             FILES[`${moduleId}.d.ts`] = dts_filecontents;
+            continue;
+        }
+        const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+        if (fs.existsSync(js_filename)) {
+            // This is an import for a .js file, so ignore it...
             continue;
         }
         let ts_filename;
@@ -475,8 +479,7 @@ function generateResult(languageService, shakeLevel) {
                     }
                     else {
                         let survivingImports = [];
-                        for (let i = 0; i < node.importClause.namedBindings.elements.length; i++) {
-                            const importNode = node.importClause.namedBindings.elements[i];
+                        for (const importNode of node.importClause.namedBindings.elements) {
                             if (getColor(importNode) === 2 /* Black */) {
                                 survivingImports.push(importNode.getFullText(sourceFile));
                             }

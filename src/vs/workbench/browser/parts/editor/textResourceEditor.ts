@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TextEditorOptions, EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
@@ -20,7 +20,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Event } from 'vs/base/common/event';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -46,7 +46,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 	}
 
-	getTitle(): string {
+	getTitle(): string | null {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -54,45 +54,41 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options, token).then(() => {
-			return input.resolve().then((resolvedModel: EditorModel) => {
+		await super.setInput(input, options, token);
+		const resolvedModel = await input.resolve();
 
-				// Check for cancellation
-				if (token.isCancellationRequested) {
-					return void 0;
-				}
+		// Check for cancellation
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 
-				// Assert Model instance
-				if (!(resolvedModel instanceof BaseTextEditorModel)) {
-					return Promise.reject(new Error('Unable to open file as text'));
-				}
+		// Assert Model instance
+		if (!(resolvedModel instanceof BaseTextEditorModel)) {
+			throw new Error('Unable to open file as text');
+		}
 
-				// Set Editor Model
-				const textEditor = this.getControl();
-				const textEditorModel = resolvedModel.textEditorModel;
-				textEditor.setModel(textEditorModel);
+		// Set Editor Model
+		const textEditor = this.getControl();
+		const textEditorModel = resolvedModel.textEditorModel;
+		textEditor.setModel(textEditorModel);
 
-				// Apply Options from TextOptions
-				let optionsGotApplied = false;
-				const textOptions = <TextEditorOptions>options;
-				if (textOptions && types.isFunction(textOptions.apply)) {
-					optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
-				}
+		// Apply Options from TextOptions
+		let optionsGotApplied = false;
+		const textOptions = <TextEditorOptions>options;
+		if (textOptions && types.isFunction(textOptions.apply)) {
+			optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
+		}
 
-				// Otherwise restore View State
-				if (!optionsGotApplied) {
-					this.restoreTextResourceEditorViewState(input);
-				}
-
-				return void 0;
-			});
-		});
+		// Otherwise restore View State
+		if (!optionsGotApplied) {
+			this.restoreTextResourceEditorViewState(input);
+		}
 	}
 
 	private restoreTextResourceEditorViewState(input: EditorInput) {
@@ -136,19 +132,14 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 	/**
 	 * Reveals the last line of this editor if it has a model set.
-	 * When smart is true only scroll if the cursor is currently on the last line of the output panel.
-	 * This allows users to click on the output panel to stop scrolling when they see something of interest.
-	 * To resume, they should scroll to the end of the output panel again.
 	 */
-	revealLastLine(smart: boolean): void {
+	revealLastLine(): void {
 		const codeEditor = <ICodeEditor>this.getControl();
 		const model = codeEditor.getModel();
 
 		if (model) {
 			const lastLine = model.getLineCount();
-			if (!smart || codeEditor.getPosition().lineNumber === lastLine) {
-				codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
-			}
+			codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
 		}
 	}
 
@@ -173,7 +164,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super.saveState();
 	}
 
-	private saveTextResourceEditorViewState(input: EditorInput): void {
+	private saveTextResourceEditorViewState(input: EditorInput | null): void {
 		if (!(input instanceof UntitledEditorInput) && !(input instanceof ResourceEditorInput)) {
 			return; // only enabled for untitled and resource inputs
 		}

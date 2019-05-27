@@ -10,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
-import { CodeActionOracle } from 'vs/editor/contrib/codeAction/codeActionModel';
+import { CodeActionOracle, CodeActionsState } from 'vs/editor/contrib/codeAction/codeActionModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 
@@ -47,13 +47,13 @@ suite('CodeAction', () => {
 		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
 		disposables.push(reg);
 
-		const oracle = new CodeActionOracle(editor, markerService, e => {
+		const oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {
 			assert.equal(e.trigger.type, 'auto');
 			assert.ok(e.actions);
 
 			e.actions.then(fixes => {
 				oracle.dispose();
-				assert.equal(fixes.length, 1);
+				assert.equal(fixes.actions.length, 1);
 				done();
 			}, done);
 		});
@@ -85,12 +85,12 @@ suite('CodeAction', () => {
 
 		return new Promise((resolve, reject) => {
 
-			const oracle = new CodeActionOracle(editor, markerService, e => {
+			const oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {
 				assert.equal(e.trigger.type, 'auto');
 				assert.ok(e.actions);
 				e.actions.then(fixes => {
 					oracle.dispose();
-					assert.equal(fixes.length, 1);
+					assert.equal(fixes.actions.length, 1);
 					resolve(undefined);
 				}, reject);
 			});
@@ -107,7 +107,7 @@ suite('CodeAction', () => {
 		});
 		disposables.push(reg);
 
-		editor.getModel().setValue('// @ts-check\n2\ncon\n');
+		editor.getModel()!.setValue('// @ts-check\n2\ncon\n');
 
 		markerService.changeOne('fake', uri, [{
 			startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4,
@@ -120,7 +120,7 @@ suite('CodeAction', () => {
 		// case 1 - drag selection over multiple lines -> range of enclosed marker, position or marker
 		await new Promise(resolve => {
 
-			let oracle = new CodeActionOracle(editor, markerService, e => {
+			let oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {
 				assert.equal(e.trigger.type, 'auto');
 				const selection = <Selection>e.rangeOrSelection;
 				assert.deepEqual(selection.selectionStartLineNumber, 1);
@@ -130,7 +130,7 @@ suite('CodeAction', () => {
 				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
 
 				oracle.dispose();
-				resolve(null);
+				resolve(undefined);
 			}, 5);
 
 			editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
@@ -142,7 +142,7 @@ suite('CodeAction', () => {
 		disposables.push(reg);
 
 		let triggerCount = 0;
-		const oracle = new CodeActionOracle(editor, markerService, e => {
+		const oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {
 			assert.equal(e.trigger.type, 'auto');
 			++triggerCount;
 

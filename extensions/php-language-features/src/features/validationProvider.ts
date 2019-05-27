@@ -23,20 +23,20 @@ export class LineDecoder {
 	}
 
 	public write(buffer: Buffer): string[] {
-		var result: string[] = [];
-		var value = this.remaining
+		let result: string[] = [];
+		let value = this.remaining
 			? this.remaining + this.stringDecoder.write(buffer)
 			: this.stringDecoder.write(buffer);
 
 		if (value.length < 1) {
 			return result;
 		}
-		var start = 0;
-		var ch: number;
+		let start = 0;
+		let ch: number;
 		while (start < value.length && ((ch = value.charCodeAt(start)) === 13 || ch === 10)) {
 			start++;
 		}
-		var idx = start;
+		let idx = start;
 		while (idx < value.length) {
 			ch = value.charCodeAt(idx);
 			if (ch === 13 || ch === 10) {
@@ -146,7 +146,7 @@ export default class PHPValidationProvider {
 			}
 			this.trigger = RunTrigger.from(section.get<string>('validate.run', RunTrigger.strings.onSave));
 		}
-		if (this.executableIsUserDefined !== true && this.workspaceStore.get<string | undefined>(CheckedExecutablePath, undefined) !== void 0) {
+		if (this.executableIsUserDefined !== true && this.workspaceStore.get<string | undefined>(CheckedExecutablePath, undefined) !== undefined) {
 			vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', true);
 		}
 		this.delayers = Object.create(null);
@@ -195,7 +195,7 @@ export default class PHPValidationProvider {
 			delayer.trigger(() => this.doValidate(textDocument));
 		};
 
-		if (this.executableIsUserDefined !== void 0 && !this.executableIsUserDefined) {
+		if (this.executableIsUserDefined !== undefined && !this.executableIsUserDefined) {
 			let checkedExecutablePath = this.workspaceStore.get<string | undefined>(CheckedExecutablePath, undefined);
 			if (!checkedExecutablePath || checkedExecutablePath !== this.executable) {
 				vscode.window.showInformationMessage<MessageItem>(

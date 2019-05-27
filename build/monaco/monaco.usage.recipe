@@ -10,9 +10,10 @@ import { CountBadge } from './vs/base/browser/ui/countBadge/countBadge';
 import { SimpleWorkerClient, create as create1 } from './vs/base/common/worker/simpleWorker';
 import { create as create2 } from './vs/editor/common/services/editorSimpleWorker';
 import { QuickOpenWidget } from './vs/base/parts/quickopen/browser/quickOpenWidget';
+import { WorkbenchAsyncDataTree } from './vs/platform/list/browser/listService';
 import { SyncDescriptor0, SyncDescriptor1, SyncDescriptor2, SyncDescriptor3, SyncDescriptor4, SyncDescriptor5, SyncDescriptor6, SyncDescriptor7, SyncDescriptor8 } from './vs/platform/instantiation/common/descriptors';
-import { PolyfillPromise } from './vs/base/common/winjs.polyfill.promise';
 import { DiffNavigator } from './vs/editor/browser/widget/diffNavigator';
+import { DocumentRangeFormattingEditProvider } from './vs/editor/common/modes';
 import * as editorAPI from './vs/editor/editor.api';
 
 (function () {
@@ -23,6 +24,7 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = (<IWorkspaceContextService>b).getWorkspace; // IWorkspaceFolderProvider
 	a = (<CountBadge>b).style; // IThemable
 	a = (<QuickOpenWidget>b).style; // IThemable
+	a = (<WorkbenchAsyncDataTree<any,any>>b).style; // IThemable
 	a = (<IEnvironmentService>b).userHome; // IUserHomeProvider
 	a = (<DiffNavigator>b).previous; // IDiffNavigator
 	a = (<ServiceIdentifier<any>>b).type;
@@ -31,14 +33,7 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = (<SimpleWorkerClient<any>>b).getProxyObject; // IWorkerClient
 	a = create1;
 	a = create2;
-
-	// promise polyfill
-	a = PolyfillPromise.all;
-	a = PolyfillPromise.race;
-	a = PolyfillPromise.resolve;
-	a = PolyfillPromise.reject;
-	a = (<PolyfillPromise>b).then;
-	a = (<PolyfillPromise>b).catch;
+	a = (<DocumentRangeFormattingEditProvider>b).extensionId;
 
 	// injection madness
 	a = (<SyncDescriptor0<any>>b).ctor;
@@ -73,7 +68,6 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = editorAPI.SelectionDirection;
 	a = editorAPI.MarkerSeverity;
 	a = editorAPI.MarkerTag;
-	a = editorAPI.Promise;
 	a = editorAPI.Uri;
 	a = editorAPI.Token;
 	a = editorAPI.editor;

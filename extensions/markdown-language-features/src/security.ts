@@ -94,7 +94,7 @@ export class PreviewSecuritySelector {
 		private readonly webviewManager: MarkdownPreviewManager
 	) { }
 
-	public async showSecutitySelectorForResource(resource: vscode.Uri): Promise<void> {
+	public async showSecuritySelectorForResource(resource: vscode.Uri): Promise<void> {
 		interface PreviewSecurityPickItem extends vscode.QuickPickItem {
 			readonly type: 'moreinfo' | 'toggle' | MarkdownPreviewSecurityLevel;
 		}
@@ -149,6 +149,7 @@ export class PreviewSecuritySelector {
 
 		if (selection.type === 'toggle') {
 			this.cspArbiter.setShouldDisableSecurityWarning(!this.cspArbiter.shouldDisableSecurityWarnings());
+			this.webviewManager.refresh();
 			return;
 		} else {
 			await this.cspArbiter.setSecurityLevelForResource(resource, selection.type);

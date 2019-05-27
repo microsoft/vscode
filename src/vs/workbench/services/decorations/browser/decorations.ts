@@ -31,7 +31,7 @@ export interface IDecoration {
 export interface IDecorationsProvider {
 	readonly label: string;
 	readonly onDidChange: Event<URI[]>;
-	provideDecorations(uri: URI, token: CancellationToken): IDecorationData | Thenable<IDecorationData> | undefined;
+	provideDecorations(uri: URI, token: CancellationToken): IDecorationData | Promise<IDecorationData | undefined> | undefined;
 }
 
 export interface IResourceDecorationChangeEvent {

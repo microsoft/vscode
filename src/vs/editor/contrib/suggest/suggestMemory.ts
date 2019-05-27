@@ -8,7 +8,7 @@ import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
-import { CompletionItemKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
+import { CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -67,7 +67,7 @@ export interface MemItem {
 
 export class LRUMemory extends Memory {
 
-	private _cache = new LRUCache<string, MemItem>(300, .66);
+	private _cache = new LRUCache<string, MemItem>(300, 0.66);
 	private _seq = 0;
 
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
@@ -124,7 +124,7 @@ export class LRUMemory extends Memory {
 		let seq = 0;
 		for (const [key, value] of data) {
 			value.touch = seq;
-			value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
+			value.type = typeof value.type === 'number' ? value.type : completionKindFromString(value.type);
 			this._cache.set(key, value);
 		}
 		this._seq = this._cache.size;
@@ -188,7 +188,7 @@ export class PrefixMemory extends Memory {
 		if (data.length > 0) {
 			this._seq = data[0][1].touch + 1;
 			for (const [key, value] of data) {
-				value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
+				value.type = typeof value.type === 'number' ? value.type : completionKindFromString(value.type);
 				this._trie.set(key, value);
 			}
 		}
@@ -197,7 +197,7 @@ export class PrefixMemory extends Memory {
 
 export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
-class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
+export class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
 
 	readonly _serviceBrand: any;
 
@@ -217,10 +217,10 @@ class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
 		const update = () => {
 			const mode = this._configService.getValue<MemMode>('editor.suggestSelection');
 			const share = this._configService.getValue<boolean>('editor.suggest.shareSuggestSelections');
-			this._update(mode, share);
+			this._update(mode, share, false);
 		};
 
-		this._persistSoon = this._register(new RunOnceScheduler(() => this._saveState(), 3000));
+		this._persistSoon = this._register(new RunOnceScheduler(() => this._saveState(), 500));
 		this._register(_storageService.onWillSaveState(() => this._saveState()));
 
 		this._register(this._configService.onDidChangeConfiguration(e => {
@@ -228,16 +228,20 @@ class SuggestMemoryService extends Disposable implements ISuggestMemoryService {
 				update();
 			}
 		}));
-		// this._register(this._storageService.onDidChangeStorage(e => {
-		// 	if (e.scope === StorageScope.GLOBAL && e.key.indexOf(this._storagePrefix) === 0) {
-		// 		update();
-		// 	}
-		// }));
+		this._register(this._storageService.onDidChangeStorage(e => {
+			if (e.scope === StorageScope.GLOBAL && e.key.indexOf(this._storagePrefix) === 0) {
+				if (!document.hasFocus()) {
+					// windows that aren't focused have to drop their current
+					// storage value and accept what's stored now
+					this._update(this._mode, this._shareMem, true);
+				}
+			}
+		}));
 		update();
 	}
 
-	private _update(mode: MemMode, shareMem: boolean): void {
-		if (this._mode === mode && this._shareMem === shareMem) {
+	private _update(mode: MemMode, shareMem: boolean, force: boolean): void {
+		if (!force && this._mode === mode && this._shareMem === shareMem) {
 			return;
 		}
 		this._shareMem = shareMem;

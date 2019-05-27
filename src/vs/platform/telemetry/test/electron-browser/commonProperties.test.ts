@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
+import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { IStorageService, StorageScope, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { del } from 'vs/base/node/extfs';
-import { mkdirp } from 'vs/base/node/pfs';
+import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 
 suite('Telemetry - common properties', function () {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'telemetryservice');
 	const installSource = path.join(parentDir, 'installSource');
 
-	const commit: string = void 0;
-	const version: string = void 0;
+	const commit: string = (undefined)!;
+	const version: string = (undefined)!;
 	let testStorageService: IStorageService;
 
 	setup(() => {
@@ -26,7 +25,7 @@ suite('Telemetry - common properties', function () {
 	});
 
 	teardown(done => {
-		del(parentDir, os.tmpdir(), done);
+		rimraf(parentDir, RimRafMode.MOVE).then(done, done);
 	});
 
 	test('default', async function () {

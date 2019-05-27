@@ -19,11 +19,11 @@ const $ = dom.$;
 
 export class ColorPickerHeader extends Disposable {
 
-	private domNode: HTMLElement;
-	private pickedColorNode: HTMLElement;
+	private readonly domNode: HTMLElement;
+	private readonly pickedColorNode: HTMLElement;
 	private backgroundColor: Color;
 
-	constructor(container: HTMLElement, private model: ColorPickerModel, themeService: IThemeService) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService) {
 		super();
 
 		this.domNode = $('.colorpicker-header');
@@ -63,12 +63,12 @@ export class ColorPickerHeader extends Disposable {
 
 export class ColorPickerBody extends Disposable {
 
-	private domNode: HTMLElement;
-	private saturationBox: SaturationBox;
-	private hueStrip: Strip;
-	private opacityStrip: Strip;
+	private readonly domNode: HTMLElement;
+	private readonly saturationBox: SaturationBox;
+	private readonly hueStrip: Strip;
+	private readonly opacityStrip: Strip;
 
-	constructor(container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {
 		super();
 
 		this.domNode = $('.colorpicker-body');
@@ -120,9 +120,9 @@ export class ColorPickerBody extends Disposable {
 
 class SaturationBox extends Disposable {
 
-	private domNode: HTMLElement;
-	private selection: HTMLElement;
-	private canvas: HTMLCanvasElement;
+	private readonly domNode: HTMLElement;
+	private readonly selection: HTMLElement;
+	private readonly canvas: HTMLCanvasElement;
 	private width: number;
 	private height: number;
 
@@ -133,7 +133,7 @@ class SaturationBox extends Disposable {
 	private _onColorFlushed = new Emitter<void>();
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
 
-	constructor(container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {
 		super();
 
 		this.domNode = $('.saturation-wrap');
@@ -335,7 +335,7 @@ export class ColorPickerWidget extends Widget {
 
 	body: ColorPickerBody;
 
-	constructor(container: Node, private model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
+	constructor(container: Node, private readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
 		super();
 
 		this._register(onDidChangeZoomLevel(() => this.layout()));

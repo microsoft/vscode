@@ -77,8 +77,8 @@ export class MarkdownRenderer {
 		};
 	}
 
-	render(markdown: IMarkdownString): IMarkdownRenderResult {
-		let disposeables: IDisposable[] = [];
+	render(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
+		const disposeables: IDisposable[] = [];
 
 		let element: HTMLElement;
 		if (!markdown) {

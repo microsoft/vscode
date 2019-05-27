@@ -10,6 +10,7 @@ import { nulToken } from '../utils/cancellation';
 import { Command } from '../utils/commandManager';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile, openOrCreateConfigFile } from '../utils/tsconfig';
+import { ServerResponse } from '../typescriptService';
 
 const localize = nls.loadMessageBundle();
 
@@ -68,13 +69,13 @@ async function goToProjectConfig(
 		return;
 	}
 
-	let res: protocol.ProjectInfoResponse | undefined;
+	let res: ServerResponse.Response<protocol.ProjectInfoResponse> | undefined;
 	try {
 		res = await client.execute('projectInfo', { file, needFileNameList: false }, nulToken);
 	} catch {
 		// noop
 	}
-	if (!res || !res.body) {
+	if (!res || res.type !== 'response' || !res.body) {
 		vscode.window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
 		return;
 	}

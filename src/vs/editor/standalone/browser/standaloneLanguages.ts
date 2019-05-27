@@ -292,31 +292,47 @@ export interface EncodedTokensProvider {
 function isEncodedTokensProvider(provider: TokensProvider | EncodedTokensProvider): provider is EncodedTokensProvider {
 	return provider['tokenizeEncoded'];
 }
+
+function isThenable<T>(obj: any): obj is Thenable<T> {
+	if (typeof obj.then === 'function') {
+		return true;
+	}
+	return false;
+}
+
 /**
  * Set the tokens provider for a language (manual implementation).
  */
-export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider): IDisposable {
+export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable {
 	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
 	if (!languageIdentifier) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
-	let adapter: modes.ITokenizationSupport;
-	if (isEncodedTokensProvider(provider)) {
-		adapter = new EncodedTokenizationSupport2Adapter(provider);
-	} else {
-		adapter = new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier, provider);
+	const create = (provider: TokensProvider | EncodedTokensProvider) => {
+		if (isEncodedTokensProvider(provider)) {
+			return new EncodedTokenizationSupport2Adapter(provider);
+		} else {
+			return new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier!, provider);
+		}
+	};
+	if (isThenable<TokensProvider | EncodedTokensProvider>(provider)) {
+		return modes.TokenizationRegistry.registerPromise(languageId, provider.then(provider => create(provider)));
 	}
-	return modes.TokenizationRegistry.register(languageId, adapter);
+	return modes.TokenizationRegistry.register(languageId, create(provider));
 }
 
 
 /**
  * Set the tokens provider for a language (monarch implementation).
  */
-export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage): IDisposable {
-	let lexer = compile(languageId, languageDef);
-	let adapter = createTokenizationSupport(StaticServices.modeService.get(), StaticServices.standaloneThemeService.get(), languageId, lexer);
-	return modes.TokenizationRegistry.register(languageId, adapter);
+export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage | Thenable<IMonarchLanguage>): IDisposable {
+	const create = (languageDef: IMonarchLanguage) => {
+		return createTokenizationSupport(StaticServices.modeService.get(), StaticServices.standaloneThemeService.get(), languageId, compile(languageId, languageDef));
+	};
+	if (isThenable<IMonarchLanguage>(languageDef)) {
+		return modes.TokenizationRegistry.registerPromise(languageId, languageDef.then(languageDef => create(languageDef)));
+	}
+	return modes.TokenizationRegistry.register(languageId, create(languageDef));
 }
 
 /**
@@ -345,10 +361,10 @@ export function registerSignatureHelpProvider(languageId: string, provider: mode
  */
 export function registerHoverProvider(languageId: string, provider: modes.HoverProvider): IDisposable {
 	return modes.HoverProviderRegistry.register(languageId, {
-		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Thenable<modes.Hover> => {
+		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<modes.Hover | undefined> => {
 			let word = model.getWordAtPosition(position);
 
-			return Promise.resolve<modes.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value) => {
+			return Promise.resolve<modes.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value): modes.Hover | undefined => {
 				if (!value) {
 					return undefined;
 				}
@@ -411,7 +427,7 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
  */
 export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
-		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
+		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Promise<(modes.Command | modes.CodeAction)[]> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
@@ -477,8 +493,6 @@ export interface CodeActionContext {
 
 	/**
 	 * An array of diagnostics.
-	 *
-	 * @readonly
 	 */
 	readonly markers: IMarkerData[];
 
@@ -496,7 +510,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]>;
+	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Promise<(modes.Command | modes.CodeAction)[]>;
 }
 
 /**

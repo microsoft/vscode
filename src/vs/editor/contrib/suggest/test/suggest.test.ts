@@ -5,8 +5,8 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { CompletionProviderRegistry, CompletionItemKind } from 'vs/editor/common/modes';
-import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
+import { CompletionProviderRegistry, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/modes';
+import { provideSuggestionItems, SnippetSortOrder, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
 import { Position } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Range } from 'vs/editor/common/core/range';
@@ -51,7 +51,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet inline', async function () {
-		const items = await provideSuggestionItems(model, new Position(1, 1), 'inline');
+		const items = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Inline));
 		assert.equal(items.length, 3);
 		assert.equal(items[0].completion.label, 'aaa');
 		assert.equal(items[1].completion.label, 'fff');
@@ -59,7 +59,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet top', async function () {
-		const items = await provideSuggestionItems(model, new Position(1, 1), 'top');
+		const items = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Top));
 		assert.equal(items.length, 3);
 		assert.equal(items[0].completion.label, 'aaa');
 		assert.equal(items[1].completion.label, 'zzz');
@@ -67,7 +67,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet bottom', async function () {
-		const items = await provideSuggestionItems(model, new Position(1, 1), 'bottom');
+		const items = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Bottom));
 		assert.equal(items.length, 3);
 		assert.equal(items[0].completion.label, 'fff');
 		assert.equal(items[1].completion.label, 'aaa');
@@ -75,7 +75,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet none', async function () {
-		const items = await provideSuggestionItems(model, new Position(1, 1), 'none');
+		const items = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)));
 		assert.equal(items.length, 1);
 		assert.equal(items[0].completion.label, 'fff');
 	});
@@ -98,7 +98,7 @@ suite('Suggest', function () {
 		};
 		const registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
 
-		provideSuggestionItems(model, new Position(1, 1), undefined, [foo]).then(items => {
+		provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo))).then(items => {
 			registration.dispose();
 
 			assert.equal(items.length, 1);

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { app } from 'electron';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -27,7 +27,7 @@ export class ElectronURLListener {
 
 	constructor(
 		initial: string | string[],
-		@IURLService private urlService: IURLService,
+		@IURLService private readonly urlService: IURLService,
 		@IWindowsMainService windowsService: IWindowsMainService
 	) {
 		const globalBuffer = ((<any>global).getOpenUrls() || []) as string[];

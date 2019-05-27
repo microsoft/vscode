@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StorageMainService, IStorageChangeEvent } from 'vs/platform/storage/node/storageMainService';
 import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/node/storage';
 import { mapToSerializable, serializableToMap, values } from 'vs/base/common/map';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ILogService } from 'vs/platform/log/common/log';
+import { generateUuid } from 'vs/base/common/uuid';
+import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey, currentSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 
 type Key = string;
 type Value = string;
@@ -27,13 +31,52 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 	private static STORAGE_CHANGE_DEBOUNCE_TIME = 100;
 
-	private _onDidChangeItems: Emitter<ISerializableItemsChangeEvent> = this._register(new Emitter<ISerializableItemsChangeEvent>());
+	private readonly _onDidChangeItems: Emitter<ISerializableItemsChangeEvent> = this._register(new Emitter<ISerializableItemsChangeEvent>());
 	get onDidChangeItems(): Event<ISerializableItemsChangeEvent> { return this._onDidChangeItems.event; }
 
-	constructor(private storageMainService: StorageMainService) {
+	private whenReady: Promise<void>;
+
+	constructor(
+		private logService: ILogService,
+		private storageMainService: StorageMainService
+	) {
 		super();
 
+		this.whenReady = this.init();
+	}
+
+	private async init(): Promise<void> {
+		try {
+			await this.storageMainService.initialize();
+		} catch (error) {
+			onUnexpectedError(error);
+			this.logService.error(error);
+		}
+
+		// Apply global telemetry values as part of the initialization
+		// These are global across all windows and thereby should be
+		// written from the main process once.
+		this.initTelemetry();
+
+		// Setup storage change listeners
 		this.registerListeners();
+	}
+
+	private initTelemetry(): void {
+		const instanceId = this.storageMainService.get(instanceStorageKey, undefined);
+		if (instanceId === undefined) {
+			this.storageMainService.store(instanceStorageKey, generateUuid());
+		}
+
+		const firstSessionDate = this.storageMainService.get(firstSessionDateStorageKey, undefined);
+		if (firstSessionDate === undefined) {
+			this.storageMainService.store(firstSessionDateStorageKey, new Date().toUTCString());
+		}
+
+		const lastSessionDate = this.storageMainService.get(currentSessionDateStorageKey, undefined); // previous session date was the "current" one at that time
+		const currentSessionDate = new Date().toUTCString(); // current session date is "now"
+		this.storageMainService.store(lastSessionDateStorageKey, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
+		this.storageMainService.store(currentSessionDateStorageKey, currentSessionDate);
 	}
 
 	private registerListeners(): void {
@@ -57,12 +100,12 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 	private serializeEvents(events: IStorageChangeEvent[]): ISerializableItemsChangeEvent {
 		const items = new Map<Key, Value>();
-		events.forEach(event => items.set(event.key, this.storageMainService.get(event.key, '')));
+		events.forEach(event => items.set(event.key, this.storageMainService.get(event.key)));
 
-		return { items: mapToSerializable(items) } as ISerializableItemsChangeEvent;
+		return { items: mapToSerializable(items) };
 	}
 
-	listen(_, event: string): Event<any> {
+	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeItems': return this.onDidChangeItems;
 		}
@@ -70,14 +113,19 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Thenable<any> {
+	async call(_: unknown, command: string, arg?: any): Promise<any> {
+
+		// ensure to always wait for ready
+		await this.whenReady;
+
+		// handle call
 		switch (command) {
 			case 'getItems': {
-				return Promise.resolve(mapToSerializable(this.storageMainService.items));
+				return mapToSerializable(this.storageMainService.items);
 			}
 
 			case 'updateItems': {
-				const items = arg as ISerializableUpdateRequest;
+				const items: ISerializableUpdateRequest = arg;
 				if (items.insert) {
 					for (const [key, value] of items.insert) {
 						this.storageMainService.store(key, value);
@@ -88,15 +136,16 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 					items.delete.forEach(key => this.storageMainService.remove(key));
 				}
 
-				return Promise.resolve(); // do not wait for modifications to complete
+				break;
 			}
 
 			case 'checkIntegrity': {
 				return this.storageMainService.checkIntegrity(arg);
 			}
-		}
 
-		throw new Error(`Call not found: ${command}`);
+			default:
+				throw new Error(`Call not found: ${command}`);
+		}
 	}
 }
 
@@ -104,7 +153,7 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 
 	_serviceBrand: any;
 
-	private _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
+	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
 	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return this._onDidChangeItemsExternal.event; }
 
 	private onDidChangeItemsOnMainListener: IDisposable;
@@ -125,11 +174,13 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 		}
 	}
 
-	getItems(): Thenable<Map<string, string>> {
-		return this.channel.call('getItems').then((data: Item[]) => serializableToMap(data));
+	async getItems(): Promise<Map<string, string>> {
+		const items: Item[] = await this.channel.call('getItems');
+
+		return serializableToMap(items);
 	}
 
-	updateItems(request: IUpdateRequest): Thenable<void> {
+	updateItems(request: IUpdateRequest): Promise<void> {
 		let updateCount = 0;
 		const serializableRequest: ISerializableUpdateRequest = Object.create(null);
 
@@ -150,14 +201,14 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 		return this.channel.call('updateItems', serializableRequest);
 	}
 
-	checkIntegrity(full: boolean): Thenable<string> {
+	checkIntegrity(full: boolean): Promise<string> {
 		return this.channel.call('checkIntegrity', full);
 	}
 
-	close(): Thenable<void> {
+	close(): Promise<void> {
 
 		// when we are about to close, we start to ignore main-side changes since we close anyway
-		this.onDidChangeItemsOnMainListener = dispose(this.onDidChangeItemsOnMainListener);
+		dispose(this.onDidChangeItemsOnMainListener);
 
 		return Promise.resolve(); // global storage is closed on the main side
 	}
@@ -165,6 +216,6 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	dispose(): void {
 		super.dispose();
 
-		this.onDidChangeItemsOnMainListener = dispose(this.onDidChangeItemsOnMainListener);
+		dispose(this.onDidChangeItemsOnMainListener);
 	}
 }

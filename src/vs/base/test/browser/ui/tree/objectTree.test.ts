@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
 
@@ -41,6 +41,7 @@ suite('ObjectTree', function () {
 
 		teardown(() => {
 			tree.dispose();
+			filter = (_: number) => true;
 		});
 
 		test('should be able to navigate', () => {
@@ -151,5 +152,76 @@ suite('ObjectTree', function () {
 			assert.equal(navigator.first(), 0);
 			assert.equal(navigator.last(), 2);
 		});
+
+		test('should be able to start from node', () => {
+			tree.setChildren(null, Iterator.fromArray([
+				{
+					element: 0, children: Iterator.fromArray([
+						{ element: 10 },
+						{ element: 11 },
+						{ element: 12 },
+					])
+				},
+				{ element: 1 },
+				{ element: 2 }
+			]));
+
+			const navigator = tree.navigate(1);
+
+			assert.equal(navigator.current(), 1);
+			assert.equal(navigator.next(), 2);
+			assert.equal(navigator.current(), 2);
+			assert.equal(navigator.previous(), 1);
+			assert.equal(navigator.current(), 1);
+			assert.equal(navigator.previous(), 12);
+			assert.equal(navigator.previous(), 11);
+			assert.equal(navigator.previous(), 10);
+			assert.equal(navigator.previous(), 0);
+			assert.equal(navigator.previous(), null);
+			assert.equal(navigator.next(), 0);
+			assert.equal(navigator.next(), 10);
+			assert.equal(navigator.parent(), 0);
+			assert.equal(navigator.parent(), null);
+			assert.equal(navigator.first(), 0);
+			assert.equal(navigator.last(), 2);
+		});
+	});
+
+	test('traits are preserved according to string identity', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new class implements IListVirtualDelegate<number> {
+			getHeight() { return 20; }
+			getTemplateId(): string { return 'default'; }
+		};
+
+		const renderer = new class implements ITreeRenderer<number, void, HTMLElement> {
+			readonly templateId = 'default';
+			renderTemplate(container: HTMLElement): HTMLElement {
+				return container;
+			}
+			renderElement(element: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
+				templateData.textContent = `${element.element}`;
+			}
+			disposeTemplate(): void { }
+		};
+
+		const identityProvider = new class implements IIdentityProvider<number> {
+			getId(element: number): { toString(): string; } {
+				return `${element % 100}`;
+			}
+		};
+
+		const tree = new ObjectTree<number>(container, delegate, [renderer], { identityProvider });
+		tree.layout(200);
+
+		tree.setChildren(null, [{ element: 0 }, { element: 1 }, { element: 2 }, { element: 3 }]);
+		tree.setFocus([1]);
+		assert.deepStrictEqual(tree.getFocus(), [1]);
+
+		tree.setChildren(null, [{ element: 100 }, { element: 101 }, { element: 102 }, { element: 103 }]);
+		assert.deepStrictEqual(tree.getFocus(), [101]);
 	});
 });

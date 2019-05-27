@@ -11,6 +11,7 @@ import { CodeAction, CodeActionContext, CodeActionProvider, CodeActionProviderRe
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('CodeAction', () => {
 
@@ -115,7 +116,7 @@ suite('CodeAction', () => {
 			testData.tsLint.abc
 		];
 
-		const actions = await getCodeActions(model, new Range(1, 1, 2, 1));
+		const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'manual' }, CancellationToken.None);
 		assert.equal(actions.length, 6);
 		assert.deepEqual(actions, expected);
 	});
@@ -134,20 +135,20 @@ suite('CodeAction', () => {
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } });
+			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } }, CancellationToken.None);
 			assert.equal(actions.length, 2);
 			assert.strictEqual(actions[0].title, 'a');
 			assert.strictEqual(actions[1].title, 'a.b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a.b') } });
+			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a.b') } }, CancellationToken.None);
 			assert.equal(actions.length, 1);
 			assert.strictEqual(actions[0].title, 'a.b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a.b.c') } });
+			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a.b.c') } }, CancellationToken.None);
 			assert.equal(actions.length, 0);
 		}
 	});
@@ -156,14 +157,14 @@ suite('CodeAction', () => {
 		const provider = new class implements CodeActionProvider {
 			provideCodeActions(_model: any, _range: Range, context: CodeActionContext, _token: any): CodeAction[] {
 				return [
-					{ title: context.only, kind: context.only }
+					{ title: context.only || '', kind: context.only }
 				];
 			}
 		};
 
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
-		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } });
+		const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } }, CancellationToken.None);
 		assert.equal(actions.length, 1);
 		assert.strictEqual(actions[0].title, 'a');
 	});
@@ -181,13 +182,13 @@ suite('CodeAction', () => {
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto' });
+			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto' }, CancellationToken.None);
 			assert.equal(actions.length, 1);
 			assert.strictEqual(actions[0].title, 'b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: CodeActionKind.Source, includeSourceActions: true } });
+			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: CodeActionKind.Source, includeSourceActions: true } }, CancellationToken.None);
 			assert.equal(actions.length, 1);
 			assert.strictEqual(actions[0].title, 'a');
 		}
@@ -206,13 +207,14 @@ suite('CodeAction', () => {
 
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
-		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), {
+		const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), {
 			type: 'auto',
 			filter: {
 				kind: CodeActionKind.QuickFix
 			}
-		});
+		}, CancellationToken.None);
 		assert.strictEqual(actions.length, 0);
 		assert.strictEqual(wasInvoked, false);
 	});
 });
+

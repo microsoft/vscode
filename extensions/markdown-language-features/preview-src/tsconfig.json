@@ -6,6 +6,7 @@
 		"jsx": "react",
 		"sourceMap": true,
 		"strict": true,
+		"strictBindCallApply": true,
 		"noImplicitAny": true,
 		"noUnusedLocals": true
 	}

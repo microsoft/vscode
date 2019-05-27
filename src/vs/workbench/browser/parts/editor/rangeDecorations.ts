@@ -28,7 +28,7 @@ export class RangeHighlightDecorations extends Disposable {
 	private readonly _onHighlightRemoved: Emitter<void> = this._register(new Emitter<void>());
 	get onHighlghtRemoved(): Event<void> { return this._onHighlightRemoved.event; }
 
-	constructor(@IEditorService private editorService: IEditorService) {
+	constructor(@IEditorService private readonly editorService: IEditorService) {
 		super();
 	}
 

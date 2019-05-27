@@ -35,7 +35,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		return { data, disposable: { dispose: () => { } } };
 	}
 
-	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>): void {
+	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>, height: number | undefined): void {
 		if (data.disposable) {
 			data.disposable.dispose();
 		}
@@ -47,7 +47,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		const model = this.modelProvider();
 
 		if (model.isResolved(index)) {
-			return this.renderer.renderElement(model.get(index), index, data.data);
+			return this.renderer.renderElement(model.get(index), index, data.data, height);
 		}
 
 		const cts = new CancellationTokenSource();
@@ -55,7 +55,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		data.disposable = { dispose: () => cts.cancel() };
 
 		this.renderer.renderPlaceholder(index, data.data);
-		promise.then(entry => this.renderer.renderElement(entry, index, data.data!));
+		promise.then(entry => this.renderer.renderElement(entry, index, data.data!, height));
 	}
 
 	disposeTemplate(data: ITemplateData<TTemplateData>): void {
@@ -118,7 +118,7 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get onOpen(): Event<IListEvent<T>> {
-		return Event.map(this.list.onOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
+		return Event.map(this.list.onDidOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
 	}
 
 	get onSelectionChange(): Event<IListEvent<T>> {
@@ -190,8 +190,12 @@ export class PagedList<T> implements IDisposable {
 		return this.list.getSelection();
 	}
 
-	layout(height?: number): void {
-		this.list.layout(height);
+	layout(height?: number, width?: number): void {
+		this.list.layout(height, width);
+	}
+
+	toggleKeyboardNavigation(): void {
+		this.list.toggleKeyboardNavigation();
 	}
 
 	reveal(index: number, relativeTop?: number): void {

@@ -5,7 +5,7 @@
 import * as filters from 'vs/base/common/filters';
 import { data } from './filters.perf.data';
 
-const patterns = ['cci', 'ida', 'pos', 'CCI', 'enbled', 'callback', 'gGame', 'cons'];
+const patterns = ['cci', 'ida', 'pos', 'CCI', 'enbled', 'callback', 'gGame', 'cons', 'zyx', 'aBc'];
 
 const _enablePerf = false;
 
@@ -24,22 +24,49 @@ perfSuite('Performance - fuzzyMatch', function () {
 
 			const t1 = Date.now();
 			let count = 0;
-			for (const pattern of patterns) {
-				const patternLow = pattern.toLowerCase();
-				for (const item of data) {
-					count += 1;
-					match(pattern, patternLow, 0, item, item.toLowerCase(), 0, false);
+			for (let i = 0; i < 2; i++) {
+				for (const pattern of patterns) {
+					const patternLow = pattern.toLowerCase();
+					for (const item of data) {
+						count += 1;
+						match(pattern, patternLow, 0, item, item.toLowerCase(), 0, false);
+					}
 				}
 			}
 			const d = Date.now() - t1;
-			console.log(name, `${d}ms, ${Math.round(count / d) * 15}ops/15ms`);
+			console.log(name, `${d}ms, ${Math.round(count / d) * 15}/15ms, ${Math.round(count / d)}/1ms`);
 		});
 	}
 
-	// perfTest('matchesFuzzy', filters.matchesFuzzy);
-	// perfTest('fuzzyContiguousFilter', filters.fuzzyContiguousFilter);
 	perfTest('fuzzyScore', filters.fuzzyScore);
 	perfTest('fuzzyScoreGraceful', filters.fuzzyScoreGraceful);
 	perfTest('fuzzyScoreGracefulAggressive', filters.fuzzyScoreGracefulAggressive);
 });
 
+
+perfSuite('Performance - IFilter', function () {
+
+	function perfTest(name: string, match: filters.IFilter) {
+		test(name, () => {
+
+			const t1 = Date.now();
+			let count = 0;
+			for (let i = 0; i < 2; i++) {
+				for (const pattern of patterns) {
+					for (const item of data) {
+						count += 1;
+						match(pattern, item);
+					}
+				}
+			}
+			const d = Date.now() - t1;
+			console.log(name, `${d}ms, ${Math.round(count / d) * 15}/15ms, ${Math.round(count / d)}/1ms`);
+		});
+	}
+
+	perfTest('matchesFuzzy', filters.matchesFuzzy);
+	perfTest('matchesFuzzy2', filters.matchesFuzzy2);
+	perfTest('matchesPrefix', filters.matchesPrefix);
+	perfTest('matchesContiguousSubString', filters.matchesContiguousSubString);
+	perfTest('matchesCamelCase', filters.matchesCamelCase);
+});

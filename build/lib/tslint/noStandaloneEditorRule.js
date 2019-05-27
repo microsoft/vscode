@@ -44,8 +44,8 @@ class NoStandaloneEditorRuleWalker extends Lint.RuleWalker {
         if (path[0] === '.') {
             path = path_1.join(this.getSourceFile().fileName, path);
         }
-        if (/vs(\/|\\)editor(\/|\\)standalone/.test(path)
-            || /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone/.test(path)
+        if (/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(path)
+            || /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(path)
             || /vs(\/|\\)editor(\/|\\)editor.api/.test(path)
             || /vs(\/|\\)editor(\/|\\)editor.main/.test(path)
             || /vs(\/|\\)editor(\/|\\)editor.worker/.test(path)) {

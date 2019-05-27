@@ -12,9 +12,9 @@ export function rndName() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
 }
 
-export function createRandomFile(contents = '', dir: string = os.tmpdir()): Thenable<vscode.Uri> {
+export function createRandomFile(contents = '', dir: string = os.tmpdir(), ext = ''): Thenable<vscode.Uri> {
 	return new Promise((resolve, reject) => {
-		const tmpFile = join(dir, rndName());
+		const tmpFile = join(dir, rndName() + ext);
 		fs.writeFile(tmpFile, contents, (error) => {
 			if (error) {
 				return reject(error);
@@ -58,4 +58,19 @@ export function disposeAll(disposables: vscode.Disposable[]) {
 			item.dispose();
 		}
 	}
+}
+
+export function conditionalTest(name: string, testCallback: (done: MochaDone) => void | Thenable<any>) {
+	if (isTestTypeActive()) {
+		const async = !!testCallback.length;
+		if (async) {
+			test(name, (done) => testCallback(done));
+		} else {
+			test(name, () => (<() => void | Thenable<any>>testCallback)());
+		}
+	}
+}
+
+function isTestTypeActive(): boolean {
+	return !!vscode.extensions.getExtension('vscode-resolver-test');
 }

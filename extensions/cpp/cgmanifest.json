@@ -4,14 +4,14 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "atom/language-c",
-					"repositoryUrl": "https://github.com/atom/language-c",
-					"commitHash": "9c0c5f202741a5647025db8d5df5fefba47b036c"
+					"name": "jeff-hykin/cpp-textmate-grammar",
+					"repositoryUrl": "https://github.com/jeff-hykin/cpp-textmate-grammar",
+					"commitHash": "e33a317ccd0babba4b07ffc042ab9796e6412ddc"
 				}
 			},
 			"license": "MIT",
-			"version": "0.58.1",
-			"description": "The files syntaxes/c.json and syntaxes/c++.json were derived from the Atom package https://atom.io/packages/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+			"version": "1.8.15",
+			"description": "The files syntaxes/c.json and syntaxes/c++.json were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
 		},
 		{
 			"component": {

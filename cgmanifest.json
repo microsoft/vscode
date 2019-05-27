@@ -48,7 +48,7 @@
 				"git": {
 					"name": "libchromiumcontent",
 					"repositoryUrl": "https://github.com/electron/libchromiumcontent",
-					"commitHash": "d9e39391cfae447a84e276a402342cf8b4b5bcba"
+					"commitHash": "7ea271f92018b1eeb8e70ec6de8c29f9758a0c05"
 				}
 			},
 			"isOnlyProductionDependency": true,
@@ -73,12 +73,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "4305657858592be2b44c95ae7af53c627dcdc5e7"
+					"commitHash": "e84a6860e35e14b4031b88bb9b49841cdb89a305"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "3.0.10"
+			"version": "3.1.8"
 		},
 		{
 			"component": {
@@ -104,6 +104,30 @@
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
 			"version": "0.14.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "vscode-octicons-font",
+					"repositoryUrl": "https://github.com/Microsoft/vscode-octicons-font",
+					"commitHash": "ca261ea7e041b1b01bc68755d0031e823cae3abd"
+				}
+			},
+			"license": "MIT",
+			"version": "1.2.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "octicons",
+					"repositoryUrl": "https://github.com/primer/octicons",
+					"commitHash": "d120bf97bc9a12fb415f69fedaf31fe58427ca56"
+				}
+			},
+			"license": "MIT",
+			"version": "8.3.0"
 		},
 		{
 			"component": {
@@ -493,6 +517,19 @@
 				"  defined by the Mozilla Public License, v. 2.0."
 			],
 			"license": "MPL"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "ripgrep",
+					"repositoryUrl": "https://github.com/BurntSushi/ripgrep",
+					"commitHash": "8a7db1a918e969b85cd933d8ed9fa5285b281ba4"
+				}
+			},
+			"isOnlyProductionDependency": true,
+			"license": "MIT",
+			"version": "0.10.0"
 		}
 	],
 	"version": 1

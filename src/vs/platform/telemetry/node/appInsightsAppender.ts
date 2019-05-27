@@ -49,7 +49,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 
 	constructor(
 		private _eventPrefix: string,
-		private _defaultData: { [key: string]: any },
+		private _defaultData: { [key: string]: any } | null,
 		aiKeyOrClientFactory: string | (() => appInsights.ITelemetryClient), // allow factory function for testing
 		@ILogService private _logService?: ILogService
 	) {
@@ -150,7 +150,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 					callback: () => {
 						// all data flushed
 						this._aiClient = undefined;
-						resolve(void 0);
+						resolve(undefined);
 					}
 				});
 			});

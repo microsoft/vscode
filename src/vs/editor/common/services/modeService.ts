@@ -47,7 +47,7 @@ export interface IModeService {
 	getConfigurationFiles(modeId: string): URI[];
 
 	// --- instantiation
-	create(commaSeparatedMimetypesOrCommaSeparatedIds: string): ILanguageSelection;
+	create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection;
 	createByLanguageName(languageName: string): ILanguageSelection;
 	createByFilepathOrFirstLine(filepath: string | null, firstLine?: string): ILanguageSelection;
 

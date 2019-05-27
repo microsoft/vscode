@@ -13,12 +13,10 @@ import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { Themable } from 'vs/workbench/common/theme';
-import { IStatusbarItem, StatusbarItemDescriptor, IStatusbarRegistry, Extensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
@@ -29,7 +27,7 @@ export interface IResourceDescriptor {
 	readonly resource: URI;
 	readonly name: string;
 	readonly size: number;
-	readonly etag: string;
+	readonly etag?: string;
 	readonly mime: string;
 }
 
@@ -64,6 +62,12 @@ export interface ResourceViewerContext extends IDisposable {
 	layout?(dimension: DOM.Dimension): void;
 }
 
+interface ResourceViewerDelegate {
+	openInternalClb(uri: URI): void;
+	openExternalClb?(uri: URI): void;
+	metadataClb(meta: string): void;
+}
+
 /**
  * Helper to actually render the given resource into the provided container. Will adjust scrollbar (if provided) automatically based on loading
  * progress of the binary resource.
@@ -77,9 +81,7 @@ export class ResourceViewer {
 		fileService: IFileService,
 		container: HTMLElement,
 		scrollbar: DomScrollableElement,
-		openInternalClb: (uri: URI) => void,
-		openExternalClb: (uri: URI) => void,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate
 	): ResourceViewerContext {
 
 		// Ensure CSS class
@@ -87,17 +89,17 @@ export class ResourceViewer {
 
 		// Images
 		if (ResourceViewer.isImageResource(descriptor)) {
-			return ImageView.create(container, descriptor, fileService, scrollbar, openExternalClb, metadataClb);
+			return ImageView.create(container, descriptor, fileService, scrollbar, delegate);
 		}
 
 		// Large Files
 		if (descriptor.size > ResourceViewer.MAX_OPEN_INTERNAL_SIZE) {
-			return FileTooLargeFileView.create(container, descriptor, scrollbar, metadataClb);
+			return FileTooLargeFileView.create(container, descriptor, scrollbar, delegate);
 		}
 
 		// Seemingly Binary Files
 		else {
-			return FileSeemsBinaryFileView.create(container, descriptor, scrollbar, openInternalClb, metadataClb);
+			return FileSeemsBinaryFileView.create(container, descriptor, scrollbar, delegate);
 		}
 	}
 
@@ -110,7 +112,7 @@ export class ResourceViewer {
 }
 
 class ImageView {
-	private static readonly MAX_IMAGE_SIZE = BinarySize.MB; // showing images inline is memory intense, so we have a limit
+	private static readonly MAX_IMAGE_SIZE = BinarySize.MB * 10; // showing images inline is memory intense, so we have a limit
 	private static readonly BASE64_MARKER = 'base64,';
 
 	static create(
@@ -118,14 +120,13 @@ class ImageView {
 		descriptor: IResourceDescriptor,
 		fileService: IFileService,
 		scrollbar: DomScrollableElement,
-		openExternalClb: (uri: URI) => void,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate
 	): ResourceViewerContext {
 		if (ImageView.shouldShowImageInline(descriptor)) {
-			return InlineImageView.create(container, descriptor, fileService, scrollbar, metadataClb);
+			return InlineImageView.create(container, descriptor, fileService, scrollbar, delegate);
 		}
 
-		return LargeImageView.create(container, descriptor, openExternalClb, metadataClb);
+		return LargeImageView.create(container, descriptor, delegate);
 	}
 
 	private static shouldShowImageInline(descriptor: IResourceDescriptor): boolean {
@@ -152,29 +153,29 @@ class LargeImageView {
 	static create(
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
-		openExternalClb: (uri: URI) => void,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate
 	) {
 		const size = BinarySize.formatSize(descriptor.size);
-		metadataClb(size);
+		delegate.metadataClb(size);
 
 		DOM.clearNode(container);
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const label = document.createElement('p');
 		label.textContent = nls.localize('largeImageError', "The image is not displayed in the editor because it is too large ({0}).", size);
 		container.appendChild(label);
 
-		if (descriptor.resource.scheme !== Schemas.data) {
+		const openExternal = delegate.openExternalClb;
+		if (descriptor.resource.scheme === Schemas.file && openExternal) {
 			const link = DOM.append(label, DOM.$('a.embedded-link'));
 			link.setAttribute('role', 'button');
 			link.textContent = nls.localize('resourceOpenExternalButton', "Open image using external program?");
 
-			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openExternalClb(descriptor.resource)));
+			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openExternal(descriptor.resource)));
 		}
 
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 }
 
@@ -183,10 +184,10 @@ class FileTooLargeFileView {
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate
 	) {
 		const size = BinarySize.formatSize(descriptor.size);
-		metadataClb(size);
+		delegate.metadataClb(size);
 
 		DOM.clearNode(container);
 
@@ -205,14 +206,13 @@ class FileSeemsBinaryFileView {
 		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
-		openInternalClb: (uri: URI) => void,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate
 	) {
-		metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
+		delegate.metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
 
 		DOM.clearNode(container);
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const label = document.createElement('p');
 		label.textContent = nls.localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
@@ -223,28 +223,28 @@ class FileSeemsBinaryFileView {
 			link.setAttribute('role', 'button');
 			link.textContent = nls.localize('openAsText', "Do you want to open it anyway?");
 
-			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openInternalClb(descriptor.resource)));
+			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => delegate.openInternalClb(descriptor.resource)));
 		}
 
 		scrollbar.scanDomNode();
 
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 }
 
 type Scale = number | 'fit';
 
-class ZoomStatusbarItem extends Themable implements IStatusbarItem {
+export class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	static instance: ZoomStatusbarItem;
 
-	showTimeout: any;
+	private showTimeout: any;
 
 	private statusBarItem: HTMLElement;
 	private onSelectScale?: (scale: Scale) => void;
 
 	constructor(
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -257,7 +257,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	private onActiveEditorChanged(): void {
 		this.hide();
-		this.onSelectScale = void 0;
+		this.onSelectScale = undefined;
 	}
 
 	show(scale: Scale, onSelectScale: (scale: number) => void) {
@@ -298,12 +298,12 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	private get zoomActions(): Action[] {
 		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
 		return scales.map(scale =>
-			new Action(`zoom.${scale}`, ZoomStatusbarItem.zoomLabel(scale), void 0, void 0, () => {
+			new Action(`zoom.${scale}`, ZoomStatusbarItem.zoomLabel(scale), undefined, undefined, () => {
 				if (this.onSelectScale) {
 					this.onSelectScale(scale);
 				}
 
-				return void 0;
+				return Promise.resolve(undefined);
 			}));
 	}
 
@@ -313,10 +313,6 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			: `${Math.round(scale * 100)}%`;
 	}
 }
-
-Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
-	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, 101 /* to the left of editor status (100) */)
-);
 
 interface ImageState {
 	scale: Scale;
@@ -365,16 +361,16 @@ class InlineImageView {
 		descriptor: IResourceDescriptor,
 		fileService: IFileService,
 		scrollbar: DomScrollableElement,
-		metadataClb: (meta: string) => void
+		delegate: ResourceViewerDelegate
 	) {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const context: ResourceViewerContext = {
 			layout(dimension: DOM.Dimension) { },
-			dispose: () => combinedDisposable(disposables).dispose()
+			dispose: () => disposables.dispose()
 		};
 
-		const cacheKey = descriptor.resource.toString();
+		const cacheKey = `${descriptor.resource.toString()}:${descriptor.etag}`;
 
 		let ctrlPressed = false;
 		let altPressed = false;
@@ -394,7 +390,7 @@ class InlineImageView {
 				DOM.removeClass(image, 'pixelated');
 				image.style.minWidth = 'auto';
 				image.style.width = 'auto';
-				InlineImageView.imageStateCache.set(cacheKey, null);
+				InlineImageView.imageStateCache.delete(cacheKey);
 			} else {
 				const oldWidth = image.width;
 				const oldHeight = image.height;
@@ -432,6 +428,10 @@ class InlineImageView {
 		}
 
 		function firstZoom() {
+			if (!image) {
+				return;
+			}
+
 			scale = image.clientWidth / image.naturalWidth;
 			updateScale(scale);
 		}
@@ -501,8 +501,8 @@ class InlineImageView {
 				return;
 			}
 
-			const isScrollWhellKeyPressed = platform.isMacintosh ? altPressed : ctrlPressed;
-			if (!isScrollWhellKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
+			const isScrollWheelKeyPressed = platform.isMacintosh ? altPressed : ctrlPressed;
+			if (!isScrollWheelKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
 				return;
 			}
 
@@ -513,12 +513,8 @@ class InlineImageView {
 				firstZoom();
 			}
 
-			let delta = e.deltaY < 0 ? 1 : -1;
+			let delta = e.deltaY > 0 ? 1 : -1;
 
-			// Pinching should increase the scale
-			if (e.ctrlKey && !isScrollWhellKeyPressed) {
-				delta *= -1;
-			}
 			updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
 		}));
 
@@ -537,14 +533,17 @@ class InlineImageView {
 		DOM.clearNode(container);
 		DOM.addClasses(container, 'image', 'zoom-in');
 
-		image = DOM.append(container, DOM.$('img.scale-to-fit'));
+		image = DOM.append(container, DOM.$<HTMLImageElement>('img.scale-to-fit'));
 		image.style.visibility = 'hidden';
 
 		disposables.push(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
+			if (!image) {
+				return;
+			}
 			if (typeof descriptor.size === 'number') {
-				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
+				delegate.metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', image.naturalWidth, image.naturalHeight, BinarySize.formatSize(descriptor.size)));
 			} else {
-				metadataClb(nls.localize('imgMetaNoSize', '{0}x{1}', image.naturalWidth, image.naturalHeight));
+				delegate.metadataClb(nls.localize('imgMetaNoSize', '{0}x{1}', image.naturalWidth, image.naturalHeight));
 			}
 
 			scrollbar.scanDomNode();
@@ -558,31 +557,34 @@ class InlineImageView {
 			}
 		}));
 
-		InlineImageView.imageSrc(descriptor, fileService).then(dataUri => {
-			const imgs = container.getElementsByTagName('img');
-			if (imgs.length) {
-				imgs[0].src = dataUri;
+		InlineImageView.imageSrc(descriptor, fileService).then(src => {
+			const img = container.querySelector('img');
+			if (img) {
+				if (typeof src === 'string') {
+					img.src = src;
+				} else {
+					const url = URL.createObjectURL(src);
+					disposables.push(toDisposable(() => URL.revokeObjectURL(url)));
+					img.src = url;
+				}
 			}
 		});
 
 		return context;
 	}
 
-	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Thenable<string> {
+	private static async imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): Promise<string | Blob> {
 		if (descriptor.resource.scheme === Schemas.data) {
-			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
+			return descriptor.resource.toString(true /* skip encoding */);
 		}
 
-		return fileService.resolveContent(descriptor.resource, { encoding: 'base64' }).then(data => {
-			const mime = getMime(descriptor);
-
-			return `data:${mime};base64,${data.value}`;
-		});
+		const { value } = await fileService.readFile(descriptor.resource);
+		return new Blob([value.buffer], { type: getMime(descriptor) });
 	}
 }
 
 function getMime(descriptor: IResourceDescriptor) {
-	let mime = descriptor.mime;
+	let mime: string | undefined = descriptor.mime;
 	if (!mime && descriptor.resource.scheme !== Schemas.data) {
 		mime = mimes.getMediaMime(descriptor.resource.path);
 	}

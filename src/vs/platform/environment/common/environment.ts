@@ -7,7 +7,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
-	[arg: string]: any;
 	_: string[];
 	'folder-uri'?: string | string[];
 	'file-uri'?: string | string[];
@@ -25,10 +24,10 @@ export interface ParsedArgs {
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
-	performance?: boolean;
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
+	'prof-modules'?: string;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -37,19 +36,20 @@ export interface ParsedArgs {
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
 	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string;
-	extensionTestsPath?: string;
-	debugPluginHost?: string;
-	debugBrkPluginHost?: string;
+	extensionDevelopmentPath?: string | string[]; // one or more local paths or URIs
+	extensionTestsPath?: string; // either a local path or a URI
+	'inspect-extensions'?: string;
+	'inspect-brk-extensions'?: string;
 	debugId?: string;
-	debugSearch?: string;
-	debugBrkSearch?: string;
+	'inspect-search'?: string;
+	'inspect-brk-search'?: string;
 	'disable-extensions'?: boolean;
 	'disable-extension'?: string | string[];
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
+	'locate-extension'?: string | string[];
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
@@ -62,7 +62,7 @@ export interface ParsedArgs {
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: number;
+	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'upload-logs'?: string;
@@ -100,6 +100,9 @@ export interface IEnvironmentService {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 
+	machineSettingsHome: string;
+	machineSettingsPath: string;
+
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;
 
@@ -109,14 +112,14 @@ export interface IEnvironmentService {
 	backupHome: string;
 	backupWorkspacesPath: string;
 
-	workspacesHome: string;
+	untitledWorkspacesHome: URI;
 
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
 	builtinExtensionsPath: string;
 	extensionsPath: string;
-	extensionDevelopmentLocationURI?: URI;
-	extensionTestsPath?: string;
+	extensionDevelopmentLocationURI?: URI[];
+	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch: IDebugParams;
@@ -126,7 +129,6 @@ export interface IEnvironmentService {
 	isBuilt: boolean;
 	wait: boolean;
 	status: boolean;
-	performance: boolean;
 
 	// logging
 	log?: string;

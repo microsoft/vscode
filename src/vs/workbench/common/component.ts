@@ -9,11 +9,10 @@ import { Themable } from 'vs/workbench/common/theme';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class Component extends Themable {
-	private id: string;
-	private memento: Memento;
+	private readonly memento: Memento;
 
 	constructor(
-		id: string,
+		private readonly id: string,
 		themeService: IThemeService,
 		storageService: IStorageService
 	) {

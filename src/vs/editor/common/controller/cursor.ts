@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
@@ -194,7 +193,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	public setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void {
 		if (states !== null && states.length > Cursor.MAX_CURSOR_COUNT) {
 			states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
-			this._onDidReachMaxCursorCount.fire(void 0);
+			this._onDidReachMaxCursorCount.fire(undefined);
 		}
 
 		const oldState = new CursorModelState(this._model, this);
@@ -467,7 +466,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (this._configuration.editor.readOnly) {
 			// All the remaining handlers will try to edit the model,
 			// but we cannot edit when read only...
-			this._onDidAttemptReadOnlyEdit.fire(void 0);
+			this._onDidAttemptReadOnlyEdit.fire(undefined);
 			return;
 		}
 
@@ -675,8 +674,7 @@ class CommandExecutor {
 			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
 				groupedInverseEditOperations[i] = [];
 			}
-			for (let i = 0; i < inverseEditOperations.length; i++) {
-				const op = inverseEditOperations[i];
+			for (const op of inverseEditOperations) {
 				if (!op.identifier) {
 					// perhaps auto whitespace trim edits
 					continue;
@@ -728,8 +726,8 @@ class CommandExecutor {
 		});
 
 		// Remove losing cursors
-		for (let i = 0; i < losingCursors.length; i++) {
-			selectionsAfter.splice(losingCursors[i], 1);
+		for (const losingCursor of losingCursors) {
+			selectionsAfter.splice(losingCursor, 1);
 		}
 
 		return selectionsAfter;
@@ -829,7 +827,8 @@ class CommandExecutor {
 		try {
 			command.getEditOperations(ctx.model, editOperationBuilder);
 		} catch (e) {
-			e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
+			// TODO@Alex use notification service if this should be user facing
+			// e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
 			onUnexpectedError(e);
 			return {
 				operations: [],

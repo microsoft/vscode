@@ -56,8 +56,8 @@ export class ViewZoneDelegate implements IViewZone {
 	public afterColumn: number;
 	public heightInLines: number;
 
-	private _onDomNodeTop: (top: number) => void;
-	private _onComputedHeight: (height: number) => void;
+	private readonly _onDomNodeTop: (top: number) => void;
+	private readonly _onComputedHeight: (height: number) => void;
 
 	constructor(domNode: HTMLElement, afterLineNumber: number, afterColumn: number, heightInLines: number,
 		onDomNodeTop: (top: number) => void,
@@ -82,8 +82,8 @@ export class ViewZoneDelegate implements IViewZone {
 
 export class OverlayWidgetDelegate implements IOverlayWidget {
 
-	private _id: string;
-	private _domNode: HTMLElement;
+	private readonly _id: string;
+	private readonly _domNode: HTMLElement;
 
 	constructor(id: string, domNode: HTMLElement) {
 		this._id = id;
@@ -364,7 +364,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		const lineHeight = this.editor.getConfiguration().lineHeight;
 
 		// adjust heightInLines to viewport
-		const maxHeightInLines = (this.editor.getLayoutInfo().height / lineHeight) * .8;
+		const maxHeightInLines = (this.editor.getLayoutInfo().height / lineHeight) * 0.8;
 		if (heightInLines >= maxHeightInLines) {
 			heightInLines = maxHeightInLines;
 		}

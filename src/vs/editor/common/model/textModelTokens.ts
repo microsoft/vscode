@@ -154,7 +154,7 @@ class ModelLineTokens {
 
 		let fromTokenIndex = LineTokens.findIndexInTokensArray(tokens, chIndex);
 		if (fromTokenIndex > 0) {
-			const fromTokenStartOffset = (fromTokenIndex > 0 ? tokens[(fromTokenIndex - 1) << 1] : 0);
+			const fromTokenStartOffset = tokens[(fromTokenIndex - 1) << 1];
 			if (fromTokenStartOffset === chIndex) {
 				fromTokenIndex--;
 			}
@@ -472,7 +472,7 @@ export class ModelLinesTokens {
 
 export class ModelTokensChangedEventBuilder {
 
-	private _ranges: { fromLineNumber: number; toLineNumber: number; }[];
+	private readonly _ranges: { fromLineNumber: number; toLineNumber: number; }[];
 
 	constructor() {
 		this._ranges = [];
@@ -500,6 +500,7 @@ export class ModelTokensChangedEventBuilder {
 			return null;
 		}
 		return {
+			tokenizationSupportChanged: false,
 			ranges: this._ranges
 		};
 	}

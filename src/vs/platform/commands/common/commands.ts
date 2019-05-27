@@ -8,6 +8,7 @@ import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
@@ -37,7 +38,7 @@ export interface ICommand {
 
 export interface ICommandHandlerDescription {
 	description: string;
-	args: { name: string; description?: string; constraint?: TypeConstraint; }[];
+	args: { name: string; description?: string; constraint?: TypeConstraint; schema?: IJSONSchema; }[];
 	returns?: string;
 }
 
@@ -72,7 +73,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 		// add argument validation if rich command metadata is provided
 		if (idOrCommand.description) {
-			const constraints: (TypeConstraint | undefined)[] = [];
+			const constraints: Array<TypeConstraint | undefined> = [];
 			for (let arg of idOrCommand.description.args) {
 				constraints.push(arg.constraint);
 			}
@@ -96,7 +97,8 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 		let ret = toDisposable(() => {
 			removeFn();
-			if (this._commands.get(id).isEmpty()) {
+			const command = this._commands.get(id);
+			if (command && command.isEmpty()) {
 				this._commands.delete(id);
 			}
 		});
@@ -108,9 +110,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 	}
 
 	registerCommandAlias(oldId: string, newId: string): IDisposable {
-		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => {
-			accessor.get(ICommandService).executeCommand(newId, ...args);
-		});
+		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => accessor.get(ICommandService).executeCommand(newId, ...args));
 	}
 
 	getCommand(id: string): ICommand | undefined {
@@ -133,7 +133,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 export const NullCommandService: ICommandService = {
 	_serviceBrand: undefined,
 	onWillExecuteCommand: () => ({ dispose: () => { } }),
-	executeCommand<T = any>() {
-		return Promise.resolve<T>(undefined);
+	executeCommand() {
+		return Promise.resolve(undefined);
 	}
 };

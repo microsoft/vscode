@@ -1,0 +1,36 @@
+trigger:
+  branches:
+    include: ['master', 'release/*']
+pr:
+  branches:
+    include: ['master', 'release/*']
+
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
+- script: |
+    set -e
+
+    cat << EOF > ~/.netrc
+    machine github.com
+    login vscode
+    password $(github-distro-mixin-password)
+    EOF
+
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+
+    git remote add distro "https://github.com/$VSCODE_MIXIN_REPO.git"
+    git fetch distro
+    git push distro origin/master:refs/heads/master
+    git merge $(node -p "require('./package.json').distro")
+
+  displayName: Sync & Merge Distro

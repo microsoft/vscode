@@ -5,7 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { Iterator } from 'vs/base/common/iterator';
-import { IListRenderer, AbstractListRenderer } from 'vs/base/browser/ui/list/list';
+import { IListRenderer, IListDragOverReaction, IListDragAndDrop, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
 
 export const enum TreeVisibility {
 
@@ -32,7 +33,7 @@ export const enum TreeVisibility {
 export interface ITreeFilterDataResult<TFilterData> {
 
 	/**
-	 * Whether the node should be visibile.
+	 * Whether the node should be visible.
 	 */
 	visibility: boolean | TreeVisibility;
 
@@ -67,6 +68,10 @@ export interface ITreeFilter<T, TFilterData = void> {
 	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<TFilterData>;
 }
 
+export interface ITreeSorter<T> {
+	compare(element: T, otherElement: T): number;
+}
+
 export interface ITreeElement<T> {
 	readonly element: T;
 	readonly children?: Iterator<ITreeElement<T>> | ITreeElement<T>[];
@@ -79,17 +84,33 @@ export interface ITreeNode<T, TFilterData = void> {
 	readonly parent: ITreeNode<T, TFilterData> | undefined;
 	readonly children: ITreeNode<T, TFilterData>[];
 	readonly depth: number;
+	readonly visibleChildrenCount: number;
+	readonly visibleChildIndex: number;
 	readonly collapsible: boolean;
 	readonly collapsed: boolean;
 	readonly visible: boolean;
 	readonly filterData: TFilterData | undefined;
 }
 
+export interface ICollapseStateChangeEvent<T, TFilterData> {
+	node: ITreeNode<T, TFilterData>;
+	deep: boolean;
+}
+
+export interface ITreeModelSpliceEvent<T, TFilterData> {
+	insertedNodes: ITreeNode<T, TFilterData>[];
+	deletedNodes: ITreeNode<T, TFilterData>[];
+}
+
 export interface ITreeModel<T, TFilterData, TRef> {
-	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
+	readonly rootRef: TRef;
+
+	readonly onDidSplice: Event<ITreeModelSpliceEvent<T, TFilterData>>;
+	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
 	getListIndex(location: TRef): number;
+	getListRenderCount(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;
 	getNodeLocation(node: ITreeNode<T, any>): TRef;
 	getParentNodeLocation(location: TRef): TRef;
@@ -100,9 +121,8 @@ export interface ITreeModel<T, TFilterData, TRef> {
 
 	isCollapsible(location: TRef): boolean;
 	isCollapsed(location: TRef): boolean;
-	setCollapsed(location: TRef, collapsed: boolean): boolean;
-	toggleCollapsed(location: TRef): void;
-	collapseAll(): void;
+	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
+	expandTo(location: TRef): void;
 
 	refilter(): void;
 }
@@ -125,7 +145,7 @@ export interface ITreeMouseEvent<T> {
 export interface ITreeContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | null;
-	anchor: HTMLElement | { x: number; y: number; } | undefined;
+	anchor: HTMLElement | { x: number; y: number; };
 }
 
 export interface ITreeNavigator<T> {
@@ -137,35 +157,32 @@ export interface ITreeNavigator<T> {
 	next(): T | null;
 }
 
-/**
- * Use this renderer when you want to re-render elements on account of
- * an event firing.
- */
-export abstract class AbstractTreeRenderer<T, TFilterData = void, TTemplateData = void>
-	extends AbstractListRenderer<ITreeNode<T, TFilterData>, TTemplateData>
-	implements ITreeRenderer<T, TFilterData, TTemplateData> {
+export interface IDataSource<TInput, T> {
+	getChildren(element: TInput | T): T[];
+}
 
-	private elementsToNodes = new Map<T, ITreeNode<T, TFilterData>>();
+export interface IAsyncDataSource<TInput, T> {
+	hasChildren(element: TInput | T): boolean;
+	getChildren(element: TInput | T): T[] | Promise<T[]>;
+}
 
-	constructor(onDidChange: Event<T | T[] | undefined>) {
-		super(Event.map(onDidChange, e => {
-			if (typeof e === 'undefined') {
-				return undefined;
-			} else if (Array.isArray(e)) {
-				return e.map(e => this.elementsToNodes.get(e) || null).filter(e => e !== null);
-			} else {
-				return this.elementsToNodes.get(e) || null;
-			}
-		}));
-	}
+export const enum TreeDragOverBubble {
+	Down,
+	Up
+}
 
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
-		super.renderElement(node, index, templateData);
-		this.elementsToNodes.set(node.element, node);
-	}
+export interface ITreeDragOverReaction extends IListDragOverReaction {
+	bubble?: TreeDragOverBubble;
+	autoExpand?: boolean;
+}
 
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData): void {
-		this.elementsToNodes.set(node.element, node);
-		super.disposeElement(node, index, templateData);
-	}
+export const TreeDragOverReactions = {
+	acceptBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up }; },
+	acceptBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand }; },
+	acceptCopyBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up, effect: ListDragOverEffect.Copy }; },
+	acceptCopyBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, effect: ListDragOverEffect.Copy, autoExpand }; }
+};
+
+export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
 }

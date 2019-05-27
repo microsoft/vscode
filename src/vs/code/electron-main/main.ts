@@ -7,37 +7,29 @@ import 'vs/code/code.main';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/node/product';
-import * as path from 'path';
-import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
-import { mkdirp, readdir, rimraf } from 'vs/base/node/pfs';
+import product from 'vs/platform/product/node/product';
+import { parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
+import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/common/state';
-import { IBackupMainService } from 'vs/platform/backup/common/backup';
-import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-main/requestService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { URLService } from 'vs/platform/url/common/urlService';
 import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
-import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
-import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
@@ -45,80 +37,25 @@ import { IDiagnosticsService, DiagnosticsService } from 'vs/platform/diagnostics
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
-import { createWaitMarkerFile } from 'vs/code/node/wait';
-
-function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
-	const services = new ServiceCollection();
-
-	const environmentService = new EnvironmentService(args, process.execPath);
-
-	const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService)), bufferLogService]);
-	process.once('exit', () => logService.dispose());
-	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
-
-	services.set(IEnvironmentService, environmentService);
-	services.set(ILogService, logService);
-	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
-	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
-	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
-	services.set(IStateService, new SyncDescriptor(StateService));
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
-	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IURLService, new SyncDescriptor(URLService));
-	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
-	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
-	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
-
-	return new InstantiationService(services, true);
-}
-
-/**
- * Cleans up older logs, while keeping the 10 most recent ones.
-*/
-async function cleanupOlderLogs(environmentService: EnvironmentService): Promise<void> {
-	const currentLog = path.basename(environmentService.logsPath);
-	const logsRoot = path.dirname(environmentService.logsPath);
-	const children = await readdir(logsRoot);
-	const allSessions = children.filter(name => /^\d{8}T\d{6}$/.test(name));
-	const oldSessions = allSessions.sort().filter((d, i) => d !== currentLog);
-	const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
-
-	await Promise.all(toDelete.map(name => rimraf(path.join(logsRoot, name))));
-}
-
-function createPaths(environmentService: IEnvironmentService): Thenable<any> {
-	const paths = [
-		environmentService.extensionsPath,
-		environmentService.nodeCachedDataDir,
-		environmentService.logsPath,
-		environmentService.globalStorageHome,
-		environmentService.workspaceStorageHome
-	];
-
-	return Promise.all(paths.map(path => path && mkdirp(path)));
-}
 
 class ExpectedError extends Error {
-	public readonly isExpected = true;
+	readonly isExpected = true;
 }
 
-function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
+function setupIPC(accessor: ServicesAccessor): Promise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
-	const requestService = accessor.get(IRequestService);
-	const diagnosticsService = accessor.get(IDiagnosticsService);
+	const instantiationService = accessor.get(IInstantiationService);
 
-	function allowSetForegroundWindow(service: LaunchChannelClient): Thenable<void> {
-		let promise: Thenable<void> = Promise.resolve();
+	function allowSetForegroundWindow(service: LaunchChannelClient): Promise<void> {
+		let promise: Promise<void> = Promise.resolve();
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {
 					logService.trace('Sending some foreground love to the running instance:', processId);
 
 					try {
-						const { allowSetForegroundWindow } = <any>require.__$__nodeRequire('windows-foreground-love');
+						const { allowSetForegroundWindow } = require.__$__nodeRequire('windows-foreground-love');
 						allowSetForegroundWindow(processId);
 					} catch (e) {
 						// noop
@@ -129,7 +66,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 		return promise;
 	}
 
-	function setup(retry: boolean): Thenable<Server> {
+	function setup(retry: boolean): Promise<Server> {
 		return serve(environmentService.mainIPCHandle).then(server => {
 
 			// Print --status usage info
@@ -155,7 +92,15 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 
 			return server;
 		}, err => {
+
+			// Handle unexpected errors (the only expected error is EADDRINUSE that
+			// indicates a second instance of Code is running)
 			if (err.code !== 'EADDRINUSE') {
+
+				// Show a dialog for errors that can be resolved by the user
+				handleStartupDataDirError(environmentService, err);
+
+				// Any other runtime error is just printed to the console
 				return Promise.reject<Server>(err);
 			}
 
@@ -169,7 +114,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 				client => {
 
 					// Tests from CLI require to be the only instance currently
-					if (environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break) {
+					if (environmentService.extensionTestsLocationURI && !environmentService.debugExtensionHost.break) {
 						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
 						logService.error(msg);
 						client.dispose();
@@ -180,7 +125,7 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 					// Show a warning dialog after some timeout if it takes long to talk to the other instance
 					// Skip this if we are running with --wait where it is expected that we wait for a while.
 					// Also skip when gathering diagnostics (--status) which can take a longer time.
-					let startupWarningDialogHandle: any;
+					let startupWarningDialogHandle: NodeJS.Timeout;
 					if (!environmentService.wait && !environmentService.status && !environmentService.args['upload-logs']) {
 						startupWarningDialogHandle = setTimeout(() => {
 							showStartupWarningDialog(
@@ -195,21 +140,26 @@ function setupIPC(accessor: ServicesAccessor): Thenable<Server> {
 
 					// Process Info
 					if (environmentService.args.status) {
-						return service.getMainProcessInfo().then(info => {
-							return diagnosticsService.printDiagnostics(info).then(() => Promise.reject(new ExpectedError()));
+						return instantiationService.invokeFunction(accessor => {
+							return accessor.get(IDiagnosticsService).getDiagnostics(service).then(diagnostics => {
+								console.log(diagnostics);
+								return Promise.reject(new ExpectedError());
+							});
 						});
 					}
 
 					// Log uploader
 					if (typeof environmentService.args['upload-logs'] !== 'undefined') {
-						return uploadLogs(service, requestService, environmentService)
-							.then(() => Promise.reject(new ExpectedError()));
+						return instantiationService.invokeFunction(accessor => {
+							return uploadLogs(service, accessor.get(IRequestService), environmentService)
+								.then(() => Promise.reject(new ExpectedError()));
+						});
 					}
 
 					logService.trace('Sending env to running instance...');
 
 					return allowSetForegroundWindow(service)
-						.then(() => service.start(environmentService.args, process.env))
+						.then(() => service.start(environmentService.args, process.env as platform.IProcessEnvironment))
 						.then(() => client.dispose())
 						.then(() => {
 
@@ -263,6 +213,15 @@ function showStartupWarningDialog(message: string, detail: string): void {
 	});
 }
 
+function handleStartupDataDirError(environmentService: IEnvironmentService, error: NodeJS.ErrnoException): void {
+	if (error.code === 'EACCES' || error.code === 'EPERM') {
+		showStartupWarningDialog(
+			localize('startupDataDirError', "Unable to write program user data."),
+			localize('startupDataDirErrorDetail', "Please make sure the directories {0} and {1} are writeable.", environmentService.userDataPath, environmentService.extensionsPath)
+		);
+	}
+}
+
 function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
 	const logService = accessor.get(ILogService);
 	const lifecycleService = accessor.get(ILifecycleService);
@@ -314,20 +273,63 @@ function startup(args: ParsedArgs): void {
 	const instantiationService = createServices(args, bufferLogService);
 	instantiationService.invokeFunction(accessor => {
 		const environmentService = accessor.get(IEnvironmentService);
+		const stateService = accessor.get(IStateService);
 
 		// Patch `process.env` with the instance's environment
 		const instanceEnvironment = patchEnvironment(environmentService);
 
 		// Startup
-		return instantiationService
-			.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
-			.then(() => instantiationService.invokeFunction(setupIPC))
+		return initServices(environmentService, stateService as StateService)
+			.then(() => instantiationService.invokeFunction(setupIPC), error => {
+
+				// Show a dialog for errors that can be resolved by the user
+				handleStartupDataDirError(environmentService, error);
+
+				return Promise.reject(error);
+			})
 			.then(mainIpcServer => {
-				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
+				createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath).then(logger => bufferLogService.logger = logger);
 
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
 			});
 	}).then(null, err => instantiationService.invokeFunction(quit, err));
+}
+
+function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
+	const services = new ServiceCollection();
+
+	const environmentService = new EnvironmentService(args, process.execPath);
+
+	const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService)), bufferLogService]);
+	process.once('exit', () => logService.dispose());
+
+	services.set(IEnvironmentService, environmentService);
+	services.set(ILogService, logService);
+	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
+	services.set(IStateService, new SyncDescriptor(StateService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
+	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
+
+	return new InstantiationService(services, true);
+}
+
+function initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<unknown> {
+
+	// Ensure paths for environment service exist
+	const environmentServiceInitialization = Promise.all<void | undefined>([
+		environmentService.extensionsPath,
+		environmentService.nodeCachedDataDir,
+		environmentService.logsPath,
+		environmentService.globalStorageHome,
+		environmentService.workspaceStorageHome,
+		environmentService.backupHome
+	].map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
+
+	// State service
+	const stateServiceInitialization = stateService.init();
+
+	return Promise.all([environmentServiceInitialization, stateServiceInitialization]);
 }
 
 function main(): void {
@@ -345,7 +347,7 @@ function main(): void {
 		console.error(err.message);
 		app.exit(1);
 
-		return void 0;
+		return undefined;
 	}
 
 	// If we are started with --wait create a random temporary file
@@ -356,20 +358,13 @@ function main(): void {
 	// Note: we are not doing this if the wait marker has been already
 	// added as argument. This can happen if Code was started from CLI.
 	if (args.wait && !args.waitMarkerFilePath) {
-		createWaitMarkerFile(args.verbose).then(waitMarkerFilePath => {
-			if (waitMarkerFilePath) {
-				process.argv.push('--waitMarkerFilePath', waitMarkerFilePath);
-				args.waitMarkerFilePath = waitMarkerFilePath;
-			}
-
-			startup(args);
-		});
+		const waitMarkerFilePath = createWaitMarkerFile(args.verbose);
+		if (waitMarkerFilePath) {
+			addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
+			args.waitMarkerFilePath = waitMarkerFilePath;
+		}
 	}
-
-	// Otherwise just startup normally
-	else {
-		startup(args);
-	}
+	startup(args);
 }
 
 main();

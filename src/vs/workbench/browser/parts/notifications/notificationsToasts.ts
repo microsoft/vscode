@@ -10,11 +10,11 @@ import { addClass, removeClass, isAncestor, addDisposableListener, EventType, Di
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { Event } from 'vs/base/common/event';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Themable, NOTIFICATIONS_TOAST_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
@@ -61,13 +61,13 @@ export class NotificationsToasts extends Themable {
 	constructor(
 		private container: HTMLElement,
 		private model: INotificationsModel,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IWindowService private windowService: IWindowService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IWindowService private readonly windowService: IWindowService
 	) {
 		super(themeService);
 
@@ -78,6 +78,9 @@ export class NotificationsToasts extends Themable {
 	}
 
 	private registerListeners(): void {
+
+		// Layout
+		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
 
 		// Delay some tasks until after we can show notifications
 		this.onCanShowNotifications().then(() => {
@@ -90,18 +93,17 @@ export class NotificationsToasts extends Themable {
 		});
 	}
 
-	private onCanShowNotifications(): Thenable<void> {
+	private async onCanShowNotifications(): Promise<void> {
 
 		// Wait for the running phase to ensure we can draw notifications properly
-		return this.lifecycleService.when(LifecyclePhase.Ready).then(() => {
+		await this.lifecycleService.when(LifecyclePhase.Ready);
 
-			// Push notificiations out until either workbench is restored
-			// or some time has ellapsed to reduce pressure on the startup
-			return Promise.race([
-				this.lifecycleService.when(LifecyclePhase.Restored),
-				timeout(2000)
-			]);
-		});
+		// Push notificiations out until either workbench is restored
+		// or some time has ellapsed to reduce pressure on the startup
+		return Promise.race([
+			this.lifecycleService.when(LifecyclePhase.Restored),
+			timeout(2000)
+		]);
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -188,6 +190,10 @@ export class NotificationsToasts extends Themable {
 
 		// Update when item height potentially changes due to label changes
 		itemDisposeables.push(item.onDidLabelChange(e => {
+			if (!item.expanded) {
+				return; // dynamic height only applies to expanded notifications
+			}
+
 			if (e.kind === NotificationViewItemLabelKind.ACTIONS || e.kind === NotificationViewItemLabelKind.MESSAGE) {
 				notificationList.updateNotificationsList(0, 1, [item]);
 			}
@@ -456,7 +462,7 @@ export class NotificationsToasts extends Themable {
 		let maxWidth = NotificationsToasts.MAX_WIDTH;
 
 		let availableWidth = maxWidth;
-		let availableHeight: number;
+		let availableHeight: number | undefined;
 
 		if (this.workbenchDimensions) {
 
@@ -466,18 +472,20 @@ export class NotificationsToasts extends Themable {
 
 			// Make sure notifications are not exceeding available height
 			availableHeight = this.workbenchDimensions.height;
-			if (this.partService.isVisible(Parts.STATUSBAR_PART)) {
+			if (this.layoutService.isVisible(Parts.STATUSBAR_PART)) {
 				availableHeight -= 22; // adjust for status bar
 			}
 
-			if (this.partService.isVisible(Parts.TITLEBAR_PART)) {
+			if (this.layoutService.isVisible(Parts.TITLEBAR_PART)) {
 				availableHeight -= 22; // adjust for title bar
 			}
 
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 		}
 
-		availableHeight = Math.round(availableHeight * 0.618); // try to not cover the full height for stacked toasts
+		availableHeight = typeof availableHeight === 'number'
+			? Math.round(availableHeight * 0.618) // try to not cover the full height for stacked toasts
+			: 0;
 
 		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight);
 	}

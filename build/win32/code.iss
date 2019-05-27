@@ -1,7 +1,7 @@
 #define LocalizedLanguageFile(Language = "") \
     DirExists(RepoDir + "\licenses") && Language != "" \
-      ? ('; LicenseFile: "' + RepoDir + '\licenses\LICENSE-' + Language + '.txt"') \
-      : '; LicenseFile: "' + RepoDir + '\LICENSE.txt"'
+      ? ('; LicenseFile: "' + RepoDir + '\licenses\LICENSE-' + Language + '.rtf"') \
+      : '; LicenseFile: "' + RepoDir + '\LICENSE.rtf"'
 
 [Setup]
 AppId={#AppId}

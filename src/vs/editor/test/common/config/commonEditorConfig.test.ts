@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { AccessibilitySupport } from 'vs/base/common/platform';
 import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 suite('Common Editor Config', () => {
 	test('Zoom Level', () => {

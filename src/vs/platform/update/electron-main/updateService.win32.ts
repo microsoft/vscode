@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
-import product from 'vs/platform/node/product';
+import product from 'vs/platform/product/node/product';
 import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -53,15 +53,15 @@ export class Win32UpdateService extends AbstractUpdateService {
 	private availableUpdate: IAvailableUpdate | undefined;
 
 	@memoize
-	get cachePath(): Thenable<string> {
+	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-update-${product.target}-${process.arch}`);
-		return pfs.mkdirp(result, void 0).then(() => result);
+		return pfs.mkdirp(result, undefined).then(() => result);
 	}
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
@@ -143,7 +143,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 							return this.requestService.request({ url }, CancellationToken.None)
 								.then(context => download(downloadPath, context))
-								.then(hash ? () => checksum(downloadPath, update.hash) : () => void 0)
+								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
 								.then(() => pfs.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);
 						});
@@ -164,7 +164,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 					});
 				});
 			})
-			.then(void 0, err => {
+			.then(undefined, err => {
 				this.logService.error(err);
 				/* __GDPR__
 					"update:notAvailable" : {
@@ -192,7 +192,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	}
 
 	private async cleanup(exceptVersion: string | null = null): Promise<any> {
-		const filter = exceptVersion ? one => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
+		const filter = exceptVersion ? (one: string) => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
 		const cachePath = await this.cachePath;
 		const versions = await pfs.readdir(cachePath);
@@ -210,11 +210,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	protected async doApplyUpdate(): Promise<void> {
 		if (this.state.type !== StateType.Downloaded && this.state.type !== StateType.Downloading) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		if (!this.availableUpdate) {
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		const update = this.state.update;

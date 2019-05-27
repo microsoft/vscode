@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IComposite, ICompositeControl } from 'vs/workbench/common/composite';
@@ -32,25 +32,34 @@ export abstract class Composite extends Component implements IComposite {
 	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleAreaUpdate(): Event<void> { return this._onTitleAreaUpdate.event; }
 
+	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
+
 	private _onDidFocus: Emitter<void>;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
-			this._registerFocusTrackEvents();
+			this.registerFocusTrackEvents();
 		}
 
 		return this._onDidFocus.event;
 	}
 
+	protected fireOnDidFocus(): void {
+		if (this._onDidFocus) {
+			this._onDidFocus.fire();
+		}
+	}
+
 	private _onDidBlur: Emitter<void>;
 	get onDidBlur(): Event<void> {
 		if (!this._onDidBlur) {
-			this._registerFocusTrackEvents();
+			this.registerFocusTrackEvents();
 		}
 
 		return this._onDidBlur.event;
 	}
 
-	private _registerFocusTrackEvents(): void {
+	private registerFocusTrackEvents(): void {
 		this._onDidFocus = this._register(new Emitter<void>());
 		this._onDidBlur = this._register(new Emitter<void>());
 
@@ -64,9 +73,6 @@ export abstract class Composite extends Component implements IComposite {
 	private visible: boolean;
 	private parent: HTMLElement;
 
-	/**
-	 * Create a new composite with the given ID and context.
-	 */
 	constructor(
 		id: string,
 		private _telemetryService: ITelemetryService,
@@ -122,7 +128,11 @@ export abstract class Composite extends Component implements IComposite {
 	 * If there is a long running opertaion it is fine to have it running in the background asyncly and return before.
 	 */
 	setVisible(visible: boolean): void {
-		this.visible = visible;
+		if (this.visible !== !!visible) {
+			this.visible = visible;
+
+			this._onDidChangeVisibility.fire(visible);
+		}
 	}
 
 	/**
@@ -160,12 +170,19 @@ export abstract class Composite extends Component implements IComposite {
 	}
 
 	/**
-	 * For any of the actions returned by this composite, provide an IActionItem in
+	 * For any of the actions returned by this composite, provide an IActionViewItem in
 	 * cases where the implementor of the composite wants to override the presentation
-	 * of an action. Returns null to indicate that the action is not rendered through
+	 * of an action. Returns undefined to indicate that the action is not rendered through
 	 * an action item.
 	 */
-	getActionItem(action: IAction): IActionItem | null {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
+		return undefined;
+	}
+
+	/**
+	 * Provide a context to be passed to the toolbar.
+	 */
+	getActionsContext(): unknown {
 		return null;
 	}
 
@@ -199,10 +216,10 @@ export abstract class Composite extends Component implements IComposite {
 	}
 
 	/**
-	 * Returns the underlying composite control or null if it is not accessible.
+	 * Returns the underlying composite control or `undefined` if it is not accessible.
 	 */
-	getControl(): ICompositeControl | null {
-		return null;
+	getControl(): ICompositeControl | undefined {
+		return undefined;
 	}
 }
 
@@ -211,15 +228,13 @@ export abstract class Composite extends Component implements IComposite {
  */
 export abstract class CompositeDescriptor<T extends Composite> {
 
-	public enabled: boolean = true;
-
 	constructor(
 		private readonly ctor: IConstructorSignature0<T>,
-		public readonly id: string,
-		public readonly name: string,
-		public readonly cssClass?: string,
-		public readonly order?: number,
-		public readonly keybindingId?: string,
+		readonly id: string,
+		readonly name: string,
+		readonly cssClass?: string,
+		readonly order?: number,
+		readonly keybindingId?: string,
 	) { }
 
 	instantiate(instantiationService: IInstantiationService): T {
@@ -232,6 +247,9 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = this._register(new Emitter<CompositeDescriptor<T>>());
 	get onDidRegister(): Event<CompositeDescriptor<T>> { return this._onDidRegister.event; }
 
+	private readonly _onDidDeregister: Emitter<CompositeDescriptor<T>> = this._register(new Emitter<CompositeDescriptor<T>>());
+	get onDidDeregister(): Event<CompositeDescriptor<T>> { return this._onDidDeregister.event; }
+
 	private composites: CompositeDescriptor<T>[] = [];
 
 	protected registerComposite(descriptor: CompositeDescriptor<T>): void {
@@ -243,6 +261,16 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 		this._onDidRegister.fire(descriptor);
 	}
 
+	protected deregisterComposite(id: string): void {
+		const descriptor = this.compositeById(id);
+		if (!descriptor) {
+			return;
+		}
+
+		this.composites.splice(this.composites.indexOf(descriptor), 1);
+		this._onDidDeregister.fire(descriptor);
+	}
+
 	getComposite(id: string): CompositeDescriptor<T> | null {
 		return this.compositeById(id);
 	}
@@ -252,9 +280,9 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	}
 
 	private compositeById(id: string): CompositeDescriptor<T> | null {
-		for (let i = 0; i < this.composites.length; i++) {
-			if (this.composites[i].id === id) {
-				return this.composites[i];
+		for (const composite of this.composites) {
+			if (composite.id === id) {
+				return composite;
 			}
 		}
 

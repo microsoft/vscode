@@ -21,7 +21,7 @@ declare namespace monaco {
 	export class Emitter<T> {
 		constructor();
 		readonly event: Event<T>;
-		fire(event?: T): void;
+		fire(event: T): void;
 		dispose(): void;
 	}
 

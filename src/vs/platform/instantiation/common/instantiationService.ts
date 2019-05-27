@@ -4,14 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { illegalState } from 'vs/base/common/errors';
-import { create } from 'vs/base/common/types';
 import { Graph } from 'vs/platform/instantiation/common/graph';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, optional } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IdleValue } from 'vs/base/common/async';
 
 // TRACING
 const _enableTracing = false;
+
+// PROXY
+// Ghetto-declare of the global Proxy object. This isn't the proper way
+// but allows us to run this code in the browser without IE11.
+declare var Proxy: any;
+const _canUseProxy = typeof Proxy === 'function';
 
 export class InstantiationService implements IInstantiationService {
 
@@ -33,7 +39,7 @@ export class InstantiationService implements IInstantiationService {
 		return new InstantiationService(services, this._strict, this);
 	}
 
-	invokeFunction<R, TS extends any[]=[]>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R {
+	invokeFunction<R, TS extends any[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R {
 		let _trace = Trace.traceInvocation(fn);
 		let _done = false;
 		try {
@@ -101,7 +107,7 @@ export class InstantiationService implements IInstantiationService {
 		}
 
 		// now create the instance
-		return <T>create.apply(null, [ctor].concat(args, serviceArgs));
+		return <T>new ctor(...[...args, ...serviceArgs]);
 	}
 
 	private _setServiceInstance<T>(id: ServiceIdentifier<T>, instance: T): void {
@@ -205,8 +211,26 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
-	protected _createServiceInstance<T>(ctor: any, args: any[] = [], _supportsDelayedInstantiation: boolean, _trace: Trace): T {
-		return this._createInstance(ctor, args, _trace);
+	private _createServiceInstance<T>(ctor: any, args: any[] = [], _supportsDelayedInstantiation: boolean, _trace: Trace): T {
+		if (!_supportsDelayedInstantiation || !_canUseProxy) {
+			// eager instantiation or no support JS proxies (e.g. IE11)
+			return this._createInstance(ctor, args, _trace);
+
+		} else {
+			// Return a proxy object that's backed by an idle value. That
+			// strategy is to instantiate services in our idle time or when actually
+			// needed but not when injected into a consumer
+			const idle = new IdleValue(() => this._createInstance<T>(ctor, args, _trace));
+			return <T>new Proxy(Object.create(null), {
+				get(_target: T, prop: PropertyKey): any {
+					return idle.getValue()[prop];
+				},
+				set(_target: T, p: PropertyKey, value: any): boolean {
+					idle.getValue()[p] = value;
+					return true;
+				}
+			});
+		}
 	}
 }
 

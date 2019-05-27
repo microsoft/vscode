@@ -12,25 +12,26 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ITextFileService, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as network from 'vs/base/common/network';
-import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-class ResourceModelCollection extends ReferenceCollection<Thenable<ITextEditorModel>> {
+class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
 	private providers: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
 	private modelsToDispose = new Set<string>();
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 	}
 
-	createReferencedObject(key: string, skipActivateProvider?: boolean): Thenable<ITextEditorModel> {
+	async createReferencedObject(key: string, skipActivateProvider?: boolean): Promise<ITextEditorModel> {
 		this.modelsToDispose.delete(key);
 
 		const resource = URI.parse(key);
@@ -42,18 +43,22 @@ class ResourceModelCollection extends ReferenceCollection<Thenable<ITextEditorMo
 
 		// Virtual documents
 		if (this.providers[resource.scheme]) {
-			return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
+			await this.resolveTextModelContent(key);
+
+			return this.instantiationService.createInstance(ResourceEditorModel, resource);
 		}
 
 		// Either unknown schema, or not yet registered, try to activate
 		if (!skipActivateProvider) {
-			return this.fileService.activateProvider(resource.scheme).then(() => this.createReferencedObject(key, true));
+			await this.fileService.activateProvider(resource.scheme);
+
+			return this.createReferencedObject(key, true);
 		}
 
-		return Promise.reject(new Error('resource is not available'));
+		throw new Error('resource is not available');
 	}
 
-	destroyReferencedObject(key: string, modelPromise: Thenable<ITextEditorModel>): void {
+	destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
 		this.modelsToDispose.add(key);
 
 		modelPromise.then(model => {
@@ -96,18 +101,21 @@ class ResourceModelCollection extends ReferenceCollection<Thenable<ITextEditorMo
 		});
 	}
 
-	private resolveTextModelContent(key: string): Thenable<ITextModel> {
+	hasTextModelContentProvider(scheme: string): boolean {
+		return this.providers[scheme] !== undefined;
+	}
+
+	private async resolveTextModelContent(key: string): Promise<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
 		const factories = providers.map(p => () => Promise.resolve(p.provideTextContent(resource)));
 
-		return first(factories).then(model => {
-			if (!model) {
-				return Promise.reject(new Error('resource is not available'));
-			}
+		const model = await first(factories);
+		if (!model) {
+			throw new Error('resource is not available');
+		}
 
-			return model;
-		});
+		return model;
 	}
 }
 
@@ -118,22 +126,24 @@ export class TextModelResolverService implements ITextModelService {
 	private resourceModelCollection: ResourceModelCollection;
 
 	constructor(
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService
+		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
 
-	createModelReference(resource: URI): Thenable<IReference<ITextEditorModel>> {
-		return this._createModelReference(resource);
+	createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+		return this.doCreateModelReference(resource);
 	}
 
-	private _createModelReference(resource: URI): Thenable<IReference<ITextEditorModel>> {
+	private async doCreateModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 
 		// Untitled Schema: go through cached input
 		if (resource.scheme === network.Schemas.untitled) {
-			return this.untitledEditorService.loadOrCreate({ resource }).then(model => new ImmortalReference(model));
+			const model = await this.untitledEditorService.loadOrCreate({ resource });
+
+			return new ImmortalReference(model as IResolvedTextEditorModel);
 		}
 
 		// InMemory Schema: go through model service cache
@@ -141,25 +151,32 @@ export class TextModelResolverService implements ITextModelService {
 			const cachedModel = this.modelService.getModel(resource);
 
 			if (!cachedModel) {
-				return Promise.reject(new Error('Cant resolve inmemory resource'));
+				throw new Error('Cant resolve inmemory resource');
 			}
 
-			return Promise.resolve(new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource)));
+			return new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource) as IResolvedTextEditorModel);
 		}
 
 		const ref = this.resourceModelCollection.acquire(resource.toString());
 
-		return ref.object.then(
-			model => ({ object: model, dispose: () => ref.dispose() }),
-			err => {
-				ref.dispose();
+		try {
+			const model = await ref.object;
 
-				return Promise.reject(err);
-			}
-		);
+			return { object: model as IResolvedTextEditorModel, dispose: () => ref.dispose() };
+		} catch (error) {
+			ref.dispose();
+
+			throw error;
+		}
 	}
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
 		return this.resourceModelCollection.registerTextModelContentProvider(scheme, provider);
 	}
+
+	hasTextModelContentProvider(scheme: string): boolean {
+		return this.resourceModelCollection.hasTextModelContentProvider(scheme);
+	}
 }
+
+registerSingleton(ITextModelService, TextModelResolverService, true);

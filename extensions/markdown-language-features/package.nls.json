@@ -13,7 +13,6 @@
 	"markdown.preview.scrollPreviewWithEditorSelection.desc": "[Deprecated] Scrolls the markdown preview to reveal the currently selected line from the editor.",
 	"markdown.preview.scrollPreviewWithEditorSelection.deprecationMessage": "This setting has been replaced by 'markdown.preview.scrollPreviewWithEditor' and no longer has any effect.",
 	"markdown.preview.title": "Open Preview",
-	"markdown.previewFrontMatter.dec": "Sets how YAML front matter should be rendered in the markdown preview. 'hide' removes the front matter. Otherwise, the front matter is treated as markdown content.",
 	"markdown.previewSide.title": "Open Preview to the Side",
 	"markdown.showLockedPreviewToSide.title": "Open Locked Preview to the Side",
 	"markdown.showSource.title": "Show Source",

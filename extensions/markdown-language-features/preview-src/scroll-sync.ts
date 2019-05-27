@@ -24,13 +24,13 @@ const getCodeLineElements = (() => {
 	let elements: CodeLineElement[];
 	return () => {
 		if (!elements) {
-			elements = ([{ element: document.body, line: 0 }]).concat(Array.prototype.map.call(
-				document.getElementsByClassName('code-line'),
-				(element: any) => {
-					const line = +element.getAttribute('data-line');
-					return { element, line };
-				})
-				.filter((x: any) => !isNaN(x.line)));
+			elements = [{ element: document.body, line: 0 }];
+			for (const element of document.getElementsByClassName('code-line')) {
+				const line = +element.getAttribute('data-line')!;
+				if (!isNaN(line)) {
+					elements.push({ element: element as HTMLElement, line });
+				}
+			}
 		}
 		return elements;
 	};
@@ -110,7 +110,8 @@ export function scrollToRevealSourceLine(line: number) {
 		const elementOffset = next.element.getBoundingClientRect().top - previousTop;
 		scrollTo = previousTop + betweenProgress * elementOffset;
 	} else {
-		scrollTo = previousTop;
+		const progressInElement = line - Math.floor(line);
+		scrollTo = previousTop + (rect.height * progressInElement);
 	}
 	window.scroll(window.scrollX, Math.max(1, window.scrollY + scrollTo));
 }

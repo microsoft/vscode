@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from 'vs/base/common/platform';
+import { illegalArgument } from 'vs/base/common/errors';
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -395,7 +396,7 @@ const enum BinaryKeybindingsMask {
 	Shift = (1 << 10) >>> 0,
 	Alt = (1 << 9) >>> 0,
 	WinCtrl = (1 << 8) >>> 0,
-	KeyCode = 0x000000ff
+	KeyCode = 0x000000FF
 }
 
 export const enum KeyMod {
@@ -406,7 +407,7 @@ export const enum KeyMod {
 }
 
 export function KeyChord(firstPart: number, secondPart: number): number {
-	let chordPart = ((secondPart & 0x0000ffff) << 16) >>> 0;
+	const chordPart = ((secondPart & 0x0000FFFF) << 16) >>> 0;
 	return (firstPart | chordPart) >>> 0;
 }
 
@@ -414,15 +415,15 @@ export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybi
 	if (keybinding === 0) {
 		return null;
 	}
-	const firstPart = (keybinding & 0x0000ffff) >>> 0;
-	const chordPart = (keybinding & 0xffff0000) >>> 16;
+	const firstPart = (keybinding & 0x0000FFFF) >>> 0;
+	const chordPart = (keybinding & 0xFFFF0000) >>> 16;
 	if (chordPart !== 0) {
-		return new ChordKeybinding(
+		return new ChordKeybinding([
 			createSimpleKeybinding(firstPart, OS),
-			createSimpleKeybinding(chordPart, OS),
-		);
+			createSimpleKeybinding(chordPart, OS)
+		]);
 	}
-	return createSimpleKeybinding(firstPart, OS);
+	return new ChordKeybinding([createSimpleKeybinding(firstPart, OS)]);
 }
 
 export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem): SimpleKeybinding {
@@ -439,14 +440,7 @@ export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem):
 	return new SimpleKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
 }
 
-export const enum KeybindingType {
-	Simple = 1,
-	Chord = 2
-}
-
 export class SimpleKeybinding {
-	public readonly type = KeybindingType.Simple;
-
 	public readonly ctrlKey: boolean;
 	public readonly shiftKey: boolean;
 	public readonly altKey: boolean;
@@ -461,10 +455,7 @@ export class SimpleKeybinding {
 		this.keyCode = keyCode;
 	}
 
-	public equals(other: Keybinding): boolean {
-		if (other.type !== KeybindingType.Simple) {
-			return false;
-		}
+	public equals(other: SimpleKeybinding): boolean {
 		return (
 			this.ctrlKey === other.ctrlKey
 			&& this.shiftKey === other.shiftKey
@@ -475,10 +466,10 @@ export class SimpleKeybinding {
 	}
 
 	public getHashCode(): string {
-		let ctrl = this.ctrlKey ? '1' : '0';
-		let shift = this.shiftKey ? '1' : '0';
-		let alt = this.altKey ? '1' : '0';
-		let meta = this.metaKey ? '1' : '0';
+		const ctrl = this.ctrlKey ? '1' : '0';
+		const shift = this.shiftKey ? '1' : '0';
+		const alt = this.altKey ? '1' : '0';
+		const meta = this.metaKey ? '1' : '0';
 		return `${ctrl}${shift}${alt}${meta}${this.keyCode}`;
 	}
 
@@ -490,6 +481,10 @@ export class SimpleKeybinding {
 			|| this.keyCode === KeyCode.Alt
 			|| this.keyCode === KeyCode.Shift
 		);
+	}
+
+	public toChord(): ChordKeybinding {
+		return new ChordKeybinding([this]);
 	}
 
 	/**
@@ -506,22 +501,43 @@ export class SimpleKeybinding {
 }
 
 export class ChordKeybinding {
-	public readonly type = KeybindingType.Chord;
+	public readonly parts: SimpleKeybinding[];
 
-	public readonly firstPart: SimpleKeybinding;
-	public readonly chordPart: SimpleKeybinding;
-
-	constructor(firstPart: SimpleKeybinding, chordPart: SimpleKeybinding) {
-		this.firstPart = firstPart;
-		this.chordPart = chordPart;
+	constructor(parts: SimpleKeybinding[]) {
+		if (parts.length === 0) {
+			throw illegalArgument(`parts`);
+		}
+		this.parts = parts;
 	}
 
 	public getHashCode(): string {
-		return `${this.firstPart.getHashCode()};${this.chordPart.getHashCode()}`;
+		let result = '';
+		for (let i = 0, len = this.parts.length; i < len; i++) {
+			if (i !== 0) {
+				result += ';';
+			}
+			result += this.parts[i].getHashCode();
+		}
+		return result;
+	}
+
+	public equals(other: ChordKeybinding | null): boolean {
+		if (other === null) {
+			return false;
+		}
+		if (this.parts.length !== other.parts.length) {
+			return false;
+		}
+		for (let i = 0; i < this.parts.length; i++) {
+			if (!this.parts[i].equals(other.parts[i])) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
 
-export type Keybinding = SimpleKeybinding | ChordKeybinding;
+export type Keybinding = ChordKeybinding;
 
 export class ResolvedKeybindingPart {
 	readonly ctrlKey: boolean;
@@ -574,12 +590,13 @@ export abstract class ResolvedKeybinding {
 	public abstract isChord(): boolean;
 
 	/**
-	 * Returns the firstPart, chordPart that should be used for dispatching.
+	 * Returns the parts that comprise of the keybinding.
+	 * Simple keybindings return one element.
 	 */
-	public abstract getDispatchParts(): [string | null, string | null];
+	public abstract getParts(): ResolvedKeybindingPart[];
+
 	/**
-	 * Returns the firstPart, chordPart of the keybinding.
-	 * For simple keybindings, the second element will be null.
+	 * Returns the parts that should be used for dispatching.
 	 */
-	public abstract getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart | null];
+	public abstract getDispatchParts(): (string | null)[];
 }

@@ -49,7 +49,7 @@ export function isStringArray(value: any): value is string[] {
  * @returns whether the provided parameter is of type `object` but **not**
  *	`null`, an `array`, a `regexp`, nor a `date`.
  */
-export function isObject(obj: any): boolean {
+export function isObject(obj: any): obj is Object {
 	// The method can't do a type cast since there are type (like strings) which
 	// are subclasses of any put not positvely matched by the function. Hence type
 	// narrowing results in wrong results.
@@ -93,7 +93,6 @@ export function isUndefinedOrNull(obj: any): obj is undefined | null {
 	return isUndefined(obj) || obj === null;
 }
 
-
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
@@ -124,12 +123,12 @@ export function isFunction(obj: any): obj is Function {
  * @returns whether the provided parameters is are JavaScript Function or not.
  */
 export function areFunctions(...objects: any[]): boolean {
-	return objects && objects.length > 0 && objects.every(isFunction);
+	return objects.length > 0 && objects.every(isFunction);
 }
 
 export type TypeConstraint = string | Function;
 
-export function validateConstraints(args: any[], constraints: (TypeConstraint | undefined)[]): void {
+export function validateConstraints(args: any[], constraints: Array<TypeConstraint | undefined>): void {
 	const len = Math.min(args.length, constraints.length);
 	for (let i = 0; i < len; i++) {
 		validateConstraint(args[i], constraints[i]);
@@ -143,8 +142,12 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 			throw new Error(`argument does not match constraint: typeof ${constraint}`);
 		}
 	} else if (isFunction(constraint)) {
-		if (arg instanceof constraint) {
-			return;
+		try {
+			if (arg instanceof constraint) {
+				return;
+			}
+		} catch{
+			// ignore
 		}
 		if (!isUndefinedOrNull(arg) && arg.constructor === constraint) {
 			return;
@@ -156,13 +159,26 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 	}
 }
 
-/**
- * Creates a new object of the provided class and will call the constructor with
- * any additional argument supplied.
- */
-export function create(ctor: Function, ...args: any[]): any {
-	let obj = Object.create(ctor.prototype);
-	ctor.apply(obj, args);
+export function getAllPropertyNames(obj: object): string[] {
+	let res: string[] = [];
+	let proto = Object.getPrototypeOf(obj);
+	while (Object.prototype !== proto) {
+		res = res.concat(Object.getOwnPropertyNames(proto));
+		proto = Object.getPrototypeOf(proto);
+	}
+	return res;
+}
 
-	return obj;
+/**
+ * Converts null to undefined, passes all other values through.
+ */
+export function withNullAsUndefined<T>(x: T | null): T | undefined {
+	return x === null ? undefined : x;
+}
+
+/**
+ * Converts undefined to null, passes all other values through.
+ */
+export function withUndefinedAsNull<T>(x: T | undefined): T | null {
+	return typeof x === 'undefined' ? null : x;
 }

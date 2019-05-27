@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./gotoErrorWidget';
+import 'vs/css!./media/gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
-import { registerColor, oneOf } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { registerColor, oneOf, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { AccessibilitySupport } from 'vs/base/common/platform';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -23,8 +21,14 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
+import { PeekViewWidget } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
+import { basename } from 'vs/base/common/resources';
+import { IAction } from 'vs/base/common/actions';
+import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
-class MessageWidget {
+class MessageWidget extends Disposable {
 
 	private _lines: number = 0;
 	private _longestLineLength: number = 0;
@@ -34,9 +38,9 @@ class MessageWidget {
 	private readonly _relatedBlock: HTMLDivElement;
 	private readonly _scrollable: ScrollableElement;
 	private readonly _relatedDiagnostics = new WeakMap<HTMLElement, IRelatedInformation>();
-	private readonly _disposables: IDisposable[] = [];
 
-	constructor(parent: HTMLElement, editor: ICodeEditor, onRelatedInformation: (related: IRelatedInformation) => void, ) {
+	constructor(parent: HTMLElement, editor: ICodeEditor, onRelatedInformation: (related: IRelatedInformation) => void) {
+		super();
 		this._editor = editor;
 
 		const domNode = document.createElement('div');
@@ -50,7 +54,7 @@ class MessageWidget {
 
 		this._relatedBlock = document.createElement('div');
 		domNode.appendChild(this._relatedBlock);
-		this._disposables.push(dom.addStandardDisposableListener(this._relatedBlock, 'click', event => {
+		this._register(dom.addStandardDisposableListener(this._relatedBlock, 'click', event => {
 			event.preventDefault();
 			const related = this._relatedDiagnostics.get(event.target);
 			if (related) {
@@ -65,44 +69,64 @@ class MessageWidget {
 			horizontalScrollbarSize: 3,
 			verticalScrollbarSize: 3
 		});
-		dom.addClass(this._scrollable.getDomNode(), 'block');
 		parent.appendChild(this._scrollable.getDomNode());
-		this._disposables.push(this._scrollable.onScroll(e => {
+		this._register(this._scrollable.onScroll(e => {
 			domNode.style.left = `-${e.scrollLeft}px`;
 			domNode.style.top = `-${e.scrollTop}px`;
 		}));
-		this._disposables.push(this._scrollable);
-	}
-
-	dispose(): void {
-		dispose(this._disposables);
+		this._register(this._scrollable);
 	}
 
 	update({ source, message, relatedInformation, code }: IMarker): void {
 
-		if (source) {
-			const lines = message.split(/\r\n|\r|\n/g);
-			this._lines = lines.length;
-			this._longestLineLength = 0;
-			for (const line of lines) {
-				this._longestLineLength = Math.max(line.length, this._longestLineLength);
+		const lines = message.split(/\r\n|\r|\n/g);
+		this._lines = lines.length;
+		this._longestLineLength = 0;
+		for (const line of lines) {
+			this._longestLineLength = Math.max(line.length, this._longestLineLength);
+		}
+
+		dom.clearNode(this._messageBlock);
+		this._editor.applyFontInfo(this._messageBlock);
+		let lastLineElement = this._messageBlock;
+		for (const line of lines) {
+			lastLineElement = document.createElement('div');
+			lastLineElement.innerText = line;
+			if (line === '') {
+				lastLineElement.style.height = this._messageBlock.style.lineHeight;
 			}
-		} else {
-			this._lines = 1;
-			this._longestLineLength = message.length;
+			this._messageBlock.appendChild(lastLineElement);
+		}
+		if (source || code) {
+			const detailsElement = document.createElement('span');
+			dom.addClass(detailsElement, 'details');
+			lastLineElement.appendChild(detailsElement);
+			if (source) {
+				const sourceElement = document.createElement('span');
+				sourceElement.innerText = source;
+				dom.addClass(sourceElement, 'source');
+				detailsElement.appendChild(sourceElement);
+			}
+			if (code) {
+				const codeElement = document.createElement('span');
+				codeElement.innerText = `(${code})`;
+				dom.addClass(codeElement, 'code');
+				detailsElement.appendChild(codeElement);
+			}
 		}
 
 		dom.clearNode(this._relatedBlock);
-
+		this._editor.applyFontInfo(this._relatedBlock);
 		if (isNonEmptyArray(relatedInformation)) {
-			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * .66)}px`;
+			const relatedInformationNode = this._relatedBlock.appendChild(document.createElement('div'));
+			relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * 0.66)}px`;
 			this._lines += 1;
 
 			for (const related of relatedInformation) {
 
 				let container = document.createElement('div');
 
-				let relatedResource = document.createElement('span');
+				let relatedResource = document.createElement('a');
 				dom.addClass(relatedResource, 'filename');
 				relatedResource.innerHTML = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
 				relatedResource.title = getPathLabel(related.resource, undefined);
@@ -110,34 +134,13 @@ class MessageWidget {
 
 				let relatedMessage = document.createElement('span');
 				relatedMessage.innerText = related.message;
-				this._editor.applyFontInfo(relatedMessage);
 
 				container.appendChild(relatedResource);
 				container.appendChild(relatedMessage);
 
 				this._lines += 1;
-				this._relatedBlock.appendChild(container);
+				relatedInformationNode.appendChild(container);
 			}
-		}
-
-		dom.clearNode(this._messageBlock);
-		if (source) {
-			const sourceElement = document.createElement('div');
-			sourceElement.innerText = `[${source}] `;
-			dom.addClass(sourceElement, 'source');
-			this._editor.applyFontInfo(sourceElement);
-			this._messageBlock.appendChild(sourceElement);
-		}
-		const messageElement = document.createElement('div');
-		messageElement.innerText = message;
-		this._editor.applyFontInfo(messageElement);
-		this._messageBlock.appendChild(messageElement);
-		if (code) {
-			const codeElement = document.createElement('div');
-			codeElement.innerText = ` [${code}]`;
-			dom.addClass(codeElement, 'code');
-			this._editor.applyFontInfo(codeElement);
-			this._messageBlock.appendChild(codeElement);
 		}
 
 		const fontInfo = this._editor.getConfiguration().fontInfo;
@@ -148,6 +151,7 @@ class MessageWidget {
 
 	layout(height: number, width: number): void {
 		this._scrollable.getDomNode().style.height = `${height}px`;
+		this._scrollable.getDomNode().style.width = `${width}px`;
 		this._scrollable.setScrollDimensions({ width, height });
 	}
 
@@ -156,22 +160,23 @@ class MessageWidget {
 	}
 }
 
-export class MarkerNavigationWidget extends ZoneWidget {
+export class MarkerNavigationWidget extends PeekViewWidget {
 
 	private _parentContainer: HTMLElement;
 	private _container: HTMLElement;
-	private _title: HTMLElement;
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
-	private _backgroundColor: Color | null;
+	private _backgroundColor?: Color;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
+	private _heightInPixel: number;
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
 
 	constructor(
 		editor: ICodeEditor,
-		private _themeService: IThemeService
+		private readonly actions: IAction[],
+		private readonly _themeService: IThemeService
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this._severity = MarkerSeverity.Warning;
@@ -194,7 +199,10 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		const frameColor = theme.getColor(colorId);
 		this.style({
 			arrowColor: frameColor,
-			frameColor: frameColor
+			frameColor: frameColor,
+			headerBackgroundColor: this._backgroundColor,
+			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
+			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		}); // style() will trigger _applyStyles
 	}
 
@@ -214,7 +222,18 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		this._parentContainer.focus();
 	}
 
-	protected _fillContainer(container: HTMLElement): void {
+	protected _fillHead(container: HTMLElement): void {
+		super._fillHead(container);
+		this._actionbarWidget.push(this.actions, { label: false, icon: true });
+	}
+
+	protected _getActionBarOptions(): IActionBarOptions {
+		return {
+			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+		};
+	}
+
+	protected _fillBody(container: HTMLElement): void {
 		this._parentContainer = container;
 		dom.addClass(container, 'marker-widget');
 		this._parentContainer.tabIndex = 0;
@@ -222,10 +241,6 @@ export class MarkerNavigationWidget extends ZoneWidget {
 
 		this._container = document.createElement('div');
 		container.appendChild(this._container);
-
-		this._title = document.createElement('div');
-		this._title.className = 'block title';
-		this._container.appendChild(this._title);
 
 		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related));
 		this._disposables.push(this._message);
@@ -240,7 +255,6 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		// * title
 		// * message
 		this._container.classList.remove('stale');
-		this._title.innerHTML = nls.localize('title.wo_source', "({0}/{1})", markerIdx, markerCount);
 		this._message.update(marker);
 
 		// update frame color (only applied on 'show')
@@ -252,6 +266,21 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		const editorPosition = this.editor.getPosition();
 		let position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
 		super.show(position, this.computeRequiredHeight());
+
+		const model = this.editor.getModel();
+		if (model) {
+			const detail = markerCount > 1
+				? nls.localize('problems', "{0} of {1} problems", markerIdx, markerCount)
+				: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
+			this.setTitle(basename(model.uri), detail);
+		}
+		let headingIconClassName = 'error';
+		if (this._severity === MarkerSeverity.Warning) {
+			headingIconClassName = 'warning';
+		} else if (this._severity === MarkerSeverity.Info) {
+			headingIconClassName = 'info';
+		}
+		this.setTitleIcon(headingIconClassName);
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
 
@@ -270,9 +299,15 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		this._relayout();
 	}
 
-	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
+		super._doLayoutBody(heightInPixel, widthInPixel);
+		this._heightInPixel = heightInPixel;
 		this._message.layout(heightInPixel, widthInPixel);
 		this._container.style.height = `${heightInPixel}px`;
+	}
+
+	public _onWidth(widthInPixel: number): void {
+		this._message.layout(this._heightInPixel, widthInPixel);
 	}
 
 	protected _relayout(): void {
@@ -280,7 +315,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	}
 
 	private computeRequiredHeight() {
-		return 1 + this._message.getHeightInLines();
+		return 3 + this._message.getHeightInLines();
 	}
 }
 
@@ -294,3 +329,10 @@ export const editorMarkerNavigationError = registerColor('editorMarkerNavigation
 export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: warningDefault, light: warningDefault, hc: warningDefault }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
 export const editorMarkerNavigationInfo = registerColor('editorMarkerNavigationInfo.background', { dark: infoDefault, light: infoDefault, hc: infoDefault }, nls.localize('editorMarkerNavigationInfo', 'Editor marker navigation widget info color.'));
 export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));
+
+registerThemingParticipant((theme, collector) => {
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.monaco-editor .marker-widget a { color: ${link}; }`);
+	}
+});

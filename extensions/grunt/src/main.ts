@@ -59,6 +59,12 @@ function getOutputChannel(): vscode.OutputChannel {
 	return _channel;
 }
 
+function showError() {
+	vscode.window.showWarningMessage(localize('gulpTaskDetectError', 'Problem finding jake tasks. See the output for more information.'),
+		localize('jakeShowOutput', 'Go to output')).then(() => {
+			getOutputChannel().show(true);
+		});
+}
 interface GruntTaskDefinition extends vscode.TaskDefinition {
 	task: string;
 	file?: string;
@@ -120,7 +126,7 @@ class FolderDetector {
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr) {
 				getOutputChannel().appendLine(stderr);
-				getOutputChannel().show(true);
+				showError();
 			}
 			let result: vscode.Task[] = [];
 			if (stdout) {
@@ -186,7 +192,7 @@ class FolderDetector {
 				channel.appendLine(err.stdout);
 			}
 			channel.appendLine(localize('execFailed', 'Auto detecting Grunt for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
-			channel.show(true);
+			showError();
 			return emptyTasks;
 		}
 	}

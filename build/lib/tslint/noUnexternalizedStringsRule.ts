@@ -148,8 +148,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 			if (isStringLiteral(keyArg)) {
 				this.recordKey(keyArg, this.messageIndex && callInfo ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
 			} else if (isObjectLiteral(keyArg)) {
-				for (let i = 0; i < keyArg.properties.length; i++) {
-					const property = keyArg.properties[i];
+				for (const property of keyArg.properties) {
 					if (isPropertyAssignment(property)) {
 						const name = property.name.getText();
 						if (name === 'key') {
