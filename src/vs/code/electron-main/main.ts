@@ -32,11 +32,12 @@ import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { IDiagnosticsService, DiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -292,12 +293,7 @@ async function startup(args: ParsedArgs): Promise<void> {
 			}
 
 			const mainIpcServer = await instantiationService.invokeFunction(setupIPC);
-
-			(async () => {
-				const logger = await createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
-				bufferLogService.logger = logger;
-			})();
-
+			bufferLogService.logger = new SpdLogService('main', environmentService.logsPath, bufferLogService.getLevel());
 			return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
 		});
 	} catch (error) {
@@ -320,6 +316,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
+	services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 
 	return new InstantiationService(services, true);
 }

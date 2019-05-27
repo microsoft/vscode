@@ -144,36 +144,6 @@ registerSingleton(IBackupFileService, SimpleBackupFileService, true);
 
 //#endregion
 
-//#region Broadcast
-
-export const IBroadcastService = createDecorator<IBroadcastService>('broadcastService');
-
-export interface IBroadcast {
-	channel: string;
-	payload: any;
-}
-
-export interface IBroadcastService {
-	_serviceBrand: any;
-
-	onBroadcast: Event<IBroadcast>;
-
-	broadcast(b: IBroadcast): void;
-}
-
-export class SimpleBroadcastService implements IBroadcastService {
-
-	_serviceBrand: any;
-
-	readonly onBroadcast: Event<IBroadcast> = Event.None;
-
-	broadcast(b: IBroadcast): void { }
-}
-
-registerSingleton(IBroadcastService, SimpleBroadcastService, true);
-
-//#endregion
-
 //#region Clipboard
 
 export class SimpleClipboardService implements IClipboardService {
