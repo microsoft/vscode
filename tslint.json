@@ -153,7 +153,6 @@
 				"restrictions": [
 					"vs/nls",
 					"**/vs/base/common/**",
-					"vsda",
 					"**/vs/base/parts/*/common/**",
 					"**/vs/platform/*/common/**"
 				]
