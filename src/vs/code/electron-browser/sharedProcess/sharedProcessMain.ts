@@ -30,7 +30,6 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { ipcRenderer } from 'electron';
-import { createBufferSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
@@ -48,6 +47,7 @@ import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contr
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -94,7 +94,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 	const mainRouter = new StaticRouter(ctx => ctx === 'main');
 	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', mainRouter));
-	const logService = new FollowerLogService(logLevelClient, createBufferSpdLogService('sharedprocess', initData.logLevel, environmentService.logsPath));
+	const logService = new FollowerLogService(logLevelClient, new SpdLogService('sharedprocess', environmentService.logsPath, initData.logLevel));
 	disposables.push(logService);
 
 	logService.info('main', JSON.stringify(configuration));
@@ -122,7 +122,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
 		const { appRoot, extensionsPath, extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
-		const telemetryLogService = new FollowerLogService(logLevelClient, createBufferSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
+		const telemetryLogService = new FollowerLogService(logLevelClient, new SpdLogService('telemetry', environmentService.logsPath, initData.logLevel));
 		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
 		telemetryLogService.info('===========================================================');
 
