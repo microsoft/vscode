@@ -40,7 +40,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { URI } from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/node/workspacesIpc';
@@ -63,7 +63,6 @@ import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { storeBackgroundColor } from 'vs/code/electron-main/theme';
 import { homedir } from 'os';
 import { join, sep, dirname } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
@@ -250,18 +249,6 @@ export class CodeApplication extends Disposable {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (event: Event, windowId: number, broadcast: { channel: string; payload: object; }) => {
-			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
-				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
-
-				// Handle specific events on main side
-				this.onBroadcast(broadcast.channel, broadcast.payload);
-
-				// Send to all windows (except sender window)
-				this.windowsMainService.sendToAll('vscode:broadcast', broadcast, [windowId]);
-			}
-		});
-
 		ipc.on('vscode:extensionHostDebug', (_: Event, windowId: number, broadcast: any) => {
 			if (this.windowsMainService) {
 				// Send to all windows (except sender window)
@@ -299,14 +286,6 @@ export class CodeApplication extends Disposable {
 		this.logService.error(`[uncaught exception in main]: ${err}`);
 		if (err.stack) {
 			this.logService.error(err.stack);
-		}
-	}
-
-	private onBroadcast(event: string, payload: object): void {
-
-		// Theme changes
-		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
-			storeBackgroundColor(this.stateService, JSON.parse(payload));
 		}
 	}
 

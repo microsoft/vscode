@@ -37,6 +37,7 @@ import { IDiagnosticsService, DiagnosticsService } from 'vs/platform/diagnostics
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -320,6 +321,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
+	services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 
 	return new InstantiationService(services, true);
 }
