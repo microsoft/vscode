@@ -18,7 +18,7 @@ steps:
   inputs:
     azureSubscriptionEndpoint: 'vscode-builds-subscription'
     azureContainerRegistry: vscodehub.azurecr.io
-    command: 'Pull the image'
+    command: 'Run an image'
     imageName: 'vscode-linux-build-agent:armhf'
     containerCommand: uname
 
