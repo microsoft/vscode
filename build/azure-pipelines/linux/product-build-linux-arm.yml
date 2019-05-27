@@ -9,5 +9,11 @@ steps:
 
 - script: |
     set -e
+
+    cat << EOF > ~/.netrc
+    machine monacotools.visualstudio.com
+    password $(devops-pat)
+    EOF
+
     ./build/azure-pipelines/linux/arm/build-arm.sh
   displayName: 'Build ARM'
