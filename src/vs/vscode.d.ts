@@ -6044,7 +6044,7 @@ declare module 'vscode' {
 		/**
 		 * The [authority](#Uri.authority)-component. When `undefined`, extensions are
 		 * executed in the same context (e.g. operating system or machine) in which the UI
-		 * of the editor is executed. If defined, extensions are running on a different
+		 * of the editor is executed. If defined, extensions are running in a different
 		 * context, for instance a remote machine.
 		 *
 		 * *Note* that no assumptions about the actual value should be made as it is defined
