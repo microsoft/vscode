@@ -69,17 +69,56 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			experimentalUseConpty: useConpty
 		};
 
-		let envPathVariable: string | undefined = process.env.PATH;
-
 		fs.stat(shellLaunchConfig.executable!, (err) => {
-			if (err && err.code === 'ENOENT' && envPathVariable!.search(shellLaunchConfig.executable!) === -1) {
-				this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
-				this._queueProcessExit();
-				this._processStartupComplete = Promise.resolve(undefined);
-				return;
+			if (err && err.code === 'ENOENT') {
+				this.checkIfExistsInPath(shellLaunchConfig.executable!, (existsInPath: boolean) => {
+					if (!existsInPath) {
+						this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
+						this._queueProcessExit();
+						this._processStartupComplete = Promise.resolve(undefined);
+						return;
+					} else {
+						this.setupPtyProcess(shellLaunchConfig, options);
+					}
+				});
+			} else {
+				this.setupPtyProcess(shellLaunchConfig, options);
 			}
-			this.setupPtyProcess(shellLaunchConfig, options);
 		});
+	}
+
+	private checkInsideDirRecursively(filePath: string, executable: string, callback: any): void {
+		fs.readdir(filePath, (err, files) => {
+			if (!err && files) {
+				files.forEach(file => {
+					fs.stat(path.join(filePath, file), (err, fileStat) => {
+						if (!err && fileStat) {
+							if (fileStat.isFile()) {
+								if (executable === file) {
+									callback();
+									return;
+								}
+							}
+							else {
+								this.checkInsideDirRecursively(path.join(filePath, file), executable, callback);
+							}
+						}
+					});
+				});
+			}
+		});
+	}
+
+	private checkIfExistsInPath(executable: string, callback: any): void {
+		if (process.env.PATH && !path.isAbsolute(executable)) {
+			process.env.PATH.split(path.delimiter).forEach(eachPath => {
+				this.checkInsideDirRecursively(eachPath, executable, () => {
+					//comes inside this only if the path is found
+					callback(true);
+					return;
+				});
+			});
+		}
 	}
 
 	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {
