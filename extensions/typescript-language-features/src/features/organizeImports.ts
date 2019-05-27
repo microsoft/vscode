@@ -46,7 +46,7 @@ class OrganizeImportsCommand implements Command {
 				}
 			}
 		};
-		const response = await this.client.execute('organizeImports', args, nulToken);
+		const response = await this.client.interruptGetErr(() => this.client.execute('organizeImports', args, nulToken));
 		if (response.type !== 'response' || !response.body) {
 			return false;
 		}
@@ -57,6 +57,8 @@ class OrganizeImportsCommand implements Command {
 }
 
 export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvider {
+	public static readonly minVersion = API.v280;
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		commandManager: CommandManager,
@@ -77,7 +79,7 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): vscode.CodeAction[] {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];
 		}
@@ -89,7 +91,7 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 		this.fileConfigManager.ensureConfigurationForDocument(document, token);
 
 		const action = new vscode.CodeAction(
-			localize('oraganizeImportsAction.title', "Organize Imports"),
+			localize('organizeImportsAction.title', "Organize Imports"),
 			vscode.CodeActionKind.SourceOrganizeImports);
 		action.command = { title: '', command: OrganizeImportsCommand.Id, arguments: [file] };
 		return [action];
@@ -103,7 +105,7 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	telemetryReporter: TelemetryReporter,
 ) {
-	return new VersionDependentRegistration(client, API.v280, () => {
+	return new VersionDependentRegistration(client, OrganizeImportsCodeActionProvider.minVersion, () => {
 		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager, telemetryReporter);
 		return vscode.languages.registerCodeActionsProvider(selector,
 			organizeImportsProvider,

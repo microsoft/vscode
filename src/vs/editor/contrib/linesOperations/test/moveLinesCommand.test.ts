@@ -330,7 +330,7 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 
 	test('move line should still work as before if there is no indentation rules', () => {
 		testMoveLinesUpWithIndentCommand(
-			null,
+			null!,
 			[
 				'if (true) {',
 				'    var task = new Task(() => {',

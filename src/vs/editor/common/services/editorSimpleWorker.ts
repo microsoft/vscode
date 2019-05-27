@@ -22,6 +22,7 @@ import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkCo
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
+import { getAllPropertyNames } from 'vs/base/common/types';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -322,7 +323,7 @@ declare var require: any;
  * @internal
  */
 export abstract class BaseEditorSimpleWorker {
-	private _foreignModuleFactory: IForeignModuleFactory | null;
+	private readonly _foreignModuleFactory: IForeignModuleFactory | null;
 	private _foreignModule: any;
 
 	constructor(foreignModuleFactory: IForeignModuleFactory | null) {
@@ -398,7 +399,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN minimal edits ---------------------------------------------------------------
 
-	private static readonly _diffLimit = 10000;
+	private static readonly _diffLimit = 100000;
 
 	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): Promise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
@@ -431,7 +432,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 
 			const original = model.getValueInRange(range);
-			text = text!.replace(/\r\n|\n|\r/g, model.eol);
+			text = text.replace(/\r\n|\n|\r/g, model.eol);
 
 			if (original === text) {
 				// noop
@@ -490,12 +491,15 @@ export abstract class BaseEditorSimpleWorker {
 			return Promise.resolve(null);
 		}
 
+		const seen: Record<string, boolean> = Object.create(null);
 		const suggestions: CompletionItem[] = [];
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-		const currentWord = model.getWordUntilPosition(position, wordDefRegExp);
+		const wordUntil = model.getWordUntilPosition(position, wordDefRegExp);
 
-		const seen: Record<string, boolean> = Object.create(null);
-		seen[currentWord.word] = true;
+		const wordAt = model.getWordAtPosition(position, wordDefRegExp);
+		if (wordAt) {
+			seen[model.getValueInRange(wordAt)] = true;
+		}
 
 		for (
 			let iter = model.createWordIterator(wordDefRegExp), e = iter.next();
@@ -515,10 +519,9 @@ export abstract class BaseEditorSimpleWorker {
 				kind: CompletionItemKind.Text,
 				label: word,
 				insertText: word,
-				range: { startLineNumber: position.lineNumber, startColumn: currentWord.startColumn, endLineNumber: position.lineNumber, endColumn: currentWord.endColumn }
+				range: { startLineNumber: position.lineNumber, startColumn: wordUntil.startColumn, endLineNumber: position.lineNumber, endColumn: wordUntil.endColumn }
 			});
 		}
-
 		return Promise.resolve({ suggestions });
 	}
 
@@ -599,7 +602,7 @@ export abstract class BaseEditorSimpleWorker {
 			this._foreignModule = this._foreignModuleFactory(ctx, createData);
 			// static foreing module
 			let methods: string[] = [];
-			for (let prop in this._foreignModule) {
+			for (const prop of getAllPropertyNames(this._foreignModule)) {
 				if (typeof this._foreignModule[prop] === 'function') {
 					methods.push(prop);
 				}
@@ -612,7 +615,7 @@ export abstract class BaseEditorSimpleWorker {
 				this._foreignModule = foreignModule.create(ctx, createData);
 
 				let methods: string[] = [];
-				for (let prop in this._foreignModule) {
+				for (const prop of getAllPropertyNames(this._foreignModule)) {
 					if (typeof this._foreignModule[prop] === 'function') {
 						methods.push(prop);
 					}

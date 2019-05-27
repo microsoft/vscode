@@ -6,8 +6,8 @@
 
 var updateGrammar = require('../../../build/npm/update-grammar');
 
-updateGrammar.update('atom/language-c', 'grammars/c.cson', './syntaxes/c.tmLanguage.json');
-updateGrammar.update('atom/language-c', 'grammars/c%2B%2B.cson', './syntaxes/cpp.tmLanguage.json');
+updateGrammar.update('jeff-hykin/cpp-textmate-grammar', '/syntaxes/c.tmLanguage.json', './syntaxes/c.tmLanguage.json');
+updateGrammar.update('jeff-hykin/cpp-textmate-grammar', '/syntaxes/cpp.tmLanguage.json', './syntaxes/cpp.tmLanguage.json');
 
 // `source.c.platform` which is still included by other grammars
 updateGrammar.update('textmate/c.tmbundle', 'Syntaxes/Platform.tmLanguage', './syntaxes/platform.tmLanguage.json');

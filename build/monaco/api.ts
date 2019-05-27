@@ -6,7 +6,8 @@
 import * as fs from 'fs';
 import * as ts from 'typescript';
 import * as path from 'path';
-import * as util from 'gulp-util';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
 
 const dtsv = '2';
 
@@ -17,7 +18,7 @@ export const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 
 function logErr(message: any, ...rest: any[]): void {
-	util.log(util.colors.yellow(`[monaco.d.ts]`), message, ...rest);
+	fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 
 type SourceFileGetter = (moduleId: string) => ts.SourceFile | null;
@@ -547,14 +548,24 @@ export class FSProvider {
 	public existsSync(filePath: string): boolean {
 		return fs.existsSync(filePath);
 	}
+	public statSync(filePath: string): fs.Stats {
+		return fs.statSync(filePath);
+	}
 	public readFileSync(_moduleId: string, filePath: string): Buffer {
 		return fs.readFileSync(filePath);
 	}
 }
 
+class CacheEntry {
+	constructor(
+		public readonly sourceFile: ts.SourceFile,
+		public readonly mtime: number
+	) {}
+}
+
 export class DeclarationResolver {
 
-	private _sourceFileCache: { [moduleId: string]: ts.SourceFile | null; };
+	private _sourceFileCache: { [moduleId: string]: CacheEntry | null; };
 
 	constructor(private readonly _fsProvider: FSProvider) {
 		this._sourceFileCache = Object.create(null);
@@ -565,24 +576,40 @@ export class DeclarationResolver {
 	}
 
 	public getDeclarationSourceFile(moduleId: string): ts.SourceFile | null {
+		if (this._sourceFileCache[moduleId]) {
+			// Since we cannot trust file watching to invalidate the cache, check also the mtime
+			const fileName = this._getFileName(moduleId);
+			const mtime = this._fsProvider.statSync(fileName).mtime.getTime();
+			if (this._sourceFileCache[moduleId]!.mtime !== mtime) {
+				this._sourceFileCache[moduleId] = null;
+			}
+		}
 		if (!this._sourceFileCache[moduleId]) {
 			this._sourceFileCache[moduleId] = this._getDeclarationSourceFile(moduleId);
 		}
-		return this._sourceFileCache[moduleId];
+		return this._sourceFileCache[moduleId] ? this._sourceFileCache[moduleId]!.sourceFile : null;
 	}
 
-	private _getDeclarationSourceFile(moduleId: string): ts.SourceFile | null {
+	private _getFileName(moduleId: string): string {
 		if (/\.d\.ts$/.test(moduleId)) {
-			const fileName = path.join(SRC, moduleId);
-			if (!this._fsProvider.existsSync(fileName)) {
-				return null;
-			}
-			const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
-			return ts.createSourceFile(fileName, fileContents, ts.ScriptTarget.ES5);
+			return path.join(SRC, moduleId);
 		}
-		const fileName = path.join(SRC, `${moduleId}.ts`);
+		return path.join(SRC, `${moduleId}.ts`);
+	}
+
+	private _getDeclarationSourceFile(moduleId: string): CacheEntry | null {
+		const fileName = this._getFileName(moduleId);
 		if (!this._fsProvider.existsSync(fileName)) {
 			return null;
+		}
+		const mtime = this._fsProvider.statSync(fileName).mtime.getTime();
+		if (/\.d\.ts$/.test(moduleId)) {
+			// const mtime = this._fsProvider.statFileSync()
+			const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
+			return new CacheEntry(
+				ts.createSourceFile(fileName, fileContents, ts.ScriptTarget.ES5),
+				mtime
+			);
 		}
 		const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
 		const fileMap: IFileMap = {
@@ -590,7 +617,10 @@ export class DeclarationResolver {
 		};
 		const service = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, fileMap, {}));
 		const text = service.getEmitOutput('file.ts', true).outputFiles[0].text;
-		return ts.createSourceFile(fileName, text, ts.ScriptTarget.ES5);
+		return new CacheEntry(
+			ts.createSourceFile(fileName, text, ts.ScriptTarget.ES5),
+			mtime
+		);
 	}
 }
 

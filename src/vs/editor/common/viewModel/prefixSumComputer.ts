@@ -32,7 +32,7 @@ export class PrefixSumComputer {
 	/**
 	 * prefixSum[i], 0 <= i <= prefixSumValidIndex can be trusted
 	 */
-	private prefixSumValidIndex: Int32Array;
+	private readonly prefixSumValidIndex: Int32Array;
 
 	constructor(values: Uint32Array) {
 		this.values = values;

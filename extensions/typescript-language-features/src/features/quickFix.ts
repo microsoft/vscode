@@ -8,14 +8,15 @@ import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { nulToken } from '../utils/cancellation';
 import { applyCodeActionCommands, getEditForCodeAction } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import { memoize } from '../utils/memoize';
 import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
-import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -127,8 +128,8 @@ class DiagnosticsSet {
 }
 
 class CodeActionSet {
-	private _actions = new Set<vscode.CodeAction>();
-	private _fixAllActions = new Map<{}, vscode.CodeAction>();
+	private readonly _actions = new Set<vscode.CodeAction>();
+	private readonly _fixAllActions = new Map<{}, vscode.CodeAction>();
 
 	public get values(): Iterable<vscode.CodeAction> {
 		return this._actions;
@@ -141,7 +142,7 @@ class CodeActionSet {
 	public addFixAllAction(fixId: {}, action: vscode.CodeAction) {
 		const existing = this._fixAllActions.get(fixId);
 		if (existing) {
-			// reinsert action at back
+			// reinsert action at back of actions list
 			this._actions.delete(existing);
 		}
 		this.addAction(action);
@@ -154,29 +155,26 @@ class CodeActionSet {
 }
 
 class SupportedCodeActionProvider {
-	private _supportedCodeActions?: Thenable<Set<number>>;
-
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	public async getFixableDiagnosticsForContext(context: vscode.CodeActionContext): Promise<DiagnosticsSet> {
-		const supportedActions = await this.supportedCodeActions;
-		return DiagnosticsSet.from(context.diagnostics.filter(diagnostic => supportedActions.has(+(diagnostic.code!))));
+		const fixableCodes = await this.fixableDiagnosticCodes;
+		return DiagnosticsSet.from(
+			context.diagnostics.filter(diagnostic => typeof diagnostic.code !== 'undefined' && fixableCodes.has(diagnostic.code + '')));
 	}
 
-	private get supportedCodeActions(): Thenable<Set<number>> {
-		if (!this._supportedCodeActions) {
-			this._supportedCodeActions = this.client.execute('getSupportedCodeFixes', null, nulToken)
-				.then(response => response.type === 'response' ? response.body || [] : [])
-				.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
-				.then(codes => new Set(codes));
-		}
-		return this._supportedCodeActions;
+	@memoize
+	private get fixableDiagnosticCodes(): Thenable<Set<string>> {
+		return this.client.execute('getSupportedCodeFixes', null, nulToken)
+			.then(response => response.type === 'response' ? response.body || [] : [])
+			.then(codes => new Set(codes));
 	}
 }
 
 class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
+	public static readonly minVersion = API.v213;
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
 		providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
@@ -203,7 +201,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[]> {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];
 		}
@@ -219,33 +217,33 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 
 		await this.formattingConfigurationManager.ensureConfigurationForDocument(document, token);
 
-		const results: vscode.CodeAction[] = [];
+		const results = new CodeActionSet();
 		for (const diagnostic of fixableDiagnostics.values) {
-			results.push(...await this.getFixesForDiagnostic(document, file, diagnostic, token));
+			await this.getFixesForDiagnostic(document, file, diagnostic, results, token);
 		}
-		return results;
+		return Array.from(results.values);
 	}
 
 	private async getFixesForDiagnostic(
 		document: vscode.TextDocument,
 		file: string,
 		diagnostic: vscode.Diagnostic,
-		token: vscode.CancellationToken
-	): Promise<Iterable<vscode.CodeAction>> {
+		results: CodeActionSet,
+		token: vscode.CancellationToken,
+	): Promise<CodeActionSet> {
 		const args: Proto.CodeFixRequestArgs = {
 			...typeConverters.Range.toFileRangeRequestArgs(file, diagnostic.range),
 			errorCodes: [+(diagnostic.code!)]
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);
 		if (response.type !== 'response' || !response.body) {
-			return [];
+			return results;
 		}
 
-		const results = new CodeActionSet();
 		for (const tsCodeFix of response.body) {
-			this.addAllFixesForTsCodeAction(results, document, file, diagnostic, tsCodeFix);
+			this.addAllFixesForTsCodeAction(results, document, file, diagnostic, tsCodeFix as Proto.CodeFixAction);
 		}
-		return results.values;
+		return results;
 	}
 
 	private addAllFixesForTsCodeAction(
@@ -253,7 +251,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		document: vscode.TextDocument,
 		file: string,
 		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeAction
+		tsAction: Proto.CodeFixAction
 	): CodeActionSet {
 		results.addAction(this.getSingleFixForTsCodeAction(diagnostic, tsAction));
 		this.addFixAllForTsCodeAction(results, document, file, diagnostic, tsAction as Proto.CodeFixAction);
@@ -262,7 +260,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 
 	private getSingleFixForTsCodeAction(
 		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeAction
+		tsAction: Proto.CodeFixAction
 	): vscode.CodeAction {
 		const codeAction = new vscode.CodeAction(tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);
@@ -272,6 +270,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			arguments: [tsAction],
 			title: ''
 		};
+		codeAction.isPreferred = isPreferredFix(tsAction);
 		return codeAction;
 	}
 
@@ -282,7 +281,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction,
 	): CodeActionSet {
-		if (!tsAction.fixId || this.client.apiVersion.lt(API.v270) || results.hasFixAllAction(results)) {
+		if (!tsAction.fixId || this.client.apiVersion.lt(API.v270) || results.hasFixAllAction(tsAction.fixId)) {
 			return results;
 		}
 
@@ -305,6 +304,21 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 	}
 }
 
+const preferredFixes = new Set([
+	'annotateWithTypeFromJSDoc',
+	'constructorForDerivedNeedSuperCall',
+	'extendsInterfaceBecomesImplements',
+	'fixAwaitInSyncFunction',
+	'fixClassIncorrectlyImplementsInterface',
+	'fixUnreachableCode',
+	'forgottenThisPropertyAccess',
+	'spelling',
+	'unusedIdentifier',
+]);
+function isPreferredFix(tsAction: Proto.CodeFixAction): boolean {
+	return preferredFixes.has(tsAction.fixName);
+}
+
 export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
@@ -313,7 +327,7 @@ export function register(
 	diagnosticsManager: DiagnosticsManager,
 	telemetryReporter: TelemetryReporter
 ) {
-	return new VersionDependentRegistration(client, API.v213, () =>
+	return new VersionDependentRegistration(client, TypeScriptQuickFixProvider.minVersion, () =>
 		vscode.languages.registerCodeActionsProvider(selector,
 			new TypeScriptQuickFixProvider(client, fileConfigurationManager, commandManager, diagnosticsManager, telemetryReporter),
 			TypeScriptQuickFixProvider.metadata));

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import pkg from 'vs/platform/node/package';
+import pkg from 'vs/platform/product/node/package';
 
 export interface IParsedVersion {
 	hasCaret: boolean;

@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ISashEvent, IVerticalSashLayoutProvider, Sash } from 'vs/base/browser/ui/sash/sash';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
@@ -21,7 +21,7 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
 import { Location } from 'vs/editor/common/modes';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement } from 'vs/editor/contrib/referenceSearch/referencesTree';
+import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement, StringRepresentationProvider, IdentityProvider } from 'vs/editor/contrib/referenceSearch/referencesTree';
 import * as nls from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -29,8 +29,14 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PeekViewWidget } from './peekViewWidget';
+import { PeekViewWidget, IPeekViewService } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
+import { ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { FuzzyScore } from 'vs/base/common/filters';
+import { SplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
+
 
 class DecorationsManager implements IDisposable {
 
@@ -69,6 +75,9 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _addDecorations(reference: FileReferences): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
 
 		const newDecorations: IModelDeltaDecoration[] = [];
@@ -95,8 +104,13 @@ class DecorationsManager implements IDisposable {
 	private _onDecorationChanged(): void {
 		const toRemove: string[] = [];
 
+		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+
 		this._decorations.forEach((reference, decorationId) => {
-			const newRange = this._editor.getModel().getDecorationRange(decorationId);
+			const newRange = model.getDecorationRange(decorationId);
 
 			if (!newRange) {
 				return;
@@ -143,81 +157,31 @@ class DecorationsManager implements IDisposable {
 	}
 }
 
-class VSash {
-
-	private _disposables: IDisposable[] = [];
-	private _sash: Sash;
-	private _ratio: number;
-	private _height: number;
-	private _width: number;
-	private _onDidChangePercentages = new Emitter<VSash>();
-
-	constructor(container: HTMLElement, ratio: number) {
-		this._ratio = ratio;
-		this._sash = new Sash(container, <IVerticalSashLayoutProvider>{
-			getVerticalSashLeft: () => this._width * this._ratio,
-			getVerticalSashHeight: () => this._height
-		});
-
-		// compute the current widget clientX postion since
-		// the sash works with clientX when dragging
-		let clientX: number;
-		this._disposables.push(this._sash.onDidStart((e: ISashEvent) => {
-			clientX = e.startX - (this._width * this.ratio);
-		}));
-
-		this._disposables.push(this._sash.onDidChange((e: ISashEvent) => {
-			// compute the new position of the sash and from that
-			// compute the new ratio that we are using
-			let newLeft = e.currentX - clientX;
-			if (newLeft > 20 && newLeft + 20 < this._width) {
-				this._ratio = newLeft / this._width;
-				this._sash.layout();
-				this._onDidChangePercentages.fire(this);
-			}
-		}));
-	}
-
-	dispose() {
-		this._sash.dispose();
-		this._onDidChangePercentages.dispose();
-		dispose(this._disposables);
-	}
-
-	get onDidChangePercentages() {
-		return this._onDidChangePercentages.event;
-	}
-
-	set width(value: number) {
-		this._width = value;
-		this._sash.layout();
-	}
-
-	set height(value: number) {
-		this._height = value;
-		this._sash.layout();
-	}
-
-	get percentages() {
-		let left = 100 * this._ratio;
-		let right = 100 - left;
-		return [`${left}%`, `${right}%`];
-	}
-
-	get ratio() {
-		return this._ratio;
-	}
-}
-
-export interface LayoutData {
+export class LayoutData {
 	ratio: number;
 	heightInLines: number;
+
+	static fromJSON(raw: string): LayoutData {
+		let ratio: number | undefined;
+		let heightInLines: number | undefined;
+		try {
+			const data = <LayoutData>JSON.parse(raw);
+			ratio = data.ratio;
+			heightInLines = data.heightInLines;
+		} catch {
+			//
+		}
+		return {
+			ratio: ratio || 0.7,
+			heightInLines: heightInLines || 18
+		};
+	}
 }
 
 export interface SelectionEvent {
 	kind: 'goto' | 'show' | 'side' | 'open';
 	source: 'editor' | 'tree' | 'title';
-	element: Location;
+	element?: Location;
 }
 
 export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('referenceSearchTreeFocused', true);
@@ -227,22 +191,23 @@ export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('r
  */
 export class ReferenceWidget extends PeekViewWidget {
 
-	private _model: ReferencesModel;
+	private _model: ReferencesModel | undefined;
 	private _decorationsManager: DecorationsManager;
 
 	private _disposeOnNewModel: IDisposable[] = [];
 	private _callOnDispose: IDisposable[] = [];
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
-	private _treeDataSource: DataSource;
-	private _tree: WorkbenchAsyncDataTree<TreeElement>;
+	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
 	private _treeContainer: HTMLElement;
-	private _sash: VSash;
+	// private _sash: VSash;
+	private _splitView: SplitView;
 	private _preview: ICodeEditor;
 	private _previewModelReference: IReference<ITextEditorModel>;
 	private _previewNotAvailableMessage: TextModel;
 	private _previewContainer: HTMLElement;
 	private _messageContainer: HTMLElement;
+	private _dim: dom.Dimension = { height: 0, width: 0 };
 
 	constructor(
 		editor: ICodeEditor,
@@ -251,13 +216,23 @@ export class ReferenceWidget extends PeekViewWidget {
 		@IThemeService themeService: IThemeService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IPeekViewService private readonly _peekViewService: IPeekViewService,
 		@ILabelService private readonly _uriLabel: ILabelService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
 		this._applyTheme(themeService.getTheme());
 		this._callOnDispose.push(themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._peekViewService.addExclusiveWidget(editor, this);
 		this.create();
+	}
+
+	dispose(): void {
+		this.setModel(undefined);
+		this._callOnDispose = dispose(this._callOnDispose);
+		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._previewModelReference);
+		this._splitView.dispose();
+		super.dispose();
 	}
 
 	private _applyTheme(theme: ITheme) {
@@ -269,13 +244,6 @@ export class ReferenceWidget extends PeekViewWidget {
 			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
 			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		});
-	}
-
-	public dispose(): void {
-		this.setModel(null);
-		this._callOnDispose = dispose(this._callOnDispose);
-		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash, this._previewModelReference);
-		super.dispose();
 	}
 
 	get onDidSelectReference(): Event<SelectionEvent> {
@@ -308,6 +276,8 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._messageContainer = dom.append(containerElement, dom.$('div.messages'));
 		dom.hide(this._messageContainer);
 
+		this._splitView = new SplitView(containerElement, { orientation: Orientation.HORIZONTAL });
+
 		// editor
 		this._previewContainer = dom.append(containerElement, dom.$('div.preview.inline'));
 		let options: IEditorOptions = {
@@ -329,41 +299,56 @@ export class ReferenceWidget extends PeekViewWidget {
 		dom.hide(this._previewContainer);
 		this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
 
-		// sash
-		this._sash = new VSash(containerElement, this.layoutData.ratio || .8);
-		this._sash.onDidChangePercentages(() => {
-			let [left, right] = this._sash.percentages;
-			this._previewContainer.style.width = left;
-			this._treeContainer.style.width = right;
-			this._preview.layout();
-			this._tree.layout();
-			this.layoutData.ratio = this._sash.ratio;
-		});
-
 		// tree
 		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));
-
-		const renderer = [
-			this._instantiationService.createInstance(FileReferencesRenderer),
-			this._instantiationService.createInstance(OneReferenceRenderer),
-		];
-
-		const treeOptions = {
+		const treeOptions: IAsyncDataTreeOptions<TreeElement, FuzzyScore> = {
 			ariaLabel: nls.localize('treeAriaLabel', "References"),
 			keyboardSupport: this._defaultTreeKeyboardSupport,
-			accessibilityProvider: new AriaProvider()
+			accessibilityProvider: new AriaProvider(),
+			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
+			identityProvider: new IdentityProvider()
 		};
-
-		this._treeDataSource = this._instantiationService.createInstance(DataSource);
-
-		this._tree = this._instantiationService.createInstance(
-			WorkbenchAsyncDataTree, this._treeContainer, new Delegate(),
-			renderer as any,
-			this._treeDataSource,
+		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, FuzzyScore, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, FuzzyScore>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
+			WorkbenchAsyncDataTree,
+			this._treeContainer,
+			new Delegate(),
+			[
+				this._instantiationService.createInstance(FileReferencesRenderer),
+				this._instantiationService.createInstance(OneReferenceRenderer),
+			],
+			this._instantiationService.createInstance(DataSource),
 			treeOptions
-		) as any as WorkbenchAsyncDataTree<TreeElement>;
-
+		);
 		ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
+
+		// split stuff
+		this._splitView.addView({
+			onDidChange: Event.None,
+			element: this._previewContainer,
+			minimumSize: 200,
+			maximumSize: Number.MAX_VALUE,
+			layout: (width) => {
+				this._preview.layout({ height: this._dim.height, width });
+			}
+		}, Sizing.Distribute);
+
+		this._splitView.addView({
+			onDidChange: Event.None,
+			element: this._treeContainer,
+			minimumSize: 100,
+			maximumSize: Number.MAX_VALUE,
+			layout: (width) => {
+				this._treeContainer.style.height = `${this._dim.height}px`;
+				this._treeContainer.style.width = `${width}px`;
+				this._tree.layout(this._dim.height, width);
+			}
+		}, Sizing.Distribute);
+
+		this._splitView.onDidSashChange(() => {
+			if (this._dim.width) {
+				this.layoutData.ratio = this._splitView.getViewSize(0) / this._dim.width;
+			}
+		}, undefined, this._disposables);
 
 		// listen on selection and focus
 		let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
@@ -383,11 +368,19 @@ export class ReferenceWidget extends PeekViewWidget {
 			if (e.browserEvent instanceof KeyboardEvent) {
 				// todo@joh make this a command
 				goto = true;
-
-			} else if (e.browserEvent instanceof MouseEvent) {
-				aside = e.browserEvent.metaKey || e.browserEvent.metaKey || e.browserEvent.altKey;
-				goto = e.browserEvent.detail === 2;
 			}
+			if (aside) {
+				onEvent(e.elements[0], 'side');
+			} else if (goto) {
+				onEvent(e.elements[0], 'goto');
+			} else {
+				onEvent(e.elements[0], 'show');
+			}
+		});
+		this._tree.onDidOpen(e => {
+			const aside = (e.browserEvent instanceof MouseEvent) && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
+			const goto = !e.browserEvent || ((e.browserEvent instanceof MouseEvent) && e.browserEvent.detail === 2);
+
 			if (aside) {
 				onEvent(e.elements[0], 'side');
 			} else if (goto) {
@@ -400,33 +393,18 @@ export class ReferenceWidget extends PeekViewWidget {
 		dom.hide(this._treeContainer);
 	}
 
-	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
-		super._doLayoutBody(heightInPixel, widthInPixel);
-
-		const height = heightInPixel + 'px';
-		this._sash.height = heightInPixel;
-		this._sash.width = widthInPixel;
-
-		// set height/width
-		const [left, right] = this._sash.percentages;
-		this._previewContainer.style.height = height;
-		this._previewContainer.style.width = left;
-		this._treeContainer.style.height = height;
-		this._treeContainer.style.width = right;
-		// forward
-		this._tree.layout(heightInPixel);
-		this._preview.layout();
-
-		// store layout data
-		this.layoutData = {
-			heightInLines: this._viewZone.heightInLines,
-			ratio: this._sash.ratio
-		};
+	protected _onWidth(width: number) {
+		if (this._dim) {
+			this._doLayoutBody(this._dim.height, width);
+		}
 	}
 
-	public _onWidth(widthInPixel: number): void {
-		this._sash.width = widthInPixel;
-		this._preview.layout();
+	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
+		super._doLayoutBody(heightInPixel, widthInPixel);
+		this._dim = { height: heightInPixel, width: widthInPixel };
+		this.layoutData.heightInLines = this._viewZone ? this._viewZone.heightInLines : this.layoutData.heightInLines;
+		this._splitView.layout(widthInPixel);
+		this._splitView.resizeView(0, widthInPixel * this.layoutData.ratio);
 	}
 
 	public setSelection(selection: OneReference): Promise<any> {
@@ -441,23 +419,26 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel): Thenable<any> {
+	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
 		if (this._model) {
 			return this._onNewModel();
 		}
-		return undefined;
+		return Promise.resolve();
 	}
 
-	private _onNewModel(): Thenable<any> {
+	private _onNewModel(): Promise<any> {
+		if (!this._model) {
+			return Promise.resolve(undefined);
+		}
 
 		if (this._model.empty) {
 			this.setTitle('');
 			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
 			dom.show(this._messageContainer);
-			return Promise.resolve(void 0);
+			return Promise.resolve(undefined);
 		}
 
 		dom.hide(this._messageContainer);
@@ -465,7 +446,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._disposeOnNewModel.push(this._decorationsManager);
 
 		// listen on model changes
-		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
+		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.rerender(reference)));
 
 		// listen on editor
 		this._disposeOnNewModel.push(this._preview.onMouseDown(e => {
@@ -478,7 +459,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				return;
 			}
 			this._onDidSelectReference.fire({
-				element: { uri: element.uri, range: target.range },
+				element: { uri: element.uri, range: target.range! },
 				kind: (event.ctrlKey || event.metaKey || event.altKey) ? 'side' : 'open',
 				source: 'editor'
 			});
@@ -488,16 +469,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		dom.addClass(this.container, 'results-loaded');
 		dom.show(this._treeContainer);
 		dom.show(this._previewContainer);
-		this._preview.layout();
-		this._tree.layout();
+		this._splitView.layout(this._dim.width);
 		this.focus();
 
 		// pick input and a reference to begin with
-		this._treeDataSource.root = this._model.groups.length === 1 ? this._model.groups[0] : this._model;
-		return this._tree.refresh(null);
+		return this._tree.setInput(this._model.groups.length === 1 ? this._model.groups[0] : this._model);
 	}
 
-	private _getFocusedReference(): OneReference {
+	private _getFocusedReference(): OneReference | undefined {
 		const [element] = this._tree.getFocus();
 		if (element instanceof OneReference) {
 			return element;
@@ -509,13 +488,15 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
+	private _revealedReference?: OneReference;
+
 	private async _revealReference(reference: OneReference, revealParent: boolean): Promise<void> {
 
 		// check if there is anything to do...
-		const currentSelection = this._tree.getSelection();
-		if (currentSelection.length === 1 && currentSelection[0] === reference) {
+		if (this._revealedReference === reference) {
 			return;
 		}
+		this._revealedReference = reference;
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
@@ -526,7 +507,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		const promise = this._textModelResolverService.createModelReference(reference.uri);
 
-		if (this._treeDataSource.root === reference.parent) {
+		if (this._tree.getInput() === reference.parent) {
 			this._tree.reveal(reference);
 		} else {
 			if (revealParent) {
@@ -585,7 +566,7 @@ export const peekViewEditorMatchHighlightBorder = registerColor('peekViewEditor.
 registerThemingParticipant((theme, collector) => {
 	const findMatchHighlightColor = theme.getColor(peekViewResultsMatchHighlight);
 	if (findMatchHighlightColor) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { background-color: ${findMatchHighlightColor}; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { background-color: ${findMatchHighlightColor}; }`);
 	}
 	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
 	if (referenceHighlightColor) {
@@ -597,7 +578,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
 	}
 	const resultsBackground = theme.getColor(peekViewResultsBackground);
 	if (resultsBackground) {
@@ -613,11 +594,11 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
 	if (resultsSelectedBackground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
 	}
 	const resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
 	if (resultsSelectedForeground) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
 	}
 	const editorBackground = theme.getColor(peekViewEditorBackground);
 	if (editorBackground) {

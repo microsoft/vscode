@@ -21,8 +21,8 @@ export interface FoldingModelChangeEvent {
 export type CollapseMemento = ILineRange[];
 
 export class FoldingModel {
-	private _textModel: ITextModel;
-	private _decorationProvider: IDecorationProvider;
+	private readonly _textModel: ITextModel;
+	private readonly _decorationProvider: IDecorationProvider;
 
 	private _regions: FoldingRegions;
 	private _editorDecorationIds: string[];
@@ -66,7 +66,7 @@ export class FoldingModel {
 	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
 		let newEditorDecorations: IModelDeltaDecoration[] = [];
 
-		let isBlocked = (startLineNumber, endLineNumber) => {
+		let isBlocked = (startLineNumber: number, endLineNumber: number) => {
 			for (let blockedLineNumber of blockedLineNumers) {
 				if (startLineNumber < blockedLineNumber && blockedLineNumber <= endLineNumber) { // first line is visible
 					return true;
@@ -153,7 +153,7 @@ export class FoldingModel {
 		if (collapsedRanges.length > 0) {
 			return collapsedRanges;
 		}
-		return void 0;
+		return undefined;
 	}
 
 	/**
@@ -291,7 +291,6 @@ export function setCollapseStateLevelsUp(foldingModel: FoldingModel, doCollapse:
  * Folds or unfolds all regions that have a given level, except if they contain one of the blocked lines.
  * @param foldLevel level. Level == 1 is the top level
  * @param doCollapse Wheter to collase or expand
-* @param blockedLineNumbers
 */
 export function setCollapseStateAtLevel(foldingModel: FoldingModel, foldLevel: number, doCollapse: boolean, blockedLineNumbers: number[]): void {
 	let filter = (region: FoldingRegion, level: number) => level === foldLevel && region.isCollapsed !== doCollapse && !blockedLineNumbers.some(line => region.containsLine(line));

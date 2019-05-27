@@ -30,7 +30,23 @@ exports.load = function (modulePaths, resultCallback, options) {
 	const path = require('path');
 
 	const args = parseURLQueryArgs();
+	/**
+	 * // configuration: IWindowConfiguration
+	 * @type {{
+	 * zoomLevel?: number,
+	 * extensionDevelopmentPath?: string | string[],
+	 * extensionTestsPath?: string,
+	 * userEnv?: { [key: string]: string | undefined },
+	 * appRoot?: string,
+	 * nodeCachedDataDir?: string
+	 * }} */
 	const configuration = JSON.parse(args['config'] || '{}') || {};
+
+	// Apply zoom level early to avoid glitches
+	const zoomLevel = configuration.zoomLevel;
+	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
+		webFrame.setZoomLevel(zoomLevel);
+	}
 
 	// Error handler
 	// @ts-ignore
@@ -50,13 +66,6 @@ exports.load = function (modulePaths, resultCallback, options) {
 
 	// Enable ASAR support
 	bootstrap.enableASARSupport(path.join(configuration.appRoot, 'node_modules'));
-
-	// disable pinch zoom & apply zoom level early to avoid glitches
-	const zoomLevel = configuration.zoomLevel;
-	webFrame.setVisualZoomLevelLimits(1, 1);
-	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-		webFrame.setZoomLevel(zoomLevel);
-	}
 
 	if (options && typeof options.canModifyDOM === 'function') {
 		options.canModifyDOM(configuration);
@@ -186,7 +195,7 @@ function registerDeveloperKeybindings() {
 	return function () {
 		if (listener) {
 			window.removeEventListener('keydown', listener);
-			listener = void 0;
+			listener = undefined;
 		}
 	};
 }

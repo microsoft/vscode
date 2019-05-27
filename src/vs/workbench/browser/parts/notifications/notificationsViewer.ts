@@ -16,12 +16,13 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind, INotificationMessage, ChoiceAction } from 'vs/workbench/common/notifications';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Severity } from 'vs/platform/notification/common/notification';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -61,7 +62,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		}
 
 		// Last row: source and buttons if we have any
-		if (notification.source || notification.actions.primary.length > 0) {
+		if (notification.source || isNonEmptyArray(notification.actions.primary)) {
 			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 		}
 
@@ -81,7 +82,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		if (notification.canCollapse) {
 			actions++; // expand/collapse
 		}
-		if (notification.actions.secondary.length > 0) {
+		if (isNonEmptyArray(notification.actions.secondary)) {
 			actions++; // secondary actions
 		}
 		this.offsetHelper.style.width = `calc(100% - ${10 /* padding */ + 24 /* severity icon */ + (actions * 24) /* 24px per action */}px)`;
@@ -104,7 +105,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 			return NotificationRenderer.TEMPLATE_ID;
 		}
 
-		return void 0;
+		throw new Error('unknown element type: ' + element);
 	}
 }
 
@@ -143,8 +144,7 @@ class NotificationMessageRenderer {
 		// Message has links
 		else {
 			let index = 0;
-			for (let i = 0; i < message.links.length; i++) {
-				const link = message.links[i];
+			for (const link of message.links) {
 
 				const textBefore = message.value.substring(index, link.offset);
 				if (textBefore) {
@@ -153,7 +153,7 @@ class NotificationMessageRenderer {
 
 				const anchor = document.createElement('a');
 				anchor.textContent = link.name;
-				anchor.title = link.href;
+				anchor.title = link.title;
 				anchor.href = link.href;
 
 				if (actionHandler) {
@@ -182,9 +182,9 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 
 	constructor(
 		private actionRunner: IActionRunner,
-		@IThemeService private themeService: IThemeService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
@@ -219,15 +219,15 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 			toolbarContainer,
 			{
 				ariaLabel: localize('notificationActions', "Notification Actions"),
-				actionItemProvider: action => {
-					if (action instanceof ConfigureNotificationAction) {
-						const item = new DropdownMenuActionItem(action, action.configurationActions, this.contextMenuService, null, this.actionRunner, null, action.class);
+				actionViewItemProvider: action => {
+					if (action && action instanceof ConfigureNotificationAction) {
+						const item = new DropdownMenuActionViewItem(action, action.configurationActions, this.contextMenuService, undefined, this.actionRunner, undefined, action.class);
 						data.toDispose.push(item);
 
 						return item;
 					}
 
-					return null;
+					return undefined;
 				},
 				actionRunner: this.actionRunner
 			}
@@ -275,10 +275,6 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.renderer.setInput(notification);
 	}
 
-	disposeElement(): void {
-		// noop
-	}
-
 	disposeTemplate(templateData: INotificationTemplateData): void {
 		templateData.toDispose = dispose(templateData.toDispose);
 	}
@@ -290,17 +286,17 @@ export class NotificationTemplateRenderer {
 	private static expandNotificationAction: ExpandNotificationAction;
 	private static collapseNotificationAction: CollapseNotificationAction;
 
-	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
+	private static readonly SEVERITIES: Array<'info' | 'warning' | 'error'> = ['info', 'warning', 'error'];
 
 	private inputDisposeables: IDisposable[] = [];
 
 	constructor(
 		private template: INotificationTemplateData,
 		private actionRunner: IActionRunner,
-		@IOpenerService private openerService: IOpenerService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		if (!NotificationTemplateRenderer.closeNotificationAction) {
 			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
@@ -354,6 +350,9 @@ export class NotificationTemplateRenderer {
 				case NotificationViewItemLabelKind.PROGRESS:
 					this.renderProgress(notification);
 					break;
+				case NotificationViewItemLabelKind.MESSAGE:
+					this.renderMessage(notification);
+					break;
 			}
 		}));
 	}
@@ -374,7 +373,7 @@ export class NotificationTemplateRenderer {
 
 		const messageOverflows = notification.canCollapse && !notification.expanded && this.template.message.scrollWidth > this.template.message.clientWidth;
 		if (messageOverflows) {
-			this.template.message.title = this.template.message.textContent;
+			this.template.message.title = this.template.message.textContent + '';
 		} else {
 			this.template.message.removeAttribute('title');
 		}
@@ -391,7 +390,7 @@ export class NotificationTemplateRenderer {
 		const actions: IAction[] = [];
 
 		// Secondary Actions
-		if (notification.actions.secondary.length > 0) {
+		if (isNonEmptyArray(notification.actions.secondary)) {
 			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, notification.actions.secondary);
 			actions.push(configureNotificationAction);
 			this.inputDisposeables.push(configureNotificationAction);
@@ -421,7 +420,7 @@ export class NotificationTemplateRenderer {
 		actions.forEach(action => this.template.toolbar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) }));
 	}
 
-	private renderSource(notification): void {
+	private renderSource(notification: INotificationViewItem): void {
 		if (notification.expanded && notification.source) {
 			this.template.source.textContent = localize('notificationSource', "Source: {0}", notification.source);
 			this.template.source.title = notification.source;
@@ -434,10 +433,10 @@ export class NotificationTemplateRenderer {
 	private renderButtons(notification: INotificationViewItem): void {
 		clearNode(this.template.buttonsContainer);
 
-		if (notification.expanded) {
+		if (notification.expanded && notification.actions.primary) {
 			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, notification.actions.primary.length, { title: true /* assign titles to buttons in case they overflow */ });
 			buttonGroup.buttons.forEach((button, index) => {
-				const action = notification.actions.primary[index];
+				const action = notification.actions.primary![index];
 				button.label = action.label;
 
 				this.inputDisposeables.push(button.onDidClick(e => {
@@ -502,10 +501,10 @@ export class NotificationTemplateRenderer {
 		}
 	}
 
-	private getKeybindingLabel(action: IAction): string {
+	private getKeybindingLabel(action: IAction): string | null {
 		const keybinding = this.keybindingService.lookupKeybinding(action.id);
 
-		return keybinding ? keybinding.getLabel() : void 0;
+		return keybinding ? keybinding.getLabel() : null;
 	}
 
 	dispose(): void {

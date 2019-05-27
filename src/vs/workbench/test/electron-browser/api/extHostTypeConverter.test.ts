@@ -5,10 +5,10 @@
 
 
 import * as assert from 'assert';
-import { MarkdownString, LogLevel } from 'vs/workbench/api/node/extHostTypeConverters';
+import { MarkdownString, LogLevel } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
 import { size } from 'vs/base/common/collections';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 
 suite('ExtHostTypeConverter', function () {
@@ -29,34 +29,34 @@ suite('ExtHostTypeConverter', function () {
 
 		data = MarkdownString.from('Hello [link](foo:path)');
 		assert.equal(data.value, 'Hello [link](foo:path)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['foo:path']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['foo:path']);
 
 		data = MarkdownString.from('hello@foo.bar');
 		assert.equal(data.value, 'hello@foo.bar');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['mailto:hello@foo.bar']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['mailto:hello@foo.bar']);
 
 		data = MarkdownString.from('*hello* [click](command:me)');
 		assert.equal(data.value, '*hello* [click](command:me)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['command:me']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['command:me']);
 
 		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
 		assert.equal(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['file:///somepath/here']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['file:///somepath/here']);
 
 		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
 		assert.equal(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
-		assert.equal(size(data.uris), 1);
-		assert.ok(!!data.uris['file:///somepath/here']);
+		assert.equal(size(data.uris!), 1);
+		assert.ok(!!data.uris!['file:///somepath/here']);
 
 		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here2)');
 		assert.equal(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here2)');
-		assert.equal(size(data.uris), 2);
-		assert.ok(!!data.uris['file:///somepath/here']);
-		assert.ok(!!data.uris['file:///somepath/here2']);
+		assert.equal(size(data.uris!), 2);
+		assert.ok(!!data.uris!['file:///somepath/here']);
+		assert.ok(!!data.uris!['file:///somepath/here2']);
 	});
 
 	test('LogLevel', () => {

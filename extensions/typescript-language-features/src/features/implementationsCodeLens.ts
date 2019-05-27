@@ -10,12 +10,14 @@ import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
-import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens, getSymbolRange, CachedResponse } from './baseCodeLensProvider';
+import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens, getSymbolRange } from './baseCodeLensProvider';
+import { CachedResponse } from '../tsServer/cachedResponse';
 import * as typeConverters from '../utils/typeConverters';
 
 const localize = nls.loadMessageBundle();
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+	public static readonly minVersion = API.v220;
 
 	public async resolveCodeLens(
 		inputCodeLens: vscode.CodeLens,
@@ -94,7 +96,7 @@ export function register(
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
-	return new VersionDependentRegistration(client, API.v220, () =>
+	return new VersionDependentRegistration(client, TypeScriptImplementationsCodeLensProvider.minVersion, () =>
 		new ConfigurationDependentRegistration(modeId, 'implementationsCodeLens.enabled', () => {
 			return vscode.languages.registerCodeLensProvider(selector,
 				new TypeScriptImplementationsCodeLensProvider(client, cachedResponse));

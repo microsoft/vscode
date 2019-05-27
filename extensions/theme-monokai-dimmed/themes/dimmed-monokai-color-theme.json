@@ -31,6 +31,7 @@
 		"statusBar.debuggingBackground": "#505050",
 		"statusBar.noFolderBackground": "#505050",
 		"titleBar.activeBackground": "#505050",
+		"statusBarItem.remoteBackground": "#3655b5",
 		"activityBar.background": "#353535",
 		"activityBar.foreground": "#ffffff",
 		"activityBarBadge.background": "#3655b5",
@@ -255,7 +256,13 @@
 		},
 		{
 			"name": "Keyword Control",
-			"scope": "keyword.control",
+			"scope": [
+				"keyword.control",
+				"keyword.operator.new.cpp",
+				"keyword.operator.delete.cpp",
+				"keyword.other.using",
+				"keyword.other.operator"
+			],
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#9872A2"

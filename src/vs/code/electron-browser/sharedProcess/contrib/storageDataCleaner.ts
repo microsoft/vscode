@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -16,7 +16,7 @@ export class StorageDataCleaner extends Disposable {
 	private static NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -24,8 +24,8 @@ export class StorageDataCleaner extends Disposable {
 	}
 
 	private cleanUpStorageSoon(): void {
-		let handle: any = setTimeout(() => {
-			handle = void 0;
+		let handle: NodeJS.Timeout | undefined = setTimeout(() => {
+			handle = undefined;
 
 			// Leverage the backup workspace file to find out which empty workspace is currently in use to
 			// determine which empty workspace storage can safely be deleted
@@ -52,6 +52,11 @@ export class StorageDataCleaner extends Disposable {
 			}).then(null, onUnexpectedError);
 		}, 30 * 1000);
 
-		this._register(toDisposable(() => clearTimeout(handle)));
+		this._register(toDisposable(() => {
+			if (handle) {
+				clearTimeout(handle);
+				handle = undefined;
+			}
+		}));
 	}
 }

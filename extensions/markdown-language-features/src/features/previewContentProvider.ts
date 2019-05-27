@@ -13,7 +13,7 @@ const localize = nls.loadMessageBundle();
 import { Logger } from '../logger';
 import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../security';
 import { MarkdownPreviewConfigurationManager, MarkdownPreviewConfiguration } from './previewConfig';
-import { MarkdownContributions } from '../markdownExtensions';
+import { MarkdownContributionProvider } from '../markdownExtensions';
 
 /**
  * Strings used inside the markdown preview.
@@ -35,12 +35,16 @@ const previewStrings = {
 		'Content Disabled Security Warning')
 };
 
+function escapeAttribute(value: string): string {
+	return value.replace(/"/g, '&quot;');
+}
+
 export class MarkdownContentProvider {
 	constructor(
 		private readonly engine: MarkdownEngine,
 		private readonly context: vscode.ExtensionContext,
 		private readonly cspArbiter: ContentSecurityPolicyArbiter,
-		private readonly contributions: MarkdownContributions,
+		private readonly contributionProvider: MarkdownContributionProvider,
 		private readonly logger: Logger
 	) { }
 
@@ -68,16 +72,16 @@ export class MarkdownContentProvider {
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 		const csp = this.getCspForResource(sourceUri, nonce);
 
-		const body = await this.engine.render(sourceUri, config.previewFrontMatter === 'hide', markdownDocument.getText());
+		const body = await this.engine.render(markdownDocument);
 		return `<!DOCTYPE html>
 			<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				${csp}
 				<meta id="vscode-markdown-preview-data"
-					data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}"
-					data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}"
-					data-state="${JSON.stringify(state || {}).replace(/"/g, '&quot;')}">
+					data-settings="${escapeAttribute(JSON.stringify(initialData))}"
+					data-strings="${escapeAttribute(JSON.stringify(previewStrings))}"
+					data-state="${escapeAttribute(JSON.stringify(state || {}))}">
 				<script src="${this.extensionResourcePath('pre.js')}" nonce="${nonce}"></script>
 				${this.getStyles(sourceUri, nonce, config, state)}
 				<base href="${markdownDocument.uri.with({ scheme: 'vscode-resource' }).toString(true)}">
@@ -86,6 +90,19 @@ export class MarkdownContentProvider {
 				${body}
 				<div class="code-line" data-line="${markdownDocument.lineCount}"></div>
 				${this.getScripts(nonce)}
+			</body>
+			</html>`;
+	}
+
+	public provideFileNotFoundContent(
+		resource: vscode.Uri,
+	): string {
+		const resourcePath = path.basename(resource.fsPath);
+		const body = localize('preview.notFound', '{0} cannot be found', resourcePath);
+		return `<!DOCTYPE html>
+			<html>
+			<body class="vscode-body">
+				${body}
 			</body>
 			</html>`;
 	}
@@ -101,21 +118,19 @@ export class MarkdownContentProvider {
 			return href;
 		}
 
-		// Use href if it is already an URL
-		const hrefUri = vscode.Uri.parse(href);
-		if (['http', 'https'].indexOf(hrefUri.scheme) >= 0) {
-			return hrefUri.toString(true);
+		if (href.startsWith('http:') || href.startsWith('https:') || href.startsWith('file:')) {
+			return href;
 		}
 
-		// Use href as file URI if it is absolute
-		if (path.isAbsolute(href) || hrefUri.scheme === 'file') {
+		// Assume it must be a local file
+		if (path.isAbsolute(href)) {
 			return vscode.Uri.file(href)
 				.with({ scheme: 'vscode-resource' })
 				.toString();
 		}
 
 		// Use a workspace relative path if there is a workspace
-		let root = vscode.workspace.getWorkspaceFolder(resource);
+		const root = vscode.workspace.getWorkspaceFolder(resource);
 		if (root) {
 			return vscode.Uri.file(path.join(root.uri.fsPath, href))
 				.with({ scheme: 'vscode-resource' })
@@ -131,7 +146,7 @@ export class MarkdownContentProvider {
 	private computeCustomStyleSheetIncludes(resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
 		if (Array.isArray(config.styles)) {
 			return config.styles.map(style => {
-				return `<link rel="stylesheet" class="code-user-style" data-source="${style.replace(/"/g, '&quot;')}" href="${this.fixHref(resource, style).replace(/"/g, '&quot;')}" type="text/css" media="screen">`;
+				return `<link rel="stylesheet" class="code-user-style" data-source="${escapeAttribute(style)}" href="${escapeAttribute(this.fixHref(resource, style))}" type="text/css" media="screen">`;
 			}).join('\n');
 		}
 		return '';
@@ -139,7 +154,7 @@ export class MarkdownContentProvider {
 
 	private getSettingsOverrideStyles(nonce: string, config: MarkdownPreviewConfiguration): string {
 		return `<style nonce="${nonce}">
-			body {
+			html, body {
 				${config.fontFamily ? `font-family: ${config.fontFamily};` : ''}
 				${isNaN(config.fontSize) ? '' : `font-size: ${config.fontSize}px;`}
 				${isNaN(config.lineHeight) ? '' : `line-height: ${config.lineHeight};`}
@@ -163,8 +178,8 @@ export class MarkdownContentProvider {
 	}
 
 	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfiguration, state?: any): string {
-		const baseStyles = this.contributions.previewStyles
-			.map(resource => `<link rel="stylesheet" type="text/css" href="${resource.toString()}">`)
+		const baseStyles = this.contributionProvider.contributions.previewStyles
+			.map(resource => `<link rel="stylesheet" type="text/css" href="${escapeAttribute(resource.toString())}">`)
 			.join('\n');
 
 		return `${baseStyles}
@@ -174,8 +189,8 @@ export class MarkdownContentProvider {
 	}
 
 	private getScripts(nonce: string): string {
-		return this.contributions.previewScripts
-			.map(resource => `<script async src="${resource.toString()}" nonce="${nonce}" charset="UTF-8"></script>`)
+		return this.contributionProvider.contributions.previewScripts
+			.map(resource => `<script async src="${escapeAttribute(resource.toString())}" nonce="${nonce}" charset="UTF-8"></script>`)
 			.join('\n');
 	}
 

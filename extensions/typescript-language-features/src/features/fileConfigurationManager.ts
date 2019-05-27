@@ -9,12 +9,12 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { ResourceMap } from '../utils/resourceMap';
+import { Disposable } from '../utils/dispose';
 
 
 function objsAreEqual<T>(a: T, b: T): boolean {
 	let keys = Object.keys(a);
-	for (let i = 0; i < keys.length; i++) {
-		let key = keys[i];
+	for (const key of keys) {
 		if ((a as any)[key] !== (b as any)[key]) {
 			return false;
 		}
@@ -34,27 +34,20 @@ function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration):
 	);
 }
 
-export default class FileConfigurationManager {
-	private onDidCloseTextDocumentSub: vscode.Disposable | undefined;
+export default class FileConfigurationManager extends Disposable {
 	private readonly formatOptions = new ResourceMap<Promise<FileConfiguration | undefined>>();
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) {
-		this.onDidCloseTextDocumentSub = vscode.workspace.onDidCloseTextDocument(textDocument => {
+		super();
+		vscode.workspace.onDidCloseTextDocument(textDocument => {
 			// When a document gets closed delete the cached formatting options.
 			// This is necessary since the tsserver now closed a project when its
 			// last file in it closes which drops the stored formatting options
 			// as well.
 			this.formatOptions.delete(textDocument.uri);
-		});
-	}
-
-	public dispose() {
-		if (this.onDidCloseTextDocumentSub) {
-			this.onDidCloseTextDocumentSub.dispose();
-			this.onDidCloseTextDocumentSub = undefined;
-		}
+		}, undefined, this._disposables);
 	}
 
 	public async ensureConfigurationForDocument(
@@ -84,7 +77,7 @@ export default class FileConfigurationManager {
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return;
 		}
@@ -180,23 +173,25 @@ export default class FileConfigurationManager {
 			return {};
 		}
 
-		const preferences = vscode.workspace.getConfiguration(
+		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
 		return {
-			quotePreference: getQuoteStylePreference(preferences),
-			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
-			allowTextChangesInNewFiles: document.uri.scheme === 'file'
+			quotePreference: this.getQuoteStylePreference(config),
+			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config),
+			allowTextChangesInNewFiles: document.uri.scheme === 'file',
+			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true),
+			allowRenameOfImportPath: true,
 		};
 	}
-}
 
-function getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
-	switch (config.get<string>('quoteStyle')) {
-		case 'single': return 'single';
-		case 'double': return 'double';
-		default: return undefined;
+	private getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
+		switch (config.get<string>('quoteStyle')) {
+			case 'single': return 'single';
+			case 'double': return 'double';
+			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
+		}
 	}
 }
 

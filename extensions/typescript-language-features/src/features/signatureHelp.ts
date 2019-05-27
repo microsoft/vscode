@@ -24,7 +24,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		token: vscode.CancellationToken,
 		context: vscode.SignatureHelpContext,
 	): Promise<vscode.SignatureHelp | undefined> {
-		const filepath = this.client.toPath(document.uri);
+		const filepath = this.client.toOpenedFilePath(document);
 		if (!filepath) {
 			return undefined;
 		}
@@ -33,7 +33,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 			...typeConverters.Position.toFileLocationRequestArgs(filepath, position),
 			triggerReason: toTsTriggerReason(context)
 		};
-		const response = await this.client.interuptGetErr(() => this.client.execute('signatureHelp', args, token));
+		const response = await this.client.interruptGetErr(() => this.client.execute('signatureHelp', args, token));
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
@@ -60,12 +60,26 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 			Previewer.plain(item.prefixDisplayParts),
 			Previewer.markdownDocumentation(item.documentation, item.tags.filter(x => x.name !== 'param')));
 
-		signature.parameters = item.parameters.map(p =>
-			new vscode.ParameterInformation(
-				Previewer.plain(p.displayParts),
-				Previewer.markdownDocumentation(p.documentation, [])));
+		let textIndex = signature.label.length;
+		const separatorLabel = Previewer.plain(item.separatorDisplayParts);
+		for (let i = 0; i < item.parameters.length; ++i) {
+			const parameter = item.parameters[i];
+			const label = Previewer.plain(parameter.displayParts);
 
-		signature.label += signature.parameters.map(parameter => parameter.label).join(Previewer.plain(item.separatorDisplayParts));
+			signature.parameters.push(
+				new vscode.ParameterInformation(
+					[textIndex, textIndex + label.length],
+					Previewer.markdownDocumentation(parameter.documentation, [])));
+
+			textIndex += label.length;
+			signature.label += label;
+
+			if (i !== item.parameters.length - 1) {
+				signature.label += separatorLabel;
+				textIndex += separatorLabel.length;
+			}
+		}
+
 		signature.label += Previewer.plain(item.suffixDisplayParts);
 		return signature;
 	}

@@ -5,12 +5,13 @@
 
 import { Storage, SQLiteStorageDatabase, IStorageDatabase, ISQLiteStorageDatabaseOptions, IStorageItemsChangeEvent } from 'vs/base/node/storage';
 import { generateUuid } from 'vs/base/common/uuid';
-import { join } from 'path';
+import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, del, writeFile } from 'vs/base/node/pfs';
+import { mkdirp, writeFile, exists, unlink, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
+import { isWindows } from 'vs/base/common/platform';
 
 suite('Storage Library', () => {
 
@@ -30,7 +31,7 @@ suite('Storage Library', () => {
 
 		// Empty fallbacks
 		equal(storage.get('foo', 'bar'), 'bar');
-		equal(storage.getInteger('foo', 55), 55);
+		equal(storage.getNumber('foo', 55), 55);
 		equal(storage.getBoolean('foo', true), true);
 
 		let changes = new Set<string>();
@@ -44,7 +45,7 @@ suite('Storage Library', () => {
 		const set3Promise = storage.set('barBoolean', true);
 
 		equal(storage.get('bar'), 'foo');
-		equal(storage.getInteger('barNumber'), 55);
+		equal(storage.getNumber('barNumber'), 55);
 		equal(storage.getBoolean('barBoolean'), true);
 
 		equal(changes.size, 3);
@@ -70,7 +71,7 @@ suite('Storage Library', () => {
 		const delete3Promise = storage.delete('barBoolean');
 
 		ok(!storage.get('bar'));
-		ok(!storage.getInteger('barNumber'));
+		ok(!storage.getNumber('barNumber'));
 		ok(!storage.getBoolean('barBoolean'));
 
 		equal(changes.size, 3);
@@ -90,9 +91,8 @@ suite('Storage Library', () => {
 		await Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
 		equal(deletePromiseResolved, true);
 
-		storage.beforeClose();
 		await storage.close();
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('external changes', async () => {
@@ -100,7 +100,7 @@ suite('Storage Library', () => {
 		await mkdirp(storageDir);
 
 		class TestSQLiteStorageDatabase extends SQLiteStorageDatabase {
-			private _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = new Emitter<IStorageItemsChangeEvent>();
+			private _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
 			get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return this._onDidChangeItemsExternal.event; }
 
 			fireDidChangeItemsExternal(event: IStorageItemsChangeEvent): void {
@@ -136,20 +136,19 @@ suite('Storage Library', () => {
 		changes.clear();
 
 		// Delete is accepted
-		change.set('foo', null);
+		change.set('foo', undefined);
 		database.fireDidChangeItemsExternal({ items: change });
 		ok(changes.has('foo'));
-		equal(storage.get('foo', null), null);
+		equal(storage.get('foo', null!), null);
 		changes.clear();
 
 		// Nothing happens if changing to same value
-		change.set('foo', null);
+		change.set('foo', undefined);
 		database.fireDidChangeItemsExternal({ items: change });
 		equal(changes.size, 0);
 
-		storage.beforeClose();
 		await storage.close();
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('close flushes data', async () => {
@@ -168,7 +167,6 @@ suite('Storage Library', () => {
 		let setPromiseResolved = false;
 		Promise.all([set1Promise, set2Promise]).then(() => setPromiseResolved = true);
 
-		storage.beforeClose();
 		await storage.close();
 
 		equal(setPromiseResolved, true);
@@ -179,7 +177,6 @@ suite('Storage Library', () => {
 		equal(storage.get('foo'), 'bar');
 		equal(storage.get('bar'), 'foo');
 
-		storage.beforeClose();
 		await storage.close();
 
 		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
@@ -194,7 +191,6 @@ suite('Storage Library', () => {
 		let deletePromiseResolved = false;
 		Promise.all([delete1Promise, delete2Promise]).then(() => deletePromiseResolved = true);
 
-		storage.beforeClose();
 		await storage.close();
 
 		equal(deletePromiseResolved, true);
@@ -205,9 +201,8 @@ suite('Storage Library', () => {
 		ok(!storage.get('foo'));
 		ok(!storage.get('bar'));
 
-		storage.beforeClose();
 		await storage.close();
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('conflicting updates', async () => {
@@ -248,9 +243,38 @@ suite('Storage Library', () => {
 		await Promise.all([set4Promise, delete1Promise]).then(() => setAndDeletePromiseResolved = true);
 		ok(setAndDeletePromiseResolved);
 
-		storage.beforeClose();
 		await storage.close();
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
+	});
+
+	test('corrupt DB recovers', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		const storageFile = join(storageDir, 'storage.db');
+
+		let storage = new Storage(new SQLiteStorageDatabase(storageFile));
+		await storage.init();
+
+		await storage.set('bar', 'foo');
+
+		await writeFile(storageFile, 'This is a broken DB');
+
+		await storage.set('foo', 'bar');
+
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+
+		await storage.close();
+
+		storage = new Storage(new SQLiteStorageDatabase(storageFile));
+		await storage.init();
+
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+
+		await storage.close();
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 });
 
@@ -269,8 +293,8 @@ suite('SQLite Storage Library', () => {
 		return set;
 	}
 
-	async function testDBBasics(path, logError?: (error) => void) {
-		let options: ISQLiteStorageDatabaseOptions;
+	async function testDBBasics(path: string, logError?: (error: Error) => void) {
+		let options!: ISQLiteStorageDatabaseOptions;
 		if (logError) {
 			options = {
 				logging: {
@@ -331,7 +355,14 @@ suite('SQLite Storage Library', () => {
 		storedItems = await storage.getItems();
 		equal(storedItems.size, 0);
 
-		await storage.close();
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
 	}
 
 	test('basics', async () => {
@@ -339,9 +370,9 @@ suite('SQLite Storage Library', () => {
 
 		await mkdirp(storageDir);
 
-		testDBBasics(join(storageDir, 'storage.db'));
+		await testDBBasics(join(storageDir, 'storage.db'));
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (open multiple times)', async () => {
@@ -352,7 +383,7 @@ suite('SQLite Storage Library', () => {
 		await testDBBasics(join(storageDir, 'storage.db'));
 		await testDBBasics(join(storageDir, 'storage.db'));
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB falls back to empty DB)', async () => {
@@ -370,7 +401,7 @@ suite('SQLite Storage Library', () => {
 
 		ok(expectedError);
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB restores from previous backup)', async () => {
@@ -399,9 +430,16 @@ suite('SQLite Storage Library', () => {
 		equal(storedItems.get('some/foo/path'), 'some/bar/path');
 		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
-		await storage.close();
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
 
-		await del(storageDir, tmpdir());
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB falls back to empty DB if backup is corrupt)', async () => {
@@ -430,10 +468,80 @@ suite('SQLite Storage Library', () => {
 
 		await testDBBasics(storagePath);
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
-	test('real world example', async () => {
+	test('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
+		if (isWindows) {
+			await Promise.resolve(); // Windows will fail to write to open DB due to locking
+
+			return;
+		}
+
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storagePath = join(storageDir, 'storage.db');
+		let storage = new SQLiteStorageDatabase(storagePath);
+
+		const items = new Map<string, string>();
+		items.set('foo', 'bar');
+		items.set('some/foo/path', 'some/bar/path');
+		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
+
+		await storage.updateItems({ insert: items });
+		await storage.close();
+
+		const backupPath = `${storagePath}.backup`;
+		equal(await exists(backupPath), true);
+
+		storage = new SQLiteStorageDatabase(storagePath);
+		await storage.getItems();
+
+		await writeFile(storagePath, 'This is now a broken DB');
+
+		// we still need to trigger a check to the DB so that we get to know that
+		// the DB is corrupt. We have no extra code on shutdown that checks for the
+		// health of the DB. This is an optimization to not perform too many tasks
+		// on shutdown.
+		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
+
+		await unlink(backupPath); // also test that the recovery DB is backed up properly
+
+		let recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return items;
+		});
+
+		equal(recoveryCalled, true);
+		equal(await exists(backupPath), true);
+
+		storage = new SQLiteStorageDatabase(storagePath);
+
+		const storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+		equal(storedItems.get('foo'), 'bar');
+		equal(storedItems.get('some/foo/path'), 'some/bar/path');
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+
+		recoveryCalled = false;
+		await storage.close(() => {
+			recoveryCalled = true;
+
+			return new Map();
+		});
+
+		equal(recoveryCalled, false);
+
+		await rimraf(storageDir, RimRafMode.MOVE);
+	});
+
+	test('real world example', async function () {
+		this.timeout(20000);
+
 		const storageDir = uniqueStorageDir();
 
 		await mkdirp(storageDir);
@@ -447,7 +555,7 @@ suite('SQLite Storage Library', () => {
 		items1.set('debug.actionswidgetposition', '0.6880952380952381');
 
 		const items2 = new Map<string, string>();
-		items2.set('workbench.editors.files.textfileeditor', '{"textEditorViewState":[["file:///Users/dummy/Documents/ticino-playground/play.htm",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":6,"column":16},"position":{"lineNumber":6,"column":16}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":0},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Documents/ticino-playground/nakefile.js",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":7,"column":81},"position":{"lineNumber":7,"column":81}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":20},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Desktop/vscode2/.gitattributes",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":9,"column":12},"position":{"lineNumber":9,"column":12}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":20},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Desktop/vscode2/src/vs/workbench/parts/search/browser/openAnythingHandler.ts",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":1,"column":1},"position":{"lineNumber":1,"column":1}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":0},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}]]}');
+		items2.set('workbench.editors.files.textfileeditor', '{"textEditorViewState":[["file:///Users/dummy/Documents/ticino-playground/play.htm",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":6,"column":16},"position":{"lineNumber":6,"column":16}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":0},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Documents/ticino-playground/nakefile.js",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":7,"column":81},"position":{"lineNumber":7,"column":81}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":20},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Desktop/vscode2/.gitattributes",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":9,"column":12},"position":{"lineNumber":9,"column":12}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":20},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}],["file:///Users/dummy/Desktop/vscode2/src/vs/workbench/contrib/search/browser/openAnythingHandler.ts",{"0":{"cursorState":[{"inSelectionMode":false,"selectionStart":{"lineNumber":1,"column":1},"position":{"lineNumber":1,"column":1}}],"viewState":{"scrollLeft":0,"firstPosition":{"lineNumber":1,"column":1},"firstPositionDeltaTop":0},"contributionsState":{"editor.contrib.folding":{},"editor.contrib.wordHighlighter":false}}}]]}');
 
 		const items3 = new Map<string, string>();
 		items3.set('nps/iscandidate', 'false');
@@ -519,10 +627,12 @@ suite('SQLite Storage Library', () => {
 
 		await storage.close();
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
-	test('very large item value', async () => {
+	test('very large item value', async function () {
+		this.timeout(20000);
+
 		const storageDir = uniqueStorageDir();
 
 		await mkdirp(storageDir);
@@ -572,7 +682,7 @@ suite('SQLite Storage Library', () => {
 
 		await storage.close();
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('multiple concurrent writes execute in sequence', async () => {
@@ -627,9 +737,72 @@ suite('SQLite Storage Library', () => {
 		equal(items.get('foo3'), 'bar');
 		equal(items.get('some/foo3/path'), 'some/bar/path');
 
-		storage.beforeClose();
 		await storage.close();
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
+	});
+
+	test('lots of INSERT & DELETE (below inline max)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
+
+		const items = new Map<string, string>();
+		const keys: Set<string> = new Set<string>();
+		for (let i = 0; i < 200; i++) {
+			const uuid = generateUuid();
+			const key = `key: ${uuid}`;
+
+			items.set(key, `value: ${uuid}`);
+			keys.add(key);
+		}
+
+		await storage.updateItems({ insert: items });
+
+		let storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+
+		await storage.updateItems({ delete: keys });
+
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
+
+		await storage.close();
+
+		await rimraf(storageDir, RimRafMode.MOVE);
+	});
+
+	test('lots of INSERT & DELETE (above inline max)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
+
+		const items = new Map<string, string>();
+		const keys: Set<string> = new Set<string>();
+		for (let i = 0; i < 400; i++) {
+			const uuid = generateUuid();
+			const key = `key: ${uuid}`;
+
+			items.set(key, `value: ${uuid}`);
+			keys.add(key);
+		}
+
+		await storage.updateItems({ insert: items });
+
+		let storedItems = await storage.getItems();
+		equal(storedItems.size, items.size);
+
+		await storage.updateItems({ delete: keys });
+
+		storedItems = await storage.getItems();
+		equal(storedItems.size, 0);
+
+		await storage.close();
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 });

@@ -80,7 +80,17 @@
 	overflow: hidden;
 	padding-left: 3.5px;
 	white-space: nowrap;
+	float: left;
 }
+
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-decorator-right {
+	text-overflow: ellipsis;
+	overflow: hidden;
+	padding-right: 10px;
+	white-space: nowrap;
+	float: right;
+}
+
 
 /* Accepted CSS hiding technique for accessibility reader text  */
 /* https://webaim.org/techniques/css/invisiblecontent/ */

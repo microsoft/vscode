@@ -11,7 +11,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "coffeescript",
-			"extensions": [ ".coffee", ".cson" ],
+			"extensions": [ ".coffee", ".cson", ".iced" ],
 			"aliases": [ "CoffeeScript", "coffeescript", "coffee" ],
 			"configuration": "./language-configuration.json"
 		}],

@@ -45,10 +45,10 @@ export class ModeServiceImpl implements IModeService {
 	private readonly _instantiatedModes: { [modeId: string]: IMode; };
 	private readonly _registry: LanguagesRegistry;
 
-	private readonly _onDidCreateMode: Emitter<IMode> = new Emitter<IMode>();
+	private readonly _onDidCreateMode = new Emitter<IMode>();
 	public readonly onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
-	protected readonly _onLanguagesMaybeChanged: Emitter<void> = new Emitter<void>();
+	protected readonly _onLanguagesMaybeChanged = new Emitter<void>();
 	private readonly onLanguagesMaybeChanged: Event<void> = this._onLanguagesMaybeChanged.event;
 
 	constructor(warnOnOverwrite = false) {
@@ -94,7 +94,7 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getModeIdForLanguageNameLowercase(alias);
 	}
 
-	public getModeIdByFilepathOrFirstLine(filepath: string, firstLine?: string): string | null {
+	public getModeIdByFilepathOrFirstLine(filepath: string | null, firstLine?: string): string | null {
 		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(filepath, firstLine);
 
 		if (modeIds.length > 0) {
@@ -104,7 +104,7 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null {
+	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string | null {
 		const modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
 		if (modeIds.length > 0) {
@@ -124,7 +124,7 @@ export class ModeServiceImpl implements IModeService {
 
 	// --- instantiation
 
-	public create(commaSeparatedMimetypesOrCommaSeparatedIds: string): ILanguageSelection {
+	public create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
 			const modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 			return this._createModeAndGetLanguageIdentifier(modeId);
@@ -138,7 +138,7 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	public createByFilepathOrFirstLine(filepath: string, firstLine?: string): ILanguageSelection {
+	public createByFilepathOrFirstLine(filepath: string | null, firstLine?: string): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
 			const modeId = this.getModeIdByFilepathOrFirstLine(filepath, firstLine);
 			return this._createModeAndGetLanguageIdentifier(modeId);

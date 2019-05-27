@@ -16,9 +16,9 @@ import { ITheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/them
 
 export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
-	private _styleSheet: HTMLStyleElement;
-	private _decorationOptionProviders: { [key: string]: IModelDecorationOptionsProvider };
-	private _themeService: IThemeService;
+	private readonly _styleSheet: HTMLStyleElement;
+	private readonly _decorationOptionProviders: { [key: string]: IModelDecorationOptionsProvider };
+	private readonly _themeService: IThemeService;
 
 	constructor(@IThemeService themeService: IThemeService, styleSheet = dom.createStyleSheet()) {
 		super();
@@ -30,7 +30,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void {
 		let provider = this._decorationOptionProviders[key];
 		if (!provider) {
-			let providerArgs: ProviderArguments = {
+			const providerArgs: ProviderArguments = {
 				styleSheet: this._styleSheet,
 				key: key,
 				parentTypeKey: parentTypeKey,
@@ -47,7 +47,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	}
 
 	public removeDecorationType(key: string): void {
-		let provider = this._decorationOptionProviders[key];
+		const provider = this._decorationOptionProviders[key];
 		if (provider) {
 			provider.refCount--;
 			if (provider.refCount <= 0) {
@@ -59,7 +59,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	}
 
 	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions {
-		let provider = this._decorationOptionProviders[decorationTypeKey];
+		const provider = this._decorationOptionProviders[decorationTypeKey];
 		if (!provider) {
 			throw new Error('Unknown decoration type key: ' + decorationTypeKey);
 		}
@@ -67,7 +67,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	}
 
 	abstract getActiveCodeEditor(): ICodeEditor | null;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null>;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {
@@ -79,7 +79,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 
 	public refCount: number;
 
-	private _parentTypeKey: string | undefined;
+	private readonly _parentTypeKey: string | undefined;
 	private _beforeContentRules: DecorationCSSRules | null;
 	private _afterContentRules: DecorationCSSRules | null;
 
@@ -92,7 +92,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 	}
 
 	public getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions {
-		let options = codeEditorService.resolveDecorationOptions(this._parentTypeKey, true);
+		const options = codeEditorService.resolveDecorationOptions(this._parentTypeKey, true);
 		if (this._beforeContentRules) {
 			options.beforeContentClassName = this._beforeContentRules.className;
 		}
@@ -147,7 +147,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			if (rules.hasContent) {
 				return rules.className;
 			}
-			return void 0;
+			return undefined;
 		};
 		const createInlineCSSRules = (type: ModelDecorationCSSRuleType) => {
 			const rules = new DecorationCSSRules(type, providerArgs, themeService);
@@ -168,12 +168,12 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		this.afterContentClassName = createCSSRules(ModelDecorationCSSRuleType.AfterContentClassName);
 		this.glyphMarginClassName = createCSSRules(ModelDecorationCSSRuleType.GlyphMarginClassName);
 
-		let options = providerArgs.options;
+		const options = providerArgs.options;
 		this.isWholeLine = Boolean(options.isWholeLine);
 		this.stickiness = options.rangeBehavior;
 
-		let lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
-		let darkOverviewRulerColor = options.dark && options.dark.overviewRulerColor || options.overviewRulerColor;
+		const lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
+		const darkOverviewRulerColor = options.dark && options.dark.overviewRulerColor || options.overviewRulerColor;
 		if (
 			typeof lightOverviewRulerColor !== 'undefined'
 			|| typeof darkOverviewRulerColor !== 'undefined'
@@ -210,7 +210,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
-	opacity: 'opacity:{0}; will-change: opacity;', // TODO@Ben: 'will-change: opacity' is a workaround for https://github.com/Microsoft/vscode/issues/52196
+	opacity: 'opacity:{0};',
 	backgroundColor: 'background-color:{0};',
 
 	outline: 'outline:{0};',
@@ -245,13 +245,13 @@ const _CSS_MAP: { [prop: string]: string; } = {
 class DecorationCSSRules {
 
 	private _theme: ITheme;
-	private _className: string;
-	private _unThemedSelector: string;
+	private readonly _className: string;
+	private readonly _unThemedSelector: string;
 	private _hasContent: boolean;
 	private _hasLetterSpacing: boolean;
-	private _ruleType: ModelDecorationCSSRuleType;
+	private readonly _ruleType: ModelDecorationCSSRuleType;
 	private _themeListener: IDisposable | null;
-	private _providerArgs: ProviderArguments;
+	private readonly _providerArgs: ProviderArguments;
 	private _usesThemeColors: boolean;
 
 	public constructor(ruleType: ModelDecorationCSSRuleType, providerArgs: ProviderArguments, themeService: IThemeService) {
@@ -307,7 +307,7 @@ class DecorationCSSRules {
 	}
 
 	private _buildCSS(): void {
-		let options = this._providerArgs.options;
+		const options = this._providerArgs.options;
 		let unthemedCSS: string, lightCSS: string, darkCSS: string;
 		switch (this._ruleType) {
 			case ModelDecorationCSSRuleType.ClassName:
@@ -338,7 +338,7 @@ class DecorationCSSRules {
 			default:
 				throw new Error('Unknown rule type: ' + this._ruleType);
 		}
-		let sheet = <CSSStyleSheet>this._providerArgs.styleSheet.sheet;
+		const sheet = <CSSStyleSheet>this._providerArgs.styleSheet.sheet;
 
 		let hasContent = false;
 		if (unthemedCSS.length > 0) {
@@ -367,7 +367,7 @@ class DecorationCSSRules {
 		if (!opts) {
 			return '';
 		}
-		let cssTextArr: string[] = [];
+		const cssTextArr: string[] = [];
 		this.collectCSSText(opts, ['backgroundColor'], cssTextArr);
 		this.collectCSSText(opts, ['outline', 'outlineColor', 'outlineStyle', 'outlineWidth'], cssTextArr);
 		this.collectBorderSettingsCSSText(opts, cssTextArr);
@@ -381,7 +381,7 @@ class DecorationCSSRules {
 		if (!opts) {
 			return '';
 		}
-		let cssTextArr: string[] = [];
+		const cssTextArr: string[] = [];
 		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
@@ -396,7 +396,7 @@ class DecorationCSSRules {
 		if (!opts) {
 			return '';
 		}
-		let cssTextArr: string[] = [];
+		const cssTextArr: string[] = [];
 
 		if (typeof opts !== 'undefined') {
 			this.collectBorderSettingsCSSText(opts, cssTextArr);
@@ -425,7 +425,7 @@ class DecorationCSSRules {
 		if (!opts) {
 			return '';
 		}
-		let cssTextArr: string[] = [];
+		const cssTextArr: string[] = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
 			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.revive(opts.gutterIconPath).toString(true).replace(/'/g, '%27')));
@@ -446,9 +446,9 @@ class DecorationCSSRules {
 	}
 
 	private collectCSSText(opts: any, properties: string[], cssTextArr: string[]): boolean {
-		let lenBefore = cssTextArr.length;
+		const lenBefore = cssTextArr.length;
 		for (let property of properties) {
-			let value = this.resolveValue(opts[property]);
+			const value = this.resolveValue(opts[property]);
 			if (typeof value === 'string') {
 				cssTextArr.push(strings.format(_CSS_MAP[property], value));
 			}
@@ -459,7 +459,7 @@ class DecorationCSSRules {
 	private resolveValue(value: string | ThemeColor): string {
 		if (isThemeColor(value)) {
 			this._usesThemeColors = true;
-			let color = this._theme.getColor(value.id);
+			const color = this._theme.getColor(value.id);
 			if (color) {
 				return color.toString();
 			}

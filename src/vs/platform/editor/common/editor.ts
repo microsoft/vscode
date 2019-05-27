@@ -11,12 +11,12 @@ export interface IEditorModel {
 	/**
 	 * Emitted when the model is disposed.
 	 */
-	onDispose: Event<void>;
+	readonly onDispose: Event<void>;
 
 	/**
 	 * Loads the model.
 	 */
-	load(): Thenable<IEditorModel>;
+	load(): Promise<IEditorModel>;
 
 	/**
 	 * Dispose associated resources
@@ -34,12 +34,12 @@ export interface IBaseResourceInput {
 	/**
 	 * Label to show for the diff editor
 	 */
-	label?: string;
+	readonly label?: string;
 
 	/**
 	 * Description to show for the diff editor
 	 */
-	description?: string;
+	readonly description?: string;
 
 	/**
 	 * Hint to indicate that this input should be treated as a file
@@ -48,20 +48,35 @@ export interface IBaseResourceInput {
 	 * Without this hint, the editor service will make a guess by
 	 * looking at the scheme of the resource(s).
 	 */
-	forceFile?: boolean;
+	readonly forceFile?: boolean;
+
+	/**
+	 * Hint to indicate that this input should be treated as a
+	 * untitled file.
+	 *
+	 * Without this hint, the editor service will make a guess by
+	 * looking at the scheme of the resource(s).
+	 */
+	readonly forceUntitled?: boolean;
 }
 
 export interface IResourceInput extends IBaseResourceInput {
 
 	/**
-	 * The resource URL of the resource to open.
+	 * The resource URI of the resource to open.
 	 */
 	resource: URI;
 
 	/**
 	 * The encoding of the text input if known.
 	 */
-	encoding?: string;
+	readonly encoding?: string;
+
+	/**
+	 * The identifier of the language mode of the text input
+	 * if known to use when displaying the contents.
+	 */
+	readonly mode?: string;
 }
 
 export interface IEditorOptions {
@@ -80,15 +95,17 @@ export interface IEditorOptions {
 	readonly forceReload?: boolean;
 
 	/**
-	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups. Note
-	 * that this option is just a hint that might be ignored if the user wants to open an editor explicitly
+	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
+	 *
+	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
 	 * to the side of another one or into a specific editor group.
 	 */
 	readonly revealIfVisible?: boolean;
 
 	/**
-	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups. Note
-	 * that this option is just a hint that might be ignored if the user wants to open an editor explicitly
+	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 *
+	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
 	 * to the side of another one or into a specific editor group.
 	 */
 	readonly revealIfOpened?: boolean;
@@ -109,13 +126,19 @@ export interface IEditorOptions {
 	 * in the background.
 	 */
 	readonly inactive?: boolean;
+
+	/**
+	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
+	 * message as needed. By default, an error will be presented as notification if opening was not possible.
+	 */
+	readonly ignoreError?: boolean;
 }
 
 export interface ITextEditorSelection {
-	startLineNumber: number;
-	startColumn: number;
-	endLineNumber?: number;
-	endColumn?: number;
+	readonly startLineNumber: number;
+	readonly startColumn: number;
+	readonly endLineNumber?: number;
+	readonly endColumn?: number;
 }
 
 export interface ITextEditorOptions extends IEditorOptions {

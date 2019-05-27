@@ -7,15 +7,14 @@ import * as chokidar from 'vscode-chokidar';
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as glob from 'vs/base/common/glob';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import * as strings from 'vs/base/common/strings';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { realcaseSync } from 'vs/base/node/extfs';
-import { isMacintosh } from 'vs/base/common/platform';
-import * as watcherCommon from 'vs/workbench/services/files/node/watcher/common';
+import { realcaseSync } from 'vs/base/node/extpath';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { IDiskFileChange, normalizeFileChanges } from 'vs/workbench/services/files/node/watcher/watcher';
 import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 
@@ -47,10 +46,10 @@ export class ChokidarWatcherService implements IWatcherService {
 	private spamWarningLogged: boolean;
 	private enospcErrorLogged: boolean;
 
-	private _onWatchEvent = new Emitter<watcherCommon.IRawFileChange[] | IWatchError>();
+	private _onWatchEvent = new Emitter<IDiskFileChange[] | IWatchError>();
 	readonly onWatchEvent = this._onWatchEvent.event;
 
-	public watch(options: IWatcherOptions & IChockidarWatcherOptions): Event<watcherCommon.IRawFileChange[] | IWatchError> {
+	public watch(options: IWatcherOptions & IChockidarWatcherOptions): Event<IDiskFileChange[] | IWatchError> {
 		this._verboseLogging = options.verboseLogging;
 		this._pollingInterval = options.pollingInterval;
 		this._watchers = Object.create(null);
@@ -58,13 +57,13 @@ export class ChokidarWatcherService implements IWatcherService {
 		return this.onWatchEvent;
 	}
 
-	public setVerboseLogging(enabled: boolean): Thenable<void> {
+	public setVerboseLogging(enabled: boolean): Promise<void> {
 		this._verboseLogging = enabled;
 
 		return Promise.resolve();
 	}
 
-	public setRoots(requests: IWatcherRequest[]): Thenable<void> {
+	public setRoots(requests: IWatcherRequest[]): Promise<void> {
 		const watchers = Object.create(null);
 		const newRequests: string[] = [];
 
@@ -115,11 +114,20 @@ export class ChokidarWatcherService implements IWatcherService {
 			disableGlobbing: true // fix https://github.com/Microsoft/vscode/issues/4586
 		};
 
+		const excludes: string[] = [];
 		// if there's only one request, use the built-in ignore-filterering
 		const isSingleFolder = requests.length === 1;
 		if (isSingleFolder) {
-			watcherOpts.ignored = requests[0].ignored;
+			excludes.push(...requests[0].excludes);
 		}
+
+		if ((isMacintosh || isLinux) && (basePath.length === 0 || basePath === '/')) {
+			excludes.push('/dev/**');
+			if (isLinux) {
+				excludes.push('/proc/**', '/sys/**');
+			}
+		}
+		watcherOpts.ignored = excludes;
 
 		// Chokidar fails when the basePath does not match case-identical to the path on disk
 		// so we have to find the real casing of the path and do some path massaging to fix this
@@ -140,7 +148,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			console.error('Watcher is not using native fsevents library and is falling back to unefficient polling.');
 		}
 
-		let undeliveredFileEvents: watcherCommon.IRawFileChange[] = [];
+		let undeliveredFileEvents: IDiskFileChange[] = [];
 		let fileEventDelayer: ThrottledDelayer<undefined> | null = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
 
 		const watcher: IWatcher = {
@@ -220,7 +228,7 @@ export class ChokidarWatcherService implements IWatcherService {
 				this.spamCheckStartTime = now;
 			} else if (!this.spamWarningLogged && this.spamCheckStartTime + ChokidarWatcherService.EVENT_SPAM_WARNING_THRESHOLD < now) {
 				this.spamWarningLogged = true;
-				console.warn(strings.format('Watcher is busy catching up with {0} file changes in 60 seconds. Latest changed path is "{1}"', undeliveredFileEvents.length, event.path));
+				console.warn(`Watcher is busy catching up with ${undeliveredFileEvents.length} file changes in 60 seconds. Latest changed path is "${event.path}"`);
 			}
 
 			// Add to buffer
@@ -233,7 +241,7 @@ export class ChokidarWatcherService implements IWatcherService {
 					undeliveredFileEvents = [];
 
 					// Broadcast to clients normalized
-					const res = watcherCommon.normalize(events);
+					const res = normalizeFileChanges(events);
 					this._onWatchEvent.fire(res);
 
 					// Logging
@@ -243,12 +251,12 @@ export class ChokidarWatcherService implements IWatcherService {
 						});
 					}
 
-					return Promise.resolve();
+					return Promise.resolve(undefined);
 				});
 			}
 		});
 
-		chokidarWatcher.on('error', (error: Error) => {
+		chokidarWatcher.on('error', (error: NodeJS.ErrnoException) => {
 			if (error) {
 
 				// Specially handle ENOSPC errors that can happen when
@@ -256,7 +264,7 @@ export class ChokidarWatcherService implements IWatcherService {
 				// we are running into a limit. We only want to warn
 				// once in this case to avoid log spam.
 				// See https://github.com/Microsoft/vscode/issues/7950
-				if ((<any>error).code === 'ENOSPC') {
+				if (error.code === 'ENOSPC') {
 					if (!this.enospcErrorLogged) {
 						this.enospcErrorLogged = true;
 						this.stop();
@@ -270,7 +278,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		return watcher;
 	}
 
-	public stop(): Thenable<void> {
+	public stop(): Promise<void> {
 		for (let path in this._watchers) {
 			let watcher = this._watchers[path];
 			watcher.stop();
@@ -282,19 +290,19 @@ export class ChokidarWatcherService implements IWatcherService {
 
 function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
 	for (let request of requests) {
-		if (request.basePath === path) {
+		if (request.path === path) {
 			return false;
 		}
-		if (paths.isEqualOrParent(path, request.basePath)) {
+		if (extpath.isEqualOrParent(path, request.path)) {
 			if (!request.parsedPattern) {
-				if (request.ignored && request.ignored.length > 0) {
-					let pattern = `{${request.ignored.join(',')}}`;
+				if (request.excludes && request.excludes.length > 0) {
+					let pattern = `{${request.excludes.join(',')}}`;
 					request.parsedPattern = glob.parse(pattern);
 				} else {
 					request.parsedPattern = () => false;
 				}
 			}
-			const relPath = path.substr(request.basePath.length + 1);
+			const relPath = path.substr(request.path.length + 1);
 			if (!request.parsedPattern(relPath)) {
 				return false;
 			}
@@ -308,18 +316,18 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
  * equests with Sub paths are skipped if they have the same ignored set as the parent.
  */
 export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string]: IWatcherRequest[] } {
-	requests = requests.sort((r1, r2) => r1.basePath.localeCompare(r2.basePath));
+	requests = requests.sort((r1, r2) => r1.path.localeCompare(r2.path));
 	let prevRequest: IWatcherRequest | null = null;
 	let result: { [basePath: string]: IWatcherRequest[] } = Object.create(null);
 	for (let request of requests) {
-		let basePath = request.basePath;
-		let ignored = (request.ignored || []).sort();
-		if (prevRequest && (paths.isEqualOrParent(basePath, prevRequest.basePath))) {
-			if (!isEqualIgnore(ignored, prevRequest.ignored)) {
-				result[prevRequest.basePath].push({ basePath, ignored });
+		let basePath = request.path;
+		let ignored = (request.excludes || []).sort();
+		if (prevRequest && (extpath.isEqualOrParent(basePath, prevRequest.path))) {
+			if (!isEqualIgnore(ignored, prevRequest.excludes)) {
+				result[prevRequest.path].push({ path: basePath, excludes: ignored });
 			}
 		} else {
-			prevRequest = { basePath, ignored };
+			prevRequest = { path: basePath, excludes: ignored };
 			result[basePath] = [prevRequest];
 		}
 	}
@@ -331,7 +339,7 @@ function isEqualRequests(r1: IWatcherRequest[], r2: IWatcherRequest[]) {
 		return false;
 	}
 	for (let k = 0; k < r1.length; k++) {
-		if (r1[k].basePath !== r2[k].basePath || !isEqualIgnore(r1[k].ignored, r2[k].ignored)) {
+		if (r1[k].path !== r2[k].path || !isEqualIgnore(r1[k].excludes, r2[k].excludes)) {
 			return false;
 		}
 	}

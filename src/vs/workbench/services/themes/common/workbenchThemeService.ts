@@ -22,13 +22,12 @@ export const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
-export const CUSTOM_EDITOR_SCOPE_COLORS_SETTING = 'textMateRules';
 
 export interface IColorTheme extends ITheme {
 	readonly id: string;
 	readonly label: string;
 	readonly settingsId: string;
-	readonly extensionData: ExtensionData;
+	readonly extensionData?: ExtensionData;
 	readonly description?: string;
 	readonly isLoaded: boolean;
 	readonly tokenColors: ITokenColorizationRule[];
@@ -41,9 +40,9 @@ export interface IColorMap {
 export interface IFileIconTheme extends IIconTheme {
 	readonly id: string;
 	readonly label: string;
-	readonly settingsId: string;
+	readonly settingsId: string | null;
 	readonly description?: string;
-	readonly extensionData: ExtensionData;
+	readonly extensionData?: ExtensionData;
 
 	readonly isLoaded: boolean;
 	readonly hasFileIcons: boolean;
@@ -53,16 +52,20 @@ export interface IFileIconTheme extends IIconTheme {
 
 export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: any;
-	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Thenable<IColorTheme>;
+	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IColorTheme | null>;
 	getColorTheme(): IColorTheme;
-	getColorThemes(): Thenable<IColorTheme[]>;
+	getColorThemes(): Promise<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
-	restoreColorTheme();
+	restoreColorTheme(): void;
 
-	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme>;
+	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
-	getFileIconThemes(): Thenable<IFileIconTheme[]>;
+	getFileIconThemes(): Promise<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
+}
+
+export interface IColorCustomizations {
+	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
 }
 
 export interface ITokenColorCustomizations {
@@ -100,4 +103,5 @@ export interface IThemeExtensionPoint {
 	label?: string;
 	description?: string;
 	path: string;
+	_watch: boolean; // unsupported options to watch location
 }

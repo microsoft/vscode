@@ -140,7 +140,7 @@ suite('Map', () => {
 		assert.strictEqual(cache.size, 5);
 		assert.deepStrictEqual(cache.keys(), [3, 4, 5, 6, 7]);
 		let values: number[] = [];
-		[3, 4, 5, 6, 7].forEach(key => values.push(cache.get(key)));
+		[3, 4, 5, 6, 7].forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [3, 4, 5, 6, 7]);
 	});
 
@@ -155,7 +155,7 @@ suite('Map', () => {
 		cache.peek(4);
 		assert.deepStrictEqual(cache.keys(), [1, 2, 4, 5, 3]);
 		let values: number[] = [];
-		[1, 2, 3, 4, 5].forEach(key => values.push(cache.get(key)));
+		[1, 2, 3, 4, 5].forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [1, 2, 3, 4, 5]);
 	});
 
@@ -177,7 +177,7 @@ suite('Map', () => {
 		assert.deepEqual(cache.size, 15);
 		let values: number[] = [];
 		for (let i = 6; i <= 20; i++) {
-			values.push(cache.get(i));
+			values.push(cache.get(i)!);
 			assert.strictEqual(cache.get(i), i);
 		}
 		assert.deepStrictEqual(cache.values(), values);
@@ -194,7 +194,7 @@ suite('Map', () => {
 		assert.strictEqual(cache.size, 5);
 		assert.deepStrictEqual(cache.keys(), [7, 8, 9, 10, 11]);
 		let values: number[] = [];
-		cache.keys().forEach(key => values.push(cache.get(key)));
+		cache.keys().forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [7, 8, 9, 10, 11]);
 		assert.deepStrictEqual(cache.values(), values);
 	});
@@ -225,6 +225,50 @@ suite('Map', () => {
 			i++;
 		});
 	});
+
+	test('LinkedMap - delete Head and Tail', function () {
+		const map = new LinkedMap<string, number>();
+
+		assert.equal(map.size, 0);
+
+		map.set('1', 1);
+		assert.equal(map.size, 1);
+		map.delete('1');
+		assert.equal(map.get('1'), undefined);
+		assert.equal(map.size, 0);
+		assert.equal(map.keys().length, 0);
+	});
+
+	test('LinkedMap - delete Head', function () {
+		const map = new LinkedMap<string, number>();
+
+		assert.equal(map.size, 0);
+
+		map.set('1', 1);
+		map.set('2', 2);
+		assert.equal(map.size, 2);
+		map.delete('1');
+		assert.equal(map.get('2'), 2);
+		assert.equal(map.size, 1);
+		assert.equal(map.keys().length, 1);
+		assert.equal(map.keys()[0], 2);
+	});
+
+	test('LinkedMap - delete Tail', function () {
+		const map = new LinkedMap<string, number>();
+
+		assert.equal(map.size, 0);
+
+		map.set('1', 1);
+		map.set('2', 2);
+		assert.equal(map.size, 2);
+		map.delete('2');
+		assert.equal(map.get('1'), 1);
+		assert.equal(map.size, 1);
+		assert.equal(map.keys().length, 1);
+		assert.equal(map.keys()[0], 1);
+	});
+
 
 	test('PathIterator', () => {
 		const iter = new PathIterator();
@@ -420,25 +464,25 @@ suite('Map', () => {
 		let item: IteratorResult<number>;
 		let iter = map.findSuperstr('/user');
 
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, 2);
 		assert.equal(item.done, false);
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, 1);
 		assert.equal(item.done, false);
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, 3);
 		assert.equal(item.done, false);
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, undefined);
 		assert.equal(item.done, true);
 
 		iter = map.findSuperstr('/usr');
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, 4);
 		assert.equal(item.done, false);
 
-		item = iter.next();
+		item = iter!.next();
 		assert.equal(item.value, undefined);
 		assert.equal(item.done, true);
 
@@ -588,7 +632,7 @@ suite('Map', () => {
 	test('mapToSerializable / serializableToMap', function () {
 		const map = new Map<string, string>();
 		map.set('1', 'foo');
-		map.set('2', null);
+		map.set('2', null!);
 		map.set('3', 'bar');
 
 		const map2 = serializableToMap(mapToSerializable(map));

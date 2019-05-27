@@ -214,10 +214,10 @@ export class Gesture extends Disposable {
 		}
 	}
 
-	private newGestureEvent(type: string, intialTarget?: EventTarget): GestureEvent {
+	private newGestureEvent(type: string, initialTarget?: EventTarget): GestureEvent {
 		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
 		event.initEvent(type, false, true);
-		event.initialTarget = intialTarget;
+		event.initialTarget = initialTarget;
 		return event;
 	}
 

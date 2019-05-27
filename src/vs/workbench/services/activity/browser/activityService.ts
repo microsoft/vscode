@@ -4,31 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
-import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class ActivityService implements IActivityService {
 
 	public _serviceBrand: any;
 
 	constructor(
-		private activitybarPart: ActivitybarPart,
-		private panelPart: PanelPart,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private readonly panelService: IPanelService,
+		@IActivityBarService private readonly activityBarService: IActivityBarService
 	) { }
 
 	showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		if (this.panelService.getPanels().filter(p => p.id === compositeOrActionId).length) {
-			return this.panelPart.showActivity(compositeOrActionId, badge, clazz);
+			return this.panelService.showActivity(compositeOrActionId, badge, clazz);
 		}
 
-		return this.activitybarPart.showActivity(compositeOrActionId, badge, clazz, priority);
+		return this.activityBarService.showActivity(compositeOrActionId, badge, clazz, priority);
 	}
-
-	getPinnedViewletIds(): string[] {
-		return this.activitybarPart.getPinnedViewletIds();
-	}
-
 }
+
+registerSingleton(IActivityService, ActivityService, true);

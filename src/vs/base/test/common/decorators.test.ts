@@ -11,7 +11,7 @@ suite('Decorators', () => {
 		class Foo {
 			count = 0;
 
-			constructor(private _answer: number) { }
+			constructor(private _answer: number | null | undefined) { }
 
 			@memoize
 			answer() {
@@ -56,7 +56,7 @@ suite('Decorators', () => {
 		class Foo {
 			count = 0;
 
-			constructor(private _answer: number) { }
+			constructor(private _answer: number | null | undefined) { }
 
 			@memoize
 			get answer() {

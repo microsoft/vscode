@@ -21,7 +21,16 @@
 	background: url('lightbulb.svg') center center no-repeat;
 }
 
+.monaco-editor.vs .lightbulb-glyph.autofixable {
+	background: url('lightbulb-autofix.svg') center center no-repeat;
+}
+
 .monaco-editor.vs-dark .lightbulb-glyph,
 .monaco-editor.hc-black .lightbulb-glyph {
 	background: url('lightbulb-dark.svg') center center no-repeat;
+}
+
+.monaco-editor.vs-dark .lightbulb-glyph.autofixable,
+.monaco-editor.hc-black .lightbulb-glyph.autofixable {
+	background: url('lightbulb-autofix-dark.svg') center center no-repeat;
 }

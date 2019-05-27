@@ -22,7 +22,7 @@ suite('TokenizationSupport2Adapter', () => {
 	class MockTokenTheme extends TokenTheme {
 		private counter = 0;
 		constructor() {
-			super(null, null);
+			super(null!, null!);
 		}
 		public match(languageId: LanguageId, token: string): number {
 			return (

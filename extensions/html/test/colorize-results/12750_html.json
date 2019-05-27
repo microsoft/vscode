@@ -111,13 +111,13 @@
 	},
 	{
 		"c": "window",
-		"t": "text.html.derivative meta.embedded.block.html source.js meta.function-call.js support.variable.dom.js",
+		"t": "text.html.derivative meta.embedded.block.html source.js meta.function-call.js variable.other.object.js",
 		"r": {
-			"dark_plus": "support.variable: #9CDCFE",
-			"light_plus": "support.variable: #001080",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
-			"hc_black": "support.variable: #9CDCFE"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -133,13 +133,13 @@
 	},
 	{
 		"c": "alert",
-		"t": "text.html.derivative meta.embedded.block.html source.js meta.function-call.js support.function.js",
+		"t": "text.html.derivative meta.embedded.block.html source.js meta.function-call.js entity.name.function.js",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
-			"hc_black": "support.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
@@ -298,13 +298,13 @@
 	},
 	{
 		"c": "window",
-		"t": "text.html.derivative meta.embedded.block.html source.js meta.function-call.js support.variable.dom.js",
+		"t": "text.html.derivative meta.embedded.block.html source.js meta.function-call.js variable.other.object.js",
 		"r": {
-			"dark_plus": "support.variable: #9CDCFE",
-			"light_plus": "support.variable: #001080",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
-			"hc_black": "support.variable: #9CDCFE"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -320,13 +320,13 @@
 	},
 	{
 		"c": "alert",
-		"t": "text.html.derivative meta.embedded.block.html source.js meta.function-call.js support.function.js",
+		"t": "text.html.derivative meta.embedded.block.html source.js meta.function-call.js entity.name.function.js",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
-			"hc_black": "support.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{

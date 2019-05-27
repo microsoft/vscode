@@ -2,6 +2,7 @@
 	"displayName": "CSS Language Features",
 	"description": "Provides rich language support for CSS, LESS and SCSS files.",
 	"css.title": "CSS",
+	"css.completion.triggerPropertyValueCompletion.desc": "By default, VS Code triggers property value completion after selecting a CSS property. Use this setting to disable this behavior.",
 	"css.lint.argumentsInColorFunction.desc": "Invalid number of parameters.",
 	"css.lint.boxModel.desc": "Do not use `width` or `height` when using `padding` or `border`.",
 	"css.lint.compatibleVendorPrefixes.desc": "When using a vendor-specific prefix make sure to also include all other vendor-specific properties.",
@@ -69,9 +70,6 @@
 	"scss.lint.zeroUnits.desc": "No unit for zero needed.",
 	"scss.validate.title": "Controls SCSS validation and problem severities.",
 	"scss.validate.desc": "Enables or disables all validations.",
-	"less.colorDecorators.enable.desc": "Enables or disables color decorators.",
-	"scss.colorDecorators.enable.desc": "Enables or disables color decorators.",
-	"css.colorDecorators.enable.desc": "Enables or disables color decorators.",
 	"css.colorDecorators.enable.deprecationMessage": "The setting `css.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`.",
 	"scss.colorDecorators.enable.deprecationMessage": "The setting `scss.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`.",
 	"less.colorDecorators.enable.deprecationMessage": "The setting `less.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`."

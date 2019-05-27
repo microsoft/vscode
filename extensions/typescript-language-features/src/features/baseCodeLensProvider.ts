@@ -6,9 +6,10 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
-import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
+import { CachedResponse } from '../tsServer/cachedResponse';
 
 const localize = nls.loadMessageBundle();
 
@@ -19,37 +20,6 @@ export class ReferencesCodeLens extends vscode.CodeLens {
 		range: vscode.Range
 	) {
 		super(range);
-	}
-}
-
-export class CachedResponse<T extends Proto.Response> {
-	private response?: Promise<ServerResponse<T>>;
-	private version: number = -1;
-	private document: string = '';
-
-	public execute(
-		document: vscode.TextDocument,
-		f: () => Promise<ServerResponse<T>>
-	) {
-		if (this.matches(document)) {
-			return this.response;
-		}
-
-		return this.update(document, f());
-	}
-
-	private matches(document: vscode.TextDocument): boolean {
-		return this.version === document.version && this.document === document.uri.toString();
-	}
-
-	private update(
-		document: vscode.TextDocument,
-		response: Promise<ServerResponse<T>>
-	): Promise<ServerResponse<T>> {
-		this.response = response;
-		this.version = document.version;
-		this.document = document.uri.toString();
-		return response;
 	}
 }
 
@@ -78,13 +48,13 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 	}
 
 	async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CodeLens[]> {
-		const filepath = this.client.toPath(document.uri);
+		const filepath = this.client.toOpenedFilePath(document);
 		if (!filepath) {
 			return [];
 		}
 
 		const response = await this.cachedResponse.execute(document, () => this.client.execute('navtree', { file: filepath }, token));
-		if (!response || response.type !== 'response') {
+		if (response.type !== 'response') {
 			return [];
 		}
 

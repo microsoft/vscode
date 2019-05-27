@@ -151,8 +151,8 @@ suite('Editor Controller - Cursor', () => {
 			LINE5;
 
 		thisModel = createTextModel(text);
-		thisConfiguration = new TestConfiguration(null);
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null);
+		thisConfiguration = new TestConfiguration({});
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null!);
 
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
@@ -735,8 +735,8 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -774,8 +774,8 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -836,8 +836,8 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -885,8 +885,8 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -1395,7 +1395,7 @@ suite('Editor Controller - Regression tests', () => {
 			'asdasd',
 			'qwerty'
 		], {}, (editor, cursor) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 
 			moveTo(cursor, 2, 1, false);
 			assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -1411,7 +1411,7 @@ suite('Editor Controller - Regression tests', () => {
 			'asdasd',
 			''
 		], {}, (editor, cursor) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 
 			moveTo(cursor, 2, 1, false);
 			assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -1981,7 +1981,7 @@ suite('Editor Controller - Regression tests', () => {
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 100
 		});
-		const viewModel = new ViewModel(0, config, model, null);
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 43, false);
@@ -2050,9 +2050,9 @@ suite('Editor Controller - Regression tests', () => {
 
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
-			tokenize: undefined,
+			tokenize: undefined!,
 			tokenize2: (line: string, state: IState): TokenizationResult2 => {
-				return new TokenizationResult2(null, state);
+				return new TokenizationResult2(null!, state);
 			}
 		};
 
@@ -2212,6 +2212,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n'),
 			{
 				tabSize: 13,
+				indentSize: 13,
 			}
 		);
 
@@ -2392,7 +2393,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				}
 
 				public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-					return helper.getTrackedSelection(this._selectionId);
+					return helper.getTrackedSelection(this._selectionId!);
 				}
 
 			}
@@ -3122,7 +3123,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { tabSize: 2 }
+			modelOpts: {
+				tabSize: 2,
+				indentSize: 2
+			}
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -3594,7 +3598,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'',
 				')',
 			].join('\n'),
-			{ tabSize: 2 },
+			{
+				tabSize: 2,
+				indentSize: 2
+			},
 			mode.getLanguageIdentifier()
 		);
 
@@ -3626,7 +3633,7 @@ suite('Editor Controller - Indentation Rules', () => {
 
 interface ICursorOpts {
 	text: string[];
-	languageIdentifier?: LanguageIdentifier;
+	languageIdentifier?: LanguageIdentifier | null;
 	modelOpts?: IRelaxedTextModelCreationOptions;
 	editorOpts?: IEditorOptions;
 }
@@ -3634,8 +3641,8 @@ interface ICursorOpts {
 function usingCursor(opts: ICursorOpts, callback: (model: TextModel, cursor: Cursor) => void): void {
 	let model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	model.forceTokenization(model.getLineCount());
-	let config = new TestConfiguration(opts.editorOpts);
-	let viewModel = new ViewModel(0, config, model, null);
+	let config = new TestConfiguration(opts.editorOpts || {});
+	let viewModel = new ViewModel(0, config, model, null!);
 	let cursor = new Cursor(config, model, viewModel);
 
 	callback(model, cursor);

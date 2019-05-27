@@ -10,8 +10,8 @@ import { ITextModel } from 'vs/editor/common/model';
 
 export class CopyLinesCommand implements editorCommon.ICommand {
 
-	private _selection: Selection;
-	private _isCopyingDown: boolean;
+	private readonly _selection: Selection;
+	private readonly _isCopyingDown: boolean;
 
 	private _selectionDirection: SelectionDirection;
 	private _selectionId: string;

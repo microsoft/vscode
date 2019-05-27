@@ -4,10 +4,13 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-coffee-script/commit/a0da2a73ad817e2fc13c2ef8fcd2624017c39610",
+	"version": "https://github.com/atom/language-coffee-script/commit/0f6db9143663e18b1ad00667820f46747dba495e",
 	"name": "CoffeeScript",
 	"scopeName": "source.coffee",
 	"patterns": [
+		{
+			"include": "#jsx"
+		},
 		{
 			"match": "(new)\\s+(?:(?:(class)\\s+(\\w+(?:\\.\\w*)*)?)|(\\w+(?:\\.\\w*)*))",
 			"name": "meta.class.instance.constructor.coffee",
@@ -1211,6 +1214,101 @@
 				},
 				{
 					"include": "#embedded_comment"
+				}
+			]
+		},
+		"jsx": {
+			"patterns": [
+				{
+					"include": "#jsx-tag"
+				},
+				{
+					"include": "#jsx-end-tag"
+				}
+			]
+		},
+		"jsx-expression": {
+			"begin": "{",
+			"beginCaptures": {
+				"0": {
+					"name": "meta.brace.curly.coffee"
+				}
+			},
+			"end": "}",
+			"endCaptures": {
+				"0": {
+					"name": "meta.brace.curly.coffee"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#double_quoted_string"
+				},
+				{
+					"include": "$self"
+				}
+			]
+		},
+		"jsx-attribute": {
+			"patterns": [
+				{
+					"captures": {
+						"1": {
+							"name": "entity.other.attribute-name.coffee"
+						},
+						"2": {
+							"name": "keyword.operator.assignment.coffee"
+						}
+					},
+					"match": "(?:^|\\s+)([-\\w.]+)\\s*(=)"
+				},
+				{
+					"include": "#double_quoted_string"
+				},
+				{
+					"include": "#single_quoted_string"
+				},
+				{
+					"include": "#jsx-expression"
+				}
+			]
+		},
+		"jsx-tag": {
+			"patterns": [
+				{
+					"begin": "(<)([-\\w\\.]+)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.tag.coffee"
+						},
+						"2": {
+							"name": "entity.name.tag.coffee"
+						}
+					},
+					"end": "(/?>)",
+					"name": "meta.tag.coffee",
+					"patterns": [
+						{
+							"include": "#jsx-attribute"
+						}
+					]
+				}
+			]
+		},
+		"jsx-end-tag": {
+			"patterns": [
+				{
+					"begin": "(</)([-\\w\\.]+)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.tag.coffee"
+						},
+						"2": {
+							"name": "entity.name.tag.coffee"
+						}
+					},
+					"end": "(/?>)",
+					"name": "meta.tag.coffee"
 				}
 			]
 		}

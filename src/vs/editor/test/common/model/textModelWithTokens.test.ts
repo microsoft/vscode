@@ -19,7 +19,7 @@ import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
 suite('TextModelWithTokens', () => {
 
 	function testBrackets(contents: string[], brackets: CharacterPair[]): void {
-		function toRelaxedFoundBracket(a: IFoundBracket) {
+		function toRelaxedFoundBracket(a: IFoundBracket | null) {
 			if (!a) {
 				return null;
 			}
@@ -158,7 +158,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 	}
 
 	const languageIdentifier = new LanguageIdentifier('bracketMode1', LanguageId.PlainText);
-	let registration: IDisposable | null = null;
+	let registration: IDisposable;
 
 	setup(() => {
 		registration = LanguageConfigurationRegistry.register(languageIdentifier, {
@@ -172,7 +172,6 @@ suite('TextModelWithTokens - bracket matching', () => {
 
 	teardown(() => {
 		registration.dispose();
-		registration = null;
 	});
 
 	test('bracket matching 1', () => {
@@ -293,7 +292,7 @@ suite('TextModelWithTokens regression tests', () => {
 
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
-			tokenize: undefined,
+			tokenize: undefined!,
 			tokenize2: (line, state) => {
 				let myId = ++_tokenId;
 				let tokens = new Uint32Array(2);
@@ -397,7 +396,7 @@ suite('TextModelWithTokens regression tests', () => {
 
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
-			tokenize: undefined,
+			tokenize: undefined!,
 			tokenize2: (line, state) => {
 				let tokens = new Uint32Array(2);
 				tokens[0] = 0;

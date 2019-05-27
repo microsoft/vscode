@@ -1,0 +1,30 @@
+{
+  "name": "vscode-reh",
+  "version": "0.0.0",
+  "dependencies": {
+    "applicationinsights": "1.0.8",
+    "getmac": "^1.4.6",
+    "graceful-fs": "4.1.11",
+    "http-proxy-agent": "^2.1.0",
+    "https-proxy-agent": "^2.2.1",
+    "iconv-lite": "0.4.23",
+    "jschardet": "1.6.0",
+    "keytar": "4.2.1",
+    "minimist": "1.2.0",
+    "native-watchdog": "1.0.0",
+    "node-pty": "0.8.1",
+    "onigasm-umd": "^2.2.2",
+    "semver": "^5.5.0",
+    "spdlog": "0.8.1",
+    "vscode-chokidar": "1.6.5",
+    "vscode-nsfw": "1.1.1",
+    "vscode-proxy-agent": "0.4.0",
+    "vscode-ripgrep": "^1.2.5",
+    "vscode-textmate": "^4.1.1",
+    "yauzl": "^2.9.2",
+    "yazl": "^2.4.3"
+  },
+  "optionalDependencies": {
+    "vscode-windows-ca-certs": "0.1.0"
+  }
+}

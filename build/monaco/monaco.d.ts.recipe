@@ -21,12 +21,11 @@ declare namespace monaco {
 	export class Emitter<T> {
 		constructor();
 		readonly event: Event<T>;
-		fire(event?: T): void;
+		fire(event: T): void;
 		dispose(): void;
 	}
 
 #include(vs/platform/markers/common/markers): MarkerTag, MarkerSeverity
-#include(vs/base/common/winjs.base.d.ts): Promise
 #include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
 #include(vs/base/common/uri): URI, UriComponents
 #include(vs/base/common/keyCodes): KeyCode

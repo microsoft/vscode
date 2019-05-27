@@ -45,5 +45,5 @@ export interface ICodeEditorService {
 	getTransientModelProperty(model: ITextModel, key: string): any;
 
 	getActiveCodeEditor(): ICodeEditor | null;
-	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Thenable<ICodeEditor | null>;
+	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
 }

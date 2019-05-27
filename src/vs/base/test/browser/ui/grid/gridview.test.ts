@@ -21,10 +21,6 @@ suite('Gridview', function () {
 		container.appendChild(gridview.element);
 	});
 
-	teardown(function () {
-		gridview = null;
-	});
-
 	test('empty gridview is empty', function () {
 		assert.deepEqual(nodesToArrays(gridview.getViews()), []);
 		gridview.dispose();

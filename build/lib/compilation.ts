@@ -17,7 +17,9 @@ import * as monacodts from '../monaco/api';
 import * as nls from './nls';
 import { createReporter } from './reporter';
 import * as util from './util';
-import * as util2 from 'gulp-util';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
+
 const watch = require('./watch');
 
 const reporter = createReporter();
@@ -159,6 +161,20 @@ class MonacoGenerator {
 				this._declarationResolver.invalidateCache(moduleId);
 				this._executeSoon();
 			});
+			watcher.addListener('error', (err) => {
+				console.error(`Encountered error while watching ${filePath}.`);
+				console.log(err);
+				delete this._watchedFiles[filePath];
+				for (let i = 0; i < this._watchers.length; i++) {
+					if (this._watchers[i] === watcher) {
+						this._watchers.splice(i, 1);
+						break;
+					}
+				}
+				watcher.close();
+				this._declarationResolver.invalidateCache(moduleId);
+				this._executeSoon();
+			});
 			this._watchers.push(watcher);
 		};
 		this._fsProvider = new class extends monacodts.FSProvider {
@@ -204,7 +220,7 @@ class MonacoGenerator {
 	}
 
 	private _log(message: any, ...rest: any[]): void {
-		util2.log(util2.colors.cyan('[monaco.d.ts]'), message, ...rest);
+		fancyLog(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
 	}
 
 	public execute(): void {

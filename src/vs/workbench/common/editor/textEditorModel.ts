@@ -3,25 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
-import { EditorModel } from 'vs/workbench/common/editor';
+import { ITextModel, ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
+import { EditorModel, IModeSupport } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
+export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
+	protected textEditorModelHandle: URI | null;
+	private createdEditorModel: boolean;
 
-	protected createdEditorModel: boolean;
-
-	private textEditorModelHandle: URI;
-	private modelDisposeListener: IDisposable;
+	private modelDisposeListener: IDisposable | null;
 
 	constructor(
 		@IModelService protected modelService: IModelService,
@@ -60,23 +58,36 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		});
 	}
 
-	get textEditorModel(): ITextModel {
+	get textEditorModel(): ITextModel | null {
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
 	abstract isReadonly(): boolean;
 
-	/**
-	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
-	 */
-	protected createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string): TPromise<EditorModel> {
-		const firstLineText = this.getFirstLineText(value);
-		const languageSelection = this.getOrCreateMode(this.modeService, modeId, firstLineText);
+	setMode(mode: string): void {
+		if (!this.isResolved()) {
+			return;
+		}
 
-		return TPromise.as(this.doCreateTextEditorModel(value, languageSelection, resource));
+		if (!mode || mode === this.textEditorModel.getModeId()) {
+			return;
+		}
+
+		this.modelService.setMode(this.textEditorModel, this.modeService.create(mode));
 	}
 
-	private doCreateTextEditorModel(value: ITextBufferFactory, languageSelection: ILanguageSelection, resource: URI): EditorModel {
+	/**
+	 * Creates the text editor model with the provided value, optional preferred mode
+	 * (can be comma separated for multiple values) and optional resource URL.
+	 */
+	protected createTextEditorModel(value: ITextBufferFactory, resource: URI | undefined, preferredMode?: string): EditorModel {
+		const firstLineText = this.getFirstLineText(value);
+		const languageSelection = this.getOrCreateMode(resource, this.modeService, preferredMode, firstLineText);
+
+		return this.doCreateTextEditorModel(value, languageSelection, resource);
+	}
+
+	private doCreateTextEditorModel(value: ITextBufferFactory, languageSelection: ILanguageSelection, resource: URI | undefined): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
 			model = this.modelService.createModel(value, languageSelection, resource);
@@ -85,8 +96,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			// Make sure we clean up when this model gets disposed
 			this.registerModelDisposeListener(model);
 		} else {
-			this.modelService.updateModel(model, value);
-			this.modelService.setMode(model, languageSelection);
+			this.updateTextEditorModel(value, languageSelection.languageIdentifier.language);
 		}
 
 		this.textEditorModelHandle = model.uri;
@@ -112,31 +122,45 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 *
 	 * @param firstLineText optional first line of the text buffer to set the mode on. This can be used to guess a mode from content.
 	 */
-	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): ILanguageSelection {
-		return modeService.create(modeId);
+	protected getOrCreateMode(resource: URI | undefined, modeService: IModeService, preferredMode: string | undefined, firstLineText?: string): ILanguageSelection {
+
+		// lookup mode via resource path if the provided mode is unspecific
+		if (!preferredMode || preferredMode === PLAINTEXT_MODE_ID) {
+			return modeService.createByFilepathOrFirstLine(resource ? resource.path : null, firstLineText);
+		}
+
+		// otherwise take the preferred mode for granted
+		return modeService.create(preferredMode);
 	}
 
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue: ITextBufferFactory): void {
-		if (!this.textEditorModel) {
+	protected updateTextEditorModel(newValue: ITextBufferFactory, preferredMode?: string): void {
+		if (!this.isResolved()) {
 			return;
 		}
 
+		// contents
 		this.modelService.updateModel(this.textEditorModel, newValue);
+
+		// mode (only if specific and changed)
+		if (preferredMode && preferredMode !== PLAINTEXT_MODE_ID && this.textEditorModel.getModeId() !== preferredMode) {
+			this.modelService.setMode(this.textEditorModel, this.modeService.create(preferredMode));
+		}
 	}
 
-	createSnapshot(): ITextSnapshot {
-		const model = this.textEditorModel;
-		if (model) {
-			return model.createSnapshot(true /* Preserve BOM */);
+	createSnapshot(this: IResolvedTextEditorModel): ITextSnapshot;
+	createSnapshot(this: ITextEditorModel): ITextSnapshot | null;
+	createSnapshot(): ITextSnapshot | null {
+		if (!this.textEditorModel) {
+			return null;
 		}
 
-		return null;
+		return this.textEditorModel.createSnapshot(true /* preserve BOM */);
 	}
 
-	isResolved(): boolean {
+	isResolved(): this is IResolvedTextEditorModel {
 		return !!this.textEditorModelHandle;
 	}
 

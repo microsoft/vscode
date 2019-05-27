@@ -12,11 +12,16 @@ export function registerContextMenuListener(): void {
 
 		menu.popup({
 			window: BrowserWindow.fromWebContents(event.sender),
-			x: options ? options.x : void 0,
-			y: options ? options.y : void 0,
-			positioningItem: options ? options.positioningItem : void 0,
+			x: options ? options.x : undefined,
+			y: options ? options.y : undefined,
+			positioningItem: options ? options.positioningItem : undefined,
 			callback: () => {
-				event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
+				// Workaround for https://github.com/Microsoft/vscode/issues/72447
+				// It turns out that the menu gets GC'ed if not referenced anymore
+				// As such we drag it into this scope so that it is not being GC'ed
+				if (menu) {
+					event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
+				}
 			}
 		});
 	});

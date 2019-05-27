@@ -21,8 +21,8 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 
 	private static readonly ID = 'editor.contrib.quickOpenEditorWidget';
 
-	private codeEditor: ICodeEditor;
-	private themeService: IThemeService;
+	private readonly codeEditor: ICodeEditor;
+	private readonly themeService: IThemeService;
 	private visible: boolean;
 	private quickOpenWidget: QuickOpenWidget;
 	private domNode: HTMLElement;
@@ -45,7 +45,7 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 				onCancel: onCancel,
 				onType: onType
 			}, {
-				inputPlaceHolder: null,
+				inputPlaceHolder: undefined,
 				inputAriaLabel: configuration.inputAriaLabel,
 				keyboardSupport: true
 			}
@@ -98,7 +98,7 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 		this.codeEditor.layoutOverlayWidget(this);
 	}
 
-	public getPosition(): IOverlayWidgetPosition {
+	public getPosition(): IOverlayWidgetPosition | null {
 		if (this.visible) {
 			return {
 				preference: OverlayWidgetPositionPreference.TOP_CENTER

@@ -30,12 +30,12 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 		return editor.getContribution<QuickOpenController>(QuickOpenController.ID);
 	}
 
-	private editor: ICodeEditor;
-	private widget: QuickOpenEditorWidget;
-	private rangeHighlightDecorationId: string;
-	private lastKnownEditorSelection: Selection;
+	private readonly editor: ICodeEditor;
+	private widget: QuickOpenEditorWidget | null;
+	private rangeHighlightDecorationId: string | null;
+	private lastKnownEditorSelection: Selection | null;
 
-	constructor(editor: ICodeEditor, @IThemeService private themeService: IThemeService) {
+	constructor(editor: ICodeEditor, @IThemeService private readonly themeService: IThemeService) {
 		this.editor = editor;
 	}
 
@@ -83,7 +83,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 			() => onClose(false),
 			() => onClose(true),
 			(value: string) => {
-				this.widget.setInput(opts.getModel(value), opts.getAutoFocus(value));
+				this.widget!.setInput(opts.getModel(value), opts.getAutoFocus(value));
 			},
 			{
 				inputAriaLabel: opts.inputAriaLabel
@@ -148,7 +148,7 @@ export interface IQuickOpenOpts {
  */
 export abstract class BaseEditorQuickOpenAction extends EditorAction {
 
-	private _inputAriaLabel: string;
+	private readonly _inputAriaLabel: string;
 
 	constructor(inputAriaLabel: string, opts: IActionOptions) {
 		super(opts);

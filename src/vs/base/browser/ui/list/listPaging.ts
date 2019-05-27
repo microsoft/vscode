@@ -9,7 +9,7 @@ import { range } from 'vs/base/common/arrays';
 import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent } from './list';
 import { List, IListStyles, IListOptions } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
-import { Event, mapEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
@@ -35,7 +35,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		return { data, disposable: { dispose: () => { } } };
 	}
 
-	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>): void {
+	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>, height: number | undefined): void {
 		if (data.disposable) {
 			data.disposable.dispose();
 		}
@@ -47,7 +47,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		const model = this.modelProvider();
 
 		if (model.isResolved(index)) {
-			return this.renderer.renderElement(model.get(index), index, data.data);
+			return this.renderer.renderElement(model.get(index), index, data.data, height);
 		}
 
 		const cts = new CancellationTokenSource();
@@ -55,11 +55,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		data.disposable = { dispose: () => cts.cancel() };
 
 		this.renderer.renderPlaceholder(index, data.data);
-		promise.then(entry => this.renderer.renderElement(entry, index, data.data!));
-	}
-
-	disposeElement(): void {
-		// noop
+		promise.then(entry => this.renderer.renderElement(entry, index, data.data!, height));
 	}
 
 	disposeTemplate(data: ITemplateData<TTemplateData>): void {
@@ -118,23 +114,23 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get onFocusChange(): Event<IListEvent<T>> {
-		return mapEvent(this.list.onFocusChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+		return Event.map(this.list.onFocusChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
 	get onOpen(): Event<IListEvent<T>> {
-		return mapEvent(this.list.onOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
+		return Event.map(this.list.onDidOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
 	}
 
 	get onSelectionChange(): Event<IListEvent<T>> {
-		return mapEvent(this.list.onSelectionChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+		return Event.map(this.list.onSelectionChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
 	get onPin(): Event<IListEvent<T>> {
-		return mapEvent(this.list.onPin, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+		return Event.map(this.list.onPin, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
 	get onContextMenu(): Event<IListContextMenuEvent<T>> {
-		return mapEvent(this.list.onContextMenu, ({ element, index, anchor, browserEvent }) => (typeof element === 'undefined' ? { element, index, anchor, browserEvent } : { element: this._model.get(element), index, anchor, browserEvent }));
+		return Event.map(this.list.onContextMenu, ({ element, index, anchor, browserEvent }) => (typeof element === 'undefined' ? { element, index, anchor, browserEvent } : { element: this._model.get(element), index, anchor, browserEvent }));
 	}
 
 	get model(): IPagedModel<T> {
@@ -194,8 +190,12 @@ export class PagedList<T> implements IDisposable {
 		return this.list.getSelection();
 	}
 
-	layout(height?: number): void {
-		this.list.layout(height);
+	layout(height?: number, width?: number): void {
+		this.list.layout(height, width);
+	}
+
+	toggleKeyboardNavigation(): void {
+		this.list.toggleKeyboardNavigation();
 	}
 
 	reveal(index: number, relativeTop?: number): void {

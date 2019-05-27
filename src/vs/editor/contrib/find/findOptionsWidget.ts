@@ -18,14 +18,14 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
 	private static readonly ID = 'editor.contrib.findOptionsWidget';
 
-	private _editor: ICodeEditor;
-	private _state: FindReplaceState;
-	private _keybindingService: IKeybindingService;
+	private readonly _editor: ICodeEditor;
+	private readonly _state: FindReplaceState;
+	private readonly _keybindingService: IKeybindingService;
 
-	private _domNode: HTMLElement;
-	private regex: RegexCheckbox;
-	private wholeWords: WholeWordsCheckbox;
-	private caseSensitive: CaseSensitiveCheckbox;
+	private readonly _domNode: HTMLElement;
+	private readonly regex: RegexCheckbox;
+	private readonly wholeWords: WholeWordsCheckbox;
+	private readonly caseSensitive: CaseSensitiveCheckbox;
 
 	constructor(
 		editor: ICodeEditor,
@@ -46,7 +46,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.setAttribute('aria-hidden', 'true');
 
-		let inputActiveOptionBorderColor = themeService.getTheme().getColor(inputActiveOptionBorder);
+		const inputActiveOptionBorderColor = themeService.getTheme().getColor(inputActiveOptionBorder);
 
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),

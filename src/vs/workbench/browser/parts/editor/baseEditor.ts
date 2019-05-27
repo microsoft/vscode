@@ -8,11 +8,11 @@ import { EditorInput, EditorOptions, IEditor, GroupIdentifier, IEditorMemento } 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { once, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 
@@ -38,12 +38,12 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	readonly minimumHeight = DEFAULT_EDITOR_MIN_DIMENSIONS.height;
 	readonly maximumHeight = DEFAULT_EDITOR_MAX_DIMENSIONS.height;
 
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.None;
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = Event.None;
 
-	protected _input: EditorInput;
-	protected _options: EditorOptions;
+	protected _input: EditorInput | null;
+	protected _options: EditorOptions | null;
 
-	private _group: IEditorGroup;
+	private _group?: IEditorGroup;
 
 	constructor(
 		id: string,
@@ -54,15 +54,15 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		super(id, telemetryService, themeService, storageService);
 	}
 
-	get input(): EditorInput {
+	get input(): EditorInput | null {
 		return this._input;
 	}
 
-	get options(): EditorOptions {
+	get options(): EditorOptions | null {
 		return this._options;
 	}
 
-	get group(): IEditorGroup {
+	get group(): IEditorGroup | undefined {
 		return this._group;
 	}
 
@@ -77,7 +77,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: EditorInput, options: EditorOptions | null, token: CancellationToken): Promise<void> {
 		this._input = input;
 		this._options = options;
 
@@ -100,7 +100,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * Sets the given options to the editor. Clients should apply the options
 	 * to the current input.
 	 */
-	setOptions(options: EditorOptions): void {
+	setOptions(options: EditorOptions | null): void {
 		this._options = options;
 	}
 
@@ -118,6 +118,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 	setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible);
+
 		// Propagate to Editor
 		this.setEditorVisible(visible, group);
 	}
@@ -129,7 +130,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * @param visible the state of visibility of this editor
 	 * @param group the editor group this editor is in.
 	 */
-	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		this._group = group;
 	}
 
@@ -205,18 +206,18 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 		// Automatically clear when editor input gets disposed if any
 		if (resourceOrEditor instanceof EditorInput) {
-			once(resourceOrEditor.onDispose)(() => {
+			Event.once(resourceOrEditor.onDispose)(() => {
 				this.clearEditorState(resource);
 			});
 		}
 	}
 
-	loadEditorState(group: IEditorGroup, resource: URI): T;
-	loadEditorState(group: IEditorGroup, editor: EditorInput): T;
-	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T {
+	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
+	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T | undefined {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (!resource || !group) {
-			return void 0; // we are not in a good state to load any state for a resource
+			return undefined; // we are not in a good state to load any state for a resource
 		}
 
 		const cache = this.doLoad();
@@ -226,7 +227,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 			return mementoForResource[group.id];
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
@@ -247,7 +248,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 	}
 
-	private doGetResource(resourceOrEditor: URI | EditorInput): URI {
+	private doGetResource(resourceOrEditor: URI | EditorInput): URI | undefined {
 		if (resourceOrEditor instanceof EditorInput) {
 			return resourceOrEditor.getResource();
 		}

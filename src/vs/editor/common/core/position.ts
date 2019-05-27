@@ -69,7 +69,7 @@ export class Position {
 	/**
 	 * Test if position `a` equals position `b`
 	 */
-	public static equals(a: IPosition, b: IPosition): boolean {
+	public static equals(a: IPosition | null, b: IPosition | null): boolean {
 		if (!a && !b) {
 			return true;
 		}

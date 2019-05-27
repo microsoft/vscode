@@ -58,7 +58,7 @@ export function first<T>(from: IStringDictionary<T> | INumberDictionary<T>): T |
  * Iterates over each entry in the provided set. The iterator allows
  * to remove elements and will stop when the callback returns {{false}}.
  */
-export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, callback: (entry: { key: any; value: T; }, remove: Function) => any): void {
+export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, callback: (entry: { key: any; value: T; }, remove: () => void) => any): void {
 	for (let key in from) {
 		if (hasOwnProperty.call(from, key)) {
 			const result = callback({ key: key, value: (from as any)[key] }, function () {

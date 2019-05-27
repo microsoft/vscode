@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "7accc8730b0f99b5e7c0702ea89d1fa7c17bfe33"
+					"commitHash": "164c37e3f235134c88e80fac2a182cfba3f07f00"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "61.0.3163.100"
+			"version": "66.0.3359.181"
 		},
 		{
 			"component": {
@@ -48,12 +48,12 @@
 				"git": {
 					"name": "libchromiumcontent",
 					"repositoryUrl": "https://github.com/electron/libchromiumcontent",
-					"commitHash": "ccdb085454b0a387ee96e0f81a7ca9a8ce07a710"
+					"commitHash": "7ea271f92018b1eeb8e70ec6de8c29f9758a0c05"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "61.0.3163.100"
+			"version": "66.0.3359.181"
 		},
 		{
 			"component": {
@@ -61,11 +61,11 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "8a44289089a08b7b19fa3c4651b5f1f5d1edd71b"
+					"commitHash": "5cbb905c1af7cea2d709932d59827d7c6d03ef4a"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "8.9.3"
+			"version": "10.2.0"
 		},
 		{
 			"component": {
@@ -73,12 +73,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "d281859cf59f12c7107a540a9f4cba0ecf5eff41"
+					"commitHash": "e84a6860e35e14b4031b88bb9b49841cdb89a305"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "2.0.12"
+			"version": "3.1.8"
 		},
 		{
 			"component": {
@@ -104,6 +104,30 @@
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
 			"version": "0.14.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "vscode-octicons-font",
+					"repositoryUrl": "https://github.com/Microsoft/vscode-octicons-font",
+					"commitHash": "ca261ea7e041b1b01bc68755d0031e823cae3abd"
+				}
+			},
+			"license": "MIT",
+			"version": "1.2.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "octicons",
+					"repositoryUrl": "https://github.com/primer/octicons",
+					"commitHash": "d120bf97bc9a12fb415f69fedaf31fe58427ca56"
+				}
+			},
+			"license": "MIT",
+			"version": "8.3.0"
 		},
 		{
 			"component": {
@@ -493,6 +517,19 @@
 				"  defined by the Mozilla Public License, v. 2.0."
 			],
 			"license": "MPL"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "ripgrep",
+					"repositoryUrl": "https://github.com/BurntSushi/ripgrep",
+					"commitHash": "8a7db1a918e969b85cd933d8ed9fa5285b281ba4"
+				}
+			},
+			"isOnlyProductionDependency": true,
+			"license": "MIT",
+			"version": "0.10.0"
 		}
 	],
 	"version": 1

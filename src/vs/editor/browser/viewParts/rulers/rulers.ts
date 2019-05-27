@@ -15,7 +15,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 export class Rulers extends ViewPart {
 
 	public domNode: FastDomNode<HTMLElement>;
-	private _renderedRulers: FastDomNode<HTMLElement>[];
+	private readonly _renderedRulers: FastDomNode<HTMLElement>[];
 	private _rulers: number[];
 	private _typicalHalfwidthCharacterWidth: number;
 
@@ -64,10 +64,11 @@ export class Rulers extends ViewPart {
 		}
 
 		if (currentCount < desiredCount) {
-			const rulerWidth = this._context.model.getTabSize();
+			const { tabSize } = this._context.model.getOptions();
+			const rulerWidth = tabSize;
 			let addCount = desiredCount - currentCount;
 			while (addCount > 0) {
-				let node = createFastDomNode(document.createElement('div'));
+				const node = createFastDomNode(document.createElement('div'));
 				node.setClassName('view-ruler');
 				node.setWidth(rulerWidth);
 				this.domNode.appendChild(node);
@@ -79,7 +80,7 @@ export class Rulers extends ViewPart {
 
 		let removeCount = currentCount - desiredCount;
 		while (removeCount > 0) {
-			let node = this._renderedRulers.pop()!;
+			const node = this._renderedRulers.pop()!;
 			this.domNode.removeChild(node);
 			removeCount--;
 		}
@@ -90,7 +91,7 @@ export class Rulers extends ViewPart {
 		this._ensureRulersCount();
 
 		for (let i = 0, len = this._rulers.length; i < len; i++) {
-			let node = this._renderedRulers[i];
+			const node = this._renderedRulers[i];
 
 			node.setHeight(Math.min(ctx.scrollHeight, 1000000));
 			node.setLeft(this._rulers[i] * this._typicalHalfwidthCharacterWidth);

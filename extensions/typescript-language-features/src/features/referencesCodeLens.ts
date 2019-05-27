@@ -11,11 +11,13 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
-import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange, CachedResponse } from './baseCodeLensProvider';
+import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
+import { CachedResponse } from '../tsServer/cachedResponse';
 
 const localize = nls.loadMessageBundle();
 
 class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+	public static readonly minVersion = API.v206;
 
 	public async resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
@@ -37,13 +39,17 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 					location.range.start.isEqual(codeLens.range.start)));
 
 		codeLens.command = {
-			title: locations.length === 1
-				? localize('oneReferenceLabel', '1 reference')
-				: localize('manyReferenceLabel', '{0} references', locations.length),
+			title: this.getCodeLensLabel(locations),
 			command: locations.length ? 'editor.action.showReferences' : '',
 			arguments: [codeLens.document, codeLens.range.start, locations]
 		};
 		return codeLens;
+	}
+
+	private getCodeLensLabel(locations: ReadonlyArray<vscode.Location>): string {
+		return locations.length === 1
+			? localize('oneReferenceLabel', '1 reference')
+			: localize('manyReferenceLabel', '{0} references', locations.length);
 	}
 
 	protected extractSymbol(
@@ -93,7 +99,7 @@ export function register(
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
-	return new VersionDependentRegistration(client, API.v206, () =>
+	return new VersionDependentRegistration(client, TypeScriptReferencesCodeLensProvider.minVersion, () =>
 		new ConfigurationDependentRegistration(modeId, 'referencesCodeLens.enabled', () => {
 			return vscode.languages.registerCodeLensProvider(selector,
 				new TypeScriptReferencesCodeLensProvider(client, cachedResponse));

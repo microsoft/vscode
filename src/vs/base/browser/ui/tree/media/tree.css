@@ -19,15 +19,17 @@
 	text-align: right;
 	margin-right: 6px;
 	flex-shrink: 0;
+	width: 16px;
 }
 
 .monaco-tl-contents {
 	flex: 1;
+	overflow: hidden;
 }
 
 .monaco-tl-twistie.collapsible {
 	background-size: 16px;
-	background-position: 100% 50%;
+	background-position: 3px 50%;
 	background-repeat: no-repeat;
 	background-image: url("expanded.svg");
 }
@@ -55,6 +57,7 @@
 
 .monaco-tl-twistie.loading {
 	background-image: url("loading.svg");
+	background-position: 0 center;
 }
 
 .vs-dark .monaco-tl-twistie.loading {

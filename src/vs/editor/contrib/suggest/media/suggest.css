@@ -56,7 +56,14 @@
 	height: 100%;
 }
 
-
+.monaco-editor .suggest-widget .monaco-list {
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: -moz-none;
+	-ms-user-select: none;
+	-o-user-select: none;
+	user-select: none;
+}
 
 /** Styles for each row in the list element **/
 
@@ -68,6 +75,8 @@
 	background-repeat: no-repeat;
 	background-position: 2px 2px;
 	white-space: nowrap;
+	cursor: pointer;
+	touch-action: none;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents {
@@ -173,7 +182,7 @@
 	background-image: url('Misc_16x.svg');
 	background-repeat: no-repeat;
 	background-position: center;
-	background-size: contain;
+	background-size: 75%;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.method::before,

@@ -5,11 +5,11 @@
 
 import * as assert from 'assert';
 import { MainThreadWebviews } from 'vs/workbench/api/electron-browser/mainThreadWebview';
-import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
+import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 
 suite('ExtHostWebview', function () {
 

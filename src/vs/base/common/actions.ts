@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ITelemetryData {
@@ -20,16 +20,16 @@ export interface IAction extends IDisposable {
 	enabled: boolean;
 	checked: boolean;
 	radio: boolean;
-	run(event?: any): Thenable<any>;
+	run(event?: any): Promise<any>;
 }
 
 export interface IActionRunner extends IDisposable {
-	run(action: IAction, context?: any): Thenable<any>;
+	run(action: IAction, context?: any): Promise<any>;
 	onDidRun: Event<IRunEvent>;
 	onDidBeforeRun: Event<IRunEvent>;
 }
 
-export interface IActionItem {
+export interface IActionViewItem {
 	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: any /* HTMLElement */): void;
@@ -60,9 +60,9 @@ export class Action implements IAction {
 	protected _enabled: boolean;
 	protected _checked: boolean;
 	protected _radio: boolean;
-	protected _actionCallback?: (event?: any) => Thenable<any>;
+	protected _actionCallback?: (event?: any) => Promise<any>;
 
-	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Thenable<any>) {
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Promise<any>) {
 		this._id = id;
 		this._label = label;
 		this._cssClass = cssClass;
@@ -164,7 +164,7 @@ export class Action implements IAction {
 		}
 	}
 
-	run(event?: any, _data?: ITelemetryData): Thenable<any> {
+	run(event?: any, _data?: ITelemetryData): Promise<any> {
 		if (this._actionCallback) {
 			return this._actionCallback(event);
 		}
@@ -191,21 +191,22 @@ export class ActionRunner extends Disposable implements IActionRunner {
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
 
-	run(action: IAction, context?: any): Thenable<any> {
+	async run(action: IAction, context?: any): Promise<any> {
 		if (!action.enabled) {
 			return Promise.resolve(null);
 		}
 
 		this._onDidBeforeRun.fire({ action: action });
 
-		return this.runAction(action, context).then((result: any) => {
+		try {
+			const result = await this.runAction(action, context);
 			this._onDidRun.fire({ action: action, result: result });
-		}, (error: any) => {
+		} catch (error) {
 			this._onDidRun.fire({ action: action, error: error });
-		});
+		}
 	}
 
-	protected runAction(action: IAction, context?: any): Thenable<any> {
+	protected runAction(action: IAction, context?: any): Promise<any> {
 		const res = context ? action.run(context) : action.run();
 		return Promise.resolve(res);
 	}
@@ -216,8 +217,8 @@ export class RadioGroup extends Disposable {
 	constructor(readonly actions: Action[]) {
 		super();
 
-		this._register(combinedDisposable(actions.map(action => {
-			return action.onDidChange(e => {
+		for (const action of actions) {
+			this._register(action.onDidChange(e => {
 				if (e.checked && action.checked) {
 					for (const candidate of actions) {
 						if (candidate !== action) {
@@ -225,7 +226,7 @@ export class RadioGroup extends Disposable {
 						}
 					}
 				}
-			});
-		})));
+			}));
+		}
 	}
 }

@@ -8,7 +8,7 @@ import { IPager, PagedModel } from 'vs/base/common/paging';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 
-function getPage(pageIndex: number, cancellationToken: CancellationToken): Thenable<number[]> {
+function getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<number[]> {
 	if (cancellationToken.isCancellationRequested) {
 		return Promise.reject(canceled());
 	}
@@ -21,9 +21,9 @@ class TestPager implements IPager<number> {
 	readonly firstPage = [0, 1, 2, 3, 4];
 	readonly pageSize = 5;
 	readonly total = 100;
-	readonly getPage: (pageIndex: number, cancellationToken: CancellationToken) => Thenable<number[]>;
+	readonly getPage: (pageIndex: number, cancellationToken: CancellationToken) => Promise<number[]>;
 
-	constructor(getPageFn?: (pageIndex: number, cancellationToken: CancellationToken) => Thenable<number[]>) {
+	constructor(getPageFn?: (pageIndex: number, cancellationToken: CancellationToken) => Promise<number[]>) {
 		this.getPage = getPageFn || getPage;
 	}
 }

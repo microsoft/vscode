@@ -3,7 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .symbol-icon {
+.monaco-workbench .symbol-icon.inline {
+	background-position: left center;
+	padding-left: 20px;
+	background-size: 16px 16px;
+}
+
+.monaco-workbench .symbol-icon.block {
 	display: inline-block;
 	height: 14px;
 	width: 16px;

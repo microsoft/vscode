@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
+import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { IFileQuery, IFileSearchStats, IFolderQuery, IProgress, ISearchEngineStats, QueryType } from 'vs/platform/search/common/search';
-import { SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
-import { IRawFileMatch, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/node/search';
+import { IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, ISearchEngine, ISearchEngineStats, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, QueryType } from 'vs/workbench/services/search/common/search';
+import { IProgressCallback, SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 
 const TEST_FOLDER_QUERIES = [
@@ -25,7 +24,6 @@ const MULTIROOT_QUERIES: IFolderQuery[] = [
 ];
 
 const stats: ISearchEngineStats = {
-	traversal: 'node',
 	fileWalkTime: 0,
 	cmdTime: 1,
 	directoriesWalked: 2,
@@ -34,7 +32,7 @@ const stats: ISearchEngineStats = {
 
 class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 
-	public static last: TestSearchEngine;
+	static last: TestSearchEngine;
 
 	private isCanceled = false;
 
@@ -42,12 +40,12 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 		TestSearchEngine.last = this;
 	}
 
-	public search(onResult: (match: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
+	search(onResult: (match: IRawFileMatch) => void, onProgress: (progress: IProgressMessage) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
 		const self = this;
 		(function next() {
 			process.nextTick(() => {
 				if (self.isCanceled) {
-					done(null, {
+					done(null!, {
 						limitHit: false,
 						stats: stats
 					});
@@ -55,7 +53,7 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 				}
 				const result = self.result();
 				if (!result) {
-					done(null, {
+					done(null!, {
 						limitHit: false,
 						stats: stats
 					});
@@ -67,7 +65,7 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 		})();
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.isCanceled = true;
 	}
 }
@@ -109,7 +107,7 @@ suite('RawSearchService', () => {
 			}
 		};
 
-		await service.doFileSearchWithEngine(Engine, rawSearch, cb, null, 0);
+		await service.doFileSearchWithEngine(Engine, rawSearch, cb, null!, 0);
 		return assert.strictEqual(results, 5);
 	});
 
@@ -119,7 +117,7 @@ suite('RawSearchService', () => {
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
 		const service = new RawSearchService();
 
-		const results = [];
+		const results: number[] = [];
 		const cb: (p: ISerializedSearchProgressItem) => void = value => {
 			if (Array.isArray(value)) {
 				value.forEach(m => {
@@ -143,7 +141,7 @@ suite('RawSearchService', () => {
 		const service = new RawSearchService();
 
 		function fileSearch(config: IFileQuery, batchSize: number): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
-			let promise: CancelablePromise<ISerializedSearchSuccess>;
+			let promise: CancelablePromise<ISerializedSearchSuccess | void>;
 
 			const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 				onFirstListenerAdd: () => {
@@ -158,8 +156,8 @@ suite('RawSearchService', () => {
 			return emitter.event;
 		}
 
-		const progressResults = [];
-		const onProgress = match => {
+		const progressResults: any[] = [];
+		const onProgress = (match: IFileMatch) => {
 			assert.strictEqual(match.resource.path, uriPath);
 			progressResults.push(match);
 		};
@@ -218,8 +216,8 @@ suite('RawSearchService', () => {
 		const Engine = TestSearchEngine.bind(null, () => matches.shift());
 		const service = new RawSearchService();
 
-		const results = [];
-		const cb = value => {
+		const results: any[] = [];
+		const cb: IProgressCallback = value => {
 			if (Array.isArray(value)) {
 				results.push(...value.map(v => v.path));
 			} else {
@@ -234,7 +232,7 @@ suite('RawSearchService', () => {
 			sortByScore: true,
 			maxResults: 2
 		}, cb, undefined, 1);
-		assert.notStrictEqual(typeof TestSearchEngine.last.config.maxResults, 'number');
+		assert.notStrictEqual(typeof TestSearchEngine.last.config!.maxResults, 'number');
 		assert.deepStrictEqual(results, [path.normalize('/some/where/bbc'), path.normalize('/some/where/bab')]);
 	});
 
@@ -244,8 +242,8 @@ suite('RawSearchService', () => {
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
 		const service = new RawSearchService();
 
-		const results = [];
-		const cb = value => {
+		const results: number[] = [];
+		const cb: IProgressCallback = value => {
 			if (Array.isArray(value)) {
 				value.forEach(m => {
 					assert.deepStrictEqual(m, match);
@@ -277,8 +275,8 @@ suite('RawSearchService', () => {
 		const Engine = TestSearchEngine.bind(null, () => matches.shift());
 		const service = new RawSearchService();
 
-		const results = [];
-		const cb = value => {
+		const results: any[] = [];
+		const cb: IProgressCallback = value => {
 			if (Array.isArray(value)) {
 				results.push(...value.map(v => v.path));
 			} else {
@@ -295,8 +293,8 @@ suite('RawSearchService', () => {
 			assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
 			assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc'), path.normalize('/some/where/aab')]);
 		}).then(async () => {
-			const results = [];
-			const cb = value => {
+			const results: any[] = [];
+			const cb: IProgressCallback = value => {
 				if (Array.isArray(value)) {
 					results.push(...value.map(v => v.path));
 				} else {
@@ -324,8 +322,8 @@ suite('RawSearchService', () => {
 				basename: 'bc',
 				size: 3
 			});
-			const results = [];
-			const cb = value => {
+			const results: any[] = [];
+			const cb: IProgressCallback = value => {
 				if (Array.isArray(value)) {
 					results.push(...value.map(v => v.path));
 				} else {

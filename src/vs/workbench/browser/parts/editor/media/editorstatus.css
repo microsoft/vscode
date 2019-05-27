@@ -22,7 +22,7 @@
 	cursor: default !important;
 }
 
-.monaco-shell .screen-reader-detected-explanation {
+.monaco-workbench .screen-reader-detected-explanation {
 	width: 420px;
 	top: 30px;
 	right: 6px;
@@ -30,7 +30,7 @@
 	cursor: default;
 }
 
-.monaco-shell .screen-reader-detected-explanation .cancel {
+.monaco-workbench .screen-reader-detected-explanation .cancel {
 	position: absolute;
 	top: 0;
 	right: 0;
@@ -41,27 +41,27 @@
 	cursor: pointer;
 }
 
-.monaco-shell .screen-reader-detected-explanation h2 {
+.monaco-workbench .screen-reader-detected-explanation h2 {
 	margin: 0;
 	padding: 0;
 	font-weight: 400;
 	font-size: 1.8em;
 }
 
-.monaco-shell .screen-reader-detected-explanation p {
+.monaco-workbench .screen-reader-detected-explanation p {
 	font-size: 1.2em;
 }
 
-.monaco-shell .screen-reader-detected-explanation hr {
+.monaco-workbench .screen-reader-detected-explanation hr {
 	border: 0;
 	height: 2px;
 }
 
-.monaco-shell .screen-reader-detected-explanation .buttons {
+.monaco-workbench .screen-reader-detected-explanation .buttons {
 	display: flex;
 }
 
-.monaco-shell .screen-reader-detected-explanation .buttons a {
+.monaco-workbench .screen-reader-detected-explanation .buttons a {
 	font-size: 13px;
 	padding-left: 12px;
 	padding-right: 12px;
@@ -69,11 +69,11 @@
 	max-width: fit-content;
 }
 
-.monaco-shell.vs .screen-reader-detected-explanation .cancel {
+.vs .monaco-workbench .screen-reader-detected-explanation .cancel {
 	background: url('close-statusview.svg') center center no-repeat;
 }
 
-.monaco-shell.vs-dark .screen-reader-detected-explanation .cancel,
-.monaco-shell.hc-black .screen-reader-detected-explanation .cancel {
+.vs-dark .monaco-workbench .screen-reader-detected-explanation .cancel,
+.hc-black .monaco-workbench .screen-reader-detected-explanation .cancel {
 	background: url('close-statusview-inverse.svg') center center no-repeat;
 }

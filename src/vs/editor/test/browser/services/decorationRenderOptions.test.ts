@@ -15,11 +15,11 @@ import { TestTheme, TestThemeService } from 'vs/platform/theme/test/common/testT
 const themeServiceMock = new TestThemeService();
 
 export class TestCodeEditorServiceImpl extends CodeEditorServiceImpl {
-	getActiveCodeEditor(): ICodeEditor {
+	getActiveCodeEditor(): ICodeEditor | null {
 		return null;
 	}
 
-	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor> {
+	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		return Promise.resolve(null);
 	}
 }
@@ -48,7 +48,7 @@ suite('Decoration Render Options', () => {
 		if ((<any>styleSheet.sheet).rules) {
 			return Array.prototype.map.call((<any>styleSheet.sheet).rules, (r: { cssText: string }) => r.cssText).join('\n');
 		}
-		return styleSheet.sheet.toString();
+		return styleSheet.sheet!.toString();
 	}
 
 	test('css properties', () => {

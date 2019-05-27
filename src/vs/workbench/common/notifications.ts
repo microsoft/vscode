@@ -5,11 +5,13 @@
 
 import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import { isErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { startsWith } from 'vs/base/common/strings';
+import { localize } from 'vs/nls';
 
 export interface INotificationsModel {
 
@@ -48,12 +50,12 @@ export class NotificationHandle implements INotificationHandle {
 	private readonly _onDidClose: Emitter<void> = new Emitter();
 	get onDidClose(): Event<void> { return this._onDidClose.event; }
 
-	constructor(private item: INotificationViewItem, private closeItem: (item: INotificationViewItem) => void) {
+	constructor(private readonly item: INotificationViewItem, private readonly closeItem: (item: INotificationViewItem) => void) {
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		once(this.item.onDidClose)(() => {
+		Event.once(this.item.onDidClose)(() => {
 			this._onDidClose.fire();
 			this._onDidClose.dispose();
 		});
@@ -88,7 +90,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 	private readonly _onDidNotificationChange: Emitter<INotificationChangeEvent> = this._register(new Emitter<INotificationChangeEvent>());
 	get onDidNotificationChange(): Event<INotificationChangeEvent> { return this._onDidNotificationChange.event; }
 
-	private _notifications: INotificationViewItem[] = [];
+	private readonly _notifications: INotificationViewItem[] = [];
 
 	get notifications(): INotificationViewItem[] {
 		return this._notifications;
@@ -126,14 +128,13 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 	}
 
 	private findNotification(item: INotificationViewItem): INotificationViewItem | undefined {
-		for (let i = 0; i < this._notifications.length; i++) {
-			const notification = this._notifications[i];
+		for (const notification of this._notifications) {
 			if (notification.equals(item)) {
 				return notification;
 			}
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	private createViewItem(notification: INotification): INotificationViewItem | null {
@@ -160,7 +161,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 			}
 		});
 
-		once(item.onDidClose)(() => {
+		Event.once(item.onDidClose)(() => {
 			itemExpansionChangeListener.dispose();
 			itemLabelChangeListener.dispose();
 
@@ -207,7 +208,7 @@ export interface INotificationViewItem {
 	equals(item: INotificationViewItem): boolean;
 }
 
-export function isNotificationViewItem(obj: any): obj is INotificationViewItem {
+export function isNotificationViewItem(obj: unknown): obj is INotificationViewItem {
 	return obj instanceof NotificationViewItem;
 }
 
@@ -236,7 +237,7 @@ export interface INotificationViewItemProgress extends INotificationProgress {
 }
 
 export class NotificationViewItemProgress extends Disposable implements INotificationViewItemProgress {
-	private _state: INotificationViewItemProgressState;
+	private readonly _state: INotificationViewItemProgressState;
 
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
@@ -258,9 +259,9 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 
 		this._state.infinite = true;
 
-		this._state.total = void 0;
-		this._state.worked = void 0;
-		this._state.done = void 0;
+		this._state.total = undefined;
+		this._state.worked = undefined;
+		this._state.done = undefined;
 
 		this._onDidChange.fire();
 	}
@@ -272,9 +273,9 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 
 		this._state.done = true;
 
-		this._state.infinite = void 0;
-		this._state.total = void 0;
-		this._state.worked = void 0;
+		this._state.infinite = undefined;
+		this._state.total = undefined;
+		this._state.worked = undefined;
 
 		this._onDidChange.fire();
 	}
@@ -286,8 +287,8 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 
 		this._state.total = value;
 
-		this._state.infinite = void 0;
-		this._state.done = void 0;
+		this._state.infinite = undefined;
+		this._state.done = undefined;
 
 		this._onDidChange.fire();
 	}
@@ -299,16 +300,17 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 			this._state.worked = value;
 		}
 
-		this._state.infinite = void 0;
-		this._state.done = void 0;
+		this._state.infinite = undefined;
+		this._state.done = undefined;
 
 		this._onDidChange.fire();
 	}
 }
 
 export interface IMessageLink {
-	name: string;
 	href: string;
+	name: string;
+	title: string;
 	offset: number;
 	length: number;
 }
@@ -325,8 +327,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	private static MAX_MESSAGE_LENGTH = 1000;
 
 	// Example link: "Some message with [link text](http://link.href)."
-	// RegEx: [, anything not ], ], (, http:|https:, //, no whitespace)
-	private static LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^\)\s]+)\)/gi;
+	// RegEx: [, anything not ], ], (, http://|https://|command:, no whitespace)
+	private static LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: "([^"]+)")?\)/gi;
 
 	private _expanded: boolean;
 
@@ -378,7 +380,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		}
 
 		if (!message) {
-			return void 0; // we need a message to show
+			return undefined; // we need a message to show
 		}
 
 		const raw = message;
@@ -393,8 +395,17 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 		// Parse Links
 		const links: IMessageLink[] = [];
-		message.replace(NotificationViewItem.LINK_REGEX, (matchString: string, name: string, href: string, offset: number) => {
-			links.push({ name, href, offset, length: matchString.length });
+		message.replace(NotificationViewItem.LINK_REGEX, (matchString: string, name: string, href: string, title: string, offset: number) => {
+			let massagedTitle: string;
+			if (title && title.length > 0) {
+				massagedTitle = title;
+			} else if (startsWith(href, 'command:')) {
+				massagedTitle = localize('executeCommand', "Click to execute command '{0}'", href.substr('command:'.length));
+			} else {
+				massagedTitle = href;
+			}
+
+			links.push({ name, href, title: massagedTitle, offset, length: matchString.length });
 
 			return matchString;
 		});
@@ -581,13 +592,13 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 export class ChoiceAction extends Action {
 
-	private _onDidRun = new Emitter<void>();
+	private readonly _onDidRun = new Emitter<void>();
 	get onDidRun(): Event<void> { return this._onDidRun.event; }
 
-	private _keepOpen: boolean;
+	private readonly _keepOpen: boolean;
 
 	constructor(id: string, choice: IPromptChoice) {
-		super(id, choice.label, void 0, true, () => {
+		super(id, choice.label, undefined, true, () => {
 
 			// Pass to runner
 			choice.run();
@@ -595,7 +606,7 @@ export class ChoiceAction extends Action {
 			// Emit Event
 			this._onDidRun.fire();
 
-			return Promise.resolve(void 0);
+			return Promise.resolve();
 		});
 
 		this._keepOpen = !!choice.keepOpen;

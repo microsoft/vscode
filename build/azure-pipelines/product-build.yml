@@ -1,9 +1,11 @@
 resources:
   containers:
   - container: vscode-x64
-    image: joaomoreno/vscode-linux-build-agent:x64
+    endpoint: VSCodeHub
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
   - container: vscode-ia32
-    image: joaomoreno/vscode-linux-build-agent:ia32
+    endpoint: VSCodeHub
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:ia32
   - container: snapcraft
     image: snapcore/snapcraft
 
@@ -63,3 +65,17 @@ jobs:
     vmImage: macOS 10.13
   steps:
   - template: darwin/product-build-darwin.yml
+
+- job: Mooncake
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  condition: true
+  dependsOn:
+  - Windows
+  - Windows32
+  - Linux
+  - LinuxSnap
+  - Linux32
+  - macOS
+  steps:
+  - template: sync-mooncake.yml

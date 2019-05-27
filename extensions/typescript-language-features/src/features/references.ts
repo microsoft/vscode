@@ -19,7 +19,7 @@ class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 		options: vscode.ReferenceContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.Location[]> {
-		const filepath = this.client.toPath(document.uri);
+		const filepath = this.client.toOpenedFilePath(document);
 		if (!filepath) {
 			return [];
 		}

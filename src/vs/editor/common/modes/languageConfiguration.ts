@@ -170,7 +170,7 @@ export interface IDocComment {
 	/**
 	 * The string that appears on the last line and closes the doc comment (e.g. ' * /').
 	 */
-	close: string;
+	close?: string;
 }
 
 /**

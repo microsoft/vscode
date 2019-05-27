@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursors } from 'vs/editor/common/controller/cursorCommon';
@@ -462,6 +462,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
 	/**
+	 * An event emitted on a "mousewheel"
+	 * @event
+	 * @internal
+	 */
+	onMouseWheel(listener: (e: IMouseWheelEvent) => void): IDisposable;
+	/**
 	 * An event emitted on a "keyup".
 	 * @event
 	 */
@@ -682,7 +688,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	getTelemetryData(): { [key: string]: any; } | null;
+	getTelemetryData(): { [key: string]: any } | undefined;
 
 	/**
 	 * Returns the editor's dom node
@@ -732,7 +738,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Force an editor render now.
 	 */
-	render(): void;
+	render(forceRedraw?: boolean): void;
 
 	/**
 	 * Get the hit test target at coordinates `clientX` and `clientY`.
