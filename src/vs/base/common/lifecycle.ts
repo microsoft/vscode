@@ -49,7 +49,7 @@ export class DisposableStore implements IDisposable {
 	/**
 	 * Dispose of all registered disposables and mark this object as disposed.
 	 *
-	 * Any future disposables added to this object will be disposed of on `push`.
+	 * Any future disposables added to this object will be disposed of on `add`.
 	 */
 	public dispose(): void {
 		this._isDisposed = true;
