@@ -24,7 +24,7 @@ import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/ex
 import { IExtensionManifest, IKeyBinding, IView, IViewContainer, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/electron-browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -43,13 +43,13 @@ import { Color } from 'vs/base/common/color';
 import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionsTree, IExtensionData } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
+import { ExtensionsTree, ExtensionData } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesAction } from 'vs/workbench/contrib/update/electron-browser/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
-import { isUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 function renderBody(body: string): string {
@@ -177,7 +177,6 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionReadme: Cache<string> | null;
 	private extensionChangelog: Cache<string> | null;
 	private extensionManifest: Cache<IExtensionManifest | null> | null;
-	private extensionDependencies: Cache<IExtensionDependencies | null> | null;
 
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private contentDisposables: IDisposable[] = [];
@@ -206,7 +205,6 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
-		this.extensionDependencies = null;
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -294,7 +292,6 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
 		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
 		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
-		this.extensionDependencies = new Cache(() => createCancelablePromise(token => this.extensionsWorkbenchService.loadDependencies(extension, token)));
 
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, this.iconContainer, true);
 		const onError = Event.once(domEvent(this.icon, 'error'));
@@ -550,7 +547,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.contentDisposables.push(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webviewElement);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
-				webviewElement.contents = body;
+				webviewElement.html = body;
 
 				this.contentDisposables.push(webviewElement.onDidClickLink(link => {
 					if (!link) {
@@ -626,69 +623,28 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private openDependencies(extension: IExtension): Promise<IActiveElement> {
-		if (extension.dependencies.length === 0) {
+		if (arrays.isFalsyOrEmpty(extension.dependencies)) {
 			append(this.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
 			return Promise.resolve(this.content);
 		}
 
-		return this.loadContents(() => this.extensionDependencies!.get())
-			.then<IActiveElement, IActiveElement>(extensionDependencies => {
-				if (extensionDependencies) {
-					const content = $('div', { class: 'subcontent' });
-					const scrollableContent = new DomScrollableElement(content, {});
-					append(this.content, scrollableContent.getDomNode());
-					this.contentDisposables.push(scrollableContent);
+		const content = $('div', { class: 'subcontent' });
+		const scrollableContent = new DomScrollableElement(content, {});
+		append(this.content, scrollableContent.getDomNode());
+		this.contentDisposables.push(scrollableContent);
 
-					const dependenciesTree = this.renderDependencies(content, extensionDependencies);
-					const layout = () => {
-						scrollableContent.scanDomNode();
-						const scrollDimensions = scrollableContent.getScrollDimensions();
-						dependenciesTree.layout(scrollDimensions.height);
-					};
-					const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-					this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, null, extension => extension.dependencies || [], this.extensionsWorkbenchService), content);
+		const layout = () => {
+			scrollableContent.scanDomNode();
+			const scrollDimensions = scrollableContent.getScrollDimensions();
+			dependenciesTree.layout(scrollDimensions.height);
+		};
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
-					this.contentDisposables.push(dependenciesTree);
-					scrollableContent.scanDomNode();
-					return { focus() { dependenciesTree.domFocus(); } };
-				} else {
-					append(this.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
-					return Promise.resolve(this.content);
-				}
-			}, error => {
-				append(this.content, $('p.nocontent')).textContent = error;
-				this.notificationService.error(error);
-				return this.content;
-			});
-	}
-
-	private renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): ExtensionsTree {
-		class ExtensionData implements IExtensionData {
-
-			private readonly extensionDependencies: IExtensionDependencies;
-
-			constructor(extensionDependencies: IExtensionDependencies) {
-				this.extensionDependencies = extensionDependencies;
-			}
-
-			get extension(): IExtension {
-				return this.extensionDependencies.extension;
-			}
-
-			get parent(): IExtensionData | null {
-				return this.extensionDependencies.dependent ? new ExtensionData(this.extensionDependencies.dependent) : null;
-			}
-
-			get hasChildren(): boolean {
-				return this.extensionDependencies.hasDependencies;
-			}
-
-			getChildren(): Promise<IExtensionData[] | null> {
-				return this.extensionDependencies.dependencies ? Promise.resolve(this.extensionDependencies.dependencies.map(d => new ExtensionData(d))) : Promise.resolve(null);
-			}
-		}
-
-		return this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extensionDependencies), container);
+		this.contentDisposables.push(dependenciesTree);
+		scrollableContent.scanDomNode();
+		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
 
 	private openExtensionPack(extension: IExtension): Promise<IActiveElement> {
@@ -697,7 +653,7 @@ export class ExtensionEditor extends BaseEditor {
 		append(this.content, scrollableContent.getDomNode());
 		this.contentDisposables.push(scrollableContent);
 
-		const extensionsPackTree = this.renderExtensionPack(content, extension);
+		const extensionsPackTree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, null, extension => extension.extensionPack || [], this.extensionsWorkbenchService), content);
 		const layout = () => {
 			scrollableContent.scanDomNode();
 			const scrollDimensions = scrollableContent.getScrollDimensions();
@@ -709,35 +665,6 @@ export class ExtensionEditor extends BaseEditor {
 		this.contentDisposables.push(extensionsPackTree);
 		scrollableContent.scanDomNode();
 		return Promise.resolve({ focus() { extensionsPackTree.domFocus(); } });
-	}
-
-	private renderExtensionPack(container: HTMLElement, extension: IExtension): ExtensionsTree {
-		const extensionsWorkbenchService = this.extensionsWorkbenchService;
-		class ExtensionData implements IExtensionData {
-
-			readonly extension: IExtension;
-			readonly parent: IExtensionData | null;
-
-			constructor(extension: IExtension, parent?: IExtensionData) {
-				this.extension = extension;
-				this.parent = withUndefinedAsNull(parent);
-			}
-
-			get hasChildren(): boolean {
-				return this.extension.extensionPack.length > 0;
-			}
-
-			getChildren(): Promise<IExtensionData[] | null> {
-				if (this.hasChildren) {
-					const names = arrays.distinct(this.extension.extensionPack, e => e.toLowerCase());
-					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length }, CancellationToken.None)
-						.then(result => result.firstPage.map(extension => new ExtensionData(extension, this)));
-				}
-				return Promise.resolve(null);
-			}
-		}
-
-		return this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension), container);
 	}
 
 	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {

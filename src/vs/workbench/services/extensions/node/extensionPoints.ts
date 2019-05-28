@@ -12,51 +12,18 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
-import { ExtensionIdentifier, ExtensionIdentifierWithVersion, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 
 const MANIFEST_FILE = 'package.json';
-
-export interface Translations {
-	[id: string]: string;
-}
-
-namespace Translations {
-	export function equals(a: Translations, b: Translations): boolean {
-		if (a === b) {
-			return true;
-		}
-		let aKeys = Object.keys(a);
-		let bKeys: Set<string> = new Set<string>();
-		for (let key of Object.keys(b)) {
-			bKeys.add(key);
-		}
-		if (aKeys.length !== bKeys.size) {
-			return false;
-		}
-
-		for (let key of aKeys) {
-			if (a[key] !== b[key]) {
-				return false;
-			}
-			bKeys.delete(key);
-		}
-		return bKeys.size === 0;
-	}
-}
 
 export interface NlsConfiguration {
 	readonly devMode: boolean;
 	readonly locale: string | undefined;
 	readonly pseudo: boolean;
 	readonly translations: Translations;
-}
-
-export interface ILog {
-	error(source: string, message: string): void;
-	warn(source: string, message: string): void;
-	info(source: string, message: string): void;
 }
 
 abstract class ExtensionManifestHandler {

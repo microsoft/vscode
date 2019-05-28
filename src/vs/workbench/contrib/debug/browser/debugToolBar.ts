@@ -81,7 +81,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		const actionBarContainer = dom.append(this.$el, dom.$('div.action-bar-container'));
 		this.debugToolBarMenu = menuService.createMenu(MenuId.DebugToolBar, contextKeyService);
-		this.toDispose.push(this.debugToolBarMenu);
+		this._register(this.debugToolBarMenu);
 
 		this.activeActions = [];
 		this.actionBar = this._register(new ActionBar(actionBarContainer, {

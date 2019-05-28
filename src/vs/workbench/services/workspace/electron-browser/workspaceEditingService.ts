@@ -67,73 +67,81 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	}
 
-	private saveUntitedBeforeShutdown(reason: ShutdownReason): Promise<boolean> | undefined {
+	private async saveUntitedBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 		if (reason !== ShutdownReason.LOAD && reason !== ShutdownReason.CLOSE) {
-			return undefined; // only interested when window is closing or loading
+			return false; // only interested when window is closing or loading
 		}
+
 		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
 		if (!workspaceIdentifier || !isEqualOrParent(workspaceIdentifier.configPath, this.environmentService.untitledWorkspacesHome)) {
-			return undefined; // only care about untitled workspaces to ask for saving
+			return false; // only care about untitled workspaces to ask for saving
 		}
 
-		return this.windowsService.getWindowCount().then(windowCount => {
-			if (reason === ShutdownReason.CLOSE && !isMacintosh && windowCount === 1) {
-				return false; // Windows/Linux: quits when last window is closed, so do not ask then
-			}
-			enum ConfirmResult {
-				SAVE,
-				DONT_SAVE,
-				CANCEL
-			}
+		const windowCount = await this.windowsService.getWindowCount();
 
-			const save = { label: mnemonicButtonLabel(nls.localize('save', "Save")), result: ConfirmResult.SAVE };
-			const dontSave = { label: mnemonicButtonLabel(nls.localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE };
-			const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
+		if (reason === ShutdownReason.CLOSE && !isMacintosh && windowCount === 1) {
+			return false; // Windows/Linux: quits when last window is closed, so do not ask then
+		}
 
-			const buttons: { label: string; result: ConfirmResult; }[] = [];
-			if (isWindows) {
-				buttons.push(save, dontSave, cancel);
-			} else if (isLinux) {
-				buttons.push(dontSave, cancel, save);
-			} else {
-				buttons.push(save, cancel, dontSave);
-			}
+		enum ConfirmResult {
+			SAVE,
+			DONT_SAVE,
+			CANCEL
+		}
 
-			const message = nls.localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");
-			const detail = nls.localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
-			const cancelId = buttons.indexOf(cancel);
+		const save = { label: mnemonicButtonLabel(nls.localize('save', "Save")), result: ConfirmResult.SAVE };
+		const dontSave = { label: mnemonicButtonLabel(nls.localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE };
+		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
-			return this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId }).then(res => {
-				switch (buttons[res].result) {
+		const buttons: { label: string; result: ConfirmResult; }[] = [];
+		if (isWindows) {
+			buttons.push(save, dontSave, cancel);
+		} else if (isLinux) {
+			buttons.push(dontSave, cancel, save);
+		} else {
+			buttons.push(save, cancel, dontSave);
+		}
 
-					// Cancel: veto unload
-					case ConfirmResult.CANCEL:
-						return true;
+		const message = nls.localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");
+		const detail = nls.localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
+		const cancelId = buttons.indexOf(cancel);
 
-					// Don't Save: delete workspace
-					case ConfirmResult.DONT_SAVE:
-						this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
-						return false;
+		const res = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId });
 
-					// Save: save workspace, but do not veto unload
-					case ConfirmResult.SAVE: {
-						return this.pickNewWorkspacePath().then(newWorkspacePath => {
-							if (newWorkspacePath) {
-								return this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath).then(_ => {
-									return this.workspaceService.getWorkspaceIdentifier(newWorkspacePath).then(newWorkspaceIdentifier => {
-										const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
-										this.windowsService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
-										this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
-										return false;
-									});
-								}, () => false);
-							}
-							return true; // keep veto if no target was provided
-						});
-					}
+		switch (buttons[res].result) {
+
+			// Cancel: veto unload
+			case ConfirmResult.CANCEL:
+				return true;
+
+			// Don't Save: delete workspace
+			case ConfirmResult.DONT_SAVE:
+				this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
+				return false;
+
+			// Save: save workspace, but do not veto unload if path provided
+			case ConfirmResult.SAVE: {
+				const newWorkspacePath = await this.pickNewWorkspacePath();
+				if (!newWorkspacePath) {
+					return true; // keep veto if no target was provided
 				}
-			});
-		});
+
+				try {
+					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
+
+					const newWorkspaceIdentifier = await this.workspaceService.getWorkspaceIdentifier(newWorkspacePath);
+
+					const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
+					this.windowsService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
+
+					this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
+				} catch (error) {
+					// ignore
+				}
+
+				return false;
+			}
+		}
 	}
 
 	pickNewWorkspacePath(): Promise<URI | undefined> {
@@ -190,16 +198,23 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 	}
 
-	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError: boolean = false): Promise<void> {
-		return this.contextService.updateFolders(foldersToAdd, foldersToDelete, index)
-			.then(() => null, error => donotNotifyError ? Promise.reject(error) : this.handleWorkspaceConfigurationEditingError(error));
+	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError: boolean = false): Promise<void> {
+		try {
+			await this.contextService.updateFolders(foldersToAdd, foldersToDelete, index);
+		} catch (error) {
+			if (donotNotifyError) {
+				throw error;
+			}
+
+			this.handleWorkspaceConfigurationEditingError(error);
+		}
 	}
 
 	addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): Promise<void> {
 		return this.doAddFolders(foldersToAdd, undefined, donotNotifyError);
 	}
 
-	private doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
+	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
 		const state = this.contextService.getWorkbenchState();
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
@@ -210,18 +225,25 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			newWorkspaceFolders = distinct(newWorkspaceFolders, folder => getComparisonKey(folder.uri));
 
 			if (state === WorkbenchState.EMPTY && newWorkspaceFolders.length === 0 || state === WorkbenchState.FOLDER && newWorkspaceFolders.length === 1) {
-				return Promise.resolve(); // return if the operation is a no-op for the current state
+				return; // return if the operation is a no-op for the current state
 			}
 
 			return this.createAndEnterWorkspace(newWorkspaceFolders);
 		}
 
 		// Delegate addition of folders to workspace service otherwise
-		return this.contextService.addFolders(foldersToAdd, index)
-			.then(() => null, error => donotNotifyError ? Promise.reject(error) : this.handleWorkspaceConfigurationEditingError(error));
+		try {
+			await this.contextService.addFolders(foldersToAdd, index);
+		} catch (error) {
+			if (donotNotifyError) {
+				throw error;
+			}
+
+			this.handleWorkspaceConfigurationEditingError(error);
+		}
 	}
 
-	removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): Promise<void> {
+	async removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): Promise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we create an empty workspace and enter it.
@@ -230,8 +252,15 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Delegate removal of folders to workspace service otherwise
-		return this.contextService.removeFolders(foldersToRemove)
-			.then(() => null, error => donotNotifyError ? Promise.reject(error) : this.handleWorkspaceConfigurationEditingError(error));
+		try {
+			await this.contextService.removeFolders(foldersToRemove);
+		} catch (error) {
+			if (donotNotifyError) {
+				throw error;
+			}
+
+			this.handleWorkspaceConfigurationEditingError(error);
+		}
 	}
 
 	private includesSingleFolderWorkspace(folders: URI[]): boolean {
@@ -245,7 +274,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	async createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> {
 		if (path && !await this.isValidTargetWorkspacePath(path)) {
-			return Promise.reject(null);
+			return;
 		}
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders, remoteAuthority);
@@ -259,11 +288,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	async saveAndEnterWorkspace(path: URI): Promise<void> {
 		if (!await this.isValidTargetWorkspacePath(path)) {
-			return Promise.reject(null);
+			return;
 		}
 		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
 		if (!workspaceIdentifier) {
-			return Promise.reject(null);
+			return;
 		}
 		await this.saveWorkspaceAs(workspaceIdentifier, path);
 
@@ -283,10 +312,12 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				detail: nls.localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
 				noLink: true
 			};
-			return this.windowService.showMessageBox(options).then(() => false);
+			await this.windowService.showMessageBox(options);
+
+			return false;
 		}
 
-		return Promise.resolve(true); // OK
+		return true; // OK
 	}
 
 	private async saveWorkspaceAs(workspace: IWorkspaceIdentifier, targetConfigPathURI: URI): Promise<any> {
@@ -294,7 +325,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Return early if target is same as source
 		if (isEqual(configPathURI, targetConfigPathURI)) {
-			return Promise.resolve(null);
+			return;
 		}
 
 		// Read the contents of the workspace file, update it to new location and save it.
@@ -303,18 +334,17 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		await this.textFileService.create(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
 	}
 
-	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): Promise<void> {
+	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): void {
 		switch (error.code) {
 			case JSONEditingErrorCode.ERROR_INVALID_FILE:
 				this.onInvalidWorkspaceConfigurationFileError();
-				return Promise.resolve();
+				break;
 			case JSONEditingErrorCode.ERROR_FILE_DIRTY:
 				this.onWorkspaceConfigurationFileDirtyError();
-				return Promise.resolve();
+				break;
+			default:
+				this.notificationService.error(error.message);
 		}
-		this.notificationService.error(error.message);
-
-		return Promise.resolve();
 	}
 
 	private onInvalidWorkspaceConfigurationFileError(): void {
@@ -338,7 +368,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	async enterWorkspace(path: URI): Promise<void> {
 		if (!!this.environmentService.extensionTestsLocationURI) {
-			return Promise.reject(new Error('Entering a new workspace is not possible in tests.'));
+			throw new Error('Entering a new workspace is not possible in tests.');
 		}
 
 		const workspace = await this.workspaceService.getWorkspaceIdentifier(path);

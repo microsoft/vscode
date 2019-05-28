@@ -9,7 +9,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { commonPrefixLength } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./breadcrumbsWidget';
 
@@ -134,14 +134,14 @@ export class BreadcrumbsWidget {
 	}
 
 	private _updateDimensions(dim: dom.Dimension): IDisposable {
-		let disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 		disposables.push(dom.modify(() => {
 			this._dimension = dim;
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
 			disposables.push(this._updateScrollbar());
 		}));
-		return combinedDisposable(disposables);
+		return disposables;
 	}
 
 	private _updateScrollbar(): IDisposable {

@@ -151,7 +151,7 @@ class FolderDetector {
 						task: line
 					};
 					let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
-					let task = new vscode.Task(kind, this.workspaceFolder, line, 'gulp', new vscode.ShellExecution(`${gulpCommand} ${line}`, options));
+					let task = new vscode.Task(kind, this.workspaceFolder, line, 'gulp', new vscode.ShellExecution(gulpCommand, [line], options));
 					result.push(task);
 					let lowerCaseLine = line.toLowerCase();
 					if (isBuildTask(lowerCaseLine)) {

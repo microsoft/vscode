@@ -17,7 +17,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { Choice, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
+import { Choice, Placeholder, SnippetParser, Text, TextmateSnippet, Marker } from './snippetParser';
 import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, CommentBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
@@ -122,14 +122,14 @@ export class OneSnippet {
 			}
 		}
 
-		let skipThisPlaceholder = false;
+		let couldSkipThisPlaceholder = false;
 		if (fwd === true && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
 			this._placeholderGroupsIdx += 1;
-			skipThisPlaceholder = true;
+			couldSkipThisPlaceholder = true;
 
 		} else if (fwd === false && this._placeholderGroupsIdx > 0) {
 			this._placeholderGroupsIdx -= 1;
-			skipThisPlaceholder = true;
+			couldSkipThisPlaceholder = true;
 
 		} else {
 			// the selection of the current placeholder might
@@ -154,7 +154,7 @@ export class OneSnippet {
 				// consider to skip this placeholder index when the decoration
 				// range is empty but when the placeholder wasn't. that's a strong
 				// hint that the placeholder has been deleted. (all placeholder must match this)
-				skipThisPlaceholder = skipThisPlaceholder && (range.isEmpty() && placeholder.toString().length > 0);
+				couldSkipThisPlaceholder = couldSkipThisPlaceholder && this._hasPlaceholderBeenCollapsed(placeholder);
 
 				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
 				activePlaceholders.add(placeholder);
@@ -177,7 +177,25 @@ export class OneSnippet {
 			return selections;
 		})!;
 
-		return !skipThisPlaceholder ? newSelections : this.move(fwd);
+		return !couldSkipThisPlaceholder ? newSelections : this.move(fwd);
+	}
+
+	private _hasPlaceholderBeenCollapsed(placeholder: Placeholder): boolean {
+		// A placeholder is empty when it wasn't empty when authored but
+		// when its tracking decoration is empty. This also applies to all
+		// potential parent placeholders
+		let marker: Marker | undefined = placeholder;
+		while (marker) {
+			if (marker instanceof Placeholder) {
+				const id = this._placeholderDecorations.get(marker)!;
+				const range = this._editor.getModel().getDecorationRange(id)!;
+				if (range.isEmpty() && marker.toString().length > 0) {
+					return true;
+				}
+			}
+			marker = marker.parent;
+		}
+		return false;
 	}
 
 	get isAtFirstPlaceholder() {

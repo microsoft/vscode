@@ -199,9 +199,9 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 	) {
 		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
 
-		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
+		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(() => {
+		this._register(this.debugService.getViewModel().onDidFocusSession(() => {
 			const session = this.debugService.getViewModel().focusedSession;
 			if (session) {
 				const index = this.getSessions().indexOf(session);
@@ -209,8 +209,8 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 			}
 		}));
 
-		this.toDispose.push(this.debugService.onDidNewSession(() => this.update()));
-		this.toDispose.push(this.debugService.onDidEndSession(() => this.update()));
+		this._register(this.debugService.onDidNewSession(() => this.update()));
+		this._register(this.debugService.onDidEndSession(() => this.update()));
 
 		this.update();
 	}

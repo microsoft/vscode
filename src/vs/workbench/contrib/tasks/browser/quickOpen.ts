@@ -28,13 +28,13 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		return this.task._label;
 	}
 
-	public getDescription(): string | null {
+	public getDescription(): string | undefined {
 		if (!this.taskService.needsFolderQualification()) {
-			return null;
+			return undefined;
 		}
 		let workspaceFolder = this.task.getWorkspaceFolder();
 		if (!workspaceFolder) {
-			return null;
+			return undefined;
 		}
 		return `${workspaceFolder.name}`;
 	}

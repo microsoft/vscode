@@ -43,6 +43,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 // Commands
 
@@ -349,7 +350,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-let globalResourceToCompare: URI | null;
+let globalResourceToCompare: URI | undefined;
 let resourceSelectedForCompareContext: IContextKey<boolean>;
 CommandsRegistry.registerCommand({
 	id: SELECT_FOR_COMPARE_COMMAND_ID,
@@ -524,9 +525,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IEditorService);
 		let resource: URI | null = null;
 		if (resourceOrObject && 'from' in resourceOrObject && resourceOrObject.from === 'menu') {
-			resource = toResource(editorService.activeEditor);
+			resource = withUndefinedAsNull(toResource(editorService.activeEditor));
 		} else {
-			resource = getResourceForCommand(resourceOrObject, accessor.get(IListService), editorService);
+			resource = withUndefinedAsNull(getResourceForCommand(resourceOrObject, accessor.get(IListService), editorService));
 		}
 
 		return save(resource, true, undefined, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupsService), accessor.get(IWorkbenchEnvironmentService));

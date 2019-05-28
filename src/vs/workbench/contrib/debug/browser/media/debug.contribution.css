@@ -142,6 +142,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	font-family: var(--monaco-monospace-font);
+	white-space: pre;
 }
 
 .monaco-workbench.mac .debug-viewlet .monaco-list-row .expression,

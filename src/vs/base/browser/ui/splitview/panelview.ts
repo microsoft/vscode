@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./panelview';
-import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -397,16 +397,16 @@ export class PanelView extends Disposable {
 	}
 
 	addPanel(panel: Panel, size: number, index = this.splitview.length): void {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		// https://github.com/Microsoft/vscode/issues/59950
 		let shouldAnimate = false;
 		disposables.push(scheduleAtNextAnimationFrame(() => shouldAnimate = true));
 
-		Event.filter(panel.onDidChange, () => shouldAnimate)
-			(this.setupAnimation, this, disposables);
+		disposables.push(Event.filter(panel.onDidChange, () => shouldAnimate)
+			(this.setupAnimation, this));
 
-		const panelItem = { panel, disposable: combinedDisposable(disposables) };
+		const panelItem = { panel, disposable: disposables };
 		this.panelItems.splice(index, 0, panelItem);
 		panel.width = this.width;
 		this.splitview.addView(panel, size, index);
@@ -414,7 +414,7 @@ export class PanelView extends Disposable {
 		if (this.dnd) {
 			const draggable = new PanelDraggable(panel, this.dnd, this.dndContext);
 			disposables.push(draggable);
-			draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop, disposables);
+			disposables.push(draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop));
 		}
 	}
 

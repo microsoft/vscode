@@ -32,7 +32,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/browser/terminalCommandTracker';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchOptions, Terminal as XTermTerminal } from 'vscode-xterm';
+import { ISearchOptions, Terminal as XTermTerminal, IBuffer } from 'vscode-xterm';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
@@ -371,7 +371,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
 			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
 			if (this._xterm) {
-				this._xterm._core._onScroll.fire(this._xterm._core.buffer.ydisp);
+				this._xterm._core._onScroll.fire(this._xterm.buffer.viewportY);
 			}
 		}
 
@@ -635,7 +635,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _measureRenderTime(): void {
 		const frameTimes: number[] = [];
-		const textRenderLayer = this._xterm._core.renderer._renderLayers[0];
+		const textRenderLayer = this._xterm._core._renderCoordinator._renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer.onGridChanged;
 
 		const evaluateCanvasRenderer = () => {
@@ -647,11 +647,7 @@ export class TerminalInstance implements ITerminalInstance {
 				const promptChoices: IPromptChoice[] = [
 					{
 						label: nls.localize('yes', "Yes"),
-						run: () => {
-							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
-								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "The terminal is now using the fallback renderer."));
-							});
-						}
+						run: () => this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER)
 					} as IPromptChoice,
 					{
 						label: nls.localize('no', "No"),
@@ -751,8 +747,8 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 		if (this._xterm) {
-			const buffer = (<any>this._xterm._core.buffer);
-			this._sendLineData(buffer, buffer.ybase + buffer.y);
+			const buffer = this._xterm.buffer;
+			this._sendLineData(buffer, buffer.baseY + buffer.cursorY);
 			this._xterm.dispose();
 		}
 
@@ -865,7 +861,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
-			this._xterm._core._onScroll.fire(this._xterm._core.buffer.ydisp);
+			this._xterm._core._onScroll.fire(this._xterm.buffer.viewportY);
 			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will
@@ -1114,22 +1110,30 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _onLineFeed(): void {
-		const buffer = (<any>this._xterm._core.buffer);
-		const newLine = buffer.lines.get(buffer.ybase + buffer.y);
-		if (!newLine.isWrapped) {
-			this._sendLineData(buffer, buffer.ybase + buffer.y - 1);
+		const buffer = this._xterm.buffer;
+		const newLine = buffer.getLine(buffer.baseY + buffer.cursorY);
+		if (newLine && !newLine.isWrapped) {
+			this._sendLineData(buffer, buffer.baseY + buffer.cursorY - 1);
 		}
 	}
 
 	private _onCursorMove(): void {
-		const buffer = (<any>this._xterm._core.buffer);
-		this._sendLineData(buffer, buffer.ybase + buffer.y);
+		const buffer = this._xterm.buffer;
+		this._sendLineData(buffer, buffer.baseY + buffer.cursorY);
 	}
 
-	private _sendLineData(buffer: any, lineIndex: number): void {
-		let lineData = buffer.translateBufferLineToString(lineIndex, true);
-		while (lineIndex >= 0 && buffer.lines.get(lineIndex--).isWrapped) {
-			lineData = buffer.translateBufferLineToString(lineIndex, false) + lineData;
+	private _sendLineData(buffer: IBuffer, lineIndex: number): void {
+		let line = buffer.getLine(lineIndex);
+		if (!line) {
+			return;
+		}
+		let lineData = line.translateToString(true);
+		while (lineIndex > 0 && line.isWrapped) {
+			line = buffer.getLine(--lineIndex);
+			if (!line) {
+				break;
+			}
+			lineData = line.translateToString(false) + lineData;
 		}
 		this._onLineData.fire(lineData);
 	}
@@ -1264,7 +1268,7 @@ export class TerminalInstance implements ITerminalInstance {
 				// maximize on Windows/Linux would fire an event saying that the terminal was not
 				// visible.
 				if (this._xterm.getOption('rendererType') === 'canvas') {
-					this._xterm._core.renderer.onIntersectionChange({ intersectionRatio: 1 });
+					this._xterm._core._renderCoordinator._onIntersectionChange({ intersectionRatio: 1 });
 					// HACK: Force a refresh of the screen to ensure links are refresh corrected.
 					// This can probably be removed when the above hack is fixed in Chromium.
 					this._xterm.refresh(0, this._xterm.rows - 1);

@@ -213,10 +213,6 @@ export function symlink(target: string, path: string, type?: string): Promise<vo
 	return promisify(fs.symlink)(target, path, type);
 }
 
-export function readlink(path: string): Promise<string> {
-	return promisify(fs.readlink)(path);
-}
-
 export function truncate(path: string, len: number): Promise<void> {
 	return promisify(fs.truncate)(path, len);
 }

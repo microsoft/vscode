@@ -41,7 +41,7 @@ import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
 import { ElementsDragAndDropData, DesktopDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 
 const $ = dom.$;
 
@@ -245,7 +245,7 @@ export class OpenEditorsView extends ViewletPanel {
 			const element = e.elements.length ? e.elements[0] : undefined;
 			if (element instanceof OpenEditor) {
 				this.dirtyEditorFocusedContext.set(this.textFileService.isDirty(withNullAsUndefined(element.getResource())));
-				this.resourceContext.set(element.getResource());
+				this.resourceContext.set(withUndefinedAsNull(element.getResource()));
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);
 			}

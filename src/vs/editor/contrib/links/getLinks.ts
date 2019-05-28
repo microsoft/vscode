@@ -27,7 +27,8 @@ export class Link implements ILink {
 	toJSON(): ILink {
 		return {
 			range: this.range,
-			url: this.url
+			url: this.url,
+			tooltip: this.tooltip
 		};
 	}
 
@@ -37,6 +38,10 @@ export class Link implements ILink {
 
 	get url(): URI | string | undefined {
 		return this._link.url;
+	}
+
+	get tooltip(): string | undefined {
+		return this._link.tooltip;
 	}
 
 	resolve(token: CancellationToken): Promise<URI> {
