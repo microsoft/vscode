@@ -9,7 +9,7 @@ import { Expression, Variable, ExpressionContainer } from 'vs/workbench/contrib/
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -127,7 +127,7 @@ export interface IExpressionTemplateData {
 	value: HTMLSpanElement;
 	inputBoxContainer: HTMLElement;
 	enableInputBox(expression: IExpression, options: IInputBoxOptions): void;
-	readonly toDispose: IDisposable;
+	toDispose: IDisposable[];
 	label: HighlightedLabel;
 }
 
@@ -148,7 +148,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		const label = new HighlightedLabel(name, false);
 
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
-		const toDispose = new DisposableStore();
+		const toDispose: IDisposable[] = [];
 
 		const enableInputBox = (expression: IExpression, options: IInputBoxOptions) => {
 			name.style.display = 'none';
@@ -166,8 +166,8 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 			inputBox.select();
 
 			let disposed = false;
-			toDispose.add(inputBox);
-			toDispose.add(styler);
+			toDispose.push(inputBox);
+			toDispose.push(styler);
 
 			const wrapUp = (renamed: boolean) => {
 				if (!disposed) {
@@ -180,11 +180,11 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 					name.style.display = 'initial';
 					value.style.display = 'initial';
 					inputBoxContainer.style.display = 'none';
-					toDispose.dispose();
+					dispose(toDispose);
 				}
 			};
 
-			toDispose.add(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
+			toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
 				const isEscape = e.equals(KeyCode.Escape);
 				const isEnter = e.equals(KeyCode.Enter);
 				if (isEscape || isEnter) {
@@ -193,10 +193,10 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 					wrapUp(isEnter);
 				}
 			}));
-			toDispose.add(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
+			toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
 				wrapUp(true);
 			}));
-			toDispose.add(dom.addDisposableListener(inputBox.inputElement, 'click', e => {
+			toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'click', e => {
 				// Do not expand / collapse selected elements
 				e.preventDefault();
 				e.stopPropagation();
