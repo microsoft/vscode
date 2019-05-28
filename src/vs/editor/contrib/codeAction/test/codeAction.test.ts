@@ -81,7 +81,7 @@ suite('CodeAction', () => {
 	setup(function () {
 		disposables.clear();
 		model = TextModel.createFromString('test1\ntest2\ntest3', undefined, langId, uri);
-		disposables.push(model);
+		disposables.add(model);
 	});
 
 	teardown(function () {
@@ -103,7 +103,7 @@ suite('CodeAction', () => {
 			}
 		};
 
-		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+		disposables.add(CodeActionProviderRegistry.register('fooLang', provider));
 
 		const expected = [
 			// CodeActions with a diagnostics array are shown first ordered by diagnostics.message
@@ -133,7 +133,7 @@ suite('CodeAction', () => {
 			}
 		};
 
-		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+		disposables.add(CodeActionProviderRegistry.register('fooLang', provider));
 
 		{
 			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } }, CancellationToken.None);
@@ -163,7 +163,7 @@ suite('CodeAction', () => {
 			}
 		};
 
-		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+		disposables.add(CodeActionProviderRegistry.register('fooLang', provider));
 
 		const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } }, CancellationToken.None);
 		assert.equal(actions.length, 1);
@@ -180,7 +180,7 @@ suite('CodeAction', () => {
 			}
 		};
 
-		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+		disposables.add(CodeActionProviderRegistry.register('fooLang', provider));
 
 		{
 			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto' }, CancellationToken.None);
@@ -206,7 +206,7 @@ suite('CodeAction', () => {
 			providedCodeActionKinds = [CodeActionKind.Refactor.value];
 		};
 
-		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+		disposables.add(CodeActionProviderRegistry.register('fooLang', provider));
 
 		const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), {
 			type: 'auto',

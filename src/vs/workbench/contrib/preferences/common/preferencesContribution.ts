@@ -130,13 +130,13 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			const languageSelection = this.modeService.create('jsonc');
 			const model = this.modelService.createModel(modelContent, languageSelection, uri);
 			const disposables = new DisposableStore();
-			disposables.push(schemaRegistry.onDidChangeSchema(schemaUri => {
+			disposables.add(schemaRegistry.onDidChangeSchema(schemaUri => {
 				if (schemaUri === uri.toString()) {
 					schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
 					model.setValue(JSON.stringify(schema));
 				}
 			}));
-			disposables.push(model.onWillDispose(() => disposables.dispose()));
+			disposables.add(model.onWillDispose(() => disposables.dispose()));
 
 			return model;
 		}

@@ -45,7 +45,7 @@ suite('CodeAction', () => {
 
 	test('Orcale -> marker added', done => {
 		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
-		disposables.push(reg);
+		disposables.add(reg);
 
 		const oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {
 			assert.equal(e.trigger.type, 'auto');
@@ -71,7 +71,7 @@ suite('CodeAction', () => {
 
 	test('Orcale -> position changed', () => {
 		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
-		disposables.push(reg);
+		disposables.add(reg);
 
 		markerService.changeOne('fake', uri, [{
 			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
@@ -105,7 +105,7 @@ suite('CodeAction', () => {
 				return [];
 			}
 		});
-		disposables.push(reg);
+		disposables.add(reg);
 
 		editor.getModel()!.setValue('// @ts-check\n2\ncon\n');
 
@@ -139,7 +139,7 @@ suite('CodeAction', () => {
 
 	test('Orcale -> should only auto trigger once for cursor and marker update right after each other', done => {
 		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
-		disposables.push(reg);
+		disposables.add(reg);
 
 		let triggerCount = 0;
 		const oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {

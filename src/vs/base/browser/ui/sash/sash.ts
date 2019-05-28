@@ -102,7 +102,7 @@ export class Sash extends Disposable {
 		this.orthogonalStartSashDisposables.clear();
 
 		if (sash) {
-			this.orthogonalStartSashDisposables.push(sash.onDidEnablementChange(this.onOrthogonalStartSashEnablementChange, this));
+			this.orthogonalStartSashDisposables.add(sash.onDidEnablementChange(this.onOrthogonalStartSashEnablementChange, this));
 			this.onOrthogonalStartSashEnablementChange(sash.state);
 		} else {
 			this.onOrthogonalStartSashEnablementChange(SashState.Disabled);
@@ -118,7 +118,7 @@ export class Sash extends Disposable {
 		this.orthogonalEndSashDisposables.clear();
 
 		if (sash) {
-			this.orthogonalEndSashDisposables.push(sash.onDidEnablementChange(this.onOrthogonalEndSashEnablementChange, this));
+			this.orthogonalEndSashDisposables.add(sash.onDidEnablementChange(this.onOrthogonalEndSashEnablementChange, this));
 			this.onOrthogonalEndSashEnablementChange(sash.state);
 		} else {
 			this.onOrthogonalEndSashEnablementChange(SashState.Disabled);

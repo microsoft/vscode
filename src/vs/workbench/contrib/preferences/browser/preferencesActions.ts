@@ -174,7 +174,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.disposables.push(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
+		this.disposables.add(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
 	}
 
 	private update(): void {

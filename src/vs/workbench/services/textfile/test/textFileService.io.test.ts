@@ -88,8 +88,8 @@ suite('Files - TextFileService i/o', () => {
 		const fileService = new FileService(logService);
 
 		const fileProvider = new DiskFileSystemProvider(logService);
-		disposables.push(fileService.registerProvider(Schemas.file, fileProvider));
-		disposables.push(fileProvider);
+		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
+		disposables.add(fileProvider);
 
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
