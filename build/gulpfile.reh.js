@@ -13,4 +13,4 @@ gulp.task('vscode-reh-win32-ia32-min', noop);
 gulp.task('vscode-reh-win32-x64-min', noop);
 gulp.task('vscode-reh-darwin-min', noop);
 gulp.task('vscode-reh-linux-x64-min', noop);
-gulp.task('vscode-reh-linux-arm-min', noop);
+gulp.task('vscode-reh-linux-armhf-min', noop);
