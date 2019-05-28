@@ -384,8 +384,8 @@ export class URI implements UriComponents {
 			return data;
 		} else {
 			const result = new _URI(data);
-			result._fsPath = (<UriState>data).fsPath;
 			result._formatted = (<UriState>data).external;
+			result._fsPath = (<UriState>data).fsPathBsl === (isWindows || undefined) ? (<UriState>data).fsPath : null;
 			return result;
 		}
 	}
@@ -401,8 +401,9 @@ export interface UriComponents {
 
 interface UriState extends UriComponents {
 	$mid: number;
-	fsPath: string;
 	external: string;
+	fsPath: string;
+	fsPathBsl: true | undefined;
 }
 
 
@@ -438,6 +439,7 @@ class _URI extends URI {
 		// cached state
 		if (this._fsPath) {
 			res.fsPath = this._fsPath;
+			res.fsPathBsl = isWindows || undefined;
 		}
 		if (this._formatted) {
 			res.external = this._formatted;
