@@ -757,11 +757,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
-	private tokenizeCompleteDocument(model: ITextModel): void {
-		// For every word in every line, map its ranges for fast lookup
-		this.tokenizeRange(model, 1, model.getLineCount());
-	}
-
 	private getWordToPositionsMap(): Map<string, Position[]> {
 		if (!this.wordToLineNumbersMap) {
 			this.wordToLineNumbersMap = new Map<string, Position[]>();
@@ -774,11 +769,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			this.toDispose.push(this.editor.onDidScrollChange(() => {
 				this.editor.getVisibleRanges().forEach(visibleRange => {
-					if (model.isCheapToTokenize(visibleRange.endLineNumber)) {
-						this.tokenizeCompleteDocument(model);
-					} else {
-						this.tokenizeViewPort(model);
+					if (model.isCheapToTokenize(visibleRange.startLineNumber)) {
+						model.tokenizeViewport(visibleRange.startLineNumber, visibleRange.endLineNumber);
 					}
+					this.tokenizeRange(model, visibleRange.startLineNumber, visibleRange.endLineNumber);
 				});
 			}));
 		}
