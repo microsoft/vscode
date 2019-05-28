@@ -23,6 +23,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	private _isDisposed: boolean = false;
 	private _titleInterval: NodeJS.Timer | null = null;
 	private _initialCwd: string;
+	private _foundExecutableInPath: boolean = false;
 
 	private readonly _onProcessData = new Emitter<string>();
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
@@ -70,55 +71,47 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		};
 
 		fs.stat(shellLaunchConfig.executable!, (err) => {
-			if (err && err.code === 'ENOENT') {
-				this.checkIfExistsInPath(shellLaunchConfig.executable!, (existsInPath: boolean) => {
-					if (!existsInPath) {
-						this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
-						this._queueProcessExit();
-						this._processStartupComplete = Promise.resolve(undefined);
-						return;
-					} else {
-						this.setupPtyProcess(shellLaunchConfig, options);
+			if (err && err.code === 'ENOENT' && !this.checkIfExistsInPath(shellLaunchConfig.executable!)) {
+				this._exitCode = SHELL_PATH_INVALID_EXIT_CODE;
+				this._queueProcessExit();
+				this._processStartupComplete = Promise.resolve(undefined);
+				return;
+			}
+			this.setupPtyProcess(shellLaunchConfig, options);
+		});
+	}
+
+	private checkInsideDirRecursively(execPath: string, executable: string): void {
+		try {
+			fs.readdirSync(execPath).forEach((file) => {
+				const pathToFile = path.join(execPath, file);
+				const isDirectory = fs.statSync(pathToFile).isDirectory();
+				if (!isDirectory) {
+					if (executable === file) {
+						this._foundExecutableInPath = true;
 					}
-				});
-			} else {
-				this.setupPtyProcess(shellLaunchConfig, options);
-			}
-		});
-	}
-
-	private checkInsideDirRecursively(filePath: string, executable: string, callback: any): void {
-		fs.readdir(filePath, (err, files) => {
-			if (!err && files) {
-				files.forEach(file => {
-					fs.stat(path.join(filePath, file), (err, fileStat) => {
-						if (!err && fileStat) {
-							if (fileStat.isFile()) {
-								if (executable === file) {
-									callback();
-									return;
-								}
-							}
-							else {
-								this.checkInsideDirRecursively(path.join(filePath, file), executable, callback);
-							}
-						}
-					});
-				});
-			}
-		});
-	}
-
-	private checkIfExistsInPath(executable: string, callback: any): void {
-		if (process.env.PATH && !path.isAbsolute(executable)) {
-			process.env.PATH.split(path.delimiter).forEach(eachPath => {
-				this.checkInsideDirRecursively(eachPath, executable, () => {
-					//comes inside this only if the path is found
-					callback(true);
-					return;
-				});
+				} else {
+					this.checkInsideDirRecursively(execPath, executable);
+				}
 			});
 		}
+		catch (err) {
+			if (err.code !== 'ENOENT') {
+				throw err;
+			}
+		}
+	}
+
+	private checkIfExistsInPath(executable: string): boolean {
+		if (process.env.PATH) {
+			const envPath = process.env.PATH.split(path.delimiter);
+			envPath.forEach(eachPath => {
+				if (!path.isAbsolute(eachPath)) {
+					this.checkInsideDirRecursively(eachPath, executable);
+				}
+			});
+		}
+		return this._foundExecutableInPath;
 	}
 
 	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {
