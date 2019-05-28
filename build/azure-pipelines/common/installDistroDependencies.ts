@@ -9,7 +9,7 @@ import * as fs from 'fs';
 
 function yarnInstall(packageName: string, cwd: string): void {
 	console.log(`yarn add --no-lockfile ${packageName}`, cwd);
-	cp.execSync(`yarn add --no-lockfile ${packageName}`, { cwd });
+	cp.execSync(`yarn add --no-lockfile ${packageName}`, { cwd, stdio: 'inherit' });
 }
 
 /**
