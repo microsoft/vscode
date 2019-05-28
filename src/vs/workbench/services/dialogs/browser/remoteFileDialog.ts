@@ -340,7 +340,8 @@ export class RemoteFileDialog {
 		const relativePath = resources.relativePath(currentDisplayUri, directUri);
 		const isSameRoot = (this.filePickBox.value.length > 1 && currentPath.length > 1) ? equalsIgnoreCase(this.filePickBox.value.substr(0, 2), currentPath.substr(0, 2)) : false;
 		if (relativePath && isSameRoot) {
-			return resources.joinPath(this.currentFolder, relativePath);
+			const path = resources.joinPath(this.currentFolder, relativePath);
+			return resources.hasTrailingPathSeparator(directUri) ? resources.addTrailingPathSeparator(path) : path;
 		} else {
 			return directUri;
 		}
@@ -357,10 +358,9 @@ export class RemoteFileDialog {
 					// When possible, cause the update to happen by modifying the input box.
 					// This allows all input box updates to happen first, and uses the same code path as the user typing.
 					const newPath = this.pathFromUri(item.uri);
-					if (startsWithIgnoreCase(newPath, this.filePickBox.value)) {
-						const insertValue = newPath.substring(this.filePickBox.value.length, newPath.length);
-						this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
-						this.insertText(newPath, insertValue);
+					if (startsWithIgnoreCase(newPath, this.filePickBox.value) && (equalsIgnoreCase(item.label, resources.basename(item.uri)))) {
+						this.filePickBox.valueSelection = [this.pathFromUri(this.currentFolder).length, this.filePickBox.value.length];
+						this.insertText(newPath, item.label);
 					} else if ((item.label === '..') && startsWithIgnoreCase(this.filePickBox.value, newPath)) {
 						this.filePickBox.valueSelection = [newPath.length, this.filePickBox.value.length];
 						this.insertText(newPath, '');
@@ -368,11 +368,13 @@ export class RemoteFileDialog {
 						await this.updateItems(item.uri, true);
 					}
 				}
+				this.filePickBox.busy = false;
 				return;
 			}
 		} else {
 			// If the items have updated, don't try to resolve
 			if ((await this.tryUpdateItems(this.filePickBox.value, this.filePickBoxValue())) !== UpdateResult.NotUpdated) {
+				this.filePickBox.busy = false;
 				return;
 			}
 		}
@@ -403,7 +405,7 @@ export class RemoteFileDialog {
 			}
 			await this.updateItems(newDir, true);
 			return UpdateResult.Updated;
-		} else if (!resources.isEqual(this.currentFolder, valueUri, true) && (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true)))) {
+		} else if ((!resources.isEqual(this.currentFolder, valueUri, true) && (this.endsWithSlash(value)) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true)))) {
 			let stat: IFileStat | undefined;
 			try {
 				stat = await this.fileService.resolve(valueUri);
