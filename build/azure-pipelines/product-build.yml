@@ -60,7 +60,7 @@ jobs:
   - template: linux/product-build-linux.yml
 
 - job: LinuxArmhf
-  # condition: eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true')
+  condition: eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true')
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
