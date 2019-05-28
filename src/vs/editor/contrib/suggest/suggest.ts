@@ -122,7 +122,6 @@ export function provideSuggestionItems(
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItem[]> {
 
-	const allSuggestions: CompletionItem[] = [];
 	const wordUntil = model.getWordUntilPosition(position);
 	const defaultRange = new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
 
@@ -136,9 +135,12 @@ export function provideSuggestionItems(
 		supports.unshift([_snippetSuggestSupport]);
 	}
 
+	const allSuggestions: CompletionItem[] = [];
+	const disposables = new DisposableStore();
+	let hasResult = false;
+
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
-	let hasResult = false;
 	const factory = supports.map(supports => () => {
 		// for each support in the group ask for suggestions
 		return Promise.all(supports.map(provider => {
@@ -163,6 +165,9 @@ export function provideSuggestionItems(
 							allSuggestions.push(new CompletionItem(position, suggestion, container, provider, model));
 						}
 					}
+					if (isDisposable(container)) {
+						disposables.add(container);
+					}
 				}
 
 				if (len !== allSuggestions.length && provider !== _snippetSuggestSupport) {
@@ -178,6 +183,7 @@ export function provideSuggestionItems(
 		return hasResult || token.isCancellationRequested;
 	}).then(() => {
 		if (token.isCancellationRequested) {
+			disposables.dispose();
 			return Promise.reject<any>(canceled());
 		}
 		return allSuggestions.sort(getSuggestionComparator(options.snippetSortOrder));
