@@ -28,6 +28,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
+import { Emitter } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -60,6 +62,11 @@ export class RemoteFileDialog {
 	private badPath: string | undefined;
 	private remoteAgentEnvironment: IRemoteAgentEnvironment | null;
 	private separator: string;
+	private onBusyChangeEmitter = new Emitter<boolean>();
+
+	protected disposables: IDisposable[] = [
+		this.onBusyChangeEmitter
+	];
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -77,6 +84,17 @@ export class RemoteFileDialog {
 	) {
 		this.remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
+	}
+
+	set busy(busy: boolean) {
+		if (this.filePickBox.busy !== busy) {
+			this.filePickBox.busy = busy;
+			this.onBusyChangeEmitter.fire(busy);
+		}
+	}
+
+	get busy(): boolean {
+		return this.filePickBox.busy;
 	}
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
@@ -185,7 +203,7 @@ export class RemoteFileDialog {
 
 		return new Promise<URI | undefined>(async (resolve) => {
 			this.filePickBox = this.quickInputService.createQuickPick<FileQuickPickItem>();
-			this.filePickBox.busy = true;
+			this.busy = true;
 			this.filePickBox.matchOnLabel = false;
 			this.filePickBox.autoFocusOnList = false;
 			this.filePickBox.ignoreFocusOut = true;
@@ -203,7 +221,7 @@ export class RemoteFileDialog {
 				}
 			}
 
-			let isResolving = false;
+			let isResolving: number = 0;
 			let isAcceptHandled = false;
 			this.currentFolder = homedir;
 			this.userEnteredPathSegment = '';
@@ -218,15 +236,16 @@ export class RemoteFileDialog {
 				resolve(uri);
 				dialog.contextKey.set(false);
 				dialog.filePickBox.dispose();
+				dispose(dialog.disposables);
 			}
 
 			this.filePickBox.onDidCustom(() => {
-				if (isAcceptHandled || this.filePickBox.busy) {
+				if (isAcceptHandled || this.busy) {
 					return;
 				}
 
 				isAcceptHandled = true;
-				isResolving = true;
+				isResolving++;
 				if (this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
 					this.options.availableFileSystems.shift();
 				}
@@ -243,25 +262,38 @@ export class RemoteFileDialog {
 				}
 			});
 
-			this.filePickBox.onDidAccept(_ => {
-				if (isAcceptHandled || this.filePickBox.busy) {
+			function handleAccept(dialog: RemoteFileDialog) {
+				if (dialog.busy) {
+					// Save the accept until the file picker is not busy.
+					dialog.onBusyChangeEmitter.event((busy: boolean) => {
+						if (!busy) {
+							handleAccept(dialog);
+						}
+					});
+					return;
+				} else if (isAcceptHandled) {
 					return;
 				}
 
 				isAcceptHandled = true;
-				isResolving = true;
-				this.onDidAccept().then(resolveValue => {
+				isResolving++;
+				dialog.onDidAccept().then(resolveValue => {
 					if (resolveValue) {
-						this.filePickBox.hide();
-						doResolve(this, resolveValue);
-					} else if (this.hidden) {
-						doResolve(this, undefined);
+						dialog.filePickBox.hide();
+						doResolve(dialog, resolveValue);
+					} else if (dialog.hidden) {
+						doResolve(dialog, undefined);
 					} else {
-						isResolving = false;
+						isResolving--;
 						isAcceptHandled = false;
 					}
 				});
+			}
+
+			this.filePickBox.onDidAccept(_ => {
+				handleAccept(this);
 			});
+
 			this.filePickBox.onDidChangeActive(i => {
 				isAcceptHandled = false;
 				// update input box to match the first selected item
@@ -296,7 +328,7 @@ export class RemoteFileDialog {
 			});
 			this.filePickBox.onDidHide(() => {
 				this.hidden = true;
-				if (!isResolving) {
+				if (isResolving === 0) {
 					doResolve(this, undefined);
 				}
 			});
@@ -309,7 +341,7 @@ export class RemoteFileDialog {
 			} else {
 				this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			}
-			this.filePickBox.busy = false;
+			this.busy = false;
 		});
 	}
 
@@ -348,7 +380,7 @@ export class RemoteFileDialog {
 	}
 
 	private async onDidAccept(): Promise<URI | undefined> {
-		this.filePickBox.busy = true;
+		this.busy = true;
 		if (this.filePickBox.activeItems.length === 1) {
 			const item = this.filePickBox.selectedItems[0];
 			if (item.isFolder) {
@@ -390,10 +422,10 @@ export class RemoteFileDialog {
 			resolveValue = this.addPostfix(resolveValue);
 		}
 		if (await this.validate(resolveValue)) {
-			this.filePickBox.busy = false;
+			this.busy = false;
 			return resolveValue;
 		}
-		this.filePickBox.busy = false;
+		this.busy = false;
 		return undefined;
 	}
 
@@ -472,7 +504,7 @@ export class RemoteFileDialog {
 	}
 
 	private setAutoComplete(startingValue: string, startingBasename: string, quickPickItem: FileQuickPickItem, force: boolean = false): boolean {
-		if (this.filePickBox.busy) {
+		if (this.busy) {
 			// We're in the middle of something else. Doing an auto complete now can result jumbled or incorrect autocompletes.
 			this.userEnteredPathSegment = startingBasename;
 			this.autoCompletePathSegment = '';
@@ -640,7 +672,7 @@ export class RemoteFileDialog {
 	}
 
 	private async updateItems(newFolder: URI, force: boolean = false, trailing?: string) {
-		this.filePickBox.busy = true;
+		this.busy = true;
 		this.userEnteredPathSegment = trailing ? trailing : '';
 		this.autoCompletePathSegment = '';
 		const newValue = trailing ? this.pathFromUri(resources.joinPath(newFolder, trailing)) : this.pathFromUri(newFolder, true);
@@ -662,7 +694,7 @@ export class RemoteFileDialog {
 				// If there is trailing, we don't move the cursor. If there is no trailing, cursor goes at the end.
 				this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			}
-			this.filePickBox.busy = false;
+			this.busy = false;
 		});
 	}
 
