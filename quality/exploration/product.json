@@ -21,6 +21,7 @@
 	"licenseName": "Multiple, see https://code.visualstudio.com/license",
 	"urlProtocol": "vscode-exploration",
 	"dataFolderName": ".vscode-exploration",
+	"serverDataFolderName": ".vscode-server-exploration",
 	"downloadUrl": "https://code.visualstudio.com/insiders",
 	"welcomePage": "https://go.microsoft.com/fwlink/?LinkId=723048",
 	"updateUrl": "https://update.code.visualstudio.com",

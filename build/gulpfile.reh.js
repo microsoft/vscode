@@ -284,10 +284,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName) {
 
 		const date = new Date().toISOString();
 
-		const serverDataFolderName = product.dataFolderName.replace(/^\.vscode/, '.vscode-server');
-
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date, serverDataFolderName }));
+			.pipe(json({ commit, date }));
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote' });
 
