@@ -60,11 +60,6 @@ export interface IStatusbarEntry {
 	 * Wether to show a beak above the status bar entry.
 	 */
 	readonly showBeak?: boolean;
-
-	/**
-	 * An identifier to associate with the status bar entry DOM element.
-	 */
-	readonly elementId?: string;
 }
 
 export interface IStatusbarService {

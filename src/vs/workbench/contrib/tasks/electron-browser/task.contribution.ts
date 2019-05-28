@@ -128,7 +128,6 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 		const problems = this.markerService.getStatistics();
 
 		return {
-			elementId: 'task-statusbar-item',
 			text: this.getProblemsText(problems),
 			tooltip: this.getProblemsTooltip(problems),
 			command: 'workbench.action.tasks.toggleProblems'
