@@ -25,7 +25,6 @@ import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { LinkedMap, Touch } from 'vs/base/common/map';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -53,7 +52,7 @@ import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonCo
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -91,7 +90,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { RunAutomaticTasks, AllowAutomaticTaskRunning, DisallowAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/electron-browser/runAutomaticTasks';
 
@@ -286,67 +285,50 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 	}
 }
 
-class TaskStatusBarItem extends Themable implements IStatusbarItem {
+export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
+	private item: IStatusbarEntryAccessor | undefined;
 
 	constructor(
 		@ITaskService private readonly taskService: ITaskService,
-		@IThemeService themeService: IThemeService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
-		super(themeService);
+		super();
+
+		this.registerListeners();
 	}
 
-	protected updateStyles(): void {
-		super.updateStyles();
-	}
-
-	public render(container: HTMLElement): IDisposable {
-
-		let callOnDispose: IDisposable[] = [];
-		const element = document.createElement('a');
-		Dom.addClass(element, 'task-statusbar-runningItem');
-
-		let labelElement = document.createElement('div');
-		Dom.addClass(labelElement, 'task-statusbar-runningItem-label');
-		element.appendChild(labelElement);
-
-		let label = new OcticonLabel(labelElement);
-		label.title = nls.localize('runningTasks', "Show Running Tasks");
-
-		Dom.hide(element);
-
-		callOnDispose.push(Dom.addDisposableListener(labelElement, 'click', (e: MouseEvent) => {
-			(this.taskService as TaskService).runShowTasks();
-		}));
-
-		let updateStatus = (): void => {
-			this.taskService.getActiveTasks().then(tasks => {
-				if (tasks.length === 0) {
-					Dom.hide(element);
-				} else {
-					label.text = `$(tools) ${tasks.length}`;
-					Dom.show(element);
-				}
-			});
-		};
-
-		callOnDispose.push(this.taskService.onDidStateChange((event) => {
+	private registerListeners(): void {
+		this.taskService.onDidStateChange(event => {
 			if (event.kind === TaskEventKind.Changed) {
-				updateStatus();
+				this.update();
 			}
-		}));
+		});
+	}
 
-		container.appendChild(element);
-
-		this.updateStyles();
-		updateStatus();
-
-		return {
-			dispose: () => {
-				callOnDispose = dispose(callOnDispose);
+	private async update(): Promise<void> {
+		const tasks = await this.taskService.getActiveTasks();
+		if (tasks.length === 0) {
+			if (this.item) {
+				this.item.dispose();
+				this.item = undefined;
 			}
-		};
+		} else {
+			const itemProps: IStatusbarEntry = {
+				text: `$(tools) ${tasks.length}`,
+				tooltip: nls.localize('runningTasks', "Show Running Tasks"),
+				command: 'workbench.action.tasks.showTasks',
+			};
+
+			if (!this.item) {
+				this.item = this.statusbarService.addEntry(itemProps, StatusbarAlignment.LEFT, 50 /* Medium Priority */);
+			} else {
+				this.item.update(itemProps);
+			}
+		}
 	}
 }
+
+workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, LifecyclePhase.Restored);
 
 class ProblemReporter implements TaskConfig.IProblemReporter {
 
@@ -2708,7 +2690,6 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionCont
 // Status bar
 let statusbarRegistry = Registry.as<IStatusbarRegistry>(StatusbarExtensions.Statusbar);
 statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(BuildStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(TaskStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 
 // tasks.json validation
 let schemaId = 'vscode://schemas/tasks';
