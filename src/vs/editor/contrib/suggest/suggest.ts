@@ -16,6 +16,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Range } from 'vs/editor/common/core/range';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { isDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
@@ -244,29 +245,35 @@ export function getSuggestionComparator(snippetConfig: SnippetSortOrder): (a: Co
 	return _snippetComparators.get(snippetConfig)!;
 }
 
-registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {
+registerDefaultLanguageCommand('_executeCompletionItemProvider', async (model, position, args) => {
 
 	const result: modes.CompletionList = {
 		incomplete: false,
 		suggestions: []
 	};
 
-	let resolving: Promise<any>[] = [];
-	let maxItemsToResolve = args['maxItemsToResolve'] || 0;
+	const disposables = new DisposableStore();
+	const resolving: Promise<any>[] = [];
+	const maxItemsToResolve = args['maxItemsToResolve'] || 0;
 
-	return provideSuggestionItems(model, position).then(items => {
-		for (const item of items) {
-			if (resolving.length < maxItemsToResolve) {
-				resolving.push(item.resolve(CancellationToken.None));
-			}
-			result.incomplete = result.incomplete || item.container.incomplete;
-			result.suggestions.push(item.completion);
+	const items = await provideSuggestionItems(model, position);
+	for (const item of items) {
+		if (resolving.length < maxItemsToResolve) {
+			resolving.push(item.resolve(CancellationToken.None));
 		}
-	}).then(() => {
-		return Promise.all(resolving);
-	}).then(() => {
+		result.incomplete = result.incomplete || item.container.incomplete;
+		result.suggestions.push(item.completion);
+		if (isDisposable(item.container)) {
+			disposables.add(item.container);
+		}
+	}
+
+	try {
+		await Promise.all(resolving);
 		return result;
-	});
+	} finally {
+		disposables.dispose();
+	}
 });
 
 interface SuggestController extends IEditorContribution {
