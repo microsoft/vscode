@@ -114,7 +114,7 @@ export class Menu extends ActionBar {
 		});
 
 		if (options.enableMnemonics) {
-			this.menuDisposables.push(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+			this.menuDisposables.add(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 				const key = e.key.toLocaleLowerCase();
 				if (this.mnemonics.has(key)) {
 					EventHelper.stop(e, true);
@@ -216,7 +216,7 @@ export class Menu extends ActionBar {
 
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
 
-		this.menuDisposables.push(this.scrollableElement.onScroll(() => {
+		this.menuDisposables.add(this.scrollableElement.onScroll(() => {
 			this._onScroll.fire();
 		}, this));
 
@@ -707,7 +707,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			}
 
-			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
+			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
 				let event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
@@ -724,7 +724,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 				}
 			}));
 
-			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_DOWN, e => {
+			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_DOWN, e => {
 				let event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
@@ -732,7 +732,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			}));
 
 
-			this.submenuDisposables.push(this.parentData.submenu.onDidCancel(() => {
+			this.submenuDisposables.add(this.parentData.submenu.onDidCancel(() => {
 				this.parentData.parent.focus();
 
 				if (this.parentData.submenu) {
