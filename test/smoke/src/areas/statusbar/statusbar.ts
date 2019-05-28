@@ -48,7 +48,7 @@ export class StatusBar {
 			case StatusBarElement.SYNC_STATUS:
 				return `${this.mainSelector} ${this.leftSelector} .octicon.octicon-sync`;
 			case StatusBarElement.PROBLEMS_STATUS:
-				return `${this.mainSelector} ${this.leftSelector} .task-statusbar-item[title="Problems"]`;
+				return `${this.mainSelector} ${this.leftSelector} div[id="task-statusbar-item"]`;
 			case StatusBarElement.SELECTION_STATUS:
 				return `${this.mainSelector} ${this.rightSelector} .editor-status-selection`;
 			case StatusBarElement.INDENTATION_STATUS:

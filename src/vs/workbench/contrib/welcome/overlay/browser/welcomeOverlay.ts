@@ -214,7 +214,7 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private updateProblemsKey() {
-		const problems = document.querySelector('.task-statusbar-item');
+		const problems = document.getElementById('task-statusbar-item');
 		const key = this._overlay.querySelector('.key.problems') as HTMLElement;
 		if (problems instanceof HTMLElement) {
 			const target = problems.getBoundingClientRect();

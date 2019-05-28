@@ -324,6 +324,13 @@ class StatusBarEntryItem extends Disposable {
 
 	private render(entry: IStatusbarEntry): void {
 
+		// Container
+		if (entry.elementId) {
+			this.container.id = entry.elementId;
+		} else if (this.container.id) {
+			delete this.container.id;
+		}
+
 		// Text Container
 		let textContainer: HTMLElement;
 		if (entry.command) {
