@@ -301,7 +301,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			weight2: 0
 		});
 
-		toDispose.push(toDisposable(() => {
+		toDispose.add(toDisposable(() => {
 			for (let i = 0; i < this._dynamicKeybindings.length; i++) {
 				let kb = this._dynamicKeybindings[i];
 				if (kb.command === commandId) {
@@ -314,7 +314,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {
-			toDispose.push(commandService.addCommand({
+			toDispose.add(commandService.addCommand({
 				id: commandId,
 				handler: handler
 			}));

@@ -34,9 +34,9 @@ export class CommentFormActions implements IDisposable {
 				const button = new Button(this.container);
 				this._buttonElements.push(button.element);
 
-				this._toDispose.push(button);
-				this._toDispose.push(attachButtonStyler(button, this.themeService));
-				this._toDispose.push(button.onDidClick(() => this.actionHandler(action)));
+				this._toDispose.add(button);
+				this._toDispose.add(attachButtonStyler(button, this.themeService));
+				this._toDispose.add(button.onDidClick(() => this.actionHandler(action)));
 
 				button.enabled = action.enabled;
 				button.label = action.label;

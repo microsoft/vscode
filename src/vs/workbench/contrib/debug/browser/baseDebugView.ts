@@ -166,8 +166,8 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 			inputBox.select();
 
 			let disposed = false;
-			toDispose.push(inputBox);
-			toDispose.push(styler);
+			toDispose.add(inputBox);
+			toDispose.add(styler);
 
 			const wrapUp = (renamed: boolean) => {
 				if (!disposed) {
@@ -184,7 +184,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 				}
 			};
 
-			toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
+			toDispose.add(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
 				const isEscape = e.equals(KeyCode.Escape);
 				const isEnter = e.equals(KeyCode.Enter);
 				if (isEscape || isEnter) {
@@ -193,10 +193,10 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 					wrapUp(isEnter);
 				}
 			}));
-			toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
+			toDispose.add(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
 				wrapUp(true);
 			}));
-			toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'click', e => {
+			toDispose.add(dom.addDisposableListener(inputBox.inputElement, 'click', e => {
 				// Do not expand / collapse selected elements
 				e.preventDefault();
 				e.stopPropagation();

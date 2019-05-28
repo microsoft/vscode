@@ -304,7 +304,7 @@ class SnippetsService implements ISnippetsService {
 			}
 			return this._fileService.resolve(folder).then(stat => {
 				for (const entry of stat.children || []) {
-					disposables.push(this._addSnippetFile(entry.resource, source));
+					disposables.add(this._addSnippetFile(entry.resource, source));
 				}
 			}, err => {
 				this._logService.error(`Failed snippets from folder '${folder.toString()}'`, err);

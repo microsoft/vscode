@@ -181,7 +181,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			this.instantiatedCompositeItems.set(id, { composite, disposable: disposables, localProgressService });
 
 			// Register to title area update events from the composite
-			disposables.push(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this));
+			disposables.add(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this));
 
 			return composite;
 		}
