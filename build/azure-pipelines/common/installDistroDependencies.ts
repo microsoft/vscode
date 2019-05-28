@@ -22,7 +22,7 @@ function main() {
 	}
 
 	const rootPath = path.dirname(path.dirname(path.dirname(__dirname)));
-	const qualityPath = path.join(rootPath, quality);
+	const qualityPath = path.join(rootPath, 'quality', quality);
 	const packagePath = path.join(qualityPath, 'package.json');
 	const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 	const dependencies = pkg.dependencies || {} as { [name: string]: string; };
