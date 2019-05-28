@@ -39,5 +39,27 @@ steps:
     git fetch distro
     git merge $(node -p "require('./package.json').distro")
 
+    CHILD_CONCURRENCY=1 yarn
+    yarn gulp mixin
+    yarn gulp hygiene
+    yarn monaco-compile-check
+    ./build/azure-pipelines/linux/prebuild-arm.sh
+  displayName: Prepare build
+
+- script: |
+    set -e
     ./build/azure-pipelines/linux/build-arm.sh
-  displayName: 'Build ARM'
+  displayName: Build
+
+- script: |
+    set -e
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
+    ./build/azure-pipelines/linux/publish-arm.sh
+  displayName: Publish
+
+- task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+  displayName: 'Component Detection'
+  continueOnError: true
