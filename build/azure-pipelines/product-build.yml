@@ -11,7 +11,7 @@ resources:
 
 jobs:
 - job: Windows
-  condition: false
+  condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -20,7 +20,7 @@ jobs:
   - template: win32/product-build-win32.yml
 
 - job: Windows32
-  condition: false
+  condition: eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true')
   pool:
     vmImage: VS2017-Win2016
   variables:
@@ -29,7 +29,7 @@ jobs:
   - template: win32/product-build-win32.yml
 
 - job: Linux
-  condition: false
+  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -39,7 +39,7 @@ jobs:
   - template: linux/product-build-linux.yml
 
 - job: LinuxSnap
-  condition: false
+  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -50,7 +50,7 @@ jobs:
   - template: linux/snap-build-linux.yml
 
 - job: Linux32
-  condition: false
+  condition: eq(variables['VSCODE_BUILD_LINUX_32BIT'], 'true')
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -60,7 +60,7 @@ jobs:
   - template: linux/product-build-linux.yml
 
 - job: LinuxArmhf
-  # condition: false
+  # condition: eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true')
   pool:
     vmImage: 'Ubuntu-16.04'
   variables:
@@ -69,7 +69,7 @@ jobs:
   - template: linux/product-build-linux-arm.yml
 
 - job: macOS
-  condition: false
+  condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
   pool:
     vmImage: macOS 10.13
   steps:
@@ -78,7 +78,7 @@ jobs:
 - job: Mooncake
   pool:
     vmImage: 'Ubuntu-16.04'
-  condition: false
+  condition: true
   dependsOn:
   - Windows
   - Windows32
