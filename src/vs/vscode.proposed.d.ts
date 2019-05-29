@@ -1063,7 +1063,7 @@ declare module 'vscode' {
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
 		 */
-		createCommentThread(id: string, uri: Uri, range: Range, comments: Comment[]): CommentThread;
+		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
 
 		/**
 		 * Optional new comment thread factory.
