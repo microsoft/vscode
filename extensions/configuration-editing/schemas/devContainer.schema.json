@@ -5,6 +5,7 @@
 	"type": "object",
 	"definitions": {
 		"devContainerCommon": {
+			"type": "object",
 			"properties": {
 				"name": {
 					"type": "string",
@@ -18,7 +19,7 @@
 					}
 				},
 				"settings": {
-					"type": "object",
+					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container."
 				},
 				"postCreateCommand": {
@@ -35,6 +36,7 @@
 			}
 		},
 		"nonComposeBase": {
+			"type": "object",
 			"properties": {
 				"appPort": {
 					"type": ["integer", "string", "array"],
@@ -70,6 +72,7 @@
 			}
 		},
 		"dockerFileContainer": {
+			"type": "object",
 			"properties": {
 				"dockerFile": {
 					"type": "string",
@@ -83,6 +86,7 @@
 			"required": ["dockerFile"]
 		},
 		"imageContainer": {
+			"type": "object",
 			"properties": {
 				"image": {
 					"type": "string",
@@ -92,6 +96,7 @@
 			"required": ["image"]
 		},
 		"composeContainer": {
+			"type": "object",
 			"properties": {
 				"dockerComposeFile": {
 					"type": ["string", "array"],

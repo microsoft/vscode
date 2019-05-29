@@ -314,9 +314,9 @@
 			]
 		},
 		"react-native": {
-    			"friendlyName": "React Native",
-			 "windowsPath": "%APPDATA%\\npm\\react-native-cli",
-    			"recommendations": [
+			"friendlyName": "React Native",
+			"windowsPath": "%APPDATA%\\npm\\react-native-cli",
+			"recommendations": [
 				"vsmobile.vscode-react-native"
 			]
 		},
