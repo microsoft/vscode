@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent, EditorDisregardCorrespondingAutoclosedPairsStrategy } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -86,6 +86,7 @@ export class CursorConfiguration {
 	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
+	public readonly disregardCorrespondingAutoclosedPairs: EditorDisregardCorrespondingAutoclosedPairsStrategy;
 	public readonly autoIndent: boolean;
 	public readonly autoClosingPairsOpen: CharacterMap;
 	public readonly autoClosingPairsClose: CharacterMap;
@@ -103,6 +104,7 @@ export class CursorConfiguration {
 			|| e.multiCursorMergeOverlapping
 			|| e.autoClosingBrackets
 			|| e.autoClosingQuotes
+			|| e.disregardCorrespondingAutoclosedPairs
 			|| e.autoSurround
 			|| e.useTabStops
 			|| e.lineHeight
@@ -132,6 +134,7 @@ export class CursorConfiguration {
 		this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
 		this.autoClosingBrackets = c.autoClosingBrackets;
 		this.autoClosingQuotes = c.autoClosingQuotes;
+		this.disregardCorrespondingAutoclosedPairs = c.disregardCorrespondingAutoclosedPairs;
 		this.autoSurround = c.autoSurround;
 		this.autoIndent = c.autoIndent;
 

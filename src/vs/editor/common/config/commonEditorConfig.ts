@@ -565,6 +565,21 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.autoSurround,
 			'description': nls.localize('autoSurround', "Controls whether the editor should automatically surround selections.")
 		},
+
+		'editor.disregardCorrespondingAutoclosedPairs': {
+			type: 'string',
+			enum: ['always', 'brackets', 'quotes', 'never'],
+			enumDescriptions: [
+				nls.localize('editor.disregardCorrespondingAutoclosedPairs.always', "Always disregard input that could be extrenous due to autoclosing."),
+				nls.localize('editor.disregardCorrespondingAutoclosedPairs.brackets', "Disregard input that could be extrenous due to autoclosing brackets."),
+				nls.localize('editor.disregardCorrespondingAutoclosedPairs.quotes', "Disregard input that could be extrenous due to autoclosing quotes."),
+				nls.localize('editor.disregardCorrespondingAutoclosedPairs.never', "Never disregard input that could be extrenous due to autoclosing."),
+				''
+			],
+			'default': EDITOR_DEFAULTS.disregardCorrespondingAutoclosedPairs,
+			'description': nls.localize('autoSurround', "Controls whether the editor should automatically surround selections.")
+		},
+
 		'editor.formatOnType': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.formatOnType,

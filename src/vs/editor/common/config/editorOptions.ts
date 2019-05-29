@@ -109,6 +109,11 @@ export type EditorAutoClosingStrategy = 'always' | 'languageDefined' | 'beforeWh
 export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'brackets' | 'never';
 
 /**
+ * Configuration options for swallowing characters that may be repeats of auto-closed characters
+ */
+export type EditorDisregardCorrespondingAutoclosedPairsStrategy = 'always' | 'quotes' | 'brackets' | 'never';
+
+/**
  * Configuration options for editor minimap
  */
 export interface IEditorMinimapOptions {
@@ -539,6 +544,11 @@ export interface IEditorOptions {
 	 * Defaults to language defined behavior.
 	 */
 	autoClosingQuotes?: EditorAutoClosingStrategy;
+	/**
+	 * Options for controlling if characters are disregarded when they could be repeating what was inserted by an auto-closing strategy
+	 * Defaults to always disregard characters which could be repeats.
+	 */
+	disregardCorrespondingAutoclosedPairs?: EditorDisregardCorrespondingAutoclosedPairsStrategy;
 	/**
 	 * Options for auto surrounding.
 	 * Defaults to always allowing auto surrounding.
@@ -1067,6 +1077,7 @@ export interface IValidatedEditorOptions {
 	readonly wordWrapBreakObtrusiveCharacters: string;
 	readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	readonly disregardCorrespondingAutoclosedPairs: EditorDisregardCorrespondingAutoclosedPairsStrategy;
 	readonly autoSurround: EditorAutoSurroundStrategy;
 	readonly autoIndent: boolean;
 	readonly dragAndDrop: boolean;
@@ -1105,6 +1116,7 @@ export class InternalEditorOptions {
 	readonly wordSeparators: string;
 	readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	readonly disregardCorrespondingAutoclosedPairs: EditorDisregardCorrespondingAutoclosedPairsStrategy;
 	readonly autoSurround: EditorAutoSurroundStrategy;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
@@ -1135,6 +1147,7 @@ export class InternalEditorOptions {
 		wordSeparators: string;
 		autoClosingBrackets: EditorAutoClosingStrategy;
 		autoClosingQuotes: EditorAutoClosingStrategy;
+		disregardCorrespondingAutoclosedPairs: EditorDisregardCorrespondingAutoclosedPairsStrategy;
 		autoSurround: EditorAutoSurroundStrategy;
 		autoIndent: boolean;
 		useTabStops: boolean;
@@ -1160,6 +1173,7 @@ export class InternalEditorOptions {
 		this.wordSeparators = source.wordSeparators;
 		this.autoClosingBrackets = source.autoClosingBrackets;
 		this.autoClosingQuotes = source.autoClosingQuotes;
+		this.disregardCorrespondingAutoclosedPairs = source.disregardCorrespondingAutoclosedPairs;
 		this.autoSurround = source.autoSurround;
 		this.autoIndent = source.autoIndent;
 		this.useTabStops = source.useTabStops;
@@ -1191,6 +1205,7 @@ export class InternalEditorOptions {
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
 			&& this.autoClosingQuotes === other.autoClosingQuotes
+			&& this.disregardCorrespondingAutoclosedPairs === other.disregardCorrespondingAutoclosedPairs
 			&& this.autoSurround === other.autoSurround
 			&& this.autoIndent === other.autoIndent
 			&& this.useTabStops === other.useTabStops
@@ -1223,6 +1238,7 @@ export class InternalEditorOptions {
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
 			autoClosingQuotes: (this.autoClosingQuotes !== newOpts.autoClosingQuotes),
+			disregardCorrespondingAutoclosedPairs: (this.disregardCorrespondingAutoclosedPairs !== newOpts.disregardCorrespondingAutoclosedPairs),
 			autoSurround: (this.autoSurround !== newOpts.autoSurround),
 			autoIndent: (this.autoIndent !== newOpts.autoIndent),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
@@ -1627,6 +1643,7 @@ export interface IConfigurationChangedEvent {
 	readonly wordSeparators: boolean;
 	readonly autoClosingBrackets: boolean;
 	readonly autoClosingQuotes: boolean;
+	readonly disregardCorrespondingAutoclosedPairs: boolean;
 	readonly autoSurround: boolean;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
@@ -1810,6 +1827,7 @@ export class EditorOptionsValidator {
 		let autoClosingBrackets: EditorAutoClosingStrategy;
 		let autoClosingQuotes: EditorAutoClosingStrategy;
 		let autoSurround: EditorAutoSurroundStrategy;
+
 		if (typeof opts.autoClosingBrackets === 'boolean' && opts.autoClosingBrackets === false) {
 			// backwards compatibility: disable all on boolean false
 			autoClosingBrackets = 'never';
@@ -1820,6 +1838,7 @@ export class EditorOptionsValidator {
 			autoClosingQuotes = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingQuotes, defaults.autoClosingQuotes, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
 			autoSurround = _stringSet<EditorAutoSurroundStrategy>(opts.autoSurround, defaults.autoSurround, ['languageDefined', 'brackets', 'quotes', 'never']);
 		}
+
 
 		return {
 			inDiffEditor: _boolean(opts.inDiffEditor, defaults.inDiffEditor),
@@ -1839,6 +1858,7 @@ export class EditorOptionsValidator {
 			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
 			autoClosingBrackets,
 			autoClosingQuotes,
+			disregardCorrespondingAutoclosedPairs: _stringSet<EditorDisregardCorrespondingAutoclosedPairsStrategy>(opts.disregardCorrespondingAutoclosedPairs, defaults.disregardCorrespondingAutoclosedPairs, ['always', 'brackets', 'quotes', 'never']),
 			autoSurround,
 			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
@@ -2155,6 +2175,7 @@ export class InternalEditorOptionsFactory {
 			autoClosingBrackets: opts.autoClosingBrackets,
 			autoClosingQuotes: opts.autoClosingQuotes,
 			autoSurround: opts.autoSurround,
+			disregardCorrespondingAutoclosedPairs: opts.disregardCorrespondingAutoclosedPairs,
 			autoIndent: opts.autoIndent,
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
@@ -2382,6 +2403,7 @@ export class InternalEditorOptionsFactory {
 			autoClosingBrackets: opts.autoClosingBrackets,
 			autoClosingQuotes: opts.autoClosingQuotes,
 			autoSurround: opts.autoSurround,
+			disregardCorrespondingAutoclosedPairs: opts.disregardCorrespondingAutoclosedPairs,
 			autoIndent: opts.autoIndent,
 			useTabStops: opts.useTabStops,
 			tabFocusMode: opts.readOnly ? true : env.tabFocusMode,
@@ -2619,6 +2641,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	autoClosingBrackets: 'languageDefined',
 	autoClosingQuotes: 'languageDefined',
 	autoSurround: 'languageDefined',
+	disregardCorrespondingAutoclosedPairs: 'always',
 	autoIndent: true,
 	dragAndDrop: true,
 	emptySelectionClipboard: true,

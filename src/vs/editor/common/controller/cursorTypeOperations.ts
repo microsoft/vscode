@@ -432,8 +432,10 @@ export class TypeOperations {
 
 	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
 		const autoCloseConfig = isQuote(ch) ? config.autoClosingQuotes : config.autoClosingBrackets;
+		const swallowingDisabled = config.disregardCorrespondingAutoclosedPairs === 'never' ||
+			config.disregardCorrespondingAutoclosedPairs === (isQuote(ch) ? 'quotes' : 'brackets');
 
-		if (autoCloseConfig === 'never' || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
+		if (swallowingDisabled || autoCloseConfig === 'never' || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
 			return false;
 		}
 

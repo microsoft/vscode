@@ -2456,6 +2456,11 @@ declare namespace monaco.editor {
 	export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'brackets' | 'never';
 
 	/**
+	 * Configuration options for swallowing characters that may be repeats of auto-closed characters
+	 */
+	export type EditorDisregardCorrespondingAutoclosedPairsStrategy = 'always' | 'quotes' | 'brackets' | 'never';
+
+	/**
 	 * Configuration options for editor minimap
 	 */
 	export interface IEditorMinimapOptions {
@@ -2878,6 +2883,11 @@ declare namespace monaco.editor {
 		 * Defaults to language defined behavior.
 		 */
 		autoClosingQuotes?: EditorAutoClosingStrategy;
+		/**
+		 * Options for controlling if characters are disregarded when they could be repeating what was inserted by an auto-closing strategy
+		 * Defaults to always disregard characters which could be repeats.
+		 */
+		disregardCorrespondingAutoclosedPairs?: EditorDisregardCorrespondingAutoclosedPairsStrategy;
 		/**
 		 * Options for auto surrounding.
 		 * Defaults to always allowing auto surrounding.
@@ -3340,6 +3350,7 @@ declare namespace monaco.editor {
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: EditorAutoClosingStrategy;
 		readonly autoClosingQuotes: EditorAutoClosingStrategy;
+		readonly disregardCorrespondingAutoclosedPairs: EditorDisregardCorrespondingAutoclosedPairsStrategy;
 		readonly autoSurround: EditorAutoSurroundStrategy;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
@@ -3481,6 +3492,7 @@ declare namespace monaco.editor {
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly autoClosingQuotes: boolean;
+		readonly disregardCorrespondingAutoclosedPairs: boolean;
 		readonly autoSurround: boolean;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
