@@ -192,8 +192,8 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
-			'comments/commentThread/actions': {
-				description: localize('commentThread.actions', "The contributed comment thread actions"),
+			'comments/commentThread/context': {
+				description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
 				type: 'array',
 				items: menuItem
 			},
@@ -202,8 +202,8 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
-			'comments/comment/actions': {
-				description: localize('comment.actions', "The contributed comment actions"),
+			'comments/comment/context': {
+				description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
 				type: 'array',
 				items: menuItem
 			},
