@@ -8,6 +8,7 @@ import * as net from 'net';
 import { getNLSConfiguration } from 'vs/agent/remoteLanguagePacks';
 import { uriTransformerPath } from 'vs/agent/remoteUriTransformer';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { join, delimiter } from 'vs/base/common/path';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -102,9 +103,17 @@ export class ExtensionHostConnection {
 
 			// TODO@Rob/Alex, we can't get a real log service here because the loglevel is sent over the management connection
 			const userShellEnv = await getShellEnvironment(new StubLogService());
+			const processEnv = process.env;
+			const binFolder = this._environmentService.isBuilt ? join(this._environmentService.appRoot, 'bin') : join(this._environmentService.appRoot, 'resources', 'server', 'bin-dev');
+			let PATH = userShellEnv['PATH'] || processEnv['PATH'];
+			if (PATH) {
+				PATH = binFolder + delimiter + PATH;
+			} else {
+				PATH = binFolder;
+			}
 			const opts = {
 				env: {
-					...process.env,
+					...processEnv,
 					...userShellEnv,
 					...{
 						AMD_ENTRYPOINT: 'vs/agent/remoteExtensionHostProcess',
@@ -113,7 +122,8 @@ export class ExtensionHostConnection {
 						VSCODE_EXTHOST_WILL_SEND_SOCKET: 'true',
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
 						VSCODE_LOG_STACK: 'false',
-						VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig, undefined, 0)
+						VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig, undefined, 0),
+						PATH
 					}
 				},
 				execArgv,
