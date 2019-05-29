@@ -557,7 +557,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private createTOC(parent: HTMLElement): void {
-		this.tocTreeModel = new TOCTreeModel(this.viewState);
+		this.tocTreeModel = this.instantiationService.createInstance(TOCTreeModel, this.viewState);
 		this.tocTreeContainer = DOM.append(parent, $('.settings-toc-container'));
 
 		this.tocTree = this._register(this.instantiationService.createInstance(TOCTree,
