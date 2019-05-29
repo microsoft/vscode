@@ -3,7 +3,7 @@ set -e
 
 export NODE_ENV=development
 export VSCODE_DEV=1
-export VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH="$HOME/.vscode-remote/bin/dev-remote/node_modules"
+export VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH="${VSCODE_AGENT_FOLDER:-$HOME/.vscode-remote}/bin/dev-remote/node_modules"
 
 cd $VSCODE_REPO
 
