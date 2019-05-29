@@ -8983,7 +8983,7 @@ declare module 'vscode' {
 		/**
 		 * The uri of the document the thread has been created on.
 		 */
-		readonly resource: Uri;
+		readonly uri: Uri;
 
 		/**
 		 * The range the comment thread is located within the document. The thread icon will be shown
@@ -9147,11 +9147,11 @@ declare module 'vscode' {
 		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
 		 * and Comments Panel once created.
 		 *
-		 * @param resource The uri of the document the thread has been created on.
+		 * @param uri The uri of the document the thread has been created on.
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
 		 */
-		createCommentThread(resource: Uri, range: Range, comments: Comment[]): CommentThread;
+		createCommentThread(uri: Uri, range: Range, comments: Comment[]): CommentThread;
 
 		/**
 		 * Dispose this comment controller.
