@@ -84,10 +84,6 @@ export function activate(context: vscode.ExtensionContext) {
 				outputChannel.appendLine(`Using node at ${nodePath}`);
 
 				const env = getNewEnv();
-				env['PATH'] = path.join(vscodePath, 'resources', 'server', 'bin') + path.delimiter + env['PATH']; // allow calling code-dev.sh
-
-				outputChannel.appendLine(env['PATH'] || '');
-
 				extHostProcess = cp.spawn(nodePath, [path.join('out', 'remoteExtensionHostAgent'), '--port=0'], { cwd: vscodePath, env });
 			} else {
 				const serverBin = path.resolve(os.homedir(), '.vscode-remote', 'bin');
