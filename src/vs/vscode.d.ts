@@ -9097,7 +9097,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Command argument for actions registered in `comments/commentThread/actions`.
+	 * Command argument for actions registered in `comments/commentThread/context`.
 	 */
 	export interface CommentReply {
 		/**
