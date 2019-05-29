@@ -1079,7 +1079,7 @@ namespace CommandConfiguration {
 			value.args = EMPTY_ARRAY;
 		}
 		if (value.suppressTaskName === undefined) {
-			value.suppressTaskName = false;
+			value.suppressTaskName = (context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0);
 		}
 	}
 
@@ -1711,7 +1711,7 @@ namespace Globals {
 		}
 		CommandConfiguration.fillDefaults(value.command, context);
 		if (value.suppressTaskName === undefined) {
-			value.suppressTaskName = false;
+			value.suppressTaskName = (context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0);
 		}
 		if (value.promptOnClose === undefined) {
 			value.promptOnClose = true;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -18,7 +18,7 @@ suite('CodeAction', () => {
 	let langId = new LanguageIdentifier('fooLang', 17);
 	let uri = URI.parse('untitled:path');
 	let model: TextModel;
-	let disposables: IDisposable[] = [];
+	const disposables = new DisposableStore();
 	let testData = {
 		diagnostics: {
 			abc: {
@@ -79,12 +79,13 @@ suite('CodeAction', () => {
 	};
 
 	setup(function () {
+		disposables.clear();
 		model = TextModel.createFromString('test1\ntest2\ntest3', undefined, langId, uri);
-		disposables = [model];
+		disposables.add(model);
 	});
 
 	teardown(function () {
-		dispose(disposables);
+		disposables.clear();
 	});
 
 	test('CodeActions are sorted by type, #38623', async function () {
@@ -102,7 +103,7 @@ suite('CodeAction', () => {
 			}
 		};
 
-		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+		disposables.add(CodeActionProviderRegistry.register('fooLang', provider));
 
 		const expected = [
 			// CodeActions with a diagnostics array are shown first ordered by diagnostics.message
@@ -132,7 +133,7 @@ suite('CodeAction', () => {
 			}
 		};
 
-		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+		disposables.add(CodeActionProviderRegistry.register('fooLang', provider));
 
 		{
 			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } }, CancellationToken.None);
@@ -162,7 +163,7 @@ suite('CodeAction', () => {
 			}
 		};
 
-		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+		disposables.add(CodeActionProviderRegistry.register('fooLang', provider));
 
 		const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto', filter: { kind: new CodeActionKind('a') } }, CancellationToken.None);
 		assert.equal(actions.length, 1);
@@ -179,7 +180,7 @@ suite('CodeAction', () => {
 			}
 		};
 
-		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+		disposables.add(CodeActionProviderRegistry.register('fooLang', provider));
 
 		{
 			const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: 'auto' }, CancellationToken.None);
@@ -205,7 +206,7 @@ suite('CodeAction', () => {
 			providedCodeActionKinds = [CodeActionKind.Refactor.value];
 		};
 
-		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+		disposables.add(CodeActionProviderRegistry.register('fooLang', provider));
 
 		const { actions } = await getCodeActions(model, new Range(1, 1, 2, 1), {
 			type: 'auto',

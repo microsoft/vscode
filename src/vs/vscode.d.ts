@@ -6040,17 +6040,6 @@ declare module 'vscode' {
 		 * @returns A promise indicating if open was successful.
 		 */
 		export function openExternal(target: Uri): Thenable<boolean>;
-
-		/**
-		 * The [authority](#Uri.authority)-component. When `undefined`, extensions are
-		 * executed in the same context (e.g. operating system or machine) in which the UI
-		 * of the editor is executed. If defined, extensions are running in a different
-		 * context, for instance a remote machine.
-		 *
-		 * *Note* that no assumptions about the actual value should be made as it is defined
-		 * by extensions and not by the editor.
-		 */
-		export const remoteAuthority: string | undefined;
 	}
 
 	/**
@@ -9162,7 +9151,7 @@ declare module 'vscode' {
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
 		 */
-		createCommentThread(uri: Uri, range: Range, comments: Comment[]): CommentThread;
+		createCommentThread(resource: Uri, range: Range, comments: Comment[]): CommentThread;
 
 		/**
 		 * Dispose this comment controller.

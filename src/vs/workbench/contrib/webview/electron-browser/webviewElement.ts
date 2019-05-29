@@ -661,6 +661,9 @@ export class WebviewElement extends Disposable implements Webview {
 	}
 
 	public layout(): void {
+		if (!this._webview) {
+			return;
+		}
 		const contents = this._webview.getWebContents();
 		if (!contents || contents.isDestroyed()) {
 			return;

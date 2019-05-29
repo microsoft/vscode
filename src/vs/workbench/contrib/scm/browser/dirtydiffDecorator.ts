@@ -675,11 +675,11 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 		this.isDirtyDiffVisible.set(true);
 
 		const disposables = new DisposableStore();
-		disposables.push(Event.once(this.widget.onDidClose)(this.close, this));
-		disposables.push(model.onDidChange(this.onDidModelChange, this));
+		disposables.add(Event.once(this.widget.onDidClose)(this.close, this));
+		disposables.add(model.onDidChange(this.onDidModelChange, this));
 
-		disposables.push(this.widget);
-		disposables.push(toDisposable(() => {
+		disposables.add(this.widget);
+		disposables.add(toDisposable(() => {
 			this.model = null;
 			this.widget = null;
 			this.currentIndex = -1;
@@ -993,13 +993,13 @@ export class DirtyDiffModel extends Disposable {
 		const disposables = new DisposableStore();
 
 		this.repositoryDisposables.add(disposables);
-		disposables.push(toDisposable(() => this.repositoryDisposables.delete(disposables)));
+		disposables.add(toDisposable(() => this.repositoryDisposables.delete(disposables)));
 
 		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
-		disposables.push(onDidChange(this.triggerDiff, this));
+		disposables.add(onDidChange(this.triggerDiff, this));
 
 		const onDidRemoveThis = Event.filter(this.scmService.onDidRemoveRepository, r => r === repository);
-		disposables.push(onDidRemoveThis(() => dispose(disposables), null));
+		disposables.add(onDidRemoveThis(() => dispose(disposables), null));
 
 		this.triggerDiff();
 	}
@@ -1070,8 +1070,8 @@ export class DirtyDiffModel extends Disposable {
 				this._originalModel = ref.object.textEditorModel;
 
 				this.originalModelDisposables.clear();
-				this.originalModelDisposables.push(ref);
-				this.originalModelDisposables.push(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+				this.originalModelDisposables.add(ref);
+				this.originalModelDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 
 				return originalUri;
 			});

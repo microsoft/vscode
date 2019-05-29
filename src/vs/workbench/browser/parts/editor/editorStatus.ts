@@ -384,16 +384,16 @@ export class EditorStatus implements IStatusbarItem {
 		this.delayedRender = null;
 		this.toRender = null;
 
-		this.toDispose.push(toDisposable(() => {
+		this.toDispose.add(toDisposable(() => {
 			if (this.delayedRender) {
 				this.delayedRender.dispose();
 				this.delayedRender = null;
 			}
 		}));
-		this.toDispose.push(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
-		this.toDispose.push(this.untitledEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)));
-		this.toDispose.push(this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange((e.resource))));
-		this.toDispose.push(TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()));
+		this.toDispose.add(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
+		this.toDispose.add(this.untitledEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)));
+		this.toDispose.add(this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange((e.resource))));
+		this.toDispose.add(TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()));
 
 		return this.toDispose;
 	}

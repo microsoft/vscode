@@ -358,14 +358,15 @@ export class CodeApplication extends Disposable {
 	}
 
 	private async resolveMachineId(): Promise<string> {
+
+		// We cache the machineId for faster lookups on startup
+		// and resolve it only once initially if not cached
 		let machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
-		if (machineId) {
-			return machineId;
+		if (!machineId) {
+			machineId = await getMachineId();
+
+			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
 		}
-
-		machineId = await getMachineId();
-
-		this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
 
 		return machineId;
 	}
@@ -462,7 +463,6 @@ export class CodeApplication extends Disposable {
 		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		return Promise.resolve();
-
 	}
 
 	private initBackupService(accessor: ServicesAccessor): Promise<void> {
@@ -580,8 +580,8 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
+		// mac: open-file event received on startup
 		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			// mac: open-file event received on startup
 			return this.windowsMainService.open({
 				context: OpenContext.DOCK,
 				cli: args,

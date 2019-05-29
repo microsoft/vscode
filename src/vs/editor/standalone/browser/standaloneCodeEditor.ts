@@ -233,7 +233,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		const uniqueId = this.getId() + ':' + id;
 
 		// Register the command
-		toDispose.push(CommandsRegistry.registerCommand(uniqueId, run));
+		toDispose.add(CommandsRegistry.registerCommand(uniqueId, run));
 
 		// Register the context menu item
 		if (contextMenuGroupId) {
@@ -246,13 +246,13 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 				group: contextMenuGroupId,
 				order: contextMenuOrder
 			};
-			toDispose.push(MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem));
+			toDispose.add(MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem));
 		}
 
 		// Register the keybindings
 		if (Array.isArray(keybindings)) {
 			for (const kb of keybindings) {
-				toDispose.push(this._standaloneKeybindingService.addDynamicKeybinding(uniqueId, kb, run, keybindingsWhen));
+				toDispose.add(this._standaloneKeybindingService.addDynamicKeybinding(uniqueId, kb, run, keybindingsWhen));
 			}
 		}
 
@@ -268,7 +268,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		// Store it under the original id, such that trigger with the original id will work
 		this._actions[id] = internalAction;
-		toDispose.push(toDisposable(() => {
+		toDispose.add(toDisposable(() => {
 			delete this._actions[id];
 		}));
 

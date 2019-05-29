@@ -43,13 +43,13 @@ export function toDisposable(fn: () => void): IDisposable {
 }
 
 export class DisposableStore implements IDisposable {
-	private _toDispose: IDisposable[] = [];
+	private _toDispose = new Set<IDisposable>();
 	private _isDisposed = false;
 
 	/**
 	 * Dispose of all registered disposables and mark this object as disposed.
 	 *
-	 * Any future disposables added to this object will be disposed of on `push`.
+	 * Any future disposables added to this object will be disposed of on `add`.
 	 */
 	public dispose(): void {
 		this._isDisposed = true;
@@ -60,15 +60,16 @@ export class DisposableStore implements IDisposable {
 	 * Dispose of all registered disposables but do not mark this object as disposed.
 	 */
 	public clear(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.forEach(item => item.dispose());
+		this._toDispose.clear();
 	}
 
-	public push<T extends IDisposable>(t: T): T {
+	public add<T extends IDisposable>(t: T): T {
 		if (this._isDisposed) {
 			console.warn('Registering disposable on object that has already been disposed.');
 			t.dispose();
 		} else {
-			this._toDispose.push(t);
+			this._toDispose.add(t);
 		}
 
 		return t;
@@ -86,7 +87,7 @@ export abstract class Disposable implements IDisposable {
 	}
 
 	protected _register<T extends IDisposable>(t: T): T {
-		return this._store.push(t);
+		return this._store.add(t);
 	}
 }
 
