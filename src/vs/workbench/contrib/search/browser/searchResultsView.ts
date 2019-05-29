@@ -251,10 +251,10 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 		const match = node.element;
 
 		const searchConfig = this.configurationService.getValue<ISearchConfigurationProperties>('search');
-		const resultAlign = searchConfig.resultAlign;
+		const resultDisplay = searchConfig.resultDisplay;
 		const showLineNumbers = searchConfig.showLineNumbers;
 
-		const preview = match.preview(resultAlign === 'matchWord');
+		const preview = match.preview(resultDisplay === 'ellipsis');
 		const replace = this.searchModel.isReplaceActive() && !!this.searchModel.replaceString;
 
 		templateData.before.textContent = preview.before;

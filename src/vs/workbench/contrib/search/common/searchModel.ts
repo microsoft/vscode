@@ -74,20 +74,20 @@ export class Match {
 		return this._range;
 	}
 
-	preview(alignMatchWord: boolean): { before: string; inside: string; after: string; } {
+	preview(ellipsis: boolean): { before: string; inside: string; after: string; } {
 		let before = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1),
 			inside = this.getMatchString(),
 			after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
 
-		if (alignMatchWord) {
+		if (ellipsis) {
 			before = lcut(before, 26);
-		}
-		before = before.trimLeft();
+			before = before.trimLeft();
 
-		let charsRemaining = Match.MAX_PREVIEW_CHARS - before.length;
-		inside = inside.substr(0, charsRemaining);
-		charsRemaining -= inside.length;
-		after = after.substr(0, charsRemaining);
+			let charsRemaining = Match.MAX_PREVIEW_CHARS - before.length;
+			inside = inside.substr(0, charsRemaining);
+			charsRemaining -= inside.length;
+			after = after.substr(0, charsRemaining);
+		}
 
 		return {
 			before,

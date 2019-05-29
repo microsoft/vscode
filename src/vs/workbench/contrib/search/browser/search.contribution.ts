@@ -753,15 +753,15 @@ configurationRegistry.registerConfiguration({
 			default: 'auto',
 			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the search view.")
 		},
-		'search.resultAlign': {
+		'search.resultDisplay': {
 			type: 'string',
-			enum: ['left', 'matchWord'],
+			enum: ['fullLine', 'ellipsis'],
 			enumDescriptions: [
-				nls.localize('search.resultAlignLeft', "Show search result starting from the leftmost side of each line."),
-				nls.localize('search.resultAlignMatchWord', "Show matched word in a proper position."),
+				nls.localize('search.resultDisplayFullLine', "Show the full content of each search result line."),
+				nls.localize('search.resultDisplayEllipsis', "Show search result line in a ellipsis way to focus on the matched word."),
 			],
-			default: 'matchWord',
-			description: nls.localize('search.resultAlign', "Controls the align of search result lines in the search view.")
+			default: 'ellipsis',
+			description: nls.localize('search.resultDisplay', "Controls the display of search result lines in the search view.")
 		}
 	}
 });

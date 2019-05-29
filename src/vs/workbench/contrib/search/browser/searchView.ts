@@ -642,7 +642,8 @@ export class SearchView extends ViewletPanel {
 				identityProvider,
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel),
 				dnd: this.instantiationService.createInstance(SearchDND),
-				multipleSelectionSupport: false
+				multipleSelectionSupport: false,
+				horizontalScrolling: true
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
