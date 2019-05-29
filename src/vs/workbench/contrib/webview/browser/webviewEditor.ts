@@ -308,10 +308,10 @@ export class WebviewEditor extends BaseEditor {
 
 		// Track focus in webview content
 		const webviewContentFocusTracker = DOM.trackFocus(this._webviewContent!);
-		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker);
-		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
+		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker);
+		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
 
 		// Track focus in webview element
-		this._webviewFocusTrackerDisposables.push(this._webview!.onDidFocus(() => this._onDidFocusWebview.fire()));
+		this._webviewFocusTrackerDisposables.add(this._webview!.onDidFocus(() => this._onDidFocusWebview.fire()));
 	}
 }

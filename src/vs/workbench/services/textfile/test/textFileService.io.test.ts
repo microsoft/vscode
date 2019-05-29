@@ -17,7 +17,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { rimraf, RimRafMode, copy, readFile, exists } from 'vs/base/node/pfs';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -76,7 +76,7 @@ suite('Files - TextFileService i/o', () => {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 
 	let accessor: ServiceAccessor;
-	let disposables: IDisposable[] = [];
+	const disposables = new DisposableStore();
 	let service: ITextFileService;
 	let testDir: string;
 
@@ -88,8 +88,8 @@ suite('Files - TextFileService i/o', () => {
 		const fileService = new FileService(logService);
 
 		const fileProvider = new DiskFileSystemProvider(logService);
-		disposables.push(fileService.registerProvider(Schemas.file, fileProvider));
-		disposables.push(fileProvider);
+		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
+		disposables.add(fileProvider);
 
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
@@ -108,7 +108,7 @@ suite('Files - TextFileService i/o', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 		accessor.untitledEditorService.revertAll();
 
-		disposables = dispose(disposables);
+		disposables.clear();
 
 		await rimraf(parentDir, RimRafMode.MOVE);
 	});

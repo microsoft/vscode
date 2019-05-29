@@ -189,7 +189,7 @@ export class StatusBarController implements IWorkbenchContribution {
 
 		const disposables = new DisposableStore();
 		for (const c of commands) {
-			disposables.push(this.statusbarService.addEntry({
+			disposables.add(this.statusbarService.addEntry({
 				text: c.title,
 				tooltip: `${label} - ${c.tooltip}`,
 				command: c.id,

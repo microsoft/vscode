@@ -644,6 +644,12 @@ class SuggestAdapter {
 				return undefined;
 			}
 
+			if (token.isCancellationRequested) {
+				// cancelled -> return without further ado, esp no caching
+				// of results as they will leak
+				return undefined;
+			}
+
 			let list = Array.isArray(value) ? new CompletionList(value) : value;
 			let pid: number | undefined;
 
@@ -829,6 +835,12 @@ class LinkProviderAdapter {
 		return asPromise(() => this._provider.provideDocumentLinks(doc, token)).then(links => {
 			if (!Array.isArray(links) || links.length === 0) {
 				// bad result
+				return undefined;
+			}
+
+			if (token.isCancellationRequested) {
+				// cancelled -> return without further ado, esp no caching
+				// of results as they will leak
 				return undefined;
 			}
 

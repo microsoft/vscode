@@ -95,6 +95,7 @@ class CodeMain {
 			await instantiationService.invokeFunction(async accessor => {
 				const environmentService = accessor.get(IEnvironmentService);
 				const stateService = accessor.get(IStateService);
+				const logService = accessor.get(ILogService);
 
 				// Patch `process.env` with the instance's environment
 				const instanceEnvironment = this.patchEnvironment(environmentService);
@@ -110,7 +111,7 @@ class CodeMain {
 					throw error;
 				}
 
-				const mainIpcServer = await instantiationService.invokeFunction(accessor => this.doStartup(accessor, true));
+				const mainIpcServer = await this.doStartup(logService, environmentService, instantiationService, true);
 				bufferLogService.logger = new SpdLogService('main', environmentService.logsPath, bufferLogService.getLevel());
 
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
@@ -174,10 +175,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async doStartup(accessor: ServicesAccessor, retry: boolean): Promise<Server> {
-		const logService = accessor.get(ILogService);
-		const environmentService = accessor.get(IEnvironmentService);
-		const instantiationService = accessor.get(IInstantiationService);
+	private async doStartup(logService: ILogService, environmentService: IEnvironmentService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
@@ -231,7 +229,7 @@ class CodeMain {
 					throw error;
 				}
 
-				return this.doStartup(accessor, false);
+				return this.doStartup(logService, environmentService, instantiationService, false);
 			}
 
 			// Tests from CLI require to be the only instance currently
