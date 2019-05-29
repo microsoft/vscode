@@ -166,7 +166,6 @@ export class ExplorerView extends ViewletPanel {
 
 		this.disposables.push(this.labelService.onDidChangeFormatters(() => {
 			this._onDidChangeTitleArea.fire();
-			this.refresh(true);
 		}));
 
 		this.disposables.push(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
