@@ -40,7 +40,6 @@ export interface IMemoryInfo {
 		"version" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"ellapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"isLatestVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"isRemoteWindow": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"didUseCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"windowKind": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"windowCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -99,11 +98,6 @@ export interface IStartupMetrics {
 	 * measurement.
 	 */
 	readonly isLatestVersion: boolean;
-
-	/**
-	 * Whether this window talks to a remote endpoint.
-	 */
-	readonly isRemoteWindow: boolean;
 
 	/**
 	 * Whether we asked for and V8 accepted cached data.
@@ -381,7 +375,6 @@ class TimerService implements ITimerService {
 
 			// reflections
 			isLatestVersion: Boolean(await this._updateService.isLatestVersion()),
-			isRemoteWindow: Boolean(this._environmentService.configuration.remoteAuthority),
 			didUseCachedData: didUseCachedData(),
 			windowKind: this._lifecycleService.startupKind,
 			windowCount: await this._windowsService.getWindowCount(),
