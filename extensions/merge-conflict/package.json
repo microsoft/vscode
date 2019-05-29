@@ -123,6 +123,11 @@
             "Below"
           ],
           "description": "%config.diffViewPosition%",
+          "enumDescriptions": [
+            "%config.diffViewPosition.current%",
+            "%config.diffViewPosition.beside%",
+            "%config.diffViewPosition.below%"
+          ],
           "default": "Current"
         }
       }

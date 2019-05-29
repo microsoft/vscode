@@ -181,7 +181,7 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 
 		const actions: IAction[] = [];
 		const disposeActions = () => dispose(actions);
-		disposables.push({ dispose: disposeActions });
+		disposables.add({ dispose: disposeActions });
 
 		const update = () => {
 			disposeActions();
@@ -198,7 +198,7 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 			this._onDidRenderElement.fire(repository);
 		};
 
-		disposables.push(repository.provider.onDidChange(update, null));
+		disposables.add(repository.provider.onDidChange(update, null));
 		update();
 
 		templateData.disposable = disposables;
@@ -397,10 +397,10 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		template.actionBar.context = group;
 
 		const disposables = new DisposableStore();
-		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getResourceGroupMenu(group), template.actionBar));
+		disposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceGroupMenu(group), template.actionBar));
 
 		const updateCount = () => template.count.setCount(group.elements.length);
-		disposables.push(group.onDidSplice(updateCount, null));
+		disposables.add(group.onDidSplice(updateCount, null));
 		updateCount();
 
 		template.elementDisposable = disposables;
@@ -490,7 +490,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		template.actionBar.context = resource;
 
 		const disposables = new DisposableStore();
-		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resource.resourceGroup), template.actionBar));
+		disposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resource.resourceGroup), template.actionBar));
 
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);

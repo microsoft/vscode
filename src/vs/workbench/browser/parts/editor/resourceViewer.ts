@@ -172,7 +172,7 @@ class LargeImageView {
 			link.setAttribute('role', 'button');
 			link.textContent = nls.localize('resourceOpenExternalButton', "Open image using external program?");
 
-			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openExternal(descriptor.resource)));
+			disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => openExternal(descriptor.resource)));
 		}
 
 		return disposables;
@@ -223,7 +223,7 @@ class FileSeemsBinaryFileView {
 			link.setAttribute('role', 'button');
 			link.textContent = nls.localize('openAsText', "Do you want to open it anyway?");
 
-			disposables.push(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => delegate.openInternalClb(descriptor.resource)));
+			disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => delegate.openInternalClb(descriptor.resource)));
 		}
 
 		scrollbar.scanDomNode();
@@ -436,7 +436,7 @@ class InlineImageView {
 			updateScale(scale);
 		}
 
-		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.add(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
@@ -449,7 +449,7 @@ class InlineImageView {
 			}
 		}));
 
-		disposables.push(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.add(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			if (!image) {
 				return;
 			}
@@ -463,7 +463,7 @@ class InlineImageView {
 			}
 		}));
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.CLICK, (e: MouseEvent) => {
+		disposables.add(DOM.addDisposableListener(container, DOM.EventType.CLICK, (e: MouseEvent) => {
 			if (!image) {
 				return;
 			}
@@ -496,7 +496,7 @@ class InlineImageView {
 			}
 		}));
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.WHEEL, (e: WheelEvent) => {
+		disposables.add(DOM.addDisposableListener(container, DOM.EventType.WHEEL, (e: WheelEvent) => {
 			if (!image) {
 				return;
 			}
@@ -518,7 +518,7 @@ class InlineImageView {
 			updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
 		}));
 
-		disposables.push(DOM.addDisposableListener(container, DOM.EventType.SCROLL, () => {
+		disposables.add(DOM.addDisposableListener(container, DOM.EventType.SCROLL, () => {
 			if (!image || !image.parentElement || scale === 'fit') {
 				return;
 			}
@@ -536,7 +536,7 @@ class InlineImageView {
 		image = DOM.append(container, DOM.$<HTMLImageElement>('img.scale-to-fit'));
 		image.style.visibility = 'hidden';
 
-		disposables.push(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
+		disposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, e => {
 			if (!image) {
 				return;
 			}
@@ -564,7 +564,7 @@ class InlineImageView {
 					img.src = src;
 				} else {
 					const url = URL.createObjectURL(src);
-					disposables.push(toDisposable(() => URL.revokeObjectURL(url)));
+					disposables.add(toDisposable(() => URL.revokeObjectURL(url)));
 					img.src = url;
 				}
 			}

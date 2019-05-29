@@ -481,7 +481,14 @@ function readWindowsCaCertificates() {
 }
 
 async function readMacCaCertificates() {
-	const stdout = (await promisify(cp.execFile)('/usr/bin/security', ['find-certificate', '-a', '-p'], { encoding: 'utf8', maxBuffer: 1024 * 1024 })).stdout;
+	const stdout = await new Promise<string>((resolve, reject) => {
+		const child = cp.spawn('/usr/bin/security', ['find-certificate', '-a', '-p']);
+		const stdout: string[] = [];
+		child.stdout.setEncoding('utf8');
+		child.stdout.on('data', str => stdout.push(str));
+		child.on('error', reject);
+		child.on('exit', code => code ? reject(code) : resolve(stdout.join('')));
+	});
 	const seen = {};
 	const certs = stdout.split(/(?=-----BEGIN CERTIFICATE-----)/g)
 		.filter(pem => !!pem.length && !seen[pem] && (seen[pem] = true));

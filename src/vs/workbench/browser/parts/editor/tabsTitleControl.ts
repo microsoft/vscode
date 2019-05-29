@@ -496,16 +496,16 @@ export class TabsTitleControl extends TitleControl {
 		};
 
 		// Open on Click / Touch
-		disposables.push(addDisposableListener(tab, EventType.MOUSE_DOWN, (e: MouseEvent) => handleClickOrTouch(e)));
-		disposables.push(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e)));
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, (e: MouseEvent) => handleClickOrTouch(e)));
+		disposables.add(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e)));
 
 		// Touch Scroll Support
-		disposables.push(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
+		disposables.add(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
 			this.tabsScrollbar.setScrollPosition({ scrollLeft: this.tabsScrollbar.getScrollPosition().scrollLeft - e.translationX });
 		}));
 
 		// Close on mouse middle click
-		disposables.push(addDisposableListener(tab, EventType.MOUSE_UP, (e: MouseEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_UP, (e: MouseEvent) => {
 			EventHelper.stop(e);
 
 			tab.blur();
@@ -519,7 +519,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Context menu on Shift+F10
-		disposables.push(addDisposableListener(tab, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.shiftKey && event.keyCode === KeyCode.F10) {
 				showContextMenu(e);
@@ -527,12 +527,12 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Context menu on touch context menu gesture
-		disposables.push(addDisposableListener(tab, TouchEventType.Contextmenu, (e: GestureEvent) => {
+		disposables.add(addDisposableListener(tab, TouchEventType.Contextmenu, (e: GestureEvent) => {
 			showContextMenu(e);
 		}));
 
 		// Keyboard accessibility
-		disposables.push(addDisposableListener(tab, EventType.KEY_UP, (e: KeyboardEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			let handled = false;
 
@@ -577,14 +577,14 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Pin on double click
-		disposables.push(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
 			EventHelper.stop(e);
 
 			this.group.pinEditor(this.group.getEditor(index) || undefined);
 		}));
 
 		// Context menu
-		disposables.push(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: Event) => {
+		disposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: Event) => {
 			EventHelper.stop(e, true);
 
 			const input = this.group.getEditor(index);
@@ -594,7 +594,7 @@ export class TabsTitleControl extends TitleControl {
 		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
 
 		// Drag support
-		disposables.push(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
+		disposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
 			const editor = this.group.getEditor(index);
 			if (!editor) {
 				return;
@@ -616,7 +616,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Drop support
-		disposables.push(new DragAndDropObserver(tab, {
+		disposables.add(new DragAndDropObserver(tab, {
 			onDragEnter: e => {
 
 				// Update class to signal drag operation

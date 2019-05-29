@@ -36,7 +36,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		const registrations = new DisposableStore();
 
 		// command
-		registrations.push(CommandsRegistry.registerCommand(descriptor.id, this.createCommandHandler(descriptor)));
+		registrations.add(CommandsRegistry.registerCommand(descriptor.id, this.createCommandHandler(descriptor)));
 
 		// keybinding
 		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingWeight.WorkbenchContrib : descriptor.keybindingWeight);
@@ -72,7 +72,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 			MenuRegistry.addCommand(command);
 
-			registrations.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when }));
+			registrations.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when }));
 		}
 
 		// TODO@alex,joh

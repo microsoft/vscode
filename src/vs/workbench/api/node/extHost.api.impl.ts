@@ -236,7 +236,7 @@ export function createApiFactory(
 		};
 
 		// namespace: env
-		const env: typeof vscode.env = Object.freeze({
+		const env: typeof vscode.env = Object.freeze<typeof vscode.env>({
 			get machineId() { return initData.telemetryInfo.machineId; },
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return initData.environment.appLanguage; },
@@ -257,7 +257,21 @@ export function createApiFactory(
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remoteAuthority });
 			},
-			get remoteAuthority() { return initData.remoteAuthority || undefined; }
+			get remoteAuthority() {
+				const { remoteAuthority } = initData;
+				if (!remoteAuthority) {
+					return undefined;
+				}
+				const idx = remoteAuthority.indexOf('+');
+				if (idx < 0) {
+					console.warn(`INVALID remote authority: ${remoteAuthority}`);
+					return undefined;
+				}
+				return {
+					prefix: remoteAuthority.substring(0, idx),
+					toString() { return remoteAuthority; } // compatiblity
+				};
+			}
 		});
 
 		// namespace: extensions

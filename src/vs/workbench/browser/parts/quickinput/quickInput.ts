@@ -1128,6 +1128,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 				this.hide(true);
 			}
 		}));
+		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
+			inputBox.setFocus();
+		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {

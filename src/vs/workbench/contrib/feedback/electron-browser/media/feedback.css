@@ -114,13 +114,14 @@
 }
 
 /* Statusbar */
-.monaco-workbench .statusbar-item > .monaco-dropdown.send-feedback {
+.monaco-workbench .statusbar > .statusbar-item > .monaco-dropdown.send-feedback {
 	display: inline-block;
+	padding: 0 5px 0 5px;
 }
 
-.monaco-workbench .statusbar-item > .monaco-dropdown.send-feedback > .dropdown-label.send-feedback {
-	-webkit-mask: url('smiley.svg') no-repeat 50% 50%; /* use mask to be able to change color dynamically */
-	width: 26px;
+.monaco-workbench .statusbar > .statusbar-item > .monaco-dropdown.send-feedback span.octicon {
+	text-align: center;
+	font-size: 14px;
 }
 
 /* Theming */
@@ -128,7 +129,7 @@
 	font-family: inherit;
 	border: 1px solid transparent;
 }
-																		
+
 .vs .monaco-workbench .feedback-form .cancel {
 	background: url('close.svg') center center no-repeat;
 }

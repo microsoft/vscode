@@ -76,7 +76,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			}
 
 			// React to action being clicked
-			toDispose.push(action.onDidRun(() => {
+			toDispose.add(action.onDidRun(() => {
 				choiceClicked = true;
 
 				// Close notification unless we are told to keep open
@@ -85,7 +85,7 @@ export class NotificationService extends Disposable implements INotificationServ
 				}
 			}));
 
-			toDispose.push(action);
+			toDispose.add(action);
 		});
 
 		// Show notification with actions

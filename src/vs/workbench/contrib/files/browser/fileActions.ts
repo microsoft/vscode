@@ -664,22 +664,33 @@ export class CollapseExplorerView extends Action {
 
 	public static readonly ID = 'workbench.files.action.collapseExplorerFolders';
 	public static readonly LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
+	private toDispose: IDisposable[] = [];
 
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private readonly viewletService: IViewletService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IExplorerService readonly explorerService: IExplorerService
 	) {
-		super(id, label);
+		super(id, label, 'explorer-action collapse-explorer');
+		this.toDispose.push(explorerService.onDidChangeEditable(e => {
+			const elementIsBeingEdited = explorerService.isEditable(e);
+			this.enabled = !elementIsBeingEdited;
+		}));
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID).then((viewlet: ExplorerViewlet) => {
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
 				explorerView.collapseAll();
 			}
 		});
+	}
+
+	dispose(): void {
+		super.dispose();
+		dispose(this.toDispose);
 	}
 }
 
@@ -688,7 +699,7 @@ export class RefreshExplorerView extends Action {
 	public static readonly ID = 'workbench.files.action.refreshFilesExplorer';
 	public static readonly LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
 
-	private toDispose: IDisposable[];
+	private toDispose: IDisposable[] = [];
 
 	constructor(
 		id: string,
@@ -697,7 +708,6 @@ export class RefreshExplorerView extends Action {
 		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super(id, label, 'explorer-action refresh-explorer');
-		this.toDispose = [];
 		this.toDispose.push(explorerService.onDidChangeEditable(e => {
 			const elementIsBeingEdited = explorerService.isEditable(e);
 			this.enabled = !elementIsBeingEdited;

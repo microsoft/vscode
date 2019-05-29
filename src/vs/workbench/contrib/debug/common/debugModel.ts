@@ -659,6 +659,13 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return data ? data.endColumn : undefined;
 	}
 
+	get sessionAgnosticData(): { lineNumber: number, column: number | undefined } {
+		return {
+			lineNumber: this._lineNumber,
+			column: this._column
+		};
+	}
+
 	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint): void {
 		super.setSessionData(sessionId, data);
 		if (!this._adapterData) {

@@ -158,7 +158,7 @@ export class ProgressService implements IProgressService {
 						return Promise.resolve(undefined);
 					}
 				};
-				toDispose.push(cancelAction);
+				toDispose.add(cancelAction);
 
 				actions.primary!.push(cancelAction);
 			}
@@ -302,8 +302,8 @@ export class ProgressService implements IProgressService {
 				}
 			);
 
-			disposables.push(dialog);
-			disposables.push(attachDialogStyler(dialog, this._themeService));
+			disposables.add(dialog);
+			disposables.add(attachDialogStyler(dialog, this._themeService));
 
 			dialog.show().then(() => {
 				if (typeof onDidCancel === 'function') {

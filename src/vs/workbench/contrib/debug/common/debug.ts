@@ -339,6 +339,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endColumn?: number;
 	readonly message?: string;
 	readonly adapterData: any;
+	readonly sessionAgnosticData: { lineNumber: number, column: number | undefined };
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
