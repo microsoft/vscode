@@ -1,3 +1,3 @@
 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path fill-rule="evenodd" clip-rule="evenodd" d="M5 4H12V5V11H11H6H5V4ZM6 10H11V5H6V10ZM10 8V7L7 7V8H10Z" fill="white"/>
+<path d="M12 6L8 10L4 6" stroke="white" stroke-width="0.75" stroke-linejoin="bevel"/>
 </svg>
