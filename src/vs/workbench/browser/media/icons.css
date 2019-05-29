@@ -1681,11 +1681,13 @@ body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .co
 	-webkit-mask-image: url("images/editor/split-horizontal-alt2.svg");
 }
 
-body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"] {
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"],
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[title="Split Editor Down"] {
 	-webkit-mask-image: url("images/editor/split-vertical-alt1.svg");
 }
 
-body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"] {
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"],
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[title="Split Editor Down"] {
 	-webkit-mask-image: url("images/editor/split-vertical-alt2.svg");
 }
 
