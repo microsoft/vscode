@@ -480,12 +480,12 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				e => Promise.reject(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
 	}
 
-	private rename(identfier: IExtensionIdentifier, extractPath: string, renamePath: string, retryUntil: number): Promise<void> {
+	private rename(identifier: IExtensionIdentifier, extractPath: string, renamePath: string, retryUntil: number): Promise<void> {
 		return pfs.rename(extractPath, renamePath)
 			.then(undefined, error => {
 				if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
-					this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`, identfier.id);
-					return this.rename(identfier, extractPath, renamePath, retryUntil);
+					this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`, identifier.id);
+					return this.rename(identifier, extractPath, renamePath, retryUntil);
 				}
 				return Promise.reject(new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || INSTALL_ERROR_RENAMING));
 			});
@@ -835,8 +835,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return pfs.rimraf(extension.location.fsPath).then(() => this.logService.info('Deleted from disk', extension.identifier.id, extension.location.fsPath));
 	}
 
-	private isUninstalled(identfier: ExtensionIdentifierWithVersion): Promise<boolean> {
-		return this.filterUninstalled(identfier).then(uninstalled => uninstalled.length === 1);
+	private isUninstalled(identifier: ExtensionIdentifierWithVersion): Promise<boolean> {
+		return this.filterUninstalled(identifier).then(uninstalled => uninstalled.length === 1);
 	}
 
 	private filterUninstalled(...identifiers: ExtensionIdentifierWithVersion[]): Promise<string[]> {
