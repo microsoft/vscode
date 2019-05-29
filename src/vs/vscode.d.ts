@@ -6040,21 +6040,6 @@ declare module 'vscode' {
 		 * @returns A promise indicating if open was successful.
 		 */
 		export function openExternal(target: Uri): Thenable<boolean>;
-
-		/**
-		 * Information about running remotely. When `undefined`, extensions are executed in the same
-		 * context (e.g. operating system or machine) in which the UI of the editor is executed.
-		 * If defined, extensions are running in a different context, for instance a remote machine.
-		 *
-		 * A remote [uri](#Uri) adheres to this format: `remote_scheme://auth_prefix+auth_rest/path` where
-		 * the `remote_scheme` is defined by the editor, `auth_prefix` and `auth_rest` are defined by extensions,
-		 * and `path` is defined by the user.
-		 *
-		 * Extensions contributing a remote are encouraged to use a stable `auth_prefix`-value,
-		 * e.g `remote_scheme://ssh+23/` and `remote_scheme://ssh+42`. Such prefix is exposed
-		 * in the `prefix`-property of the returned object.
-		 */
-		export const remoteAuthority: { prefix: string } | undefined;
 	}
 
 	/**
