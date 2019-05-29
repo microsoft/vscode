@@ -94,7 +94,8 @@ export class ResourceLabels extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -144,6 +145,10 @@ export class ResourceLabels extends Disposable {
 			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
 				this._widgets.forEach(widget => widget.notifyFileAssociationsChange());
 			}
+		}));
+
+		this._register(this.labelService.onDidChangeFormatters(() => {
+			this._widgets.forEach(widget => widget.notifyFormattersChange());
 		}));
 	}
 
@@ -212,9 +217,10 @@ export class ResourceLabel extends ResourceLabels {
 		@IModelService modelService: IModelService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService themeService: IThemeService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService
 	) {
-		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService, fileService);
+		super(DEFAULT_LABELS_CONTAINER, instantiationService, extensionService, configurationService, modelService, decorationsService, themeService, fileService, labelService);
 
 		this._label = this._register(this.create(container, options));
 	}
@@ -307,6 +313,10 @@ class ResourceLabelWidget extends IconLabel {
 
 	notifyFileAssociationsChange(): void {
 		this.render(true);
+	}
+
+	notifyFormattersChange(): void {
+		this.render(false);
 	}
 
 	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void {
