@@ -111,11 +111,11 @@
 				"git": {
 					"name": "vscode-octicons-font",
 					"repositoryUrl": "https://github.com/Microsoft/vscode-octicons-font",
-					"commitHash": "ca261ea7e041b1b01bc68755d0031e823cae3abd"
+					"commitHash": "d9b9724beb850c6d038afe1cc1d46ba89a6a10ac"
 				}
 			},
 			"license": "MIT",
-			"version": "1.2.0"
+			"version": "1.3.0"
 		},
 		{
 			"component": {
