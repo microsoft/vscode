@@ -256,21 +256,6 @@ export function createApiFactory(
 			},
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remoteAuthority });
-			},
-			get remoteAuthority() {
-				const { remoteAuthority } = initData;
-				if (!remoteAuthority) {
-					return undefined;
-				}
-				const idx = remoteAuthority.indexOf('+');
-				if (idx < 0) {
-					console.warn(`INVALID remote authority: ${remoteAuthority}`);
-					return undefined;
-				}
-				return {
-					prefix: remoteAuthority.substring(0, idx),
-					toString() { return remoteAuthority; } // compatiblity
-				};
 			}
 		});
 

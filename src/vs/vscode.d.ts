@@ -6040,21 +6040,6 @@ declare module 'vscode' {
 		 * @returns A promise indicating if open was successful.
 		 */
 		export function openExternal(target: Uri): Thenable<boolean>;
-
-		/**
-		 * Information about running remotely. When `undefined`, extensions are executed in the same
-		 * context (e.g. operating system or machine) in which the UI of the editor is executed.
-		 * If defined, extensions are running in a different context, for instance a remote machine.
-		 *
-		 * A remote [uri](#Uri) adheres to this format: `remote_scheme://auth_prefix+auth_rest/path` where
-		 * the `remote_scheme` is defined by the editor, `auth_prefix` and `auth_rest` are defined by extensions,
-		 * and `path` is defined by the user.
-		 *
-		 * Extensions contributing a remote are encouraged to use a stable `auth_prefix`-value,
-		 * e.g `remote_scheme://ssh+23/` and `remote_scheme://ssh+42`. Such prefix is exposed
-		 * in the `prefix`-property of the returned object.
-		 */
-		export const remoteAuthority: { prefix: string } | undefined;
 	}
 
 	/**
@@ -8998,7 +8983,7 @@ declare module 'vscode' {
 		/**
 		 * The uri of the document the thread has been created on.
 		 */
-		readonly resource: Uri;
+		readonly uri: Uri;
 
 		/**
 		 * The range the comment thread is located within the document. The thread icon will be shown
@@ -9112,7 +9097,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Command argument for actions registered in `comments/commentThread/actions`.
+	 * Command argument for actions registered in `comments/commentThread/context`.
 	 */
 	export interface CommentReply {
 		/**
@@ -9162,11 +9147,11 @@ declare module 'vscode' {
 		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
 		 * and Comments Panel once created.
 		 *
-		 * @param resource The uri of the document the thread has been created on.
+		 * @param uri The uri of the document the thread has been created on.
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
 		 */
-		createCommentThread(resource: Uri, range: Range, comments: Comment[]): CommentThread;
+		createCommentThread(uri: Uri, range: Range, comments: Comment[]): CommentThread;
 
 		/**
 		 * Dispose this comment controller.

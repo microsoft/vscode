@@ -260,11 +260,12 @@ export class ContextView extends Disposable {
 	}
 
 	hide(data?: any): void {
-		if (this.delegate && this.delegate.onHide) {
-			this.delegate.onHide(data);
-		}
-
+		const delegate = this.delegate;
 		this.delegate = null;
+
+		if (delegate && delegate.onHide) {
+			delegate.onHide(data);
+		}
 
 		if (this.toDisposeOnClean) {
 			this.toDisposeOnClean.dispose();
