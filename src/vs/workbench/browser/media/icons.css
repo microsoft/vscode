@@ -101,7 +101,10 @@ body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sideby
 body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .margin-view-overlays .folding,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .explorer-action.save-all,
+body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
+body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .explorer-viewlet .action-close-all-files,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more,
 body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-bar .action-item > .clear-input,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindingsFile"],
@@ -233,6 +236,8 @@ body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-b
 }
 
 body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox::before,
+body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up::before,
+body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before,
 body[data-icon-theme^="icon-explorations-"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude::before {
 	content: "";
@@ -1617,12 +1622,14 @@ body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-h
 
 body[data-icon-theme="icon-explorations-1"] .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header.expanded::before,
+body[data-icon-theme="icon-explorations-1"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-icon-theme="icon-explorations-1"] .monaco-tl-twistie.collapsible:not(.loading) {
 	-webkit-mask-image: url("images/tree/expand-alt1.svg");
 }
 
 body[data-icon-theme="icon-explorations-2"] .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header.expanded::before,
+body[data-icon-theme="icon-explorations-2"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible:not(.loading) {
 	-webkit-mask-image: url("images/tree/expand-alt2.svg");
 }
@@ -1630,6 +1637,7 @@ body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible:not(.
 body[data-icon-theme="icon-explorations-1"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header::before,
+body[data-icon-theme="icon-explorations-1"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-icon-theme="icon-explorations-1"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	-webkit-mask-image: url("images/tree/collapse-alt1.svg");
 }
@@ -1637,6 +1645,7 @@ body[data-icon-theme="icon-explorations-1"] .monaco-tl-twistie.collapsible.colla
 body[data-icon-theme="icon-explorations-2"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header::before,
+body[data-icon-theme="icon-explorations-2"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	-webkit-mask-image: url("images/tree/collapse-alt2.svg");
 }
@@ -1645,6 +1654,7 @@ body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .co
 body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-actions .action-label.icon[data-title="peekview.close"],
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
 	-webkit-mask-image: url("images/tree/close-alt1.svg");
 }
@@ -1653,6 +1663,7 @@ body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .hea
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.closeActiveEditor"],
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
 	-webkit-mask-image: url("images/tree/close-alt2.svg");
 }
