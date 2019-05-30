@@ -73,7 +73,7 @@ export class FeedbackDropdown extends Dropdown {
 			contextViewProvider: options.contextViewProvider,
 			labelRenderer: (container: HTMLElement): IDisposable => {
 				const label = new OcticonLabel(container);
-				label.text = '$(smile)';
+				label.text = '$(smiley)';
 
 				return Disposable.None;
 			}
