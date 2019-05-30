@@ -248,10 +248,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	setOptions(options: SettingsEditorOptions): void {
+	setOptions(options: SettingsEditorOptions | null): void {
 		super.setOptions(options);
 
-		this._setOptions(options);
+		if (options) {
+			this._setOptions(options);
+		}
 	}
 
 	private _setOptions(options: SettingsEditorOptions): void {
