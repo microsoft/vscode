@@ -43,7 +43,7 @@ function cleanRemoteAuthority(remoteAuthority?: string): string {
 	let ret = 'other';
 	// Whitelisted remote authorities
 	['ssh-remote', 'dev-container', 'wsl'].forEach((res: string) => {
-		if (remoteAuthority!.indexOf(res) === 0) {
+		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
 			ret = res;
 		}
 	});
