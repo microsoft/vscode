@@ -67,7 +67,7 @@
     "@types/sinon": "^1.16.36",
     "@types/webpack": "^4.4.10",
     "@types/winreg": "^1.2.30",
-    "ansi-colors": "^3.2.3",
+    "ansi-colors": "^3.2.4",
     "asar": "^0.14.0",
     "chromium-pickle-js": "^0.2.0",
     "clean-css": "3.4.6",
