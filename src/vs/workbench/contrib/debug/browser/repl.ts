@@ -600,7 +600,7 @@ class ReplExpressionsRenderer implements ITreeRenderer<Expression, FuzzyScore, I
 		const expression = element.element;
 		templateData.label.set(expression.name, createMatches(element.filterData));
 		renderExpressionValue(expression, templateData.value, {
-			preserveWhitespace: true,
+			preserveWhitespace: !expression.hasChildren,
 			showHover: false,
 			colorize: true
 		});

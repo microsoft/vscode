@@ -282,8 +282,8 @@ export class DebugSession implements IDebugSession {
 
 		return this.raw.setBreakpoints({
 			source: rawSource,
-			lines: breakpointsToSend.map(bp => bp.lineNumber),
-			breakpoints: breakpointsToSend.map(bp => ({ line: bp.lineNumber, column: bp.column, condition: bp.condition, hitCondition: bp.hitCondition, logMessage: bp.logMessage })),
+			lines: breakpointsToSend.map(bp => bp.sessionAgnosticData.lineNumber),
+			breakpoints: breakpointsToSend.map(bp => ({ line: bp.sessionAgnosticData.lineNumber, column: bp.sessionAgnosticData.column, condition: bp.condition, hitCondition: bp.hitCondition, logMessage: bp.logMessage })),
 			sourceModified
 		}).then(response => {
 			if (response && response.body) {

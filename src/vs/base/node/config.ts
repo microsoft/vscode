@@ -52,7 +52,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 
 	constructor(private _path: string, private options: IConfigOptions<T> = { defaultConfig: Object.create(null), onError: error => console.error(error) }) {
 		this._onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent<T>>();
-		this.disposables.push(this._onDidUpdateConfiguration);
+		this.disposables.add(this._onDidUpdateConfiguration);
 
 		this.registerWatcher();
 		this.initAsync();
@@ -141,9 +141,9 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 
 		if (isFolder) {
-			this.disposables.push(watchFolder(path, (type, path) => path === this._path ? this.onConfigFileChange() : undefined, error => this.options.onError(error)));
+			this.disposables.add(watchFolder(path, (type, path) => path === this._path ? this.onConfigFileChange() : undefined, error => this.options.onError(error)));
 		} else {
-			this.disposables.push(watchFile(path, (type, path) => this.onConfigFileChange(), error => this.options.onError(error)));
+			this.disposables.add(watchFile(path, (type, path) => this.onConfigFileChange(), error => this.options.onError(error)));
 		}
 	}
 

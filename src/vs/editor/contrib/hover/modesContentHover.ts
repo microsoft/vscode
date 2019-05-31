@@ -528,12 +528,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const hoverElement = $('div.hover-row.status-bar');
 		const disposables = new DisposableStore();
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
-		disposables.push(this.renderAction(actionsElement, {
+		disposables.add(this.renderAction(actionsElement, {
 			label: nls.localize('quick fixes', "Quick Fix..."),
 			commandId: QuickFixAction.Id,
 			run: async (target) => {
 				const codeActionsPromise = this.getCodeActions(markerHover.marker);
-				disposables.push(toDisposable(() => codeActionsPromise.cancel()));
+				disposables.add(toDisposable(() => codeActionsPromise.cancel()));
 				const actions = await codeActionsPromise;
 				const elementPosition = dom.getDomNodePagePosition(target);
 				this._contextMenuService.showContextMenu({
@@ -543,7 +543,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			}
 		}));
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
-			disposables.push(this.renderAction(actionsElement, {
+			disposables.add(this.renderAction(actionsElement, {
 				label: nls.localize('peek problem', "Peek Problem"),
 				commandId: NextMarkerAction.ID,
 				run: () => {

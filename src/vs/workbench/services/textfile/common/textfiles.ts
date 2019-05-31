@@ -125,7 +125,7 @@ export interface ITextFileService extends IDisposable {
 	/**
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.
 	 */
-	move(source: URI, target: URI, overwrite?: boolean): Promise<void>;
+	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Brings up the confirm dialog to either save, don't save or cancel.

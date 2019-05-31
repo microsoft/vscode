@@ -53,6 +53,11 @@ function getThreadAndRun(accessor: ServicesAccessor, thread: IThread | undefined
 	const debugService = accessor.get(IDebugService);
 	if (!(thread instanceof Thread)) {
 		thread = debugService.getViewModel().focusedThread;
+		if (!thread) {
+			const focusedSession = debugService.getViewModel().focusedSession;
+			const threads = focusedSession ? focusedSession.getAllThreads() : undefined;
+			thread = threads && threads.length ? threads[0] : undefined;
+		}
 	}
 
 	if (thread) {

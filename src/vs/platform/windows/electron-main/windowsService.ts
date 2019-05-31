@@ -401,19 +401,20 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			buttons = [ok, copy];
 		}
 
-		this.windowsMainService.showMessageBox({
+		const result = await this.windowsMainService.showMessageBox({
 			title: product.nameLong,
 			type: 'info',
 			message: product.nameLong,
 			detail: `\n${detail}`,
 			buttons,
 			noLink: true,
-			defaultId: buttons.indexOf(ok)
-		}, this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow()).then(result => {
-			if (buttons[result.button] === copy) {
-				clipboard.writeText(detail);
-			}
-		});
+			defaultId: buttons.indexOf(ok),
+			cancelId: buttons.indexOf(ok)
+		}, this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow());
+
+		if (buttons[result.button] === copy) {
+			clipboard.writeText(detail);
+		}
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {

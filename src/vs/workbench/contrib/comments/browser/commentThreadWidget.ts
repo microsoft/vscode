@@ -826,6 +826,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 					await this.commandService.executeCommand(commandId, ...args);
 					return;
+				} else if (this._commentFormActions) {
+					this._commentFormActions.triggerDefaultAction();
 				}
 			} else {
 				this.createComment();

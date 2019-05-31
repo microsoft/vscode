@@ -92,13 +92,13 @@ export class WalkThroughPart extends BaseEditor {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Auto
 		});
-		this.disposables.push(this.scrollbar);
+		this.disposables.add(this.scrollbar);
 		container.appendChild(this.scrollbar.getDomNode());
 
 		this.registerFocusHandlers();
 		this.registerClickHandler();
 
-		this.disposables.push(this.scrollbar.onScroll(e => this.updatedScrollPosition()));
+		this.disposables.add(this.scrollbar.onScroll(e => this.updatedScrollPosition()));
 	}
 
 	private updatedScrollPosition() {
@@ -120,16 +120,16 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private registerFocusHandlers() {
-		this.disposables.push(this.addEventListener(this.content, 'mousedown', e => {
+		this.disposables.add(this.addEventListener(this.content, 'mousedown', e => {
 			this.focus();
 		}));
-		this.disposables.push(this.addEventListener(this.content, 'focus', e => {
+		this.disposables.add(this.addEventListener(this.content, 'focus', e => {
 			this.editorFocus.set(true);
 		}));
-		this.disposables.push(this.addEventListener(this.content, 'blur', e => {
+		this.disposables.add(this.addEventListener(this.content, 'blur', e => {
 			this.editorFocus.reset();
 		}));
-		this.disposables.push(this.addEventListener(this.content, 'focusin', e => {
+		this.disposables.add(this.addEventListener(this.content, 'focusin', e => {
 			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
 			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
 				const scrollPosition = this.scrollbar.getScrollPosition();

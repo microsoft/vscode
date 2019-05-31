@@ -1,0 +1,447 @@
+{
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-c/blob/master/grammars/c%2B%2B.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/atom/language-c/commit/3a269f88b12e512fb9495dc006a1dabf325d3d7f",
+	"name": "C++",
+	"scopeName": "source.cppold",
+	"patterns": [
+		{
+			"include": "#special_block"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"match": "\\b(friend|explicit|virtual|override|final|noexcept)\\b",
+			"name": "storage.modifier.cpp"
+		},
+		{
+			"match": "\\b(private:|protected:|public:)",
+			"name": "storage.modifier.cpp"
+		},
+		{
+			"match": "\\b(catch|operator|try|throw|using)\\b",
+			"name": "keyword.control.cpp"
+		},
+		{
+			"match": "\\bdelete\\b(\\s*\\[\\])?|\\bnew\\b(?!])",
+			"name": "keyword.control.cpp"
+		},
+		{
+			"match": "\\b(f|m)[A-Z]\\w*\\b",
+			"name": "variable.other.readwrite.member.cpp"
+		},
+		{
+			"match": "\\bthis\\b",
+			"name": "variable.language.this.cpp"
+		},
+		{
+			"match": "\\bnullptr\\b",
+			"name": "constant.language.cpp"
+		},
+		{
+			"match": "\\btemplate\\b\\s*",
+			"name": "storage.type.template.cpp"
+		},
+		{
+			"match": "\\b(const_cast|dynamic_cast|reinterpret_cast|static_cast)\\b\\s*",
+			"name": "keyword.operator.cast.cpp"
+		},
+		{
+			"match": "::",
+			"name": "punctuation.separator.namespace.access.cpp"
+		},
+		{
+			"match": "\\b(and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq|alignof|alignas)\\b",
+			"name": "keyword.operator.cpp"
+		},
+		{
+			"match": "\\b(class|decltype|wchar_t|char16_t|char32_t)\\b",
+			"name": "storage.type.cpp"
+		},
+		{
+			"match": "\\b(constexpr|export|mutable|typename|thread_local)\\b",
+			"name": "storage.modifier.cpp"
+		},
+		{
+			"begin": "(?x)\n(?:\n  ^ |                  # beginning of line\n  (?:(?<!else|new|=))  # or word + space before name\n)\n((?:[A-Za-z_][A-Za-z0-9_]*::)*+~[A-Za-z_][A-Za-z0-9_]*) # actual name\n\\s*(\\()              # opening bracket",
+			"beginCaptures": {
+				"1": {
+					"name": "entity.name.function.cpp"
+				},
+				"2": {
+					"name": "punctuation.definition.parameters.begin.c"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.parameters.end.c"
+				}
+			},
+			"name": "meta.function.destructor.cpp",
+			"patterns": [
+				{
+					"include": "$base"
+				}
+			]
+		},
+		{
+			"begin": "(?x)\n(?:\n  ^ |                  # beginning of line\n  (?:(?<!else|new|=))  # or word + space before name\n)\n((?:[A-Za-z_][A-Za-z0-9_]*::)*+~[A-Za-z_][A-Za-z0-9_]*) # actual name\n\\s*(\\()              # opening bracket",
+			"beginCaptures": {
+				"1": {
+					"name": "entity.name.function.cpp"
+				},
+				"2": {
+					"name": "punctuation.definition.parameters.begin.c"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.parameters.end.c"
+				}
+			},
+			"name": "meta.function.destructor.prototype.cpp",
+			"patterns": [
+				{
+					"include": "$base"
+				}
+			]
+		},
+		{
+			"include": "source.c"
+		}
+	],
+	"repository": {
+		"angle_brackets": {
+			"begin": "<",
+			"end": ">",
+			"name": "meta.angle-brackets.cpp",
+			"patterns": [
+				{
+					"include": "#angle_brackets"
+				},
+				{
+					"include": "$base"
+				}
+			]
+		},
+		"block": {
+			"begin": "\\{",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.section.block.begin.bracket.curly.c"
+				}
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.section.block.end.bracket.curly.c"
+				}
+			},
+			"name": "meta.block.cpp",
+			"patterns": [
+				{
+					"captures": {
+						"1": {
+							"name": "support.function.any-method.c"
+						},
+						"2": {
+							"name": "punctuation.definition.parameters.c"
+						}
+					},
+					"match": "(?x)\n(\n  (?!while|for|do|if|else|switch|catch|enumerate|return|r?iterate)\n  (?:\\b[A-Za-z_][A-Za-z0-9_]*+\\b|::)*+ # actual name\n)\n\\s*(\\() # opening bracket",
+					"name": "meta.function-call.c"
+				},
+				{
+					"include": "$base"
+				}
+			]
+		},
+		"constructor": {
+			"patterns": [
+				{
+					"begin": "(?x)\n(?:^\\s*)  # beginning of line\n((?!while|for|do|if|else|switch|catch|enumerate|r?iterate)[A-Za-z_][A-Za-z0-9_:]*) # actual name\n\\s*(\\()  # opening bracket",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.function.cpp"
+						},
+						"2": {
+							"name": "punctuation.definition.parameters.begin.c"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.parameters.end.c"
+						}
+					},
+					"name": "meta.function.constructor.cpp",
+					"patterns": [
+						{
+							"include": "$base"
+						}
+					]
+				},
+				{
+					"begin": "(?x)\n(:)\n(\n  (?=\n    \\s*[A-Za-z_][A-Za-z0-9_:]* # actual name\n    \\s* (\\() # opening bracket\n  )\n)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.parameters.c"
+						}
+					},
+					"end": "(?=\\{)",
+					"name": "meta.function.constructor.initializer-list.cpp",
+					"patterns": [
+						{
+							"include": "$base"
+						}
+					]
+				}
+			]
+		},
+		"special_block": {
+			"patterns": [
+				{
+					"begin": "\\b(using)\\b\\s*(namespace)\\b\\s*((?:[_A-Za-z][_A-Za-z0-9]*\\b(::)?)*)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.cpp"
+						},
+						"2": {
+							"name": "storage.type.cpp"
+						},
+						"3": {
+							"name": "entity.name.type.cpp"
+						}
+					},
+					"end": "(;)",
+					"name": "meta.using-namespace-declaration.cpp"
+				},
+				{
+					"begin": "\\b(namespace)\\b\\s*([_A-Za-z][_A-Za-z0-9]*\\b)?+",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.cpp"
+						},
+						"2": {
+							"name": "entity.name.type.cpp"
+						}
+					},
+					"captures": {
+						"1": {
+							"name": "keyword.control.namespace.$2"
+						}
+					},
+					"end": "(?<=\\})|(?=(;|,|\\(|\\)|>|\\[|\\]|=))",
+					"name": "meta.namespace-block.cpp",
+					"patterns": [
+						{
+							"begin": "\\{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.scope.cpp"
+								}
+							},
+							"end": "\\}",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.definition.scope.cpp"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#special_block"
+								},
+								{
+									"include": "#constructor"
+								},
+								{
+									"include": "$base"
+								}
+							]
+						},
+						{
+							"include": "$base"
+						}
+					]
+				},
+				{
+					"begin": "\\b(class|struct)\\b\\s*([_A-Za-z][_A-Za-z0-9]*\\b)?+(\\s*:\\s*(public|protected|private)\\s*([_A-Za-z][_A-Za-z0-9]*\\b)((\\s*,\\s*(public|protected|private)\\s*[_A-Za-z][_A-Za-z0-9]*\\b)*))?",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.cpp"
+						},
+						"2": {
+							"name": "entity.name.type.cpp"
+						},
+						"4": {
+							"name": "storage.type.modifier.cpp"
+						},
+						"5": {
+							"name": "entity.name.type.inherited.cpp"
+						},
+						"6": {
+							"patterns": [
+								{
+									"match": "(public|protected|private)",
+									"name": "storage.type.modifier.cpp"
+								},
+								{
+									"match": "[_A-Za-z][_A-Za-z0-9]*",
+									"name": "entity.name.type.inherited.cpp"
+								}
+							]
+						}
+					},
+					"end": "(?<=\\})|(?=(;|\\(|\\)|>|\\[|\\]|=))",
+					"name": "meta.class-struct-block.cpp",
+					"patterns": [
+						{
+							"include": "#angle_brackets"
+						},
+						{
+							"begin": "\\{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.section.block.begin.bracket.curly.cpp"
+								}
+							},
+							"end": "(\\})(\\s*\\n)?",
+							"endCaptures": {
+								"1": {
+									"name": "punctuation.section.block.end.bracket.curly.cpp"
+								},
+								"2": {
+									"name": "invalid.illegal.you-forgot-semicolon.cpp"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#special_block"
+								},
+								{
+									"include": "#constructor"
+								},
+								{
+									"include": "$base"
+								}
+							]
+						},
+						{
+							"include": "$base"
+						}
+					]
+				},
+				{
+					"begin": "\\b(extern)(?=\\s*\")",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.cpp"
+						}
+					},
+					"end": "(?<=\\})|(?=\\w)|(?=\\s*#\\s*endif\\b)",
+					"name": "meta.extern-block.cpp",
+					"patterns": [
+						{
+							"begin": "\\{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.section.block.begin.bracket.curly.c"
+								}
+							},
+							"end": "\\}|(?=\\s*#\\s*endif\\b)",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.section.block.end.bracket.curly.c"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#special_block"
+								},
+								{
+									"include": "$base"
+								}
+							]
+						},
+						{
+							"include": "$base"
+						}
+					]
+				}
+			]
+		},
+		"strings": {
+			"patterns": [
+				{
+					"begin": "(u|u8|U|L)?\"",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.cpp"
+						},
+						"1": {
+							"name": "meta.encoding.cpp"
+						}
+					},
+					"end": "\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.cpp"
+						}
+					},
+					"name": "string.quoted.double.cpp",
+					"patterns": [
+						{
+							"match": "\\\\u\\h{4}|\\\\U\\h{8}",
+							"name": "constant.character.escape.cpp"
+						},
+						{
+							"match": "\\\\['\"?\\\\abfnrtv]",
+							"name": "constant.character.escape.cpp"
+						},
+						{
+							"match": "\\\\[0-7]{1,3}",
+							"name": "constant.character.escape.cpp"
+						},
+						{
+							"match": "\\\\x\\h+",
+							"name": "constant.character.escape.cpp"
+						},
+						{
+							"include": "source.c#string_placeholder"
+						}
+					]
+				},
+				{
+					"begin": "(u|u8|U|L)?R\"(?:([^ ()\\\\\\t]{0,16})|([^ ()\\\\\\t]*))\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.cpp"
+						},
+						"1": {
+							"name": "meta.encoding.cpp"
+						},
+						"3": {
+							"name": "invalid.illegal.delimiter-too-long.cpp"
+						}
+					},
+					"end": "\\)\\2(\\3)\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.cpp"
+						},
+						"1": {
+							"name": "invalid.illegal.delimiter-too-long.cpp"
+						}
+					},
+					"name": "string.quoted.double.raw.cpp"
+				}
+			]
+		}
+	}
+}

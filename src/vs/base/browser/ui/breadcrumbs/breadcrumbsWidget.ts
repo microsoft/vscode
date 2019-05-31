@@ -135,11 +135,11 @@ export class BreadcrumbsWidget {
 
 	private _updateDimensions(dim: dom.Dimension): IDisposable {
 		const disposables = new DisposableStore();
-		disposables.push(dom.modify(() => {
+		disposables.add(dom.modify(() => {
 			this._dimension = dim;
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
-			disposables.push(this._updateScrollbar());
+			disposables.add(this._updateScrollbar());
 		}));
 		return disposables;
 	}

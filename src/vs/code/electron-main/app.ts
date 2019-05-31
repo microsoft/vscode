@@ -40,7 +40,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { URI } from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/node/workspacesIpc';
@@ -63,7 +63,6 @@ import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { storeBackgroundColor } from 'vs/code/electron-main/theme';
 import { homedir } from 'os';
 import { join, sep, dirname } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
@@ -250,18 +249,6 @@ export class CodeApplication extends Disposable {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (event: Event, windowId: number, broadcast: { channel: string; payload: object; }) => {
-			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
-				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
-
-				// Handle specific events on main side
-				this.onBroadcast(broadcast.channel, broadcast.payload);
-
-				// Send to all windows (except sender window)
-				this.windowsMainService.sendToAll('vscode:broadcast', broadcast, [windowId]);
-			}
-		});
-
 		ipc.on('vscode:extensionHostDebug', (_: Event, windowId: number, broadcast: any) => {
 			if (this.windowsMainService) {
 				// Send to all windows (except sender window)
@@ -302,15 +289,7 @@ export class CodeApplication extends Disposable {
 		}
 	}
 
-	private onBroadcast(event: string, payload: object): void {
-
-		// Theme changes
-		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
-			storeBackgroundColor(this.stateService, JSON.parse(payload));
-		}
-	}
-
-	startup(): Promise<void> {
+	async startup(): Promise<void> {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
@@ -340,62 +319,56 @@ export class CodeApplication extends Disposable {
 		// Create Electron IPC Server
 		this.electronIpcServer = new ElectronIPCServer();
 
-		const startupWithMachineId = (machineId: string) => {
-			this.logService.trace(`Resolved machine identifier: ${machineId}`);
-
-			// Spawn shared process
-			this.sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
-			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
-
-			// Services
-			return this.initServices(machineId).then(appInstantiationService => {
-
-				// Create driver
-				if (this.environmentService.driverHandle) {
-					serveDriver(this.electronIpcServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService).then(server => {
-						this.logService.info('Driver started at:', this.environmentService.driverHandle);
-						this._register(server);
-					});
-				}
-
-				// Setup Auth Handler
-				const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-				this._register(authHandler);
-
-				// Open Windows
-				const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
-
-				// Post Open Windows Tasks
-				appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
-
-				// Tracing: Stop tracing after windows are ready if enabled
-				if (this.environmentService.args.trace) {
-					this.stopTracingEventually(windows);
-				}
-			});
-		};
-
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const resolvedMachineId = this.resolveMachineId();
-		if (typeof resolvedMachineId === 'string') {
-			return startupWithMachineId(resolvedMachineId);
-		} else {
-			return resolvedMachineId.then(machineId => startupWithMachineId(machineId));
+		const machineId = await this.resolveMachineId();
+		this.logService.trace(`Resolved machine identifier: ${machineId}`);
+
+		// Spawn shared process
+		this.sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
+		this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+
+		// Services
+		const appInstantiationService = await this.initServices(machineId);
+
+		// Create driver
+		if (this.environmentService.driverHandle) {
+			(async () => {
+				const server = await serveDriver(this.electronIpcServer, this.environmentService.driverHandle!, this.environmentService, appInstantiationService);
+
+				this.logService.info('Driver started at:', this.environmentService.driverHandle);
+				this._register(server);
+			})();
+		}
+
+		// Setup Auth Handler
+		const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+		this._register(authHandler);
+
+		// Open Windows
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+
+		// Post Open Windows Tasks
+		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+
+		// Tracing: Stop tracing after windows are ready if enabled
+		if (this.environmentService.args.trace) {
+			this.stopTracingEventually(windows);
 		}
 	}
 
-	private resolveMachineId(): string | Promise<string> {
-		const machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
-		if (machineId) {
-			return machineId;
+	private async resolveMachineId(): Promise<string> {
+
+		// We cache the machineId for faster lookups on startup
+		// and resolve it only once initially if not cached
+		let machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
+		if (!machineId) {
+			machineId = await getMachineId();
+
+			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
 		}
 
-		return getMachineId().then(machineId => {
-			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
-
-			return machineId;
-		});
+		return machineId;
 	}
 
 	private stopTracingEventually(windows: ICodeWindow[]): void {
@@ -433,7 +406,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private initServices(machineId: string): Promise<IInstantiationService> {
+	private async initServices(machineId: string): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
 		if (process.platform === 'win32') {
@@ -475,10 +448,12 @@ export class CodeApplication extends Disposable {
 		const appInstantiationService = this.instantiationService.createChild(services);
 
 		// Init services that require it
-		return appInstantiationService.invokeFunction(accessor => Promise.all([
+		await appInstantiationService.invokeFunction(accessor => Promise.all([
 			this.initStorageService(accessor),
 			this.initBackupService(accessor)
-		])).then(() => appInstantiationService);
+		]));
+
+		return appInstantiationService;
 	}
 
 	private initStorageService(accessor: ServicesAccessor): Promise<void> {
@@ -488,7 +463,6 @@ export class CodeApplication extends Disposable {
 		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		return Promise.resolve();
-
 	}
 
 	private initBackupService(accessor: ServicesAccessor): Promise<void> {
@@ -558,15 +532,17 @@ export class CodeApplication extends Disposable {
 			const environmentService = accessor.get(IEnvironmentService);
 
 			urlService.registerHandler({
-				handleURL(uri: URI): Promise<boolean> {
+				async handleURL(uri: URI): Promise<boolean> {
 					if (windowsMainService.getWindowCount() === 0) {
 						const cli = { ...environmentService.args, goto: true };
 						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });
 
-						return window.ready().then(() => urlService.open(uri));
+						await window.ready();
+
+						return urlService.open(uri);
 					}
 
-					return Promise.resolve(false);
+					return false;
 				}
 			});
 		}
@@ -604,8 +580,8 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
+		// mac: open-file event received on startup
 		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			// mac: open-file event received on startup
 			return this.windowsMainService.open({
 				context: OpenContext.DOCK,
 				cli: args,
@@ -738,9 +714,7 @@ export class CodeApplication extends Disposable {
 			dispose(): void {
 				this._disposeRunner.dispose();
 				connectionPool.delete(this._authority);
-				this._connection.then((connection) => {
-					connection.dispose();
-				});
+				this._connection.then(connection => connection.dispose());
 			}
 
 			async getClient(): Promise<Client<RemoteAgentConnectionContext>> {

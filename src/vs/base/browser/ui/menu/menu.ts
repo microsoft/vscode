@@ -12,7 +12,7 @@ import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
@@ -71,7 +71,7 @@ interface ISubMenuData {
 
 export class Menu extends ActionBar {
 	private mnemonics: Map<string, Array<BaseMenuActionViewItem>>;
-	private menuDisposables: IDisposable[];
+	private readonly menuDisposables: DisposableStore;
 	private scrollableElement: DomScrollableElement;
 	private menuElement: HTMLElement;
 	private scrollTopHold: number | undefined;
@@ -79,7 +79,6 @@ export class Menu extends ActionBar {
 	private readonly _onScroll: Emitter<void>;
 
 	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
-
 		addClass(container, 'monaco-menu-container');
 		container.setAttribute('role', 'presentation');
 		const menuElement = document.createElement('div');
@@ -103,7 +102,7 @@ export class Menu extends ActionBar {
 
 		this.actionsList.tabIndex = 0;
 
-		this.menuDisposables = [];
+		this.menuDisposables = this._register(new DisposableStore());
 
 		addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e);
@@ -115,7 +114,7 @@ export class Menu extends ActionBar {
 		});
 
 		if (options.enableMnemonics) {
-			this.menuDisposables.push(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+			this.menuDisposables.add(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 				const key = e.key.toLocaleLowerCase();
 				if (this.mnemonics.has(key)) {
 					EventHelper.stop(e, true);
@@ -217,9 +216,9 @@ export class Menu extends ActionBar {
 
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 30)}px`;
 
-		this.scrollableElement.onScroll(() => {
+		this.menuDisposables.add(this.scrollableElement.onScroll(() => {
 			this._onScroll.fire();
-		}, this, this.menuDisposables);
+		}, this));
 
 		this._register(addDisposableListener(this.menuElement, EventType.SCROLL, (e: ScrollEvent) => {
 			if (this.scrollTopHold !== undefined) {
@@ -575,7 +574,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 	private mysubmenu: Menu | null;
 	private submenuContainer: HTMLElement | undefined;
 	private submenuIndicator: HTMLElement;
-	private submenuDisposables: IDisposable[] = [];
+	private readonly submenuDisposables = this._register(new DisposableStore());
 	private mouseOver: boolean;
 	private showScheduler: RunOnceScheduler;
 	private hideScheduler: RunOnceScheduler;
@@ -675,7 +674,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.parentData.submenu = undefined;
 
 			if (this.submenuContainer) {
-				this.submenuDisposables = dispose(this.submenuDisposables);
+				this.submenuDisposables.clear();
 				this.submenuContainer = undefined;
 			}
 		}
@@ -708,7 +707,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			}
 
-			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
+			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
 				let event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
@@ -720,12 +719,12 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 						this.parentData.submenu = undefined;
 					}
 
-					this.submenuDisposables = dispose(this.submenuDisposables);
+					this.submenuDisposables.clear();
 					this.submenuContainer = undefined;
 				}
 			}));
 
-			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_DOWN, e => {
+			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_DOWN, e => {
 				let event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
@@ -733,7 +732,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			}));
 
 
-			this.submenuDisposables.push(this.parentData.submenu.onDidCancel(() => {
+			this.submenuDisposables.add(this.parentData.submenu.onDidCancel(() => {
 				this.parentData.parent.focus();
 
 				if (this.parentData.submenu) {
@@ -741,7 +740,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 					this.parentData.submenu = undefined;
 				}
 
-				this.submenuDisposables = dispose(this.submenuDisposables);
+				this.submenuDisposables.clear();
 				this.submenuContainer = undefined;
 			}));
 
@@ -781,7 +780,6 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 
 		if (this.submenuContainer) {
-			this.submenuDisposables = dispose(this.submenuDisposables);
 			this.submenuContainer = undefined;
 		}
 	}
