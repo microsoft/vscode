@@ -18,5 +18,5 @@ export function equals<T>(
 }
 
 export function flatten<T>(arr: ReadonlyArray<T>[]): T[] {
-	return ([] as T[]).concat.apply([], arr);
+	return Array.prototype.concat.apply([], arr);
 }
