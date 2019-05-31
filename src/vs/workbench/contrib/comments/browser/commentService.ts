@@ -48,6 +48,7 @@ export interface ICommentService {
 	unregisterCommentController(owner: string): void;
 	getCommentController(owner: string): MainThreadCommentController | undefined;
 	createCommentThreadTemplate(owner: string, resource: URI, range: Range): void;
+	updateCommentThreadTemplate(owner: string, threadHandle: number, range: Range): Promise<void>;
 	getCommentMenus(owner: string): CommentMenus;
 	registerDataProvider(owner: string, commentProvider: DocumentCommentProvider): void;
 	unregisterDataProvider(owner: string): void;
@@ -143,6 +144,16 @@ export class CommentService extends Disposable implements ICommentService {
 		}
 
 		commentController.createCommentThreadTemplate(resource, range);
+	}
+
+	async updateCommentThreadTemplate(owner: string, threadHandle: number, range: Range) {
+		const commentController = this._commentControls.get(owner);
+
+		if (!commentController) {
+			return;
+		}
+
+		await commentController.updateCommentThreadTemplate(threadHandle, range);
 	}
 
 	disposeCommentThread(owner: string, threadId: string) {

@@ -628,6 +628,7 @@ export class SimpleCommentService implements ICommentService {
 	unregisterCommentController: any;
 	getCommentController: any;
 	createCommentThreadTemplate: any;
+	updateCommentThreadTemplate: any;
 	getCommentMenus: any;
 	registerDataProvider: any;
 	unregisterDataProvider: any;
