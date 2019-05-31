@@ -389,8 +389,6 @@ export class InputBox extends Widget {
 		let div: HTMLElement;
 		let layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
 
-		this.state = 'open';
-
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.element,
 			anchorAlignment: AnchorAlignment.RIGHT,
@@ -426,6 +424,8 @@ export class InputBox extends Widget {
 			},
 			layout: layout
 		});
+
+		this.state = 'open';
 	}
 
 	private _hideMessage(): void {

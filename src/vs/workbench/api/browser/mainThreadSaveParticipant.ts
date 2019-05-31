@@ -270,10 +270,10 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 					if (CodeActionKind.SourceFixAll.contains(b)) {
 						return 0;
 					}
-					return 1;
+					return -1;
 				}
 				if (CodeActionKind.SourceFixAll.contains(b)) {
-					return -1;
+					return 1;
 				}
 				return 0;
 			});
