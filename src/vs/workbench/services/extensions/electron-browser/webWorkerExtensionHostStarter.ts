@@ -21,9 +21,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
+import { IProductService } from 'vs/platform/product/common/product';
 
 export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 
@@ -43,6 +42,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILogService private readonly _logService: ILogService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 
 	}
@@ -115,15 +115,15 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			.then(([telemetryInfo, extensionDescriptions]) => {
 				const workspace = this._contextService.getWorkspace();
 				const r: IInitData = {
-					commit: product.commit,
-					version: pkg.version,
+					commit: this._productService.commit,
+					version: this._productService.version,
 					parentPid: process.pid,
 					environment: {
 						isExtensionDevelopmentDebug: false, // < todo@joh
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
 						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : undefined,
-						appName: product.nameLong,
-						appUriScheme: product.urlProtocol,
+						appName: this._productService.nameLong,
+						appUriScheme: this._productService.urlProtocol,
 						appLanguage: platform.language,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
