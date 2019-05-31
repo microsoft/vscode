@@ -39,6 +39,10 @@ body {
 	user-select: none;
 }
 
+body.web {
+	position: fixed; /* prevent bounce effect */
+}
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .monaco-workbench {

@@ -37,7 +37,6 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED = new RawContextKey
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
-export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
 // The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
@@ -58,14 +57,15 @@ export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
+export const SHELL_PATH_INVALID_EXIT_CODE = -1;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
 export interface ITerminalConfiguration {
 	shell: {
-		linux: string;
-		osx: string;
-		windows: string;
+		linux: string | null;
+		osx: string | null;
+		windows: string | null;
 	};
 	shellArgs: {
 		linux: string[];
@@ -112,10 +112,10 @@ export interface ITerminalConfigHelper {
 	/**
 	 * Merges the default shell path and args into the provided launch configuration
 	 */
-	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride?: platform.Platform): void;
+	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, platformOverride?: platform.Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	checkWorkspaceShellPermissions(platformOverride?: platform.Platform): boolean;
+	checkWorkspaceShellPermissions(osOverride?: platform.OperatingSystem): boolean;
 }
 
 export interface ITerminalFont {
@@ -192,6 +192,15 @@ export interface IShellLaunchConfig {
 	 * provided as nothing will be inherited from the process or any configuration.
 	 */
 	strictEnv?: boolean;
+
+	/**
+	 * When enabled the terminal will run the process as normal but not be surfaced to the user
+	 * until `Terminal.show` is called. The typical usage for this is when you need to run
+	 * something that may need interactivity but only want to tell the user about it when
+	 * interaction is needed. Note that the terminals will still be exposed to all extensions
+	 * as normal.
+	 */
+	runInBackground?: boolean;
 }
 
 export interface ITerminalService {
@@ -215,10 +224,8 @@ export interface ITerminalService {
 	/**
 	 * Creates a terminal.
 	 * @param shell The shell launch configuration to use.
-	 * @param wasNewTerminalAction Whether this was triggered by a new terminal action, if so a
-	 * default shell selection dialog may display.
 	 */
-	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	createTerminal(shell?: IShellLaunchConfig): ITerminalInstance;
 
 	/**
 	 * Creates a terminal renderer.
@@ -244,6 +251,12 @@ export interface ITerminalService {
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
 
+	/**
+	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
+	 * among other things.
+	 */
+	refreshActiveTab(): void;
+
 	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;
 	focusFindWidget(): Promise<void>;
@@ -253,6 +266,7 @@ export interface ITerminalService {
 	findPrevious(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
+	getDefaultShell(p: platform.Platform): string;
 	selectDefaultWindowsShell(): Promise<string | undefined>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
@@ -267,7 +281,8 @@ export interface ITerminalService {
 	 */
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string): Promise<string>;
 
-	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
+	extHostReady(remoteAuthority: string): void;
+	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
 }
 
 export const enum Direction {
@@ -687,7 +702,6 @@ export const enum ProcessState {
 	KILLED_BY_PROCESS
 }
 
-
 export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly terminalId: number;
 
@@ -713,6 +727,7 @@ export interface ITerminalProcessExtHostRequest {
 	activeWorkspaceRootUri: URI;
 	cols: number;
 	rows: number;
+	isWorkspaceShellAllowed: boolean;
 }
 
 export enum LinuxDistro {

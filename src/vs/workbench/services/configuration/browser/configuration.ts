@@ -12,7 +12,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, IConfigurationFileService, MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, IConfigurationFileService, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -29,6 +29,7 @@ export class RemoteUserConfiguration extends Disposable {
 	private readonly _cachedConfiguration: CachedUserConfiguration;
 	private readonly _configurationFileService: IConfigurationFileService;
 	private _userConfiguration: UserConfiguration | CachedUserConfiguration;
+	private _userConfigurationInitializationPromise: Promise<ConfigurationModel> | null = null;
 
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
@@ -44,9 +45,10 @@ export class RemoteUserConfiguration extends Disposable {
 		this._userConfiguration = this._cachedConfiguration = new CachedUserConfiguration(remoteAuthority, configurationCache);
 		remoteAgentService.getEnvironment().then(async environment => {
 			if (environment) {
-				const userConfiguration = this._register(new UserConfiguration(environment.settingsPath, MACHINE_SCOPES, this._configurationFileService));
+				const userConfiguration = this._register(new UserConfiguration(environment.settingsPath, REMOTE_MACHINE_SCOPES, this._configurationFileService));
 				this._register(userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
-				const configurationModel = await userConfiguration.initialize();
+				this._userConfigurationInitializationPromise = userConfiguration.initialize();
+				const configurationModel = await this._userConfigurationInitializationPromise;
 				this._userConfiguration.dispose();
 				this._userConfiguration = userConfiguration;
 				this.onDidUserConfigurationChange(configurationModel);
@@ -54,8 +56,20 @@ export class RemoteUserConfiguration extends Disposable {
 		});
 	}
 
-	initialize(): Promise<ConfigurationModel> {
-		return this._userConfiguration.initialize();
+	async initialize(): Promise<ConfigurationModel> {
+		if (this._userConfiguration instanceof UserConfiguration) {
+			return this._userConfiguration.initialize();
+		}
+
+		// Initialize cached configuration
+		let configurationModel = await this._userConfiguration.initialize();
+		if (this._userConfigurationInitializationPromise) {
+			// Use user configuration
+			configurationModel = await this._userConfigurationInitializationPromise;
+			this._userConfigurationInitializationPromise = null;
+		}
+
+		return configurationModel;
 	}
 
 	reload(): Promise<ConfigurationModel> {
@@ -133,7 +147,7 @@ export class UserConfiguration extends Disposable {
 
 	async reload(): Promise<ConfigurationModel> {
 		try {
-			const content = await this.configurationFileService.resolveContent(this.configurationResource);
+			const content = await this.configurationFileService.readFile(this.configurationResource);
 			this.parser.parseContent(content);
 			return this.parser.configurationModel;
 		} catch (e) {
@@ -263,13 +277,13 @@ export class WorkspaceConfiguration extends Disposable {
 		this._workspaceIdentifier = workspaceIdentifier;
 		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
 			if (this._workspaceIdentifier.configPath.scheme === Schemas.file) {
-				this.switch();
+				this.switch(new FileServiceBasedWorkspaceConfiguration(this._configurationFileService));
 			} else {
 				this.waitAndSwitch(this._workspaceIdentifier);
 			}
 		}
-		await this._workspaceConfiguration.load(this._workspaceIdentifier);
 		this._loaded = this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration;
+		await this._workspaceConfiguration.load(this._workspaceIdentifier);
 	}
 
 	reload(): Promise<void> {
@@ -300,21 +314,25 @@ export class WorkspaceConfiguration extends Disposable {
 	private async waitAndSwitch(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
 		await this._configurationFileService.whenProviderRegistered(workspaceIdentifier.configPath.scheme);
 		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
-			this.switch();
+			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this._configurationFileService));
+			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier);
+			this.switch(fileServiceBasedWorkspaceConfiguration);
 			this._loaded = true;
-			this.onDidWorkspaceConfigurationChange();
+			this.onDidWorkspaceConfigurationChange(false);
 		}
 	}
 
-	private switch(): void {
+	private switch(fileServiceBasedWorkspaceConfiguration: FileServiceBasedWorkspaceConfiguration): void {
 		this._workspaceConfiguration.dispose();
 		this._workspaceConfigurationChangeDisposable.dispose();
-		this._workspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this._configurationFileService));
-		this._workspaceConfigurationChangeDisposable = this._register(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange()));
+		this._workspaceConfiguration = this._register(fileServiceBasedWorkspaceConfiguration);
+		this._workspaceConfigurationChangeDisposable = this._register(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange(true)));
 	}
 
-	private async onDidWorkspaceConfigurationChange(): Promise<void> {
-		await this.reload();
+	private async onDidWorkspaceConfigurationChange(reload: boolean): Promise<void> {
+		if (reload) {
+			await this.reload();
+		}
 		this.updateCache();
 		this._onDidUpdateConfiguration.fire();
 	}
@@ -379,7 +397,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable implements IWork
 		}
 		let contents = '';
 		try {
-			contents = await this.configurationFileService.resolveContent(this._workspaceIdentifier.configPath);
+			contents = await this.configurationFileService.readFile(this._workspaceIdentifier.configPath);
 		} catch (error) {
 			const exists = await this.configurationFileService.exists(this._workspaceIdentifier.configPath);
 			if (exists) {
@@ -547,7 +565,7 @@ class FileServiceBasedFolderConfiguration extends Disposable implements IFolderC
 	async loadConfiguration(): Promise<ConfigurationModel> {
 		const configurationContents = await Promise.all(this.configurationResources.map(async resource => {
 			try {
-				return await this.configurationFileService.resolveContent(resource);
+				return await this.configurationFileService.readFile(resource);
 			} catch (error) {
 				const exists = await this.configurationFileService.exists(resource);
 				if (exists) {
@@ -662,7 +680,7 @@ class CachedFolderConfiguration extends Disposable implements IFolderConfigurati
 		private readonly configurationCache: IConfigurationCache
 	) {
 		super();
-		this.key = createSHA1(join(folder.path, configFolderRelativePath)).then(key => (<ConfigurationKey>{ type: 'folder', key }));
+		this.key = createSHA1(join(folder.path, configFolderRelativePath)).then(key => ({ type: 'folder', key }));
 		this.configurationModel = new ConfigurationModel();
 	}
 

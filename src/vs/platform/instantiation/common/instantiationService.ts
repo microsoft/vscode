@@ -220,7 +220,7 @@ export class InstantiationService implements IInstantiationService {
 			// Return a proxy object that's backed by an idle value. That
 			// strategy is to instantiate services in our idle time or when actually
 			// needed but not when injected into a consumer
-			const idle = new IdleValue(() => this._createInstance(ctor, args, _trace));
+			const idle = new IdleValue(() => this._createInstance<T>(ctor, args, _trace));
 			return <T>new Proxy(Object.create(null), {
 				get(_target: T, prop: PropertyKey): any {
 					return idle.getValue()[prop];

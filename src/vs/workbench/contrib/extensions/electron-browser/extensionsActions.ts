@@ -10,19 +10,19 @@ import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
-import { ActionItem, Separator, IActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionViewItem, Separator, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
-import { IFileService, IContent } from 'vs/platform/files/common/files';
+import { IFileService, IFileContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -57,10 +57,11 @@ import { coalesce } from 'vs/base/common/arrays';
 import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IFileIconTheme, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
+import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IProductService } from 'vs/platform/product/common/product';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -147,7 +148,7 @@ export class InstallAction extends ExtensionAction {
 	private static readonly Class = 'extension-action prominent install';
 	private static readonly InstallingClass = 'extension-action install installing';
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	private _manifest: IExtensionManifest | null;
 	set manifest(manifest: IExtensionManifest) {
@@ -164,23 +165,26 @@ export class InstallAction extends ExtensionAction {
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IProductService private readonly productService: IProductService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super(`extensions.install`, InstallAction.INSTALL_LABEL, InstallAction.Class, false);
 		this.update();
-		this.labelService.onDidChangeFormatters(() => this.updateLabel(), this, this.disposables);
+		this.disposables.add(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 	}
 
 	update(): void {
-		if (!this.extension || this.extension.type === ExtensionType.System) {
+		if (!this.extension || this.extension.type === ExtensionType.System || this.extension.state === ExtensionState.Installed) {
 			this.enabled = false;
 			this.class = InstallAction.Class;
 			this.label = InstallAction.INSTALL_LABEL;
 			return;
 		}
-
-		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && !this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier));
+		this.enabled = false;
+		if (this.extensionsWorkbenchService.canInstall(this.extension)) {
+			const local = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
+			this.enabled = !local || (!!local.local && isLanguagePackExtension(local.local.manifest));
+		}
 		this.class = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingClass : InstallAction.Class;
 		this.updateLabel();
 	}
@@ -191,13 +195,13 @@ export class InstallAction extends ExtensionAction {
 			this.tooltip = InstallAction.INSTALLING_LABEL;
 		} else {
 			if (this._manifest && this.workbenchEnvironmentService.configuration.remoteAuthority) {
-				if (isUIExtension(this._manifest, this.configurationService)) {
-					this.label = `${InstallAction.INSTALL_LABEL} (${this.extensionManagementServerService.localExtensionManagementServer.label})`;
-					this.tooltip = `${InstallAction.INSTALL_LABEL} (${this.extensionManagementServerService.localExtensionManagementServer.label})`;
+				if (isUIExtension(this._manifest, this.productService, this.configurationService)) {
+					this.label = `${InstallAction.INSTALL_LABEL} ${localize('locally', "Locally")}`;
+					this.tooltip = `${InstallAction.INSTALL_LABEL} ${localize('locally', "Locally")}`;
 				} else {
 					const host = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.workbenchEnvironmentService.configuration.remoteAuthority) || localize('remote', "Remote");
-					this.label = `${InstallAction.INSTALL_LABEL} (${host})`;
-					this.tooltip = `${InstallAction.INSTALL_LABEL} (${host})`;
+					this.label = `${InstallAction.INSTALL_LABEL} on ${host}`;
+					this.tooltip = `${InstallAction.INSTALL_LABEL} on ${host}`;
 				}
 			} else {
 				this.label = InstallAction.INSTALL_LABEL;
@@ -268,7 +272,7 @@ export class InstallAction extends ExtensionAction {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }
@@ -282,7 +286,7 @@ export class RemoteInstallAction extends ExtensionAction {
 	private static readonly InstallingClass = 'extension-action install installing';
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 	private installing: boolean = false;
 
 	constructor(
@@ -291,9 +295,10 @@ export class RemoteInstallAction extends ExtensionAction {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(`extensions.remoteinstall`, RemoteInstallAction.INSTALL_LABEL, RemoteInstallAction.Class, false);
-		this.labelService.onDidChangeFormatters(() => this.updateLabel(), this, this.disposables);
+		this.disposables.add(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 		this.updateLabel();
 		this.update();
 	}
@@ -301,12 +306,14 @@ export class RemoteInstallAction extends ExtensionAction {
 	private updateLabel(): void {
 		if (this.installing) {
 			this.label = RemoteInstallAction.INSTALLING_LABEL;
+			this.tooltip = this.label;
 			return;
 		}
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		if (remoteAuthority) {
 			const host = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.environmentService.configuration.remoteAuthority) || localize('remote', "Remote");
-			this.label = `${RemoteInstallAction.INSTALL_LABEL} (${host})`;
+			this.label = `${RemoteInstallAction.INSTALL_LABEL} on ${host}`;
+			this.tooltip = this.label;
 			return;
 		}
 	}
@@ -324,9 +331,9 @@ export class RemoteInstallAction extends ExtensionAction {
 			// Installed User Extension
 			&& this.extension && this.extension.local && this.extension.type === ExtensionType.User && this.extension.state === ExtensionState.Installed
 			// Local Workspace Extension
-			&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)
+			&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && (isLanguagePackExtension(this.extension.local.manifest) || !isUIExtension(this.extension.local.manifest, this.productService, this.configurationService))
 			// Extension does not exist in remote
-			&& !this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
+			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
 			&& this.extensionsWorkbenchService.canInstall(this.extension)
 		) {
 			this.enabled = true;
@@ -350,7 +357,87 @@ export class RemoteInstallAction extends ExtensionAction {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
+		super.dispose();
+	}
+}
+
+export class LocalInstallAction extends ExtensionAction {
+
+	private static INSTALL_LABEL = localize('install locally', "Install Locally");
+	private static INSTALLING_LABEL = localize('installing', "Installing");
+
+	private static readonly Class = 'extension-action prominent install';
+	private static readonly InstallingClass = 'extension-action install installing';
+
+	updateWhenCounterExtensionChanges: boolean = true;
+	private readonly disposables = new DisposableStore();
+	private installing: boolean = false;
+
+	constructor(
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
+	) {
+		super(`extensions.localinstall`, LocalInstallAction.INSTALL_LABEL, LocalInstallAction.Class, false);
+		this.disposables.add(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
+		this.updateLabel();
+		this.update();
+	}
+
+	private updateLabel(): void {
+		if (this.installing) {
+			this.label = LocalInstallAction.INSTALLING_LABEL;
+			this.tooltip = this.label;
+			return;
+		}
+		this.label = `${LocalInstallAction.INSTALL_LABEL}`;
+		this.tooltip = this.label;
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = LocalInstallAction.Class;
+		if (this.installing) {
+			this.enabled = true;
+			this.class = LocalInstallAction.InstallingClass;
+			this.updateLabel();
+			return;
+		}
+		if (this.environmentService.configuration.remoteAuthority
+			// Installed User Extension
+			&& this.extension && this.extension.local && this.extension.type === ExtensionType.User && this.extension.state === ExtensionState.Installed
+			// Remote UI or Language pack Extension
+			&& this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && (isLanguagePackExtension(this.extension.local.manifest) || isUIExtension(this.extension.local.manifest, this.productService, this.configurationService))
+			// Extension does not exist in local
+			&& !this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.localExtensionManagementServer)
+			&& this.extensionsWorkbenchService.canInstall(this.extension)
+		) {
+			this.enabled = true;
+			this.updateLabel();
+			return;
+		}
+	}
+
+	async run(): Promise<void> {
+		if (!this.installing) {
+			this.installing = true;
+			this.update();
+			this.extensionsWorkbenchService.open(this.extension);
+			alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
+			if (this.extension.gallery) {
+				await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(this.extension.gallery);
+				this.installing = false;
+				this.update();
+			}
+		}
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
 		super.dispose();
 	}
 }
@@ -387,6 +474,7 @@ export class UninstallAction extends ExtensionAction {
 
 		this.label = UninstallAction.UninstallLabel;
 		this.class = UninstallAction.UninstallClass;
+		this.tooltip = UninstallAction.UninstallLabel;
 
 		if (state !== ExtensionState.Installed) {
 			this.enabled = false;
@@ -415,16 +503,15 @@ export class CombinedInstallAction extends ExtensionAction {
 	private static readonly NoExtensionClass = 'extension-action prominent install no-extension';
 	private installAction: InstallAction;
 	private uninstallAction: UninstallAction;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super('extensions.combinedInstall', '', '', false);
 
-		this.installAction = instantiationService.createInstance(InstallAction);
-		this.uninstallAction = instantiationService.createInstance(UninstallAction);
-		this.disposables.push(this.installAction, this.uninstallAction);
+		this.installAction = this.disposables.add(instantiationService.createInstance(InstallAction));
+		this.uninstallAction = this.disposables.add(instantiationService.createInstance(UninstallAction));
 
 		this.update();
 	}
@@ -480,7 +567,7 @@ export class CombinedInstallAction extends ExtensionAction {
 
 	dispose(): void {
 		super.dispose();
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -546,15 +633,15 @@ export class UpdateAction extends ExtensionAction {
 	}
 }
 
-interface IExtensionActionItemOptions extends IActionItemOptions {
+interface IExtensionActionViewItemOptions extends IActionViewItemOptions {
 	tabOnlyOnFocus?: boolean;
 }
 
-export class ExtensionActionItem extends ActionItem {
+export class ExtensionActionViewItem extends ActionViewItem {
 
-	protected options: IExtensionActionItemOptions;
+	protected options: IExtensionActionViewItemOptions;
 
-	constructor(context: any, action: IAction, options: IExtensionActionItemOptions = {}) {
+	constructor(context: any, action: IAction, options: IExtensionActionViewItemOptions = {}) {
 		super(context, action, options);
 	}
 
@@ -584,7 +671,7 @@ export class ExtensionActionItem extends ActionItem {
 
 export abstract class ExtensionDropDownAction extends ExtensionAction {
 
-	protected disposables: IDisposable[] = [];
+	protected readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string,
@@ -597,28 +684,28 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 		super(id, label, cssClass, enabled);
 	}
 
-	private _actionItem: DropDownMenuActionItem;
-	createActionItem(): DropDownMenuActionItem {
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, this.tabOnlyOnFocus);
-		return this._actionItem;
+	private _actionViewItem: DropDownMenuActionViewItem;
+	createActionViewItem(): DropDownMenuActionViewItem {
+		this._actionViewItem = this.instantiationService.createInstance(DropDownMenuActionViewItem, this, this.tabOnlyOnFocus);
+		return this._actionViewItem;
 	}
 
 	public run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][], disposeActionsOnHide: boolean }): Promise<any> {
-		if (this._actionItem) {
-			this._actionItem.showMenu(actionGroups, disposeActionsOnHide);
+		if (this._actionViewItem) {
+			this._actionViewItem.showMenu(actionGroups, disposeActionsOnHide);
 		}
 		return Promise.resolve();
 	}
 
 	dispose(): void {
-		dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }
 
-export class DropDownMenuActionItem extends ExtensionActionItem {
+export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(action: ExtensionDropDownAction,
 		tabOnlyOnFocus: boolean,
@@ -651,7 +738,7 @@ export class DropDownMenuActionItem extends ExtensionActionItem {
 
 	dispose(): void {
 		super.dispose();
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -1104,7 +1191,7 @@ export class UpdateAllAction extends Action {
 	static readonly ID = 'workbench.extensions.action.updateAllExtensions';
 	static LABEL = localize('updateAll', "Update All Extensions");
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id = UpdateAllAction.ID,
@@ -1116,7 +1203,7 @@ export class UpdateAllAction extends Action {
 	) {
 		super(id, label, '', false);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.add(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 	}
 
@@ -1142,7 +1229,7 @@ export class UpdateAllAction extends Action {
 
 	dispose(): void {
 		super.dispose();
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -1152,7 +1239,7 @@ export class ReloadAction extends ExtensionAction {
 	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
@@ -1162,10 +1249,11 @@ export class ReloadAction extends ExtensionAction {
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
-		this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this, this.disposables);
+		this.disposables.add(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
 		this.updateRunningExtensions();
 	}
 
@@ -1211,12 +1299,19 @@ export class ReloadAction extends ExtensionAction {
 			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
 			if (runningExtension) {
 				// Extension is running
-				const isSameVersionRunning = isSameExtensionRunning && this.extension.version === runningExtension.version;
 				if (isEnabled) {
-					if (!isSameVersionRunning && !this.extensionService.canAddExtension(toExtensionDescription(this.extension.local))) {
-						this.enabled = true;
-						this.label = localize('reloadRequired', "Reload Required");
-						this.tooltip = localize('postUpdateTooltip', "Please reload Visual Studio Code to enable the updated extension.");
+					if (!this.extensionService.canAddExtension(toExtensionDescription(this.extension.local))) {
+						if (isSameExtensionRunning) {
+							if (this.extension.version !== runningExtension.version) {
+								this.enabled = true;
+								this.label = localize('reloadRequired', "Reload Required");
+								this.tooltip = localize('postUpdateTooltip', "Please reload Visual Studio Code to enable the updated extension.");
+							}
+						} else {
+							this.enabled = true;
+							this.label = localize('reloadRequired', "Reload Required");
+							this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+						}
 					}
 				} else {
 					if (isSameExtensionRunning) {
@@ -1234,18 +1329,31 @@ export class ReloadAction extends ExtensionAction {
 					this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
 					return;
 				}
-				if (this.workbenchEnvironmentService.configuration.remoteAuthority
+				if (this.workbenchEnvironmentService.configuration.remoteAuthority) {
+					const uiExtension = isUIExtension(this.extension.local.manifest, this.productService, this.configurationService);
 					// Local Workspace Extension
-					&& this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)
-				) {
-					const remoteExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)[0];
-					// Extension exist in remote and enabled
-					if (remoteExtension && remoteExtension.local && this.extensionEnablementService.isEnabled(remoteExtension.local)) {
-						this.enabled = true;
-						this.label = localize('reloadRequired', "Reload Required");
-						this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
-						alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
-						return;
+					if (!uiExtension && this.extension.server === this.extensionManagementServerService.localExtensionManagementServer) {
+						const remoteExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)[0];
+						// Extension exist in remote and enabled
+						if (remoteExtension && remoteExtension.local && this.extensionEnablementService.isEnabled(remoteExtension.local)) {
+							this.enabled = true;
+							this.label = localize('reloadRequired', "Reload Required");
+							this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+							alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+							return;
+						}
+					}
+					// Remote UI Extension
+					if (uiExtension && this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
+						const localExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.localExtensionManagementServer)[0];
+						// Extension exist in local and enabled
+						if (localExtension && localExtension.local && this.extensionEnablementService.isEnabled(localExtension.local)) {
+							this.enabled = true;
+							this.label = localize('reloadRequired', "Reload Required");
+							this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
+							alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+							return;
+						}
 					}
 				}
 			}
@@ -1257,7 +1365,7 @@ export class ReloadAction extends ExtensionAction {
 	}
 
 	dispose(): void {
-		dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }
@@ -1271,7 +1379,7 @@ export class SetColorThemeAction extends ExtensionAction {
 	private static readonly EnabledClass = 'extension-action theme';
 	private static readonly DisabledClass = `${SetColorThemeAction.EnabledClass} disabled`;
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private readonly colorThemes: IColorTheme[],
@@ -1281,7 +1389,7 @@ export class SetColorThemeAction extends ExtensionAction {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(`extensions.colorTheme`, localize('color theme', "Set Color Theme"), SetColorThemeAction.DisabledClass, false);
-		Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidColorThemeChange)(() => this.update(), this, this.disposables);
+		this.disposables.add(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidColorThemeChange)(() => this.update(), this));
 		this.update();
 	}
 
@@ -1329,7 +1437,7 @@ export class SetColorThemeAction extends ExtensionAction {
 	}
 
 	dispose() {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }
@@ -1339,7 +1447,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 	private static readonly EnabledClass = 'extension-action theme';
 	private static readonly DisabledClass = `${SetFileIconThemeAction.EnabledClass} disabled`;
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	static getFileIconThemes(fileIconThemes: IFileIconTheme[], extension: IExtension): IFileIconTheme[] {
 		return fileIconThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
@@ -1353,7 +1461,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(`extensions.fileIconTheme`, localize('file icon theme', "Set File Icon Theme"), SetFileIconThemeAction.DisabledClass, false);
-		Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidFileIconThemeChange)(() => this.update(), this, this.disposables);
+		this.disposables.add(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidFileIconThemeChange)(() => this.update(), this));
 		this.update();
 	}
 
@@ -1401,7 +1509,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 	}
 
 	dispose() {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }
@@ -1430,7 +1538,7 @@ export class InstallExtensionsAction extends OpenExtensionsViewletAction {
 export class ShowEnabledExtensionsAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.showEnabledExtensions';
-	static LABEL = localize('showEnabledExtensions', 'Show Enabled Extensions');
+	static LABEL = localize('showEnabledExtensions', "Show Enabled Extensions");
 
 	constructor(
 		id: string,
@@ -1501,7 +1609,7 @@ export class ClearExtensionsInputAction extends Action {
 	static readonly ID = 'workbench.extensions.action.clearExtensionsInput';
 	static LABEL = localize('clearExtensionsInput', "Clear Extensions Input");
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string,
@@ -1512,7 +1620,7 @@ export class ClearExtensionsInputAction extends Action {
 	) {
 		super(id, label, 'clear-extensions', true);
 		this.onSearchChange(value);
-		onSearchChange(this.onSearchChange, this, this.disposables);
+		this.disposables.add(onSearchChange(this.onSearchChange, this));
 	}
 
 	private onSearchChange(value: string): void {
@@ -1529,7 +1637,7 @@ export class ClearExtensionsInputAction extends Action {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -1642,7 +1750,10 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(id, label, 'extension-action');
 		this.recommendations = recommendations;
@@ -1659,16 +1770,29 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 					let installPromises: Promise<any>[] = [];
 					let model = new PagedModel(pager);
 					for (let i = 0; i < pager.total; i++) {
-						installPromises.push(model.resolve(i, CancellationToken.None).then(e => {
-							return this.extensionWorkbenchService.install(e).then(undefined, err => {
-								console.error(err);
-								return promptDownloadManually(e.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", e.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
-							});
-						}));
+						installPromises.push(model.resolve(i, CancellationToken.None).then(e => this.installExtension(e)));
 					}
 					return Promise.all(installPromises);
 				});
 			});
+	}
+
+	private async installExtension(extension: IExtension): Promise<void> {
+		try {
+			if (extension.local && extension.gallery) {
+				if (isUIExtension(extension.local.manifest, this.productService, this.configurationService)) {
+					await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(extension.gallery);
+					return;
+				} else if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+					await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(extension.gallery);
+					return;
+				}
+			}
+			await this.extensionWorkbenchService.install(extension);
+		} catch (err) {
+			console.error(err);
+			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+		}
 	}
 }
 
@@ -1719,7 +1843,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 
 	private static readonly Class = 'extension-action ignore';
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 	extension: IExtension;
 
 	constructor(
@@ -1739,7 +1863,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 
 	dispose(): void {
 		super.dispose();
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -1749,7 +1873,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 
 	private static readonly Class = 'extension-action undo-ignore';
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 	extension: IExtension;
 
 	constructor(
@@ -1769,7 +1893,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 
 	dispose(): void {
 		super.dispose();
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -1846,7 +1970,7 @@ export class ShowAzureExtensionsAction extends Action {
 export class ChangeSortAction extends Action {
 
 	private query: Query;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string,
@@ -1863,7 +1987,7 @@ export class ChangeSortAction extends Action {
 
 		this.query = Query.parse('');
 		this.enabled = false;
-		onSearchChange(this.onSearchChange, this, this.disposables);
+		this.disposables.add(onSearchChange(this.onSearchChange, this));
 	}
 
 	private onSearchChange(value: string): void {
@@ -2031,7 +2155,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 
 	protected openWorkspaceConfigurationFile(workspaceConfigurationFile: URI): Promise<any> {
 		return this.getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile)
-			.then(content => this.getSelectionPosition(content.value, content.resource, ['extensions', 'recommendations']))
+			.then(content => this.getSelectionPosition(content.value.toString(), content.resource, ['extensions', 'recommendations']))
 			.then(selection => this.editorService.openEditor({
 				resource: workspaceConfigurationFile,
 				options: {
@@ -2045,7 +2169,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		return this.getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile)
 			.then(content => {
 				const extensionIdLowerCase = extensionId.toLowerCase();
-				const workspaceExtensionsConfigContent: IExtensionsConfigContent = (json.parse(content.value) || {})['extensions'] || {};
+				const workspaceExtensionsConfigContent: IExtensionsConfigContent = (json.parse(content.value.toString()) || {})['extensions'] || {};
 				let insertInto = shouldRecommend ? workspaceExtensionsConfigContent.recommendations || [] : workspaceExtensionsConfigContent.unwantedRecommendations || [];
 				let removeFrom = shouldRecommend ? workspaceExtensionsConfigContent.unwantedRecommendations || [] : workspaceExtensionsConfigContent.recommendations || [];
 
@@ -2105,26 +2229,26 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 	}
 
 	protected getWorkspaceExtensionsConfigContent(extensionsFileResource: URI): Promise<IExtensionsConfigContent> {
-		return Promise.resolve(this.fileService.resolveContent(extensionsFileResource))
+		return Promise.resolve(this.fileService.readFile(extensionsFileResource))
 			.then(content => {
-				return (json.parse(content.value) || {})['extensions'] || {};
+				return (json.parse(content.value.toString()) || {})['extensions'] || {};
 			}, err => ({ recommendations: [], unwantedRecommendations: [] }));
 	}
 
 	protected getWorkspaceFolderExtensionsConfigContent(extensionsFileResource: URI): Promise<IExtensionsConfigContent> {
-		return Promise.resolve(this.fileService.resolveContent(extensionsFileResource))
+		return Promise.resolve(this.fileService.readFile(extensionsFileResource))
 			.then(content => {
-				return (<IExtensionsConfigContent>json.parse(content.value));
+				return (<IExtensionsConfigContent>json.parse(content.value.toString()));
 			}, err => ({ recommendations: [], unwantedRecommendations: [] }));
 	}
 
-	private getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile: URI): Promise<IContent> {
-		return Promise.resolve(this.fileService.resolveContent(workspaceConfigurationFile))
+	private getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile: URI): Promise<IFileContent> {
+		return Promise.resolve(this.fileService.readFile(workspaceConfigurationFile))
 			.then(content => {
-				const workspaceRecommendations = <IExtensionsConfigContent>json.parse(content.value)['extensions'];
+				const workspaceRecommendations = <IExtensionsConfigContent>json.parse(content.value.toString())['extensions'];
 				if (!workspaceRecommendations || !workspaceRecommendations.recommendations) {
 					return this.jsonEditingService.write(workspaceConfigurationFile, { key: 'extensions', value: { recommendations: [] } }, true)
-						.then(() => this.fileService.resolveContent(workspaceConfigurationFile));
+						.then(() => this.fileService.readFile(workspaceConfigurationFile));
 				}
 				return content;
 			});
@@ -2153,8 +2277,8 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 	}
 
 	private getOrCreateExtensionsFile(extensionsFileResource: URI): Promise<{ created: boolean, extensionsFileResource: URI, content: string }> {
-		return Promise.resolve(this.fileService.resolveContent(extensionsFileResource)).then(content => {
-			return { created: false, extensionsFileResource, content: content.value };
+		return Promise.resolve(this.fileService.readFile(extensionsFileResource)).then(content => {
+			return { created: false, extensionsFileResource, content: content.value.toString() };
 		}, err => {
 			return this.textFileService.write(extensionsFileResource, ExtensionsConfigurationInitialContent).then(() => {
 				return { created: true, extensionsFileResource, content: ExtensionsConfigurationInitialContent };
@@ -2168,7 +2292,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 	static readonly ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
 	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Recommended Extensions (Workspace)");
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string,
@@ -2181,7 +2305,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		super(id, label, contextService, fileService, textFileService, editorService, jsonEditingService, textModelResolverService);
-		this.contextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
+		this.disposables.add(this.contextService.onDidChangeWorkbenchState(() => this.update(), this));
 		this.update();
 	}
 
@@ -2200,7 +2324,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }
@@ -2210,7 +2334,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 	static readonly ID = 'workbench.extensions.action.configureWorkspaceFolderRecommendedExtensions';
 	static LABEL = localize('configureWorkspaceFolderRecommendedExtensions', "Configure Recommended Extensions (Workspace Folder)");
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string,
@@ -2224,7 +2348,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, contextService, fileService, textFileService, editorService, jsonEditingService, textModelResolverService);
-		this.contextService.onDidChangeWorkspaceFolders(() => this.update(), this, this.disposables);
+		this.disposables.add(this.contextService.onDidChangeWorkspaceFolders(() => this.update(), this));
 		this.update();
 	}
 
@@ -2245,7 +2369,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }
@@ -2428,7 +2552,8 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 	}
 
 	constructor(
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super('extensions.action.statusLabel', '', StatusLabelAction.DISABLED_CLASS, false);
 	}
@@ -2467,7 +2592,7 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 		};
 		const canRemoveExtension = () => {
 			if (this.extension.local) {
-				if (runningExtensions.every(e => !areSameExtensions({ id: e.identifier.value }, this.extension.identifier))) {
+				if (runningExtensions.every(e => !(areSameExtensions({ id: e.identifier.value }, this.extension.identifier) && this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation)))) {
 					return true;
 				}
 				return this.extensionService.canRemoveExtension(toExtensionDescription(this.extension.local));
@@ -2535,30 +2660,43 @@ export class DisabledLabelAction extends ExtensionAction {
 	private static readonly Class = 'disable-status';
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
+	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
 		private readonly warningAction: SystemDisabledWarningAction,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super('extensions.disabledLabel', warningAction.tooltip, `${DisabledLabelAction.Class} hide`, false);
-		warningAction.onDidChange(() => this.update(), this, this.disposables);
+		this.disposables.add(warningAction.onDidChange(() => this.update(), this));
+		this.disposables.add(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
+		this.updateRunningExtensions();
+	}
+
+	private updateRunningExtensions(): void {
+		this.extensionService.getExtensions().then(runningExtensions => { this._runningExtensions = runningExtensions; this.update(); });
 	}
 
 	update(): void {
 		this.class = `${DisabledLabelAction.Class} hide`;
 		this.label = '';
-		if (this.warningAction.enabled) {
-			this.enabled = true;
+		if (this.warningAction.tooltip) {
 			this.class = DisabledLabelAction.Class;
 			this.label = this.warningAction.tooltip;
 			return;
 		}
-		if (this.extension && this.extension.local && !this.extensionEnablementService.isEnabled(this.extension.local)) {
-			this.enabled = true;
-			this.class = DisabledLabelAction.Class;
-			this.label = localize('disabled by user', "This extension is disabled by the user.");
+		if (this.extension && this.extension.local && isLanguagePackExtension(this.extension.local.manifest)) {
 			return;
+		}
+		if (this.extension && this.extension.local && this._runningExtensions) {
+			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
+			const isExtensionRunning = this._runningExtensions.some(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier));
+			if (!isExtensionRunning && !isEnabled && this.extensionEnablementService.canChangeEnablement(this.extension.local)) {
+				this.class = DisabledLabelAction.Class;
+				this.label = localize('disabled by user', "This extension is disabled by the user.");
+				return;
+			}
 		}
 	}
 
@@ -2567,30 +2705,33 @@ export class DisabledLabelAction extends ExtensionAction {
 	}
 
 	dispose(): void {
-		dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }
 
 export class SystemDisabledWarningAction extends ExtensionAction {
 
-	private static readonly Class = 'disable-warning';
+	private static readonly CLASS = 'system-disable';
+	private static readonly WARNING_CLASS = `${SystemDisabledWarningAction.CLASS} warning`;
+	private static readonly INFO_CLASS = `${SystemDisabledWarningAction.CLASS} info`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
-		super('extensions.install', '', `${SystemDisabledWarningAction.Class} hide`, false);
-		this.labelService.onDidChangeFormatters(() => this.update(), this, this.disposables);
-		this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this, this.disposables);
+		super('extensions.install', '', `${SystemDisabledWarningAction.CLASS} hide`, false);
+		this.disposables.add(this.labelService.onDidChangeFormatters(() => this.update(), this));
+		this.disposables.add(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
 		this.updateRunningExtensions();
 		this.update();
 	}
@@ -2600,34 +2741,53 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = false;
-		this.class = `${SystemDisabledWarningAction.Class} hide`;
+		this.class = `${SystemDisabledWarningAction.CLASS} hide`;
 		this.tooltip = '';
-		if (this.extension && this.extension.local && this.extension.server && this._runningExtensions && this.workbenchEnvironmentService.configuration.remoteAuthority && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			if (
-				// Local Workspace Extension
-				this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.configurationService)
-			) {
-				this.enabled = true;
-				this.class = `${SystemDisabledWarningAction.Class}`;
-				this.tooltip = localize('disabled workspace Extension', "This extension from {0} server is disabled because it cannot run in a window connected to the remote server.", this.getServerLabel(this.extensionManagementServerService.localExtensionManagementServer));
-				if (!this.extensionsWorkbenchService.local.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server === this.extensionManagementServerService.remoteExtensionManagementServer)
-					&& this.extensionsWorkbenchService.canInstall(this.extension)
-				) {
-					// Extension does not exist in remote
-					this.tooltip = `${this.tooltip} ${localize('Install in remote server', "Install it in {0} server to enable.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer))}`;
-				}
+		if (
+			!this.extension ||
+			!this.extension.local ||
+			!this.extension.server ||
+			!this._runningExtensions ||
+			!this.workbenchEnvironmentService.configuration.remoteAuthority ||
+			!this.extensionManagementServerService.remoteExtensionManagementServer ||
+			this.extension.state !== ExtensionState.Installed
+		) {
+			return;
+		}
+		if (isLanguagePackExtension(this.extension.local.manifest)) {
+			if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension.identifier) && e.server !== this.extension.server)) {
+				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+				this.tooltip = this.extension.server === this.extensionManagementServerService.localExtensionManagementServer
+					? localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it also there.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer))
+					: localize('Install language pack also locally', "Install the language pack extension locally to enable it also there.");
+			}
+			return;
+		}
+		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
+		const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;
+		const localExtension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, this.extension.identifier))[0];
+		const localExtensionServer = localExtension ? localExtension.server : null;
+		if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && !isUIExtension(this.extension.local.manifest, this.productService, this.configurationService)) {
+			if (runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
+				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+				this.tooltip = localize('disabled locally', "Extension is enabled on '{0}' and disabled locally.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));
 				return;
 			}
-			const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value }, this.extension.identifier))[0];
-			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;
-			if (
-				// Not same as running extension
-				runningExtensionServer && this.extension.server !== runningExtensionServer
-			) {
-				this.enabled = true;
-				this.class = `${SystemDisabledWarningAction.Class}`;
-				this.tooltip = localize('disabled because running in another server', "This extension from {0} server is disabled because another instance of same extension from {1} server is enabled.", this.getServerLabel(this.extension.server), this.getServerLabel(runningExtensionServer));
+			if (localExtensionServer !== this.extensionManagementServerService.remoteExtensionManagementServer) {
+				this.class = `${SystemDisabledWarningAction.WARNING_CLASS}`;
+				this.tooltip = localize('Install in remote server', "Install the extension on '{0}' to enable.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));
+				return;
+			}
+		}
+		if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && isUIExtension(this.extension.local.manifest, this.productService, this.configurationService)) {
+			if (runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
+				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+				this.tooltip = localize('disabled remotely', "Extension is enabled locally and disabled on '{0}'.", this.getServerLabel(this.extensionManagementServerService.remoteExtensionManagementServer));
+				return;
+			}
+			if (localExtensionServer !== this.extensionManagementServerService.localExtensionManagementServer) {
+				this.class = `${SystemDisabledWarningAction.WARNING_CLASS}`;
+				this.tooltip = localize('Install in local server', "Install the extension locally to enable.");
 				return;
 			}
 		}
@@ -2644,7 +2804,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	}
 
 	dispose(): void {
-		dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }
@@ -2654,7 +2814,7 @@ export class DisableAllAction extends Action {
 	static readonly ID = 'workbench.extensions.action.disableAll';
 	static LABEL = localize('disableAll', "Disable All Installed Extensions");
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string = DisableAllAction.ID, label: string = DisableAllAction.LABEL,
@@ -2663,7 +2823,7 @@ export class DisableAllAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.add(this.extensionsWorkbenchService.onChange(() => this.update()));
 	}
 
 	private update(): void {
@@ -2676,7 +2836,7 @@ export class DisableAllAction extends Action {
 
 	dispose(): void {
 		super.dispose();
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -2685,7 +2845,7 @@ export class DisableAllWorkpsaceAction extends Action {
 	static readonly ID = 'workbench.extensions.action.disableAllWorkspace';
 	static LABEL = localize('disableAllWorkspace', "Disable All Installed Extensions for this Workspace");
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string = DisableAllWorkpsaceAction.ID, label: string = DisableAllWorkpsaceAction.LABEL,
@@ -2694,8 +2854,8 @@ export class DisableAllWorkpsaceAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
-		this.extensionsWorkbenchService.onChange(() => this.update(), this, this.disposables);
+		this.disposables.add(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
+		this.disposables.add(this.extensionsWorkbenchService.onChange(() => this.update(), this));
 	}
 
 	private update(): void {
@@ -2708,7 +2868,7 @@ export class DisableAllWorkpsaceAction extends Action {
 
 	dispose(): void {
 		super.dispose();
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -2717,7 +2877,7 @@ export class EnableAllAction extends Action {
 	static readonly ID = 'workbench.extensions.action.enableAll';
 	static LABEL = localize('enableAll', "Enable All Extensions");
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string = EnableAllAction.ID, label: string = EnableAllAction.LABEL,
@@ -2726,7 +2886,7 @@ export class EnableAllAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.add(this.extensionsWorkbenchService.onChange(() => this.update()));
 	}
 
 	private update(): void {
@@ -2739,7 +2899,7 @@ export class EnableAllAction extends Action {
 
 	dispose(): void {
 		super.dispose();
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -2748,7 +2908,7 @@ export class EnableAllWorkpsaceAction extends Action {
 	static readonly ID = 'workbench.extensions.action.enableAllWorkspace';
 	static LABEL = localize('enableAllWorkspace', "Enable All Extensions for this Workspace");
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string = EnableAllWorkpsaceAction.ID, label: string = EnableAllWorkpsaceAction.LABEL,
@@ -2758,8 +2918,8 @@ export class EnableAllWorkpsaceAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.extensionsWorkbenchService.onChange(() => this.update(), this, this.disposables);
-		this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
+		this.disposables.add(this.extensionsWorkbenchService.onChange(() => this.update(), this));
+		this.disposables.add(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
 	}
 
 	private update(): void {
@@ -2772,7 +2932,7 @@ export class EnableAllWorkpsaceAction extends Action {
 
 	dispose(): void {
 		super.dispose();
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 	}
 }
 
@@ -2840,7 +3000,7 @@ export class InstallVSIXAction extends Action {
 					for (const extension of extensions) {
 						const requireReload = !(extension.local && this.extensionService.canAddExtension(toExtensionDescription(extension.local)));
 						const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.identifier.id)
-							: localize('InstallVSIXAction.success', "Installing the extension {0} is completed.", extension.identifier.id);
+							: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.identifier.id);
 						const actions = requireReload ? [{
 							label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
 							run: () => this.windowService.reloadWindow()

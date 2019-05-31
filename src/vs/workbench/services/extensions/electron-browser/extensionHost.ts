@@ -5,13 +5,12 @@
 
 import * as nls from 'vs/nls';
 import { ChildProcess, fork } from 'child_process';
-import { ipcRenderer as ipc } from 'electron';
 import { Server, Socket, createServer } from 'net';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/product/node/package';
@@ -38,13 +37,14 @@ import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
+import { isEqualOrParent } from 'vs/base/common/resources';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
-	private readonly _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
-	public readonly onCrashed: Event<[number, string]> = this._onCrashed.event;
+	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
+	public readonly onExit: Event<[number, string]> = this._onExit.event;
 
-	private readonly _toDispose: IDisposable[];
+	private readonly _toDispose = new DisposableStore();
 
 	private readonly _isExtensionDevHost: boolean;
 	private readonly _isExtensionDevDebug: boolean;
@@ -91,16 +91,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._extensionHostConnection = null;
 		this._messageProtocol = null;
 
-		this._toDispose = [];
-		this._toDispose.push(this._onCrashed);
-		this._toDispose.push(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
-		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
-		this._toDispose.push(this._extensionHostDebugService.onClose(event => {
+		this._toDispose.add(this._onExit);
+		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
+		this._toDispose.add(this._lifecycleService.onShutdown(reason => this.terminate()));
+		this._toDispose.add(this._extensionHostDebugService.onClose(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._windowService.closeWindow();
 			}
 		}));
-		this._toDispose.push(this._extensionHostDebugService.onReload(event => {
+		this._toDispose.add(this._extensionHostDebugService.onReload(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._windowService.reloadWindow();
 			}
@@ -108,7 +107,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		const globalExitListener = () => this.terminate();
 		process.once('exit', globalExitListener);
-		this._toDispose.push(toDisposable(() => {
+		this._toDispose.add(toDisposable(() => {
 			process.removeListener('exit', globalExitListener);
 		}));
 	}
@@ -400,7 +399,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 						configuration: withNullAsUndefined(workspace.configuration),
 						id: workspace.id,
-						name: this._labelService.getWorkspaceLabel(workspace)
+						name: this._labelService.getWorkspaceLabel(workspace),
+						isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false
 					},
 					resolvedExtensions: [],
 					hostExtensions: [],
@@ -449,20 +449,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			return;
 		}
 
-		// Unexpected termination
-		if (!this._isExtensionDevHost) {
-			this._onCrashed.fire([code, signal]);
-		}
-
-		// Expected development extension termination: When the extension host goes down we also shutdown the window
-		else if (!this._isExtensionDevTestFromCli) {
-			this._windowService.closeWindow();
-		}
-
-		// When CLI testing make sure to exit with proper exit code
-		else {
-			ipc.send('vscode:exit', code);
-		}
+		this._onExit.fire([code, signal]);
 	}
 
 	public enableInspector(): Promise<void> {
@@ -487,7 +474,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 		this._terminating = true;
 
-		dispose(this._toDispose);
+		this._toDispose.dispose();
 
 		if (!this._messageProtocol) {
 			// .start() was not called

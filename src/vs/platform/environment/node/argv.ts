@@ -8,7 +8,7 @@ import * as os from 'os';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/path';
-import { writeFileSync } from 'fs';
+import { writeFileSync } from 'vs/base/node/pfs';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
@@ -47,7 +47,7 @@ export const options: Option[] = [
 	{ id: 'extensions-dir', type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	{ id: 'list-extensions', type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	{ id: 'show-versions', type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
-	{ id: 'install-extension', type: 'string', cat: 'e', args: 'extension-id', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
+	{ id: 'install-extension', type: 'string', cat: 'e', args: 'extension-id | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
 	{ id: 'uninstall-extension', type: 'string', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
 	{ id: 'enable-proposed-api', type: 'string', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
@@ -95,7 +95,6 @@ export const options: Option[] = [
 	{ id: 'trace-category-filter', type: 'string' },
 	{ id: 'trace-options', type: 'string' },
 	{ id: 'prof-code-loading', type: 'boolean' },
-	{ id: 'nodeless', type: 'boolean' }, // TODO@ben revisit electron5 nodeless support
 	{ id: '_', type: 'string' }
 ];
 
@@ -197,12 +196,14 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 	help.push('');
 	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}][${localize('paths', 'paths')}...]`);
 	help.push('');
-	if (os.platform() === 'win32') {
-		help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
-	} else {
-		help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
+	if (isPipeSupported) {
+		if (os.platform() === 'win32') {
+			help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
+		} else {
+			help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));
+		}
+		help.push('');
 	}
-	help.push('');
 	for (let key in categories) {
 		let categoryOptions = options.filter(o => !!o.description && o.cat === key && isOptionSupported(o));
 		if (categoryOptions.length) {

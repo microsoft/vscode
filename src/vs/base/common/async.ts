@@ -50,6 +50,12 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	};
 }
 
+export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken): Promise<T | undefined>;
+export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue: T): Promise<T>;
+export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue?: T): Promise<T> {
+	return Promise.race([promise, new Promise<T>(resolve => token.onCancellationRequested(() => resolve(defaultValue)))]);
+}
+
 export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		const item = callback();

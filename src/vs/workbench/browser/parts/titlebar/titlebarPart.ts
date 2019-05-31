@@ -36,6 +36,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Schemas } from 'vs/base/common/network';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -179,7 +180,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private updateRepresentedFilename(): void {
-		const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: 'file' });
+		const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file });
 		const path = file ? file.fsPath : '';
 
 		// Apply to window
@@ -390,14 +391,13 @@ export class TitlebarPart extends Part implements ITitleService {
 			const restoreIconContainer = append(this.windowControls, $('div.window-icon-bg'));
 			this.maxRestoreControl = append(restoreIconContainer, $('div.window-icon'));
 			addClass(this.maxRestoreControl, 'window-max-restore');
-			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, e => {
-				this.windowService.isMaximized().then((maximized) => {
-					if (maximized) {
-						return this.windowService.unmaximizeWindow();
-					}
+			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
+				const maximized = await this.windowService.isMaximized();
+				if (maximized) {
+					return this.windowService.unmaximizeWindow();
+				}
 
-					return this.windowService.maximizeWindow();
-				});
+				return this.windowService.maximizeWindow();
 			}));
 
 			// Close

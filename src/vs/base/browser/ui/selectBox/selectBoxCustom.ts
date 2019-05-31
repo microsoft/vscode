@@ -38,8 +38,8 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 
 	constructor() { }
 
-	renderTemplate(container: HTMLElement): any {
-		const data = <ISelectListTemplateData>Object.create(null);
+	renderTemplate(container: HTMLElement): ISelectListTemplateData {
+		const data: ISelectListTemplateData = Object.create(null);
 		data.disposables = [];
 		data.root = container;
 		data.text = dom.append(container, $('.option-text'));
@@ -51,10 +51,10 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 	}
 
 	renderElement(element: ISelectOptionItem, index: number, templateData: ISelectListTemplateData): void {
-		const data = <ISelectListTemplateData>templateData;
-		const text = (<ISelectOptionItem>element).text;
-		const decoratorRight = (<ISelectOptionItem>element).decoratorRight;
-		const isDisabled = (<ISelectOptionItem>element).isDisabled;
+		const data: ISelectListTemplateData = templateData;
+		const text = element.text;
+		const decoratorRight = element.decoratorRight;
+		const isDisabled = element.isDisabled;
 
 		data.text.textContent = text;
 		data.decoratorRight.innerText = (!!decoratorRight ? decoratorRight : '');
@@ -68,10 +68,10 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 
 		// pseudo-select disabled option
 		if (isDisabled) {
-			dom.addClass((<HTMLElement>data.root), 'option-disabled');
+			dom.addClass(data.root, 'option-disabled');
 		} else {
 			// Make sure we do class removal from prior template rendering
-			dom.removeClass((<HTMLElement>data.root), 'option-disabled');
+			dom.removeClass(data.root, 'option-disabled');
 		}
 	}
 
@@ -191,6 +191,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 				index: e.target.selectedIndex,
 				selected: e.target.value
 			});
+			if (!!this.options[this.selected] && !!this.options[this.selected].text) {
+				this.selectElement.title = this.options[this.selected].text;
+			}
 		}));
 
 		// Have to implement both keyboard and mouse controllers to handle disabled options
@@ -282,6 +285,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 		}
 
 		this.selectElement.selectedIndex = this.selected;
+		if (!!this.options[this.selected] && !!this.options[this.selected].text) {
+			this.selectElement.title = this.options[this.selected].text;
+		}
 	}
 
 	public setAriaLabel(label: string): void {
@@ -395,7 +401,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 			let listBackground = this.styles.selectListBackground ? this.styles.selectListBackground.toString() : background;
 			this.selectDropDownListContainer.style.backgroundColor = listBackground;
 			this.selectionDetailsPane.style.backgroundColor = listBackground;
-			const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder.toString() : null;
+			const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder.toString() : '';
 			this.selectDropDownContainer.style.outlineColor = optionsBorder;
 			this.selectDropDownContainer.style.outlineOffset = '-1px';
 		}
@@ -798,7 +804,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 				this._onDidSelect.fire({
 					index: this.selectElement.selectedIndex,
 					selected: this.options[this.selected].text
+
 				});
+				if (!!this.options[this.selected] && !!this.options[this.selected].text) {
+					this.selectElement.title = this.options[this.selected].text;
+				}
 			}
 
 			this.hideSelectDropDown(true);
@@ -820,9 +830,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 	private renderDescriptionMarkdown(text: string): HTMLElement {
 		const cleanRenderedMarkdown = (element: Node) => {
 			for (let i = 0; i < element.childNodes.length; i++) {
-				const child = element.childNodes.item(i);
+				const child = <Element>element.childNodes.item(i);
 
-				const tagName = (<Element>child).tagName && (<Element>child).tagName.toLowerCase();
+				const tagName = child.tagName && child.tagName.toLowerCase();
 				if (tagName === 'img') {
 					element.removeChild(child);
 				} else {
@@ -891,6 +901,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IListVirtualDelegate<I
 				index: this.selectElement.selectedIndex,
 				selected: this.options[this.selected].text
 			});
+			if (!!this.options[this.selected] && !!this.options[this.selected].text) {
+				this.selectElement.title = this.options[this.selected].text;
+			}
 		}
 
 		this.hideSelectDropDown(true);

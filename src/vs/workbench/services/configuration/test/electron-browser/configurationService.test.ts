@@ -22,8 +22,7 @@ import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configurati
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
-import { LegacyFileService } from 'vs/workbench/services/files/node/fileService';
+import { workbenchInstantiationService, TestTextFileService, RemoteFileSystemProvider } from 'vs/workbench/test/workbenchTestServices';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -38,11 +37,13 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService2 } from 'vs/workbench/services/files2/common/fileService2';
+import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files2/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { ConfigurationFileService } from 'vs/workbench/services/configuration/node/configurationFileService';
+import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -219,9 +220,10 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const fileService = new FileService2(new NullLogService());
+				const fileService = new FileService(new NullLogService());
+				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 				const configurationFileService = new ConfigurationFileService();
-				fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+				configurationFileService.fileService = fileService;
 				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -229,13 +231,6 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
-					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-					fileService.setLegacyService(new LegacyFileService(
-						fileService,
-						workspaceService,
-						TestEnvironmentService,
-						new TestTextResourceConfigurationService()
-					));
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -486,22 +481,16 @@ suite('WorkspaceService - Initialization', () => {
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const fileService = new FileService2(new NullLogService());
+				const fileService = new FileService(new NullLogService());
+				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 				const configurationFileService = new ConfigurationFileService();
-				fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+				configurationFileService.fileService = fileService;
 				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize({ id: '' }).then(() => {
-					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-					fileService.setLegacyService(new LegacyFileService(
-						fileService,
-						workspaceService,
-						TestEnvironmentService,
-						new TestTextResourceConfigurationService()
-					));
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -756,22 +745,16 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const fileService = new FileService2(new NullLogService());
+				const fileService = new FileService(new NullLogService());
+				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 				const configurationFileService = new ConfigurationFileService();
-				fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+				configurationFileService.fileService = fileService;
 				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(convertToWorkspacePayload(URI.file(folderDir))).then(() => {
-					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-					fileService.setLegacyService(new LegacyFileService(
-						fileService,
-						workspaceService,
-						TestEnvironmentService,
-						new TestTextResourceConfigurationService()
-					));
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -1090,9 +1073,10 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
-				const fileService = new FileService2(new NullLogService());
+				const fileService = new FileService(new NullLogService());
+				fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 				const configurationFileService = new ConfigurationFileService();
-				fileService.whenReady.then(() => configurationFileService.fileService = fileService);
+				configurationFileService.fileService = fileService;
 				const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -1100,13 +1084,6 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(getWorkspaceIdentifier(configPath)).then(() => {
-					fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-					fileService.setLegacyService(new LegacyFileService(
-						fileService,
-						workspaceService,
-						TestEnvironmentService,
-						new TestTextResourceConfigurationService()
-					));
 					instantiationService.stub(IFileService, fileService);
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -1433,6 +1410,199 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				assert.equal(actual.workspace, undefined);
 			});
 	});
+
+	test('configuration of newly added folder is available on configuration change event', async () => {
+		const workspaceService = <WorkspaceService>testObject;
+		const uri = workspaceService.getWorkspace().folders[1].uri;
+		await workspaceService.removeFolders([uri]);
+		fs.writeFileSync(path.join(uri.fsPath, '.vscode', 'settings.json'), '{ "configurationService.workspace.testResourceSetting": "workspaceFolderValue" }');
+
+		return new Promise((c, e) => {
+			testObject.onDidChangeConfiguration(() => {
+				try {
+					assert.equal(testObject.getValue('configurationService.workspace.testResourceSetting', { resource: uri }), 'workspaceFolderValue');
+					c();
+				} catch (error) {
+					e(error);
+				}
+			});
+			workspaceService.addFolders([{ uri }]);
+		});
+	});
+});
+
+suite('WorkspaceConfigurationService - Remote Folder', () => {
+
+	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: WorkspaceService, globalSettingsFile: string, remoteSettingsFile: string, instantiationService: TestInstantiationService, resolveRemoteEnvironment: () => void;
+	const remoteAuthority = 'configuraiton-tests';
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
+
+	suiteSetup(() => {
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.remote.applicationSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				},
+				'configurationService.remote.machineSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE
+				},
+				'configurationService.remote.testSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.RESOURCE
+				}
+			}
+		});
+	});
+
+	setup(() => {
+		return setUpFolderWorkspace(workspaceName)
+			.then(({ parentDir, folderDir }) => {
+
+				parentResource = parentDir;
+				workspaceDir = folderDir;
+				globalSettingsFile = path.join(parentDir, 'settings.json');
+				remoteSettingsFile = path.join(parentDir, 'remote-settings.json');
+
+				instantiationService = <TestInstantiationService>workbenchInstantiationService();
+				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
+				const remoteEnvironmentPromise = new Promise<Partial<IRemoteAgentEnvironment>>(c => resolveRemoteEnvironment = () => c({ settingsPath: URI.file(remoteSettingsFile).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority }) }));
+				const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });
+				const fileService = new FileService(new NullLogService());
+				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+				const configurationFileService = new ConfigurationFileService();
+				configurationFileService.fileService = fileService;
+				const configurationCache: IConfigurationCache = { read: () => Promise.resolve(''), write: () => Promise.resolve(), remove: () => Promise.resolve() };
+				testObject = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache, remoteAuthority }, configurationFileService, remoteAgentService);
+				instantiationService.stub(IWorkspaceContextService, testObject);
+				instantiationService.stub(IConfigurationService, testObject);
+				instantiationService.stub(IEnvironmentService, environmentService);
+				instantiationService.stub(IFileService, fileService);
+			});
+	});
+
+	async function initialize(): Promise<void> {
+		await testObject.initialize(convertToWorkspacePayload(URI.file(workspaceDir)));
+		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
+		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		testObject.acquireInstantiationService(instantiationService);
+	}
+
+	function registerRemoteFileSystemProvider(): void {
+		instantiationService.get(IFileService).registerProvider(Schemas.vscodeRemote, new RemoteFileSystemProvider(diskFileSystemProvider, remoteAuthority));
+	}
+
+	function registerRemoteFileSystemProviderOnActivation(): void {
+		const disposable = instantiationService.get(IFileService).onWillActivateFileSystemProvider(e => {
+			if (e.scheme === Schemas.vscodeRemote) {
+				disposable.dispose();
+				e.join(Promise.resolve().then(() => registerRemoteFileSystemProvider()));
+			}
+		});
+	}
+
+	teardown(() => {
+		if (testObject) {
+			(<WorkspaceService>testObject).dispose();
+		}
+		if (parentResource) {
+			return pfs.rimraf(parentResource, pfs.RimRafMode.MOVE);
+		}
+		return undefined;
+	});
+
+	test('remote settings override globals', async () => {
+		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+	});
+
+	test('remote settings override globals after remote provider is registered on activation', async () => {
+		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
+		resolveRemoteEnvironment();
+		registerRemoteFileSystemProviderOnActivation();
+		await initialize();
+		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+	});
+
+	test('remote settings override globals after remote environment is resolved', async () => {
+		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
+		registerRemoteFileSystemProvider();
+		await initialize();
+		const promise = new Promise((c, e) => {
+			testObject.onDidChangeConfiguration(event => {
+				try {
+					assert.equal(event.source, ConfigurationTarget.USER);
+					assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+					c();
+				} catch (error) {
+					e(error);
+				}
+			});
+		});
+		resolveRemoteEnvironment();
+		return promise;
+	});
+
+	test('remote settings override globals after remote provider is registered on activation and remote environment is resolved', async () => {
+		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
+		registerRemoteFileSystemProviderOnActivation();
+		await initialize();
+		const promise = new Promise((c, e) => {
+			testObject.onDidChangeConfiguration(event => {
+				try {
+					assert.equal(event.source, ConfigurationTarget.USER);
+					assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+					c();
+				} catch (error) {
+					e(error);
+				}
+			});
+		});
+		resolveRemoteEnvironment();
+		return promise;
+	});
+
+	// test('update remote settings', async () => {
+	// 	registerRemoteFileSystemProvider();
+	// 	resolveRemoteEnvironment();
+	// 	await initialize();
+	// 	assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
+	// 	const promise = new Promise((c, e) => {
+	// 		testObject.onDidChangeConfiguration(event => {
+	// 			try {
+	// 				assert.equal(event.source, ConfigurationTarget.USER);
+	// 				assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+	// 				assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+	// 				c();
+	// 			} catch (error) {
+	// 				e(error);
+	// 			}
+	// 		});
+	// 	});
+	// 	fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
+	// 	return promise;
+	// });
+
+	test('machine settings in local user settings does not override defaults', async () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.remote.machineSetting": "globalValue" }');
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
+	});
+
 });
 
 function getWorkspaceId(configPath: URI): string {

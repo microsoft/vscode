@@ -45,13 +45,13 @@ class WindowManager {
 
 	// --- Pixel Ratio
 	public getPixelRatio(): number {
-		let ctx = document.createElement('canvas').getContext('2d');
+		let ctx: any = document.createElement('canvas').getContext('2d');
 		let dpr = window.devicePixelRatio || 1;
-		let bsr = (<any>ctx).webkitBackingStorePixelRatio ||
-			(<any>ctx).mozBackingStorePixelRatio ||
-			(<any>ctx).msBackingStorePixelRatio ||
-			(<any>ctx).oBackingStorePixelRatio ||
-			(<any>ctx).backingStorePixelRatio || 1;
+		let bsr = ctx.webkitBackingStorePixelRatio ||
+			ctx.mozBackingStorePixelRatio ||
+			ctx.msBackingStorePixelRatio ||
+			ctx.oBackingStorePixelRatio ||
+			ctx.backingStorePixelRatio || 1;
 		return dpr / bsr;
 	}
 

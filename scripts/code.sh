@@ -59,19 +59,19 @@ function code-wsl()
 {
 	# in a wsl shell
 	local WIN_CODE_CLI_CMD=$(wslpath -w "$ROOT/scripts/code-cli.bat")
-
-	local WSL_EXT_ID="ms-vscode.remote-wsl"
-	local WSL_EXT_WLOC=$(cmd.exe /c "$WIN_CODE_CLI_CMD" --locate-extension $WSL_EXT_ID)
-	if ! [ -z "$WSL_EXT_WLOC" ]; then
-		# replace \r\n with \n in WSL_EXT_WLOC
-		local WSL_CODE=$(wslpath -u "${WSL_EXT_WLOC%%[[:cntrl:]]}")/scripts/wslCode-dev.sh
-		$WSL_CODE "$ROOT" "$@"
-		exit $?
+	if ! [ -z "$WIN_CODE_CLI_CMD" ]; then
+		local WSL_EXT_ID="ms-vscode-remote.remote-wsl"
+		local WSL_EXT_WLOC=$(cmd.exe /c "$WIN_CODE_CLI_CMD" --locate-extension $WSL_EXT_ID)
+		if ! [ -z "$WSL_EXT_WLOC" ]; then
+			# replace \r\n with \n in WSL_EXT_WLOC
+			local WSL_CODE=$(wslpath -u "${WSL_EXT_WLOC%%[[:cntrl:]]}")/scripts/wslCode-dev.sh
+			$WSL_CODE "$ROOT" "$@"
+			exit $?
+		fi
 	fi
 }
 
-if [ -z ${IN_WSL+x} ]; then
-	code "$@"
-else
+if ! [ -z ${IN_WSL+x} ]; then
 	code-wsl "$@"
 fi
+code "$@"

@@ -566,7 +566,7 @@ export const peekViewEditorMatchHighlightBorder = registerColor('peekViewEditor.
 registerThemingParticipant((theme, collector) => {
 	const findMatchHighlightColor = theme.getColor(peekViewResultsMatchHighlight);
 	if (findMatchHighlightColor) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { background-color: ${findMatchHighlightColor}; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { background-color: ${findMatchHighlightColor}; }`);
 	}
 	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
 	if (referenceHighlightColor) {
@@ -578,7 +578,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
 	}
 	const resultsBackground = theme.getColor(peekViewResultsBackground);
 	if (resultsBackground) {

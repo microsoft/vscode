@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import * as modes from 'vs/editor/common/modes';
 
 /**
  * Set when the find widget in a webview is visible.
@@ -28,11 +29,6 @@ export interface IWebviewService {
 	): Webview;
 }
 
-export interface WebviewPortMapping {
-	readonly port: number;
-	readonly resolvedPort: number;
-}
-
 export interface WebviewOptions {
 	readonly allowSvgs?: boolean;
 	readonly extension?: {
@@ -46,12 +42,12 @@ export interface WebviewContentOptions {
 	readonly allowScripts?: boolean;
 	readonly svgWhiteList?: string[];
 	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly portMappings?: ReadonlyArray<WebviewPortMapping>;
+	readonly portMappings?: ReadonlyArray<modes.IWebviewPortMapping>;
 }
 
 export interface Webview {
 
-	contents: string;
+	html: string;
 	options: WebviewContentOptions;
 	initialScrollProgress: number;
 	state: string | undefined;

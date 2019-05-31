@@ -12,6 +12,7 @@
 			"id": "python",
 			"extensions": [ ".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi", ".snakefile", ".smk", ".pyi", ".ipy"],
 			"aliases": [ "Python", "py" ],
+			"filenames": [ "Snakefile" ],
 			"firstLine": "^#!\\s*/.*\\bpython[0-9.-]*\\b",
 			"configuration": "./language-configuration.json"
 		}],

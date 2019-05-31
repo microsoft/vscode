@@ -147,7 +147,7 @@ export class ExplorerService implements IExplorerService {
 		return !!this.editable && (this.editable.stat === stat || !stat);
 	}
 
-	select(resource: URI, reveal?: boolean): Promise<void> {
+	async select(resource: URI, reveal?: boolean): Promise<void> {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
 			this._onDidSelectResource.fire({ resource: fileStat.resource, reveal });
@@ -155,11 +155,13 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: false };
+		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === 'modified' };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
 		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
-		return this.fileService.resolve(rootUri, options).then(stat => {
+
+		try {
+			const stat = await this.fileService.resolve(rootUri, options);
 
 			// Convert to model
 			const modelStat = ExplorerItem.create(stat, undefined, options.resolveTo);
@@ -170,10 +172,10 @@ export class ExplorerService implements IExplorerService {
 
 			// Select and Reveal
 			this._onDidSelectResource.fire({ resource: item ? item.resource : undefined, reveal });
-		}, () => {
+		} catch (error) {
 			root.isError = true;
 			this._onDidChangeItem.fire({ item: root, recursive: false });
-		});
+		}
 	}
 
 	refresh(): void {

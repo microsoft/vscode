@@ -170,7 +170,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._html = value;
 
 		if (this._webview) {
-			this._webview.contents = value;
+			this._webview.html = value;
 			this._currentWebviewHtml = value;
 		}
 	}

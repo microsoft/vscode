@@ -88,18 +88,54 @@ export default class CommandHandler implements vscode.Disposable {
 			}
 		}
 
+		const conflicts = await this.tracker.getConflicts(editor.document);
+
+		// Still failed to find conflict, warn the user and exit
+		if (!conflicts) {
+			vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
+			return;
+		}
+
 		const scheme = editor.document.uri.scheme;
 		let range = conflict.current.content;
+		let leftRanges = conflicts.map(conflict => [conflict.current.content, conflict.range]);
+		let rightRanges = conflicts.map(conflict => [conflict.incoming.content, conflict.range]);
+
 		const leftUri = editor.document.uri.with({
 			scheme: ContentProvider.scheme,
-			query: JSON.stringify({ scheme, range })
+			query: JSON.stringify({ scheme, range: range, ranges: leftRanges })
 		});
 
+
 		range = conflict.incoming.content;
-		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, range }) });
+		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, ranges: rightRanges }) });
+
+		let mergeConflictLineOffsets = 0;
+		for (let nextconflict of conflicts) {
+			if (nextconflict.range.isEqual(conflict.range)) {
+				break;
+			} else {
+				mergeConflictLineOffsets += (nextconflict.range.end.line - nextconflict.range.start.line) - (nextconflict.incoming.content.end.line - nextconflict.incoming.content.start.line);
+			}
+		}
+		const selection = new vscode.Range(
+			conflict.range.start.line - mergeConflictLineOffsets, conflict.range.start.character,
+			conflict.range.start.line - mergeConflictLineOffsets, conflict.range.start.character
+		);
 
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
-		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
+		const openToTheSide = mergeConflictConfig.get<string>('diffViewPosition');
+		const opts: vscode.TextDocumentShowOptions = {
+			viewColumn: openToTheSide === 'Beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
+			selection
+		};
+
+		if (openToTheSide === 'Below') {
+			await vscode.commands.executeCommand('workbench.action.newGroupBelow');
+		}
+
+		await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, opts);
 	}
 
 	navigateNext(editor: vscode.TextEditor): Promise<void> {

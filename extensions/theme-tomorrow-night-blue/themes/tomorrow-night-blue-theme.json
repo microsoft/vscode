@@ -30,6 +30,7 @@
 		"debugToolBar.background": "#001c40",
 		"titleBar.activeBackground": "#001126",
 		"statusBar.background": "#001126",
+		"statusBarItem.remoteBackground": "#0e639c",
 		"statusBar.noFolderBackground": "#001126",
 		"statusBar.debuggingBackground": "#001126",
 		"activityBar.background": "#001733",

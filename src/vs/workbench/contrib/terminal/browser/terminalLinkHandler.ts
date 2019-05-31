@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -64,18 +64,19 @@ interface IPath {
 }
 
 export class TerminalLinkHandler {
-	private _hoverDisposables: IDisposable[] = [];
+	private readonly _hoverDisposables = new DisposableStore();
 	private _mouseMoveDisposable: IDisposable;
 	private _widgetManager: TerminalWidgetManager;
 	private _processCwd: string;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string) => boolean | void;
+	private readonly _leaveCallback: () => void;
 
 	constructor(
 		private _xterm: any,
-		private _platform: platform.Platform,
-		private readonly _processManager: ITerminalProcessManager,
+		private _platform: platform.Platform | undefined,
+		private readonly _processManager: ITerminalProcessManager | undefined,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -88,6 +89,9 @@ export class TerminalLinkHandler {
 		this._gitDiffPostImagePattern = /^\+\+\+ b\/(\S*)/;
 
 		this._tooltipCallback = (e: MouseEvent) => {
+			if (!this._widgetManager) {
+				return;
+			}
 			if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
 				const target = (e.target as HTMLElement);
 				this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
@@ -95,10 +99,17 @@ export class TerminalLinkHandler {
 				this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString());
 			}
 		};
+		this._leaveCallback = () => {
+			if (this._widgetManager) {
+				this._widgetManager.closeMessage();
+			}
+		};
 
 		this.registerWebLinkHandler();
-		this.registerLocalLinkHandler();
-		this.registerGitDiffLinkHandlers();
+		if (this._platform) {
+			this.registerLocalLinkHandler();
+			this.registerGitDiffLinkHandlers();
+		}
 	}
 
 	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
@@ -113,7 +124,7 @@ export class TerminalLinkHandler {
 		const options: ILinkMatcherOptions = {
 			matchIndex,
 			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => this._widgetManager.closeMessage(),
+			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: CUSTOM_LINK_PRIORITY
 		};
@@ -130,7 +141,7 @@ export class TerminalLinkHandler {
 		this._xterm.webLinksInit(wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
 			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => this._widgetManager.closeMessage(),
+			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
 		});
 	}
@@ -142,7 +153,7 @@ export class TerminalLinkHandler {
 		this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => this._widgetManager.closeMessage(),
+			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		});
@@ -156,7 +167,7 @@ export class TerminalLinkHandler {
 			matchIndex: 1,
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => this._widgetManager.closeMessage(),
+			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		};
@@ -166,7 +177,8 @@ export class TerminalLinkHandler {
 
 	public dispose(): void {
 		this._xterm = null;
-		this._hoverDisposables = dispose(this._hoverDisposables);
+
+		this._hoverDisposables.dispose();
 		this._mouseMoveDisposable = dispose(this._mouseMoveDisposable);
 	}
 
@@ -186,6 +198,9 @@ export class TerminalLinkHandler {
 	}
 
 	protected get _localLinkRegex(): RegExp {
+		if (!this._processManager) {
+			throw new Error('Process manager is required');
+		}
 		const baseLocalLinkClause = this._processManager.os === platform.OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
@@ -237,15 +252,22 @@ export class TerminalLinkHandler {
 	private _getLinkHoverString(): string {
 		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
-			return nls.localize('terminalLinkHandler.followLinkAlt', 'Alt + click to follow link');
+			if (platform.isMacintosh) {
+				return nls.localize('terminalLinkHandler.followLinkAlt.mac', "Option + click to follow link");
+			} else {
+				return nls.localize('terminalLinkHandler.followLinkAlt', "Alt + click to follow link");
+			}
 		}
 		if (platform.isMacintosh) {
-			return nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
+			return nls.localize('terminalLinkHandler.followLinkCmd', "Cmd + click to follow link");
 		}
-		return nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
+		return nls.localize('terminalLinkHandler.followLinkCtrl', "Ctrl + click to follow link");
 	}
 
 	private get osPath(): IPath {
+		if (!this._processManager) {
+			throw new Error('Process manager is required');
+		}
 		if (this._processManager.os === platform.OperatingSystem.Windows) {
 			return win32;
 		}
@@ -253,6 +275,9 @@ export class TerminalLinkHandler {
 	}
 
 	protected _preprocessPath(link: string): string | null {
+		if (!this._processManager) {
+			throw new Error('Process manager is required');
+		}
 		if (link.charAt(0) === '~') {
 			// Resolve ~ -> userHome
 			if (!this._processManager.userHome) {
@@ -283,6 +308,10 @@ export class TerminalLinkHandler {
 	}
 
 	private _resolvePath(link: string): PromiseLike<URI | null> {
+		if (!this._processManager) {
+			throw new Error('Process manager is required');
+		}
+
 		const preprocessedLink = this._preprocessPath(link);
 		if (!preprocessedLink) {
 			return Promise.resolve(null);

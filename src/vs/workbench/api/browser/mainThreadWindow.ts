@@ -8,7 +8,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape, IOpenUriOptions } from '../common/extHost.protocol';
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -45,24 +45,21 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		return this.windowService.isFocused();
 	}
 
-	async $openUri(uriComponent: UriComponents): Promise<boolean> {
-		const uri = URI.revive(uriComponent);
-		if (!!this.environmentService.configuration.remoteAuthority) {
+	async $openUri(uriComponent: UriComponents, options: IOpenUriOptions): Promise<boolean> {
+		let uri = URI.revive(uriComponent);
+		if (options.allowTunneling && !!this.environmentService.configuration.remoteAuthority) {
 			if (uri.scheme === 'http' || uri.scheme === 'https') {
 				const port = this.getLocalhostPort(uri);
 				if (typeof port === 'number') {
 					const tunnel = await this.getOrCreateTunnel(port);
 					if (tunnel) {
-						const tunneledUrl = uri.toString().replace(
-							new RegExp(`^${uri.scheme}://localhost:${port}/`),
-							`${uri.scheme}://localhost:${tunnel.tunnelLocalPort}/`);
-						return this.windowsService.openExternal(tunneledUrl);
+						uri = uri.with({ authority: `localhost:${tunnel.tunnelLocalPort}` });
 					}
 				}
 			}
 		}
 
-		return this.windowsService.openExternal(uri.toString(true));
+		return this.windowsService.openExternal(encodeURI(uri.toString(true)));
 	}
 
 	private getLocalhostPort(uri: URI): number | undefined {

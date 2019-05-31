@@ -47,6 +47,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 class Item extends BreadcrumbsItem {
 
@@ -69,7 +70,7 @@ class Item extends BreadcrumbsItem {
 			return false;
 		}
 		if (this.element instanceof FileElement && other.element instanceof FileElement) {
-			return isEqual(this.element.uri, other.element.uri);
+			return isEqual(this.element.uri, other.element.uri, false);
 		}
 		if (this.element instanceof TreeElement && other.element instanceof TreeElement) {
 			return this.element.id === other.element.id;
@@ -167,6 +168,7 @@ export class BreadcrumbsControl {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
 	) {
 		this.domNode = document.createElement('div');
@@ -238,16 +240,18 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible.set(true);
 		this._ckBreadcrumbsPossible.set(true);
 
-		let editor = this._getActiveCodeEditor();
-		let model = new EditorBreadcrumbsModel(input.getResource()!, editor, this._workspaceService, this._configurationService);
+		const uri = input.getResource()!;
+		const editor = this._getActiveCodeEditor();
+		const model = new EditorBreadcrumbsModel(uri, editor, this._workspaceService, this._configurationService);
 		dom.toggleClass(this.domNode, 'relative-path', model.isRelative());
+		dom.toggleClass(this.domNode, 'backslash-path', this._labelService.getSeparator(uri.scheme, uri.authority) === '\\');
 
-		let updateBreadcrumbs = () => {
-			let items = model.getElements().map(element => new Item(element, this._options, this._instantiationService));
+		const updateBreadcrumbs = () => {
+			const items = model.getElements().map(element => new Item(element, this._options, this._instantiationService));
 			this._widget.setItems(items);
 			this._widget.reveal(items[items.length - 1]);
 		};
-		let listener = model.onDidUpdate(updateBreadcrumbs);
+		const listener = model.onDidUpdate(updateBreadcrumbs);
 		updateBreadcrumbs();
 		this._breadcrumbsDisposables = [model, listener];
 
@@ -380,14 +384,14 @@ export class BreadcrumbsControl {
 				this._breadcrumbsPickerShowing = true;
 				this._updateCkBreadcrumbsActive();
 
-				return combinedDisposable([
+				return combinedDisposable(
 					picker,
 					selectListener,
 					focusListener,
 					zoomListener,
 					focusTracker,
 					blurListener
-				]);
+				);
 			},
 			getAnchor: () => {
 				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;

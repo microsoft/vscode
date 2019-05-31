@@ -253,7 +253,7 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 			id: IndentUsingTabs.ID,
 			label: nls.localize('indentUsingTabs', "Indent Using Tabs"),
 			alias: 'Indent Using Tabs',
-			precondition: null
+			precondition: undefined
 		});
 	}
 }
@@ -267,7 +267,7 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 			id: IndentUsingSpaces.ID,
 			label: nls.localize('indentUsingSpaces', "Indent Using Spaces"),
 			alias: 'Indent Using Spaces',
-			precondition: null
+			precondition: undefined
 		});
 	}
 }
@@ -281,7 +281,7 @@ export class DetectIndentation extends EditorAction {
 			id: DetectIndentation.ID,
 			label: nls.localize('detectIndentation', "Detect Indentation from Content"),
 			alias: 'Detect Indentation from Content',
-			precondition: null
+			precondition: undefined
 		});
 	}
 

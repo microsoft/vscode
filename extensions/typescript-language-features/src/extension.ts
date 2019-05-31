@@ -10,6 +10,8 @@ import { LanguageConfigurationManager } from './features/languageConfiguration';
 import TypeScriptTaskProviderManager from './features/task';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { flatten } from './utils/arrays';
+import * as electron from './utils/electron';
+import * as rimraf from 'rimraf';
 import { CommandManager } from './utils/commandManager';
 import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
@@ -128,4 +130,8 @@ function isSupportedDocument(
 		return false;
 	}
 	return fileSchemes.isSupportedScheme(document.uri.scheme);
+}
+
+export function deactivate() {
+	rimraf.sync(electron.getInstanceDir());
 }

@@ -26,7 +26,7 @@ class ToggleBreakpointAction extends EditorAction {
 			id: TOGGLE_BREAKPOINT_ID,
 			label: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
 			alias: 'Debug: Toggle Breakpoint',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F9,
@@ -63,7 +63,7 @@ class ConditionalBreakpointAction extends EditorAction {
 			id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
 			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
 			alias: 'Debug: Add Conditional Breakpoint...',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -85,7 +85,7 @@ class LogPointAction extends EditorAction {
 			id: TOGGLE_LOG_POINT_ID,
 			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
 			alias: 'Debug: Add Logpoint...',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -288,7 +288,7 @@ class GoToNextBreakpointAction extends GoToBreakpointAction {
 			id: 'editor.debug.action.goToNextBreakpoint',
 			label: nls.localize('goToNextBreakpoint', "Debug: Go To Next Breakpoint"),
 			alias: 'Debug: Go To Next Breakpoint',
-			precondition: null
+			precondition: undefined
 		});
 	}
 }
@@ -299,7 +299,7 @@ class GoToPreviousBreakpointAction extends GoToBreakpointAction {
 			id: 'editor.debug.action.goToPreviousBreakpoint',
 			label: nls.localize('goToPreviousBreakpoint', "Debug: Go To Previous Breakpoint"),
 			alias: 'Debug: Go To Previous Breakpoint',
-			precondition: null
+			precondition: undefined
 		});
 	}
 }

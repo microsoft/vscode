@@ -9,9 +9,9 @@ import { FeedbackDropdown, IFeedback, IFeedbackDelegate, FEEDBACK_VISIBLE_CONFIG
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/product/node/product';
-import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
+import { Themable, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { clearNode, EventHelper, addClass, removeClass, addDisposableListener } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
@@ -85,26 +85,18 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		}
 	}
 
-	protected updateStyles(): void {
-		super.updateStyles();
-
-		if (this.dropdown && this.dropdown.label) {
-			this.dropdown.label.style.backgroundColor = (this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
-		}
-	}
-
 	render(element: HTMLElement): IDisposable {
 		this.container = element;
 
 		// Prevent showing dropdown on anything but left click
-		this.toDispose.push(addDisposableListener(this.container, 'mousedown', (e: MouseEvent) => {
+		this._register(addDisposableListener(this.container, 'mousedown', (e: MouseEvent) => {
 			if (e.button !== 0) {
 				EventHelper.stop(e, true);
 			}
 		}, true));
 
 		// Offer context menu to hide status bar entry
-		this.toDispose.push(addDisposableListener(this.container, 'contextmenu', e => {
+		this._register(addDisposableListener(this.container, 'contextmenu', e => {
 			EventHelper.stop(e, true);
 
 			this.contextMenuService.showContextMenu({

@@ -102,9 +102,8 @@ import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService
 import 'vs/workbench/services/extensions/common/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/decorations/browser/decorationsService';
 import 'vs/workbench/services/search/node/searchService';
-import 'vs/workbench/services/progress/browser/progressService2';
+import 'vs/workbench/services/progress/browser/progressService';
 import 'vs/workbench/services/editor/browser/codeEditorService';
-import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import 'vs/workbench/services/extensions/electron-browser/extensionHostDebugService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/output/node/outputChannelModelService';
@@ -116,7 +115,6 @@ import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
-import 'vs/workbench/services/files/node/remoteFileService';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
 import 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -183,7 +181,7 @@ import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 //#region --- workbench contributions
 
 // Workspace File Watching
-import 'vs/workbench/services/files2/common/workspaceWatcher';
+import 'vs/workbench/services/files/common/workspaceWatcher';
 
 // Telemetry
 import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
@@ -264,6 +262,9 @@ import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution
 
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-browser/task.contribution';
+
+// Remote
+import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
 
 // Emmet
 import 'vs/workbench/contrib/emmet/browser/emmet.contribution';

@@ -31,8 +31,8 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 	private _isTerminating?: boolean;
 	private _toDispose: IDisposable[] = [];
 
-	private readonly _onDidCrashed = new Emitter<[number, string | null]>();
-	readonly onCrashed: Event<[number, string | null]> = this._onDidCrashed.event;
+	private readonly _onDidExit = new Emitter<[number, string | null]>();
+	readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
 
 	constructor(
 		// private readonly _autoStart: boolean,
@@ -58,10 +58,10 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 						emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
 					} else {
 						console.warn('UNKNOWN data received', data);
-						this._onDidCrashed.fire([77, 'UNKNOWN data received']);
+						this._onDidExit.fire([77, 'UNKNOWN data received']);
 					}
 				}, err => {
-					this._onDidCrashed.fire([81, err]);
+					this._onDidExit.fire([81, err]);
 					console.error(err);
 				}
 			);

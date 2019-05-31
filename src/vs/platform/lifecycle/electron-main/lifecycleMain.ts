@@ -291,7 +291,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 		});
 	}
 
-	unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
+	async unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
 		if (!window.isReady) {
@@ -302,27 +302,27 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 		// first ask the window itself if it vetos the unload
 		const windowUnloadReason = this._quitRequested ? UnloadReason.QUIT : reason;
-		return this.onBeforeUnloadWindowInRenderer(window, windowUnloadReason).then(veto => {
-			if (veto) {
-				this.logService.trace(`Lifecycle#unload() - veto in renderer (window ID ${window.id})`);
+		let veto = await this.onBeforeUnloadWindowInRenderer(window, windowUnloadReason);
+		if (veto) {
+			this.logService.trace(`Lifecycle#unload() - veto in renderer (window ID ${window.id})`);
 
-				return this.handleWindowUnloadVeto(veto);
-			}
+			return this.handleWindowUnloadVeto(veto);
+		}
 
-			// then check for vetos in the main side
-			return this.onBeforeUnloadWindowInMain(window, windowUnloadReason).then(veto => {
-				if (veto) {
-					this.logService.trace(`Lifecycle#unload() - veto in main (window ID ${window.id})`);
+		// then check for vetos in the main side
+		veto = await this.onBeforeUnloadWindowInMain(window, windowUnloadReason);
+		if (veto) {
+			this.logService.trace(`Lifecycle#unload() - veto in main (window ID ${window.id})`);
 
-					return this.handleWindowUnloadVeto(veto);
-				}
+			return this.handleWindowUnloadVeto(veto);
+		}
 
-				this.logService.trace(`Lifecycle#unload() - no veto (window ID ${window.id})`);
+		this.logService.trace(`Lifecycle#unload() - no veto (window ID ${window.id})`);
 
-				// finally if there are no vetos, unload the renderer
-				return this.onWillUnloadWindowInRenderer(window, windowUnloadReason).then(() => false);
-			});
-		});
+		// finally if there are no vetos, unload the renderer
+		await this.onWillUnloadWindowInRenderer(window, windowUnloadReason);
+
+		return false;
 	}
 
 	private handleWindowUnloadVeto(veto: boolean): boolean {

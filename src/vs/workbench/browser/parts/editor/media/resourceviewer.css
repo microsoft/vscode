@@ -54,6 +54,10 @@
 	cursor: zoom-out;
 }
 
+.monaco-workbench .part.statusbar > .statusbar-item > a.zoom-statusbar-item {
+	padding: 0 5px 0 5px;
+}
+
 .monaco-resource-viewer .embedded-link,
 .monaco-resource-viewer .embedded-link:hover {
 	cursor: pointer;

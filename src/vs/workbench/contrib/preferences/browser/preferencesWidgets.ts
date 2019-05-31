@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -291,7 +291,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 }
 
-export class FolderSettingsActionItem extends BaseActionItem {
+export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private _folder: IWorkspaceFolder | null;
 	private _folderSettingCounts = new Map<string, number>();
@@ -427,7 +427,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
 			getActions: () => this.getDropdownMenuActions(),
-			getActionItem: () => undefined,
+			getActionViewItem: () => undefined,
 			onHide: () => {
 				this.anchorElement.blur();
 			}
@@ -479,7 +479,7 @@ export class SettingsTargetsWidget extends Widget {
 	private userLocalSettings: Action;
 	private userRemoteSettings: Action;
 	private workspaceSettings: Action;
-	private folderSettings: FolderSettingsActionItem;
+	private folderSettings: FolderSettingsActionViewItem;
 	private options: ISettingsTargetsWidgetOptions;
 
 	private _settingsTarget: SettingsTarget;
@@ -508,24 +508,24 @@ export class SettingsTargetsWidget extends Widget {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
 			animated: false,
-			actionItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : undefined
+			actionViewItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : undefined
 		}));
 
-		this.userLocalSettings = new Action('userSettings', localize('userSettings', "User Settings"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
+		this.userLocalSettings = new Action('userSettings', localize('userSettings', "User"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
 		this.userLocalSettings.tooltip = this.userLocalSettings.label;
 
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const hostLabel = remoteAuthority && this.labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority);
-		const remoteSettingsLabel = localize('userSettingsRemote', "Remote Settings") +
-			(hostLabel ? ` (${hostLabel})` : '');
+		const remoteSettingsLabel = localize('userSettingsRemote', "Remote") +
+			(hostLabel ? ` [${hostLabel}]` : '');
 		this.userRemoteSettings = new Action('userSettingsRemote', remoteSettingsLabel, '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
 		this.userRemoteSettings.tooltip = this.userRemoteSettings.label;
 
-		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace Settings"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
+		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
 		this.workspaceSettings.tooltip = this.workspaceSettings.label;
 
-		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder Settings"), '.settings-tab', false, (folder: IWorkspaceFolder) => this.updateTarget(folder.uri));
-		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionItem, folderSettingsAction);
+		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false, (folder: IWorkspaceFolder) => this.updateTarget(folder.uri));
+		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, folderSettingsAction);
 
 		this.update();
 
@@ -551,14 +551,14 @@ export class SettingsTargetsWidget extends Widget {
 
 	setResultCount(settingsTarget: SettingsTarget, count: number): void {
 		if (settingsTarget === ConfigurationTarget.WORKSPACE) {
-			let label = localize('workspaceSettings', "Workspace Settings");
+			let label = localize('workspaceSettings', "Workspace");
 			if (count) {
 				label += ` (${count})`;
 			}
 
 			this.workspaceSettings.label = label;
 		} else if (settingsTarget === ConfigurationTarget.USER_LOCAL) {
-			let label = localize('userSettings', "User Settings");
+			let label = localize('userSettings', "User");
 			if (count) {
 				label += ` (${count})`;
 			}

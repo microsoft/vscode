@@ -33,7 +33,7 @@ import { ExtHostExtensionService } from './extHostExtensionService';
 import { ExtHostFileSystem } from 'vs/workbench/api/common/extHostFileSystem';
 import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFileSystemEventService';
 import { ExtHostHeapService } from 'vs/workbench/api/common/extHostHeapService';
-import { ExtHostLanguageFeatures, ISchemeTransformer } from 'vs/workbench/api/common/extHostLanguageFeatures';
+import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostMessageService } from 'vs/workbench/api/common/extHostMessageService';
@@ -64,6 +64,7 @@ import { originalFSPath } from 'vs/base/common/resources';
 // import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { values } from 'vs/base/common/collections';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 // import { Schemas } from 'vs/base/common/network';
 
 export interface IExtensionApiFactory {
@@ -89,8 +90,7 @@ export function createApiFactory(
 	extensionService: ExtHostExtensionService,
 	extHostLogService: ExtHostLogService,
 	extHostStorage: ExtHostStorage,
-	schemeTransformer: ISchemeTransformer | null,
-	outputChannelName: string
+	schemeTransformer: IURITransformer | null
 ): IExtensionApiFactory {
 
 	// Addressable instances
@@ -260,7 +260,7 @@ export function createApiFactory(
 				return extHostClipboard;
 			},
 			openExternal(uri: URI) {
-				return extHostWindow.openUri(uri);
+				return extHostWindow.openUri(uri, { allowTunneling: Boolean(initData.remoteAuthority) });
 			}
 		});
 
@@ -547,6 +547,9 @@ export function createApiFactory(
 			set name(value) {
 				throw errors.readonly();
 			},
+			get workspaceFile() {
+				return extHostWorkspace.workspaceFile;
+			},
 			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
 				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
 			},
@@ -685,6 +688,8 @@ export function createApiFactory(
 			}
 		};
 
+		const comments = comment;
+
 		// // namespace: debug
 		// const debug: typeof vscode.debug = {
 		// 	get activeDebugSession() {
@@ -768,6 +773,7 @@ export function createApiFactory(
 			languages,
 			scm,
 			comment,
+			comments,
 			get tasks(): typeof vscode.tasks { throw new Error('not implemented'); },
 			window,
 			workspace,
@@ -783,6 +789,7 @@ export function createApiFactory(
 			ColorInformation: extHostTypes.ColorInformation,
 			ColorPresentation: extHostTypes.ColorPresentation,
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
+			CommentMode: extHostTypes.CommentMode,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionList: extHostTypes.CompletionList,
@@ -802,6 +809,7 @@ export function createApiFactory(
 			DocumentSymbol: extHostTypes.DocumentSymbol,
 			EndOfLine: extHostTypes.EndOfLine,
 			EventEmitter: Emitter,
+			ExtensionExecutionContext: extHostTypes.ExtensionExecutionContext,
 			CustomExecution: extHostTypes.CustomExecution,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,
@@ -823,6 +831,7 @@ export function createApiFactory(
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
 			ResolvedAuthority: extHostTypes.ResolvedAuthority,
+			RemoteAuthorityResolverError: extHostTypes.RemoteAuthorityResolverError,
 			Selection: extHostTypes.Selection,
 			SelectionRange: extHostTypes.SelectionRange,
 			ShellExecution: extHostTypes.ShellExecution,

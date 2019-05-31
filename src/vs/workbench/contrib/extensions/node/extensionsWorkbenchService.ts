@@ -16,25 +16,25 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionManagementServerService, IExtensionManagementServer
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import product from 'vs/platform/product/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, ExtensionIdentifierWithVersion, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -236,7 +236,7 @@ class Extension implements IExtension {
 		}
 
 		if (this.local && this.local.readmeUrl) {
-			return this.fileService.resolveContent(this.local.readmeUrl, { encoding: 'utf8' }).then(content => content.value);
+			return this.fileService.readFile(this.local.readmeUrl).then(content => content.value.toString());
 		}
 
 		if (this.type === ExtensionType.System) {
@@ -277,7 +277,7 @@ ${this.description}
 			return Promise.reject(new Error('not available'));
 		}
 
-		return this.fileService.resolveContent(changelogUrl, { encoding: 'utf8' }).then(content => content.value);
+		return this.fileService.readFile(changelogUrl).then(content => content.value.toString());
 	}
 
 	get dependencies(): string[] {
@@ -300,53 +300,6 @@ ${this.description}
 			return local.manifest.extensionPack;
 		}
 		return [];
-	}
-}
-
-class ExtensionDependencies implements IExtensionDependencies {
-
-	private _hasDependencies: boolean | null = null;
-
-	constructor(private _extension: IExtension, private _identifier: string, private _map: Map<string, IExtension>, private _dependent: IExtensionDependencies | null = null) { }
-
-	get hasDependencies(): boolean {
-		if (this._hasDependencies === null) {
-			this._hasDependencies = this.computeHasDependencies();
-		}
-		return this._hasDependencies;
-	}
-
-	get extension(): IExtension {
-		return this._extension;
-	}
-
-	get identifier(): string {
-		return this._identifier;
-	}
-
-	get dependent(): IExtensionDependencies | null {
-		return this._dependent;
-	}
-
-	get dependencies(): IExtensionDependencies[] {
-		if (!this.hasDependencies) {
-			return [];
-		}
-		return this._extension.dependencies.map(id => new ExtensionDependencies(this._map.get(id)!, id, this._map, this));
-	}
-
-	private computeHasDependencies(): boolean {
-		if (this._extension && this._extension.dependencies.length > 0) {
-			let dependent = this._dependent;
-			while (dependent !== null) {
-				if (dependent.identifier === this.identifier) {
-					return false;
-				}
-				dependent = dependent.dependent;
-			}
-			return true;
-		}
-		return false;
 	}
 }
 
@@ -544,7 +497,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private readonly windowService: IWindowService,
 		@ILogService private readonly logService: ILogService,
-		@IProgressService2 private readonly progressService: IProgressService2,
+		@IProgressService private readonly progressService: IProgressService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IFileService private readonly fileService: IFileService
@@ -584,13 +537,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	get local(): IExtension[] {
-		const result = [...this.localExtensions.local];
-		if (!this.remoteExtensions) {
-			return result;
-		}
-		result.push(...this.remoteExtensions.local);
+		const result = [...this.installed];
 		const byId = groupByExtension(result, r => r.identifier);
 		return byId.reduce((result, extensions) => { result.push(this.getPrimaryExtension(extensions)); return result; }, []);
+	}
+
+	get installed(): IExtension[] {
+		const result = [...this.localExtensions.local];
+		if (this.remoteExtensions) {
+			result.push(...this.remoteExtensions.local);
+		}
+		return result;
 	}
 
 	get outdated(): IExtension[] {
@@ -637,27 +594,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						}
 
 						return Promise.reject<IPager<IExtension>>(err);
-					});
-			});
-	}
-
-	loadDependencies(extension: IExtension, token: CancellationToken): Promise<IExtensionDependencies | null> {
-		if (!extension.dependencies.length) {
-			return Promise.resolve(null);
-		}
-
-		return this.extensionService.getExtensionsReport()
-			.then(report => {
-				const maliciousSet = getMaliciousExtensionsSet(report);
-
-				return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => ({ id })), token)
-					.then(galleryExtensions => {
-						const extensions: IExtension[] = [...this.local, ...galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension, maliciousSet))];
-						const map = new Map<string, IExtension>();
-						for (const extension of extensions) {
-							map.set(extension.identifier.id, extension);
-						}
-						return new ExtensionDependencies(extension, extension.identifier.id, map);
 					});
 			});
 	}
@@ -812,7 +748,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		return this.installWithProgress(async () => {
-			await this.extensionService.installFromGallery(gallery);
+			const extensionService = extension.server && extension.local && !isLanguagePackExtension(extension.local.manifest) ? extension.server.extensionManagementService : this.extensionService;
+			await extensionService.installFromGallery(gallery);
 			this.checkAndEnableDisabledDependencies(gallery.identifier);
 			return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
 		}, gallery.displayName);
@@ -854,7 +791,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					return Promise.reject(new Error(nls.localize('incompatible', "Unable to install extension '{0}' with version '{1}' as it is not compatible with VS Code.", extension.gallery!.identifier.id, version)));
 				}
 				return this.installWithProgress(async () => {
-					await this.extensionService.installFromGallery(gallery);
+					const extensionService = extension.server && extension.local && !isLanguagePackExtension(extension.local.manifest) ? extension.server.extensionManagementService : this.extensionService;
+					await extensionService.installFromGallery(gallery);
 					if (extension.latestVersion !== version) {
 						this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(gallery.identifier, version));
 					}

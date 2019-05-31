@@ -1,0 +1,22 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+
+		<!-- Disable pinch zooming -->
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+	</head>
+	<body class="vs-dark" aria-label="">
+	</body>
+
+	<!-- Startup via workbench.js -->
+	<script>
+		self.CONNECTION_AUTH_TOKEN = '{{CONNECTION_AUTH_TOKEN}}';
+		self.USER_HOME_DIR = '{{USER_HOME_DIR}}';
+		self.SERVER_APP_ROOT = '{{SERVER_APP_ROOT}}';
+	</script>
+
+	<!-- Startup via workbench.js -->
+	<script src="./out/vs/code/browser/workbench/workbench.js"></script>
+</html>

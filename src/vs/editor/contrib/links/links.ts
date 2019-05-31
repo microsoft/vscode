@@ -111,6 +111,23 @@ class LinkOccurrence {
 	}
 
 	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
+		const options = { ...this._getBaseOptions(link, useMetaKey, isActive) };
+		if (typeof link.tooltip === 'string') {
+			const message = new MarkdownString().appendText(
+				platform.isMacintosh
+					? useMetaKey
+						? nls.localize('links.custom.mac', "Cmd + click to {0}", link.tooltip)
+						: nls.localize('links.custom.mac.al', "Option + click to {0}", link.tooltip)
+					: useMetaKey
+						? nls.localize('links.custom', "Ctrl + click to {0}", link.tooltip)
+						: nls.localize('links.custom.al', "Alt + click to {0}", link.tooltip)
+			);
+			options.hoverMessage = message;
+		}
+		return options;
+	}
+
+	private static _getBaseOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
 		if (link.url && /^command:/i.test(link.url.toString())) {
 			if (useMetaKey) {
 				return (isActive ? decoration.metaCommandActive : decoration.metaCommand);
@@ -410,7 +427,7 @@ class OpenLinkAction extends EditorAction {
 			id: 'editor.action.openLink',
 			label: nls.localize('label', "Open Link"),
 			alias: 'Open Link',
-			precondition: null
+			precondition: undefined
 		});
 	}
 

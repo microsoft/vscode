@@ -103,7 +103,7 @@ class Survey {
 	}
 
 	private get triggerCount(): number {
-		const count = this.memento.get(this.triggerCountMementoKey);
+		const count = this.memento.get<number>(this.triggerCountMementoKey);
 		return !count || isNaN(+count) ? 0 : +count;
 	}
 

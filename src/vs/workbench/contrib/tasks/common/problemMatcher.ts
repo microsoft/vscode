@@ -265,7 +265,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 			if (trim) {
 				value = Strings.trim(value)!;
 			}
-			data[property] += endOfLine + value;
+			(data as any)[property] += endOfLine + value;
 		}
 	}
 
@@ -277,7 +277,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 				if (trim) {
 					value = Strings.trim(value)!;
 				}
-				data[property] = value;
+				(data as any)[property] = value;
 			}
 		}
 	}
@@ -894,9 +894,9 @@ export class ProblemPatternParser extends Parser {
 		}
 
 		function copyProperty(result: ProblemPattern, source: Config.ProblemPattern, resultKey: keyof ProblemPattern, sourceKey: keyof Config.ProblemPattern) {
-			let value = source[sourceKey];
+			const value = source[sourceKey];
 			if (typeof value === 'number') {
-				result[resultKey] = value;
+				(result as any)[resultKey] = value;
 			}
 		}
 		copyProperty(result, value, 'file', 'file');

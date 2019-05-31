@@ -114,8 +114,6 @@ export function create(postMessage: (message: any, transfer?: Transferable[]) =>
 			() => { },
 			() => new ConsoleLogService(),
 			null,
-			null,
-			'Extension Host - WebWorker'
 		);
 
 		onTerminate = () => extHostMain.terminate();

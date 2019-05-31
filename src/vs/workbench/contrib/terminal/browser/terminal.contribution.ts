@@ -260,7 +260,7 @@ configurationRegistry.registerConfiguration({
 			default: 'inherited'
 		},
 		'terminal.integrated.windowsEnableConpty': {
-			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
+			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication. Winpty will be used if this is false. Note that ConPTY will be disabled regardless of this setting when the Windows 10 build number is lower than 18309 or when you're running the 32-bit VS Code client under 64-bit Windows."),
 			type: 'boolean',
 			default: true
 		},
@@ -433,12 +433,10 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneRightT
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Right', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneUpTerminalAction, ResizePaneUpTerminalAction.ID, ResizePaneUpTerminalAction.LABEL, {
 	primary: 0,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.UpArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Up', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneDownTerminalAction, ResizePaneDownTerminalAction.ID, ResizePaneDownTerminalAction.LABEL, {
 	primary: 0,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow },
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.DownArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Down', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToPreviousCommandAction, ScrollToPreviousCommandAction.ID, ScrollToPreviousCommandAction.LABEL, {
@@ -504,7 +502,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, Fi
 
 const sendSequenceTerminalCommand = new SendSequenceTerminalCommand({
 	id: SendSequenceTerminalCommand.ID,
-	precondition: null,
+	precondition: undefined,
 	description: {
 		description: `Send Custom Sequence To Terminal`,
 		args: [{

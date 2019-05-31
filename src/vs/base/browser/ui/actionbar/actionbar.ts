@@ -18,7 +18,7 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { Event, Emitter } from 'vs/base/common/event';
 import { asArray } from 'vs/base/common/arrays';
 
-export interface IActionItem {
+export interface IActionViewItem {
 	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: HTMLElement): void;
@@ -28,12 +28,12 @@ export interface IActionItem {
 	dispose(): void;
 }
 
-export interface IBaseActionItemOptions {
+export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
 	isMenu?: boolean;
 }
 
-export class BaseActionItem extends Disposable implements IActionItem {
+export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	element?: HTMLElement;
 	_context: any;
@@ -41,7 +41,7 @@ export class BaseActionItem extends Disposable implements IActionItem {
 
 	private _actionRunner: IActionRunner;
 
-	constructor(context: any, action: IAction, protected options?: IBaseActionItemOptions) {
+	constructor(context: any, action: IAction, protected options?: IBaseActionViewItemOptions) {
 		super();
 
 		this._context = context || this;
@@ -226,20 +226,20 @@ export class Separator extends Action {
 	}
 }
 
-export interface IActionItemOptions extends IBaseActionItemOptions {
+export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string | null;
 }
 
-export class ActionItem extends BaseActionItem {
+export class ActionViewItem extends BaseActionViewItem {
 
 	protected label: HTMLElement;
-	protected options: IActionItemOptions;
+	protected options: IActionViewItemOptions;
 
 	private cssClass?: string;
 
-	constructor(context: any, action: IAction, options: IActionItemOptions = {}) {
+	constructor(context: any, action: IAction, options: IActionViewItemOptions = {}) {
 		super(context, action, options);
 
 		this.options = options;
@@ -363,14 +363,14 @@ export interface ActionTrigger {
 	keyDown: boolean;
 }
 
-export interface IActionItemProvider {
-	(action: IAction): IActionItem | undefined;
+export interface IActionViewItemProvider {
+	(action: IAction): IActionViewItem | undefined;
 }
 
 export interface IActionBarOptions {
 	orientation?: ActionsOrientation;
 	context?: any;
-	actionItemProvider?: IActionItemProvider;
+	actionViewItemProvider?: IActionViewItemProvider;
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
 	animated?: boolean;
@@ -386,7 +386,7 @@ const defaultOptions: IActionBarOptions = {
 	}
 };
 
-export interface IActionOptions extends IActionItemOptions {
+export interface IActionOptions extends IActionViewItemOptions {
 	index?: number;
 }
 
@@ -397,8 +397,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _actionRunner: IActionRunner;
 	private _context: any;
 
-	// Items
-	items: IActionItem[];
+	// View Items
+	viewItems: IActionViewItem[];
 	protected focusedItem?: number;
 	private focusTracker: DOM.IFocusTracker;
 
@@ -438,7 +438,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._register(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
 		this._register(this._actionRunner.onDidBeforeRun(e => this._onDidBeforeRun.fire(e)));
 
-		this.items = [];
+		this.viewItems = [];
 		this.focusedItem = undefined;
 
 		this.domNode = document.createElement('div');
@@ -575,7 +575,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	set context(context: any) {
 		this._context = context;
-		this.items.forEach(i => i.setActionContext(context));
+		this.viewItems.forEach(i => i.setActionContext(context));
 	}
 
 	get actionRunner(): IActionRunner {
@@ -585,7 +585,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	set actionRunner(actionRunner: IActionRunner) {
 		if (actionRunner) {
 			this._actionRunner = actionRunner;
-			this.items.forEach(item => item.actionRunner = actionRunner);
+			this.viewItems.forEach(item => item.actionRunner = actionRunner);
 		}
 	}
 
@@ -599,36 +599,36 @@ export class ActionBar extends Disposable implements IActionRunner {
 		let index = types.isNumber(options.index) ? options.index : null;
 
 		actions.forEach((action: IAction) => {
-			const actionItemElement = document.createElement('li');
-			actionItemElement.className = 'action-item';
-			actionItemElement.setAttribute('role', 'presentation');
+			const actionViewItemElement = document.createElement('li');
+			actionViewItemElement.className = 'action-item';
+			actionViewItemElement.setAttribute('role', 'presentation');
 
 			// Prevent native context menu on actions
-			this._register(DOM.addDisposableListener(actionItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+			this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
 				e.preventDefault();
 				e.stopPropagation();
 			}));
 
-			let item: IActionItem | undefined;
+			let item: IActionViewItem | undefined;
 
-			if (this.options.actionItemProvider) {
-				item = this.options.actionItemProvider(action);
+			if (this.options.actionViewItemProvider) {
+				item = this.options.actionViewItemProvider(action);
 			}
 
 			if (!item) {
-				item = new ActionItem(this.context, action, options);
+				item = new ActionViewItem(this.context, action, options);
 			}
 
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
-			item.render(actionItemElement);
+			item.render(actionViewItemElement);
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
-				this.actionsList.appendChild(actionItemElement);
-				this.items.push(item);
+				this.actionsList.appendChild(actionViewItemElement);
+				this.viewItems.push(item);
 			} else {
-				this.actionsList.insertBefore(actionItemElement, this.actionsList.children[index]);
-				this.items.splice(index, 0, item);
+				this.actionsList.insertBefore(actionViewItemElement, this.actionsList.children[index]);
+				this.viewItems.splice(index, 0, item);
 				index++;
 			}
 		});
@@ -657,23 +657,23 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	pull(index: number): void {
-		if (index >= 0 && index < this.items.length) {
+		if (index >= 0 && index < this.viewItems.length) {
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
-			dispose(this.items.splice(index, 1));
+			dispose(this.viewItems.splice(index, 1));
 		}
 	}
 
 	clear(): void {
-		this.items = dispose(this.items);
+		this.viewItems = dispose(this.viewItems);
 		DOM.clearNode(this.actionsList);
 	}
 
 	length(): number {
-		return this.items.length;
+		return this.viewItems.length;
 	}
 
 	isEmpty(): boolean {
-		return this.items.length === 0;
+		return this.viewItems.length === 0;
 	}
 
 	focus(index?: number): void;
@@ -691,7 +691,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
 			// Focus the first enabled item
-			this.focusedItem = this.items.length - 1;
+			this.focusedItem = this.viewItems.length - 1;
 			this.focusNext();
 		} else {
 			if (index !== undefined) {
@@ -704,15 +704,15 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	protected focusNext(): void {
 		if (typeof this.focusedItem === 'undefined') {
-			this.focusedItem = this.items.length - 1;
+			this.focusedItem = this.viewItems.length - 1;
 		}
 
 		const startIndex = this.focusedItem;
-		let item: IActionItem;
+		let item: IActionViewItem;
 
 		do {
-			this.focusedItem = (this.focusedItem + 1) % this.items.length;
-			item = this.items[this.focusedItem];
+			this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
+			item = this.viewItems[this.focusedItem];
 		} while (this.focusedItem !== startIndex && !item.isEnabled());
 
 		if (this.focusedItem === startIndex && !item.isEnabled()) {
@@ -728,16 +728,16 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		const startIndex = this.focusedItem;
-		let item: IActionItem;
+		let item: IActionViewItem;
 
 		do {
 			this.focusedItem = this.focusedItem - 1;
 
 			if (this.focusedItem < 0) {
-				this.focusedItem = this.items.length - 1;
+				this.focusedItem = this.viewItems.length - 1;
 			}
 
-			item = this.items[this.focusedItem];
+			item = this.viewItems[this.focusedItem];
 		} while (this.focusedItem !== startIndex && !item.isEnabled());
 
 		if (this.focusedItem === startIndex && !item.isEnabled()) {
@@ -752,21 +752,21 @@ export class ActionBar extends Disposable implements IActionRunner {
 			this.actionsList.focus();
 		}
 
-		for (let i = 0; i < this.items.length; i++) {
-			const item = this.items[i];
-			const actionItem = item;
+		for (let i = 0; i < this.viewItems.length; i++) {
+			const item = this.viewItems[i];
+			const actionViewItem = item;
 
 			if (i === this.focusedItem) {
-				if (types.isFunction(actionItem.isEnabled)) {
-					if (actionItem.isEnabled() && types.isFunction(actionItem.focus)) {
-						actionItem.focus(fromRight);
+				if (types.isFunction(actionViewItem.isEnabled)) {
+					if (actionViewItem.isEnabled() && types.isFunction(actionViewItem.focus)) {
+						actionViewItem.focus(fromRight);
 					} else {
 						this.actionsList.focus();
 					}
 				}
 			} else {
-				if (types.isFunction(actionItem.blur)) {
-					actionItem.blur();
+				if (types.isFunction(actionViewItem.blur)) {
+					actionViewItem.blur();
 				}
 			}
 		}
@@ -778,16 +778,16 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		// trigger action
-		const actionItem = this.items[this.focusedItem];
-		if (actionItem instanceof BaseActionItem) {
-			const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
-			this.run(actionItem._action, context);
+		const actionViewItem = this.viewItems[this.focusedItem];
+		if (actionViewItem instanceof BaseActionViewItem) {
+			const context = (actionViewItem._context === null || actionViewItem._context === undefined) ? event : actionViewItem._context;
+			this.run(actionViewItem._action, context);
 		}
 	}
 
 	private cancel(): void {
 		if (document.activeElement instanceof HTMLElement) {
-			(<HTMLElement>document.activeElement).blur(); // remove focus from focused action
+			document.activeElement.blur(); // remove focus from focused action
 		}
 
 		this._onDidCancel.fire();
@@ -798,8 +798,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	dispose(): void {
-		dispose(this.items);
-		this.items = [];
+		dispose(this.viewItems);
+		this.viewItems = [];
 
 		DOM.removeNode(this.getContainer());
 
@@ -807,7 +807,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 }
 
-export class SelectActionItem extends BaseActionItem {
+export class SelectActionViewItem extends BaseActionViewItem {
 	protected selectBox: SelectBox;
 
 	constructor(ctx: any, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
