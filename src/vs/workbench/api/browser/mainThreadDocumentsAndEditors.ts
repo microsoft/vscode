@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -142,9 +142,8 @@ const enum ActiveEditorOrder {
 	Editor, Panel
 }
 
-class MainThreadDocumentAndEditorStateComputer {
+class MainThreadDocumentAndEditorStateComputer extends Disposable {
 
-	private _toDispose: IDisposable[] = [];
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
 	private _currentState: DocumentAndEditorState;
 	private _activeEditorOrder: ActiveEditorOrder = ActiveEditorOrder.Editor;
@@ -156,23 +155,20 @@ class MainThreadDocumentAndEditorStateComputer {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IPanelService private readonly _panelService: IPanelService
 	) {
-		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
-		this._modelService.onModelRemoved(_ => this._updateState(), this, this._toDispose);
-		this._editorService.onDidActiveEditorChange(_ => this._updateState(), this, this._toDispose);
+		super();
+		this._register(this._modelService.onModelAdded(this._updateStateOnModelAdd, this));
+		this._register(this._modelService.onModelRemoved(_ => this._updateState(), this));
+		this._register(this._editorService.onDidActiveEditorChange(_ => this._updateState(), this));
 
-		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
-		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
+		this._register(this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this));
+		this._register(this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this));
 		this._codeEditorService.listCodeEditors().forEach(this._onDidAddEditor, this);
 
-		this._panelService.onDidPanelOpen(_ => this._activeEditorOrder = ActiveEditorOrder.Panel, undefined, this._toDispose);
-		this._panelService.onDidPanelClose(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
-		this._editorService.onDidVisibleEditorsChange(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
+		this._register(this._panelService.onDidPanelOpen(_ => this._activeEditorOrder = ActiveEditorOrder.Panel, undefined));
+		this._register(this._panelService.onDidPanelClose(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined));
+		this._register(this._editorService.onDidVisibleEditorsChange(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined));
 
 		this._updateState();
-	}
-
-	dispose(): void {
-		this._toDispose = dispose(this._toDispose);
 	}
 
 	private _onDidAddEditor(e: ICodeEditor): void {
@@ -302,17 +298,15 @@ class MainThreadDocumentAndEditorStateComputer {
 }
 
 @extHostCustomer
-export class MainThreadDocumentsAndEditors {
+export class MainThreadDocumentsAndEditors extends Disposable {
 
-	private _toDispose: IDisposable[];
 	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
-	private readonly _stateComputer: MainThreadDocumentAndEditorStateComputer;
 	private _textEditors = <{ [id: string]: MainThreadTextEditor }>Object.create(null);
 
-	private _onTextEditorAdd = new Emitter<MainThreadTextEditor[]>();
-	private _onTextEditorRemove = new Emitter<string[]>();
-	private _onDocumentAdd = new Emitter<ITextModel[]>();
-	private _onDocumentRemove = new Emitter<URI[]>();
+	private _onTextEditorAdd = this._register(new Emitter<MainThreadTextEditor[]>());
+	private _onTextEditorRemove = this._register(new Emitter<string[]>());
+	private _onDocumentAdd = this._register(new Emitter<ITextModel[]>());
+	private _onDocumentRemove = this._register(new Emitter<URI[]>());
 
 	readonly onTextEditorAdd: Event<MainThreadTextEditor[]> = this._onTextEditorAdd.event;
 	readonly onTextEditorRemove: Event<string[]> = this._onTextEditorRemove.event;
@@ -334,30 +328,17 @@ export class MainThreadDocumentsAndEditors {
 		@IPanelService panelService: IPanelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
+		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
-		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService, environmentService);
+		const mainThreadDocuments = this._register(new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService, environmentService));
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
 
-		const mainThreadTextEditors = new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService);
+		const mainThreadTextEditors = this._register(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService));
 		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.
-		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, panelService);
-
-		this._toDispose = [
-			mainThreadDocuments,
-			mainThreadTextEditors,
-			this._stateComputer,
-			this._onTextEditorAdd,
-			this._onTextEditorRemove,
-			this._onDocumentAdd,
-			this._onDocumentRemove,
-		];
-	}
-
-	dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._register(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, panelService));
 	}
 
 	private _onDelta(delta: DocumentAndEditorStateDelta): void {

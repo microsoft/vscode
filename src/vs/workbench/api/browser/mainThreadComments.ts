@@ -466,8 +466,6 @@ export class MainThreadCommentController {
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
-	private _disposables: IDisposable[];
-	private _activeCommentThreadDisposables: IDisposable[];
 	private readonly _proxy: ExtHostCommentsShape;
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
@@ -488,8 +486,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._disposables = [];
-		this._activeCommentThreadDisposables = [];
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
 
 		this._disposables.push(this._commentService.onDidChangeActiveCommentThread(async thread => {
@@ -782,8 +778,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	dispose(): void {
-		this._disposables = dispose(this._disposables);
-		this._activeCommentThreadDisposables = dispose(this._activeCommentThreadDisposables);
+		super.dispose();
 		this._workspaceProviders.forEach(value => dispose(value));
 		this._workspaceProviders.clear();
 		this._documentProviders.forEach(value => dispose(value));

@@ -5,7 +5,7 @@
 
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -20,10 +20,9 @@ import { CodeActionTrigger } from './codeActionTrigger';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
-export class CodeActionOracle {
+export class CodeActionOracle extends Disposable {
 
-	private _disposables: IDisposable[] = [];
-	private readonly _autoTriggerTimer = new TimeoutTimer();
+	private readonly _autoTriggerTimer = this._register(new TimeoutTimer());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -32,15 +31,9 @@ export class CodeActionOracle {
 		private readonly _delay: number = 250,
 		private readonly _progressService?: ILocalProgressService,
 	) {
-		this._disposables.push(
-			this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)),
-			this._editor.onDidChangeCursorPosition(() => this._onCursorChange()),
-		);
-	}
-
-	dispose(): void {
-		this._disposables = dispose(this._disposables);
-		this._autoTriggerTimer.cancel();
+		super();
+		this._register(this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)));
+		this._register(this._editor.onDidChangeCursorPosition(() => this._onCursorChange()));
 	}
 
 	trigger(trigger: CodeActionTrigger) {

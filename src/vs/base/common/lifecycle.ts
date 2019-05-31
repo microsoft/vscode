@@ -65,6 +65,10 @@ export class DisposableStore implements IDisposable {
 	}
 
 	public add<T extends IDisposable>(t: T): T {
+		if (!t) {
+			return t;
+		}
+
 		if (this._isDisposed) {
 			console.warn('Registering disposable on object that has already been disposed.');
 			t.dispose();
