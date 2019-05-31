@@ -451,6 +451,10 @@ export class MainThreadCommentController {
 		this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
 	}
 
+	async updateCommentThreadTemplate(threadHandle: number, range: IRange) {
+		await this._proxy.$updateCommentThreadTemplate(this.handle, threadHandle, range);
+	}
+
 	toJSON(): any {
 		return {
 			$mid: 6,
