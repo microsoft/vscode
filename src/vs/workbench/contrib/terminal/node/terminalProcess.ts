@@ -200,7 +200,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		if (this._isDisposed) {
 			return;
 		}
-		if (typeof cols !== 'number' || typeof rows !== 'number') {
+		if (typeof cols !== 'number' || typeof rows !== 'number' || isNaN(cols) || isNaN(rows)) {
 			return;
 		}
 		// Ensure that cols and rows are always >= 1, this prevents a native
