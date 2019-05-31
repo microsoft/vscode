@@ -441,7 +441,9 @@
 					"**/vs/platform/**/{common,browser}/**",
 					"**/vs/editor/{common,browser}/**",
 					"**/vs/workbench/{common,browser}/**",
-					"**/vs/workbench/services/**/{common,browser}/**"
+					"**/vs/workbench/services/**/{common,browser}/**",
+					"vscode-textmate",
+					"onigasm-umd"
 				]
 			},
 			{

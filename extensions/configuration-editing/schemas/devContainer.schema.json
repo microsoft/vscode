@@ -5,6 +5,7 @@
 	"type": "object",
 	"definitions": {
 		"devContainerCommon": {
+			"type": "object",
 			"properties": {
 				"name": {
 					"type": "string",
@@ -16,6 +17,10 @@
 					"items": {
 						"type": "string"
 					}
+				},
+				"settings": {
+					"$ref": "vscode://schemas/settings/machine",
+					"description": "Machine specific settings that should be copied into the container."
 				},
 				"postCreateCommand": {
 					"type": ["string", "array"],
@@ -31,6 +36,7 @@
 			}
 		},
 		"nonComposeBase": {
+			"type": "object",
 			"properties": {
 				"appPort": {
 					"type": ["integer", "string", "array"],
@@ -54,10 +60,19 @@
 				"overrideCommand": {
 					"type": "boolean",
 					"description": "Whether to overwrite the command specified in the image. The default is true."
+				},
+				"workspaceFolder": {
+					"type": "string",
+					"description": "The path of the workspace folder inside the container."
+				},
+				"workspaceMount": {
+					"type": "string",
+					"description": "The --mount parameter for docker run. The default is to mount the project folder at /workspaces/$project."
 				}
 			}
 		},
 		"dockerFileContainer": {
+			"type": "object",
 			"properties": {
 				"dockerFile": {
 					"type": "string",
@@ -71,6 +86,7 @@
 			"required": ["dockerFile"]
 		},
 		"imageContainer": {
+			"type": "object",
 			"properties": {
 				"image": {
 					"type": "string",
@@ -80,6 +96,7 @@
 			"required": ["image"]
 		},
 		"composeContainer": {
+			"type": "object",
 			"properties": {
 				"dockerComposeFile": {
 					"type": ["string", "array"],

@@ -8,7 +8,7 @@ import { Disposable, IDisposable, toDisposable, dispose } from 'vs/base/common/l
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { FileDeleteOptions, FileOverwriteOptions, FileType, FileWriteOptions, IFileChange, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileDeleteOptions, FileOverwriteOptions, FileType, IFileChange, IStat, IWatchOptions, FileOpenOptions } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRemoteURITransformer } from 'vs/agent/remoteUriTransformer';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
@@ -93,8 +93,11 @@ export class RemoteAgentFileSystemChannel extends Disposable implements IServerC
 		switch (command) {
 			case 'stat': return this._stat(uriTransformer, arg[0]);
 			case 'readdir': return this._readdir(uriTransformer, arg[0]);
+			case 'open': return this._open(uriTransformer, arg[0], arg[1]);
+			case 'close': return this._close(arg[0]);
+			case 'read': return this._read(arg[0], arg[1], arg[2]);
 			case 'readFile': return this._readFile(uriTransformer, arg[0]);
-			case 'writeFile': return this._writeFile(uriTransformer, arg[0], arg[1], arg[2]);
+			case 'write': return this._write(arg[0], arg[1], arg[2], arg[3], arg[4]);
 			case 'rename': return this._rename(uriTransformer, arg[0], arg[1], arg[2]);
 			case 'copy': return this._copy(uriTransformer, arg[0], arg[1], arg[2]);
 			case 'mkdir': return this._mkdir(uriTransformer, arg[0]);
@@ -146,15 +149,32 @@ export class RemoteAgentFileSystemChannel extends Disposable implements IServerC
 		return this._fsProvider.readdir(resource);
 	}
 
+	private _open(uriTransformer: IURITransformer, _resource: UriComponents, opts: FileOpenOptions): Promise<number> {
+		const resource = this._transformIncoming(uriTransformer, _resource, true);
+		return this._fsProvider.open(resource, opts);
+	}
+
+	private _close(_fd: number): Promise<void> {
+		return this._fsProvider.close(_fd);
+	}
+
+	private async _read(fd: number, pos: number, length: number): Promise<[VSBuffer, number]> {
+		const buffer = VSBuffer.alloc(length);
+		const bufferOffset = 0; // offset is 0 because we create a buffer to read into for each call
+		const bytesRead = await this._fsProvider.read(fd, pos, buffer.buffer, bufferOffset, length);
+
+		return [buffer, bytesRead];
+	}
+
+	private _write(fd: number, pos: number, data: VSBuffer, offset: number, length: number): Promise<number> {
+		return this._fsProvider.write(fd, pos, data.buffer, offset, length);
+	}
+
+	// TODO@alex remove me once electron-main no longer calls this directly
 	private async _readFile(uriTransformer: IURITransformer, _resource: UriComponents): Promise<VSBuffer> {
 		const resource = this._transformIncoming(uriTransformer, _resource, true);
 		const buff = await this._fsProvider.readFile(resource);
 		return VSBuffer.wrap(buff);
-	}
-
-	private _writeFile(uriTransformer: IURITransformer, _resource: UriComponents, content: VSBuffer, opts: FileWriteOptions): Promise<void> {
-		const resource = this._transformIncoming(uriTransformer, _resource);
-		return this._fsProvider.writeFile(resource, content.buffer, opts);
 	}
 
 	private _rename(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: FileOverwriteOptions): Promise<void> {

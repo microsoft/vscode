@@ -10,7 +10,7 @@ import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/acti
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
@@ -87,7 +87,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			}
 		}
 
-		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.cachedViewlets.map(v => (<ICompositeBarItem>{ id: v.id, name: undefined, visible: v.visible, order: v.order, pinned: v.pinned })), {
+		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.cachedViewlets.map(v => ({ id: v.id, name: undefined, visible: v.visible, order: v.order, pinned: v.pinned })), {
 			icon: true,
 			orientation: ActionsOrientation.VERTICAL,
 			openComposite: (compositeId: string) => this.viewletService.openViewlet(compositeId, true),
@@ -218,7 +218,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getActivitybarItemColors(theme: ITheme): ICompositeBarColors {
-		return <ICompositeBarColors>{
+		return {
 			activeForegroundColor: theme.getColor(ACTIVITY_BAR_FOREGROUND),
 			inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND),
 			badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
@@ -236,7 +236,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			.map(a => new GlobalActivityAction(a));
 
 		this.globalActionBar = this._register(new ActionBar(container, {
-			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a, (theme: ITheme) => this.getActivitybarItemColors(theme)),
+			actionViewItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionViewItem, a, (theme: ITheme) => this.getActivitybarItemColors(theme)),
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('globalActions', "Global Actions"),
 			animated: false
@@ -380,7 +380,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Layout composite bar
 		let availableHeight = contentAreaSize.height;
 		if (this.globalActionBar) {
-			availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
+			availableHeight -= (this.globalActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
 		}
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}
@@ -446,9 +446,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getCachedViewlets(): ICachedViewlet[] {
-		const storedStates = <Array<string | ICachedViewlet>>JSON.parse(this.cachedViewletsValue);
-		const cachedViewlets = <ICachedViewlet[]>storedStates.map(c => {
-			const serialized: ICachedViewlet = typeof c === 'string' /* migration from pinned states to composites states */ ? <ICachedViewlet>{ id: c, pinned: true, order: undefined, visible: true, iconUrl: undefined, views: undefined } : c;
+		const storedStates: Array<string | ICachedViewlet> = JSON.parse(this.cachedViewletsValue);
+		const cachedViewlets = storedStates.map(c => {
+			const serialized: ICachedViewlet = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true, iconUrl: undefined, views: undefined } : c;
 			serialized.visible = isUndefinedOrNull(serialized.visible) ? true : serialized.visible;
 			return serialized;
 		});
@@ -466,7 +466,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private loadOldCachedViewlets(): ICachedViewlet[] {
 		const previousState = this.storageService.get('workbench.activity.placeholderViewlets', StorageScope.GLOBAL, '[]');
-		const result = (<ICachedViewlet[]>JSON.parse(previousState));
+		const result: ICachedViewlet[] = JSON.parse(previousState);
 		this.storageService.remove('workbench.activity.placeholderViewlets', StorageScope.GLOBAL);
 
 		return result;

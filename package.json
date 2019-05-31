@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.34.0",
-  "distro": "7b2359d7f916e51e43161f06b62ae0b0c24045d7",
+  "version": "1.35.0",
+  "distro": "13315b2bb7cddd8063d7c31dad16a14ca22435b1",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -23,7 +23,8 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
-    "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization"
+    "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
+    "web": "node scripts/code-web.js"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -39,7 +40,8 @@
     "native-is-elevated": "^0.2.1",
     "native-keymap": "1.2.5",
     "native-watchdog": "1.0.0",
-    "node-pty": "0.8.1",
+    "node-pty": "0.9.0-beta13",
+    "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
     "spdlog": "0.8.1",
     "sudo-prompt": "8.2.0",
@@ -50,9 +52,9 @@
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
-    "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.13.0-beta3",
-    "yauzl": "^2.9.1",
+    "vscode-textmate": "^4.1.1",
+    "vscode-xterm": "3.14.0-beta5",
+    "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
   "devDependencies": {
@@ -102,6 +104,7 @@
     "gulp-uglify": "^3.0.0",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",
+    "http-server": "^0.11.1",
     "husky": "^0.13.1",
     "innosetup-compiler": "^5.5.60",
     "is": "^3.1.0",
@@ -114,6 +117,7 @@
     "mkdirp": "^0.5.0",
     "mocha": "^2.2.5",
     "mocha-junit-reporter": "^1.17.0",
+    "opn": "^5.4.0",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
     "pump": "^1.0.1",
@@ -124,10 +128,9 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
-    "tslint": "^5.11.0",
+    "tslint": "^5.16.0",
     "typescript": "3.4.5",
     "typescript-formatter": "7.1.0",
-    "typescript-tslint-plugin": "^0.0.7",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",

@@ -28,7 +28,7 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannelClient } from 'vs/platform/download/node/downloadIpc';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { FollowerLogService, LogLevelSetterChannelClient } from 'vs/platform/log/node/logIpc';
-import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -48,6 +48,7 @@ import pkg from 'vs/platform/product/node/package';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { getMachineId } from 'vs/base/node/id';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 
 export interface IExtensionsManagementProcessInitData {
 	args: ParsedArgs;
@@ -83,13 +84,20 @@ export class ManagementConnection {
 		this._disconnectWaitTimer = null;
 
 		this._protocol.onClose(() => this._cleanResources());
-		this._protocol.onSocketClose(() => {
-			// The socket has closed, let's give the renderer a certain amount of time to reconnect
-			this._disconnectWaitTimer = setTimeout(() => {
-				this._disconnectWaitTimer = null;
+		if (protocol.getSocket() instanceof NodeSocket) {
+			this._protocol.onSocketClose(() => {
+				// The socket has closed, let's give the renderer a certain amount of time to reconnect
+				this._disconnectWaitTimer = setTimeout(() => {
+					this._disconnectWaitTimer = null;
+					this._cleanResources();
+				}, ProtocolConstants.ReconnectionGraceTime);
+			});
+		} else {
+			protocol.onSocketClose(() => {
+				// Do not wait for web companion to reconnect
 				this._cleanResources();
-			}, ProtocolConstants.ReconnectionGraceTime);
-		});
+			});
+		}
 		managementServer.socketServer.acceptConnection(this._protocol, this.onClose);
 	}
 
@@ -144,7 +152,7 @@ export class RemoteExtensionManagementServer extends Disposable {
 		// TODO: @Sandy @Joao need dynamic context based router
 		const router = new StaticRouter<RemoteAgentConnectionContext>(ctx => ctx.clientId === 'renderer');
 		const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', router));
-		const logService = new FollowerLogService(logLevelClient, createSpdLogService(RemoteExtensionLogFileName, LogLevel.Info, this._environmentService.logsPath));
+		const logService = new FollowerLogService(logLevelClient, new SpdLogService(RemoteExtensionLogFileName, this._environmentService.logsPath, LogLevel.Info));
 
 		services.set(IEnvironmentService, this._environmentService);
 		services.set(ILogService, logService);
@@ -178,7 +186,7 @@ export class RemoteExtensionManagementServer extends Disposable {
 		const downloadChannel = server.getChannel('download', router);
 		services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, () => this.getUriTransformer('renderer') /* TODO: @Sandy @Joao need dynamic context based router */));
 
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [true]));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 		const instantiationService = new InstantiationService(services);
 		services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
@@ -216,7 +224,7 @@ export class RemoteExtensionManagementCli {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		this.cliMain = instantiationService.createInstance(CliMain, true);
+		this.cliMain = instantiationService.createInstance(CliMain);
 	}
 
 	static shouldSpawnCli(argv: ParsedArgs): boolean {
@@ -230,7 +238,7 @@ export class RemoteExtensionManagementCli {
 		const services = new ServiceCollection();
 
 		services.set(IEnvironmentService, environmentService);
-		const logService = createSpdLogService('cli', getLogLevel(environmentService), environmentService.logsPath);
+		const logService = new SpdLogService('cli', environmentService.logsPath, getLogLevel(environmentService));
 		services.set(ILogService, logService);
 		const instantiationService: IInstantiationService = new InstantiationService(services);
 
@@ -239,7 +247,7 @@ export class RemoteExtensionManagementCli {
 		services.set(ITelemetryService, NullTelemetryService);
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
-		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService, [true]));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 		return instantiationService.createInstance(RemoteExtensionManagementCli);
 	}

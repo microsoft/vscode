@@ -17,7 +17,7 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { QuickFixAction, QuickFixActionItem } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
+import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -253,7 +253,7 @@ class MarkerWidget extends Disposable {
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionItem, action) : undefined
+			actionViewItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionViewItem, action) : undefined
 		}));
 		this.icon = dom.append(parent, dom.$('.icon'));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
@@ -290,9 +290,9 @@ class MarkerWidget extends Disposable {
 				}
 			}, this, this.disposables);
 			quickFixAction.onShowQuickFixes(() => {
-				const quickFixActionItem = <QuickFixActionItem>this.actionBar.items[0];
-				if (quickFixActionItem) {
-					quickFixActionItem.showQuickFixes();
+				const quickFixActionViewItem = <QuickFixActionViewItem>this.actionBar.viewItems[0];
+				if (quickFixActionViewItem) {
+					quickFixActionViewItem.showQuickFixes();
 				}
 			}, this, this.disposables);
 		}

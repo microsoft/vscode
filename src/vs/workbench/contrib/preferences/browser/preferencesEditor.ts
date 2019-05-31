@@ -31,7 +31,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ILocalProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -94,7 +94,7 @@ export class PreferencesEditor extends BaseEditor {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IProgressService private readonly progressService: IProgressService,
+		@ILocalProgressService private readonly progressService: ILocalProgressService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
@@ -154,14 +154,14 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	setInput(newInput: PreferencesEditorInput, options: SettingsEditorOptions, token: CancellationToken): Promise<void> {
+	setInput(newInput: EditorInput, options: SettingsEditorOptions, token: CancellationToken): Promise<void> {
 		this.defaultSettingsEditorContextKey.set(true);
 		this.defaultSettingsJSONEditorContextKey.set(true);
 		if (options && options.query) {
 			this.focusSearch(options.query);
 		}
 
-		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput, options, token));
+		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput as PreferencesEditorInput, options, token));
 	}
 
 	layout(dimension: DOM.Dimension): void {

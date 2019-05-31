@@ -5,7 +5,7 @@
 
 import 'vs/css!./contextMenuHandler';
 
-import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -73,7 +73,7 @@ export class ContextMenuHandler {
 				actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
 				menu = new Menu(container, actions, {
-					actionItemProvider: delegate.getActionItem,
+					actionViewItemProvider: delegate.getActionViewItem,
 					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
 					actionRunner,
 					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
@@ -104,7 +104,7 @@ export class ContextMenuHandler {
 					this.contextViewService.hideContextView(true);
 				}, null, menuDisposables);
 
-				return combinedDisposable([...menuDisposables, menu]);
+				return combinedDisposable(...menuDisposables, menu);
 			},
 
 			focus: () => {

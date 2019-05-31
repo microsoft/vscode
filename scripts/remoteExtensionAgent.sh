@@ -13,9 +13,16 @@ function code() {
 	# Sync built-in extensions
 	node build/lib/builtInExtensions.js
 
+	# Load remote node
+	if [[ -e "./.build/node-remote/node" ]]; then
+		echo 'Skipping node download...'
+	else
+		./node_modules/.bin/gulp node-remote
+	fi
+
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
-	node "$ROOT/out/remoteExtensionHostAgent.js" "$@"
+	./.build/node-remote/node "$ROOT/out/remoteExtensionHostAgent.js" "$@"
 }
 
 code "$@"

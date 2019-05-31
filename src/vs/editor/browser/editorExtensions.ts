@@ -40,17 +40,17 @@ export interface ICommandMenubarOptions {
 }
 export interface ICommandOptions {
 	id: string;
-	precondition: ContextKeyExpr | null;
-	kbOpts?: ICommandKeybindingsOptions | null;
+	precondition: ContextKeyExpr | undefined;
+	kbOpts?: ICommandKeybindingsOptions;
 	description?: ICommandHandlerDescription;
 	menubarOpts?: ICommandMenubarOptions;
 }
 export abstract class Command {
 	public readonly id: string;
-	public readonly precondition: ContextKeyExpr | null;
-	private readonly _kbOpts: ICommandKeybindingsOptions | null | undefined;
-	private readonly _menubarOpts: ICommandMenubarOptions | null | undefined;
-	private readonly _description: ICommandHandlerDescription | null | undefined;
+	public readonly precondition: ContextKeyExpr | undefined;
+	private readonly _kbOpts: ICommandKeybindingsOptions | undefined;
+	private readonly _menubarOpts: ICommandMenubarOptions | undefined;
+	private readonly _description: ICommandHandlerDescription | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;

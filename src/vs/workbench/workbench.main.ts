@@ -102,9 +102,8 @@ import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService
 import 'vs/workbench/services/extensions/common/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/decorations/browser/decorationsService';
 import 'vs/workbench/services/search/node/searchService';
-import 'vs/workbench/services/progress/browser/progressService2';
+import 'vs/workbench/services/progress/browser/progressService';
 import 'vs/workbench/services/editor/browser/codeEditorService';
-import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import 'vs/workbench/services/extensions/electron-browser/extensionHostDebugService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/output/node/outputChannelModelService';

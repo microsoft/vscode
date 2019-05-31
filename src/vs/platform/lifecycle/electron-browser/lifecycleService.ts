@@ -75,18 +75,17 @@ export class LifecycleService extends AbstractLifecycleService {
 		});
 
 		// Main side indicates that we will indeed shutdown
-		ipc.on('vscode:onWillUnload', (_event: unknown, reply: { replyChannel: string, reason: ShutdownReason }) => {
+		ipc.on('vscode:onWillUnload', async (_event: unknown, reply: { replyChannel: string, reason: ShutdownReason }) => {
 			this.logService.trace(`lifecycle: onWillUnload (reason: ${reply.reason})`);
 
 			// trigger onWillShutdown events and joining
-			return this.handleWillShutdown(reply.reason).then(() => {
+			await this.handleWillShutdown(reply.reason);
 
-				// trigger onShutdown event now that we know we will quit
-				this._onShutdown.fire();
+			// trigger onShutdown event now that we know we will quit
+			this._onShutdown.fire();
 
-				// acknowledge to main side
-				ipc.send(reply.replyChannel, windowId);
-			});
+			// acknowledge to main side
+			ipc.send(reply.replyChannel, windowId);
 		});
 
 		// Save shutdown reason to retrieve on next startup
@@ -111,7 +110,7 @@ export class LifecycleService extends AbstractLifecycleService {
 		});
 	}
 
-	private handleWillShutdown(reason: ShutdownReason): Promise<void> {
+	private async handleWillShutdown(reason: ShutdownReason): Promise<void> {
 		const joiners: Promise<void>[] = [];
 
 		this._onWillShutdown.fire({
@@ -123,9 +122,11 @@ export class LifecycleService extends AbstractLifecycleService {
 			reason
 		});
 
-		return Promise.all(joiners).then(() => undefined, err => {
-			this.notificationService.error(toErrorMessage(err));
-			onUnexpectedError(err);
-		});
+		try {
+			await Promise.all(joiners);
+		} catch (error) {
+			this.notificationService.error(toErrorMessage(error));
+			onUnexpectedError(error);
+		}
 	}
 }

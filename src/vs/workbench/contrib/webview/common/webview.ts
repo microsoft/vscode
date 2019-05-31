@@ -47,7 +47,7 @@ export interface WebviewContentOptions {
 
 export interface Webview {
 
-	contents: string;
+	html: string;
 	options: WebviewContentOptions;
 	initialScrollProgress: number;
 	state: string | undefined;

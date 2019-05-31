@@ -21,6 +21,7 @@
 	"licenseName": "Multiple, see https://code.visualstudio.com/license",
 	"urlProtocol": "vscode-insiders",
 	"dataFolderName": ".vscode-insiders",
+	"serverDataFolderName": ".vscode-server-insiders",
 	"downloadUrl": "https://code.visualstudio.com/insiders",
 	"welcomePage": "https://go.microsoft.com/fwlink/?LinkId=723048",
 	"updateUrl": "https://update.code.visualstudio.com",
@@ -311,6 +312,20 @@
 			"recommendations": [
 				"msjsdiag.debugger-for-edge"
 			]
+		},
+		"react-native": {
+			"friendlyName": "React Native",
+			"windowsPath": "%APPDATA%\\npm\\react-native-cli",
+			"recommendations": [
+				"vsmobile.vscode-react-native"
+			]
+		},
+		"cordova": {
+			"friendlyName": "Cordova",
+			"windowsPath": "%APPDATA%\\npm\\cordova",
+			"recommendations": [
+				"vsmobile.cordova-tools"
+			]
 		}
 	},
 	"extensionKeywords": {
@@ -581,6 +596,7 @@
 		"api.travis-ci.com",
 		"api.travis-ci.org",
 		"app.fossa.io",
+		"badge.buildkite.com",
 		"badge.fury.io",
 		"badge.waffle.io",
 		"badgen.net",
@@ -599,6 +615,7 @@
 		"david-dm.org",
 		"deepscan.io",
 		"dev.azure.com",
+		"docs.rs",
 		"flat.badgen.net",
 		"gemnasium.com",
 		"githost.io",
@@ -644,6 +661,7 @@
 	"keyboardShortcutsUrlWin": "https://go.microsoft.com/fwlink/?linkid=832145",
 	"introductoryVideosUrl": "https://go.microsoft.com/fwlink/?linkid=832146",
 	"tipsAndTricksUrl": "https://go.microsoft.com/fwlink/?linkid=852118",
+	"newsletterSignupUrl": "https://www.research.net/r/vsc-newsletter",
 	"twitterUrl": "https://go.microsoft.com/fwlink/?LinkID=533687",
 	"requestFeatureUrl": "https://go.microsoft.com/fwlink/?LinkID=533482",
 	"reportIssueUrl": "https://github.com/Microsoft/vscode/issues/new",
@@ -703,43 +721,30 @@
 		"GitHub.vscode-pull-request-github-insiders",
 		"Microsoft.vscode-nmake-tools",
 		"ms-vscode-remote.remote-containers",
+		"ms-vscode-remote.remote-containers-nightly",
 		"ms-vscode-remote.remote-ssh",
+		"ms-vscode-remote.remote-ssh-nightly",
 		"ms-vscode-remote.remote-ssh-edit",
+		"ms-vscode-remote.remote-ssh-edit-nightly",
 		"ms-vscode-remote.remote-ssh-explorer",
+		"ms-vscode-remote.remote-ssh-explorer-nightly",
 		"ms-vscode-remote.remote-wsl",
+		"ms-vscode-remote.remote-wsl-nightly",
 		"ms-vscode-remote.vscode-remote-extensionpack",
+		"ms-vscode-remote.vscode-remote-extensionpack-nightly",
 		"PeterJausovec.vscode-docker"
 	],
 	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
 	"uiExtensions": [
-		"aaron-bond.better-comments",
-		"alefragnani.delphi-keybindings",
 		"atlassian.atlascode",
 		"CoenraadS.bracket-pair-colorizer",
-		"dsznajder.es7-react-js-snippets",
-		"emilast.logfilehighlighter",
-		"Equinusocio.vsc-material-theme",
 		"formulahendry.auto-close-tag",
 		"hiro-sun.vscode-emacs",
 		"hnw.vscode-auto-open-markdown-preview",
-		"isudox.vscode-jetbrains-keybindings",
-		"johnpapa.Angular2",
-		"johnpapa.vscode-peacock",
-		"laurenttreguier.vscode-simple-icons",
 		"monokai.theme-monokai-pro-vscode",
-		"ms-vscode.atom-keybindings",
-		"ms-vscode.notepadplusplus-keybindings",
-		"ms-vscode.sublime-keybindings",
-		"msjsdiag.debugger-for-chrome",
-		"PKief.material-icon-theme",
-		"robertohuertasm.vscode-icons",
 		"shalldie.background",
-		"Shan.code-settings-sync",
 		"techer.open-in-browser",
 		"vincaslt.highlight-matching-tag",
-		"vscode-icons-team.vscode-icons",
-		"vscodevim.vim",
-		"WakaTime.vscode-wakatime",
 		"wayou.vscode-todo-highlight",
 		"peterjausovec.vscode-docker"
 	]

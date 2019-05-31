@@ -159,7 +159,7 @@ export function asText(context: IRequestContext): Promise<string | null> {
 	});
 }
 
-export function asJson<T>(context: IRequestContext): Promise<T | null> {
+export function asJson<T = {}>(context: IRequestContext): Promise<T | null> {
 	return new Promise((c, e) => {
 		if (!isSuccess(context)) {
 			return e('Server returned ' + context.res.statusCode);

@@ -22,34 +22,6 @@
 			]
 		},
 		{
-			"type": "node",
-			"request": "attach",
-			"name": "Attach to Remote EH",
-			"protocol": "inspector",
-			"port": 5871,
-			"restart": true,
-			"smartStep": true,
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			],
-			"localRoot": "${workspaceFolder}",
-			"remoteRoot": "/mnt/c/Users/${env:USERNAME}/Projects/vscode"
-		},
-		{
-			"type": "node",
-			"request": "attach",
-			"name": "Attach to Remote Agent",
-			"protocol": "inspector",
-			"port": 9444,
-			"restart": true,
-			"smartStep": true,
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			],
-			"localRoot": "${workspaceFolder}",
-			"remoteRoot": "/mnt/c/Users/${env:USERNAME}/Projects/vscode"
-		},
-		{
 			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to Shared Process",
@@ -161,8 +133,7 @@
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
 			"env": {
-				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
-				"DISPLAY": ":1.0"
+				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null
 			},
 			"breakOnLoad": false,
 			"urlFilter": "*workbench.html*",
@@ -264,20 +235,6 @@
 				"VSCODE_DEV": "1",
 				"VSCODE_CLI": "1"
 			}
-		},
-		{
-			"type": "node",
-			"request": "attach",
-			"name": "Windows Remote EH",
-			"protocol": "inspector",
-			"address": "10.211.55.60",
-			"port": 5870,
-			"localRoot": "${workspaceFolder}",
-			"remoteRoot": "y:\\",
-			"restart": true,
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			]
 		},
 		{
 			"name": "Launch Built-in Extension",

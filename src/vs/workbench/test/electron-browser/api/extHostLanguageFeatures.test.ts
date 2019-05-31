@@ -1041,7 +1041,9 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentLinkProvider {
 			provideDocumentLinks() {
-				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
+				const link = new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'));
+				link.tooltip = 'tooltip';
+				return [link];
 			}
 		}));
 
@@ -1051,6 +1053,7 @@ suite('ExtHostLanguageFeatures', function () {
 		let [first] = links;
 		assert.equal(first.url, 'foo:bar#3');
 		assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+		assert.equal(first.tooltip, 'tooltip');
 	});
 
 	test('Links, evil provider', async () => {

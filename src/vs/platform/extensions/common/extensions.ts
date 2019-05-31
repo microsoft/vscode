@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import * as strings from 'vs/base/common/strings';
 import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
@@ -108,24 +107,6 @@ export interface IExtensionContributions {
 }
 
 export type ExtensionKind = 'ui' | 'workspace';
-
-export class ExtensionIdentifierWithVersion {
-	constructor(
-		readonly identifier: IExtensionIdentifier,
-		readonly version: string
-	) { }
-
-	key(): string {
-		return `${this.identifier.id}-${this.version}`;
-	}
-
-	equals(o: any): boolean {
-		if (!(o instanceof ExtensionIdentifierWithVersion)) {
-			return false;
-		}
-		return areSameExtensions(this.identifier, o.identifier) && this.version === o.version;
-	}
-}
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing

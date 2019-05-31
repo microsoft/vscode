@@ -3,53 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { URITransformer, IURITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-/**
- * ```
- * --------------------------------
- * |    UI SIDE    |  AGENT SIDE  |
- * |---------------|--------------|
- * | vscode-remote | file         |
- * | file          | vscode-local |
- * --------------------------------
- * ```
- */
+export const uriTransformerPath = getPathFromAmdModule(require, 'vs/agent/uriTransformer.js');
+
 export function createRemoteURITransformer(remoteAuthority: string): IURITransformer {
-	return new class implements IURITransformer {
-		transformIncoming(uri: UriComponents): UriComponents {
-			if (uri.scheme === 'vscode-remote') {
-				return toJSON(URI.from({ scheme: 'file', path: uri.path }));
-			}
-			if (uri.scheme === 'file') {
-				return toJSON(URI.from({ scheme: 'vscode-local', path: uri.path }));
-			}
-			return uri;
-		}
-
-		transformOutgoing(uri: UriComponents): UriComponents {
-			if (uri.scheme === 'file') {
-				return toJSON(URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: uri.path }));
-			}
-			if (uri.scheme === 'vscode-local') {
-				return toJSON(URI.from({ scheme: 'file', path: uri.path }));
-			}
-			return uri;
-		}
-
-		transformOutgoingURI(uri: URI): URI {
-			if (uri.scheme === 'file') {
-				return URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: uri.path });
-			}
-			if (uri.scheme === 'vscode-local') {
-				return URI.from({ scheme: 'file', path: uri.path });
-			}
-			return uri;
-		}
-	};
-}
-
-function toJSON(uri: URI): UriComponents {
-	return <UriComponents><any>uri.toJSON();
+	const rawURITransformerFactory = <any>require.__$__nodeRequire(uriTransformerPath);
+	const rawURITransformer = <IRawURITransformer>rawURITransformerFactory(remoteAuthority);
+	return new URITransformer(rawURITransformer);
 }

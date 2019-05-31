@@ -13,7 +13,6 @@ export const nodeWebSocketFactory = new class implements IWebSocketFactory {
 
 		const socket = net.createConnection({ host: host, port: port }, () => {
 			socket.removeListener('error', errorListener);
-			socket.on('error', err => console.warn(err));
 
 			// https://tools.ietf.org/html/rfc6455#section-4
 			const buffer = Buffer.alloc(16);

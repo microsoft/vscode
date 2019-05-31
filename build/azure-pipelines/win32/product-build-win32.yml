@@ -12,10 +12,16 @@ steps:
     versionSpec: '2.x'
     addToPath: true
 
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    "machine monacotools.visualstudio.com`npassword $(VSO_PAT)`nmachine github.com`nlogin vscode`npassword $(VSCODE_MIXIN_PASSWORD)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
+    "machine monacotools.visualstudio.com`npassword $(devops-pat)`nmachine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
     $env:npm_config_arch="$(VSCODE_ARCH)"
     $env:CHILD_CONCURRENCY="1"
 
@@ -36,7 +42,7 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    $env:VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)"
+    $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
     .\build\azure-pipelines\win32\build.ps1
   displayName: Build
 
@@ -126,15 +132,15 @@ steps:
 
 - powershell: |
     $ErrorActionPreference = "Stop"
-    .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(ESRP_AUTH_CERTIFICATE) -AuthCertificateKey $(ESRP_AUTH_CERTIFICATE_KEY)
+    .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(esrp-auth-certificate) -AuthCertificateKey $(esrp-auth-certificate-key)
   displayName: Import ESRP Auth Certificate
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(AZURE_STORAGE_ACCESS_KEY_2)"
-    $env:AZURE_DOCUMENTDB_MASTERKEY = "$(AZURE_DOCUMENTDB_MASTERKEY)"
-    $env:VSCODE_HOCKEYAPP_TOKEN = "$(VSCODE_HOCKEYAPP_TOKEN)"
+    $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
+    $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
+    $env:VSCODE_HOCKEYAPP_TOKEN = "$(vscode-hockeyapp-token)"
     .\build\azure-pipelines\win32\publish.ps1
   displayName: Publish
 

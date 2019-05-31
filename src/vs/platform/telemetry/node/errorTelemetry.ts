@@ -6,7 +6,6 @@
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import BaseErrorTelemetry from '../common/errorTelemetry';
 
-
 export default class ErrorTelemetry extends BaseErrorTelemetry {
 	protected installErrorListeners(): void {
 		setUnexpectedErrorHandler(err => console.error(err));
@@ -26,7 +25,6 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 						if (e.stack) {
 							console.warn(`stack trace: ${e.stack}`);
 						}
-
 						onUnexpectedError(reason);
 					});
 				}

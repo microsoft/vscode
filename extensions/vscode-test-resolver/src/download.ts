@@ -19,11 +19,15 @@ function ensureFolderExists(loc: string) {
 	}
 }
 
-async function downloadVSCodeServerArchive(commit: string, quality: string, destDir: string): Promise<string> {
+function getDownloadUrl(updateUrl: string, commit: string, platform: string, quality: string): string {
+	return `${updateUrl}/commit:${commit}/server-${platform}/${quality}`;
+}
+
+async function downloadVSCodeServerArchive(updateUrl: string, commit: string, quality: string, destDir: string): Promise<string> {
 	ensureFolderExists(destDir);
 
 	const platform = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? 'darwin' : 'linux-x64';
-	const downloadUrl = `https://update.code.visualstudio.com/commit:${commit}/server-${platform}/${quality}`;
+	const downloadUrl = getDownloadUrl(updateUrl, commit, platform, quality);
 
 	return new Promise((resolve, reject) => {
 		console.log(`Downloading VS Code Server from: ${downloadUrl}`);
@@ -91,7 +95,7 @@ function unzipVSCodeServer(vscodeArchivePath: string, extractDir: string) {
 	}
 }
 
-export async function downloadAndUnzipVSCodeServer(commit: string, quality: string = 'stable', destDir: string): Promise<string> {
+export async function downloadAndUnzipVSCodeServer(updateUrl: string, commit: string, quality: string = 'stable', destDir: string): Promise<string> {
 
 	const extractDir = path.join(destDir, commit);
 	if (fs.existsSync(extractDir)) {
@@ -99,7 +103,7 @@ export async function downloadAndUnzipVSCodeServer(commit: string, quality: stri
 	} else {
 		console.log(`Downloading VS Code Server ${quality} - ${commit} into ${extractDir}.`);
 		try {
-			const vscodeArchivePath = await downloadVSCodeServerArchive(commit, quality, destDir);
+			const vscodeArchivePath = await downloadVSCodeServerArchive(updateUrl, commit, quality, destDir);
 			if (fs.existsSync(vscodeArchivePath)) {
 				unzipVSCodeServer(vscodeArchivePath, extractDir);
 				// Remove archive

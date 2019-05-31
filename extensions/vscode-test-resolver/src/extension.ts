@@ -65,7 +65,7 @@ export function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const { commit, quality } = getProductConfiguration();
+			const { updateUrl, commit, quality } = getProductConfiguration();
 			if (!commit) { // dev mode
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
 				const nodeExec = process.platform === 'win32' ? 'node.exe' : 'node';
@@ -92,7 +92,7 @@ export function activate(context: vscode.ExtensionContext) {
 			} else {
 				const serverBin = path.resolve(os.homedir(), '.vscode-remote', 'bin');
 				progress.report({ message: 'Installing VSCode Server' });
-				const serverLocation = await downloadAndUnzipVSCodeServer(commit, quality, serverBin);
+				const serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin);
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);
 
 				const commandArgs = ['--port=0', '--disable-telemetry'];
@@ -167,6 +167,7 @@ function getActions(): ActionItem[] {
 }
 
 export interface IProductConfiguration {
+	updateUrl: string;
 	commit: string;
 	quality: string;
 }

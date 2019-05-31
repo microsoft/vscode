@@ -125,101 +125,103 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 
 		// Update/clear view settings if input changes
 		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options, token).then(() => {
-			return input.resolve().then(resolvedModel => {
+		await super.setInput(input, options, token);
+		try {
+			const resolvedModel = await input.resolve();
 
-				// Check for cancellation
-				if (token.isCancellationRequested) {
-					return undefined;
-				}
+			// Check for cancellation
+			if (token.isCancellationRequested) {
+				return;
+			}
 
-				// There is a special case where the text editor has to handle binary file editor input: if a binary file
-				// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
-				// editor has to open this model using the binary editor. We return early in this case.
-				if (resolvedModel instanceof BinaryEditorModel) {
-					return this.openAsBinary(input, options);
-				}
+			// There is a special case where the text editor has to handle binary file editor input: if a binary file
+			// has been resolved and cached before, it maybe an actual instance of BinaryEditorModel. In this case our text
+			// editor has to open this model using the binary editor. We return early in this case.
+			if (resolvedModel instanceof BinaryEditorModel) {
+				return this.openAsBinary(input, options);
+			}
 
-				const textFileModel = <ITextFileEditorModel>resolvedModel;
+			const textFileModel = <ITextFileEditorModel>resolvedModel;
 
-				// Editor
-				const textEditor = this.getControl();
-				textEditor.setModel(textFileModel.textEditorModel);
+			// Editor
+			const textEditor = this.getControl();
+			textEditor.setModel(textFileModel.textEditorModel);
 
-				// Always restore View State if any associated
-				const editorViewState = this.loadTextEditorViewState(this.input.getResource());
-				if (editorViewState) {
-					textEditor.restoreViewState(editorViewState);
-				}
+			// Always restore View State if any associated
+			const editorViewState = this.loadTextEditorViewState(this.input.getResource());
+			if (editorViewState) {
+				textEditor.restoreViewState(editorViewState);
+			}
 
-				// TextOptions (avoiding instanceof here for a reason, do not change!)
-				if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-					(<TextEditorOptions>options).apply(textEditor, ScrollType.Immediate);
-				}
+			// TextOptions (avoiding instanceof here for a reason, do not change!)
+			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+				(<TextEditorOptions>options).apply(textEditor, ScrollType.Immediate);
+			}
 
-				// Readonly flag
-				textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
-			}, error => {
+			// Readonly flag
+			textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
+		} catch (error) {
 
-				// In case we tried to open a file inside the text editor and the response
-				// indicates that this is not a text file, reopen the file through the binary
-				// editor.
-				if ((<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY) {
-					return this.openAsBinary(input, options);
-				}
+			// In case we tried to open a file inside the text editor and the response
+			// indicates that this is not a text file, reopen the file through the binary
+			// editor.
+			if ((<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY) {
+				return this.openAsBinary(input, options);
+			}
 
-				// Similar, handle case where we were asked to open a folder in the text editor.
-				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
-					this.openAsFolder(input);
+			// Similar, handle case where we were asked to open a folder in the text editor.
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
+				this.openAsFolder(input);
 
-					return Promise.reject(new Error(nls.localize('openFolderError', "File is a directory")));
-				}
+				throw new Error(nls.localize('openFolderError', "File is a directory"));
+			}
 
-				// Offer to create a file from the error if we have a file not found and the name is valid
-				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.getResource()))) {
-					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
-						actions: [
-							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, () => {
-								return this.textFileService.create(input.getResource()).then(() => this.editorService.openEditor({
-									resource: input.getResource(),
-									options: {
-										pinned: true // new file gets pinned by default
-									}
-								}));
-							})
-						]
-					}));
-				}
+			// Offer to create a file from the error if we have a file not found and the name is valid
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.getResource()))) {
+				throw createErrorWithActions(toErrorMessage(error), {
+					actions: [
+						new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, async () => {
+							await this.textFileService.create(input.getResource());
 
-				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
-					const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
+							return this.editorService.openEditor({
+								resource: input.getResource(),
+								options: {
+									pinned: true // new file gets pinned by default
+								}
+							});
+						})
+					]
+				});
+			}
 
-					return Promise.reject(createErrorWithActions(toErrorMessage(error), {
-						actions: [
-							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), undefined, true, () => {
-								return this.windowsService.relaunch({
-									addArgs: [
-										`--max-memory=${memoryLimit}`
-									]
-								});
-							}),
-							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), undefined, true, () => {
-								return this.preferencesService.openGlobalSettings(undefined, { query: 'files.maxMemoryForLargeFilesMB' });
-							})
-						]
-					}));
-				}
+			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
+				const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
-				// Otherwise make sure the error bubbles up
-				return Promise.reject(error);
-			});
-		});
+				throw createErrorWithActions(toErrorMessage(error), {
+					actions: [
+						new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), undefined, true, () => {
+							return this.windowsService.relaunch({
+								addArgs: [
+									`--max-memory=${memoryLimit}`
+								]
+							});
+						}),
+						new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), undefined, true, () => {
+							return this.preferencesService.openGlobalSettings(undefined, { query: 'files.maxMemoryForLargeFilesMB' });
+						})
+					]
+				});
+			}
+
+			// Otherwise make sure the error bubbles up
+			throw error;
+		}
 	}
 
 	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
@@ -227,21 +229,20 @@ export class TextFileEditor extends BaseTextEditor {
 		this.editorService.openEditor(input, options, this.group);
 	}
 
-	private openAsFolder(input: FileEditorInput): void {
+	private async openAsFolder(input: FileEditorInput): Promise<void> {
 		if (!this.group) {
 			return;
 		}
 
 		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
-		this.group.closeEditor(this.input).then(() => {
+		await this.group.closeEditor(this.input);
 
-			// Best we can do is to reveal the folder in the explorer
-			if (this.contextService.isInsideWorkspace(input.getResource())) {
-				this.viewletService.openViewlet(VIEWLET_ID).then(() => {
-					this.explorerService.select(input.getResource(), true);
-				});
-			}
-		});
+		// Best we can do is to reveal the folder in the explorer
+		if (this.contextService.isInsideWorkspace(input.getResource())) {
+			await this.viewletService.openViewlet(VIEWLET_ID);
+
+			this.explorerService.select(input.getResource(), true);
+		}
 	}
 
 	protected getAriaLabel(): string {

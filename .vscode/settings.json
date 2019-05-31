@@ -45,27 +45,13 @@
 	"gitBranch.base": "origin/master",
 	"gitBranch.diffGroups": [
 		{
-			"name": "⛔Build & Dev Scripts [LEAKAGE CONCERN]",
+			"name": "🚧🛑Sourcemap (should skip vs/agent)",
 			"files": [
-				".gitignore",
-				".vscode/launch.json",
-				".vscode/settings.json",
 				"build/azure-pipelines/darwin/build.sh",
-				"build/azure-pipelines/darwin/publish.sh",
-				"build/azure-pipelines/linux/build.sh",
-				"build/azure-pipelines/linux/publish.sh",
-				"build/azure-pipelines/win32/build.ps1",
-				"build/azure-pipelines/win32/publish.ps1",
-				"build/azure-pipelines/win32/product-build-win32.yml",
-				"build/lib/i18n.resources.json",
-				"build/npm/postinstall.js",
-				"scripts/remoteExtensionAgent.bat",
-				"scripts/remoteExtensionAgent.sh",
-				"tslint.json",
 			]
 		},
 		{
-			"name": "⛔Testing [LEAKAGE CONCERN]",
+			"name": "🚧🛑Testing (needs URL passed in)",
 			"files": [
 				"extensions/vscode-test-resolver/**",
 				"scripts/test-integration.bat",
@@ -77,51 +63,20 @@
 			]
 		},
 		{
-			"name": "⛔Client Side [LEAKAGE CONCERN]",
-			"files": [
-				"src/vs/workbench/contrib/remote/electron-browser/remote.contribution.ts",
-				"src/vs/workbench/contrib/remote/electron-browser/remoteAgentExtensionsInstaller.ts",
-				"src/vs/workbench/services/extensions/electron-browser/remoteExtensionHostClient.ts",
-				"src/vs/workbench/services/remote/node/tunnelService.ts",
-				"src/vs/workbench/workbench.main.ts",
-				"extensions/configuration-editing/schemas/devContainer.schema.json",
-				"extensions/configuration-editing/package.json"
-			]
-		},
-		{
-			"name": "⛔Server Side [LEAKAGE CONCERN]",
-			"files": [
-				"remote/**",
-				"resources/server/**",
-				"src/remoteCli.js",
-				"src/remoteExtensionHostAgent.js",
-			]
-		},
-		{
-			"name": "⛔Web Companion [LEAKAGE CONCERN]",
-			"files": [
-				"src/vs/code/browser/workbench/workbench.html",
-				"src/vs/code/browser/workbench/workbench.js",
-				"src/vs/platform/remote/browser/browserWebSocketFactory.ts",
-				"src/vs/workbench/services/remote/browser/remoteAgentServiceImpl.ts",
-			]
-		},
-		{
-			"name": "⛔🛑 Agent implementation [IP - DO NOT MERGE]",
-			"files": [
-				"src/vs/agent/**"
-			]
-		},
-		{
-			"name": "⛔🛑 Other [IP - DO NOT MERGE]",
+			"name": "⛔🛑 [DO NOT MERGE] Server implementation, resources & scripts",
 			"files": [
 				"build/gulpfile.reh.js",
-				"src/vs/platform/remote/common/remoteAgentConnection.ts",
-				"src/vs/workbench/services/extensions/electron-browser/extensionService.ts",
+				"remote/LICENSE",
+				"resources/server/**",
+				"scripts/remoteExtensionAgent.bat",
+				"scripts/remoteExtensionAgent.sh",
+				"src/remoteCli.js",
+				"src/remoteExtensionHostAgent.js",
+				"src/vs/agent/**",
 			]
 		},
 		{
-			"name": "⛔🛑 Quality [Icons & Licenses - DO NOT MERGE]",
+			"name": "⛔🛑 [DO NOT MERGE] Quality Icons & Licenses",
 			"files": [
 				"quality/**"
 			]

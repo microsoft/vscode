@@ -15,7 +15,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
-import { ExtensionScanner, ExtensionScannerInput, ILog, IExtensionResolver, IExtensionReference, Translations } from 'vs/workbench/services/extensions/node/extensionPoints';
+import { ExtensionScanner, ExtensionScannerInput, IExtensionResolver, IExtensionReference } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -29,6 +29,7 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics
 import { basename } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ILog, Translations } from 'vs/workbench/services/extensions/common/extensionPoints';
 
 let _SystemExtensionsRoot: string | null = null;
 function getSystemExtensionsRoot(): string {

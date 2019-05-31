@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./renameInputField';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -16,7 +16,7 @@ import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
 
-export class RenameInputField implements IContentWidget, IDisposable {
+export class RenameInputField extends Disposable implements IContentWidget {
 
 	private _editor: ICodeEditor;
 	private _position: Position;
@@ -24,7 +24,6 @@ export class RenameInputField implements IContentWidget, IDisposable {
 	private _inputField: HTMLInputElement;
 	private _visible: boolean;
 	private readonly _visibleContextKey: IContextKey<boolean>;
-	private _disposables: IDisposable[] = [];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow: boolean = true;
@@ -34,18 +33,19 @@ export class RenameInputField implements IContentWidget, IDisposable {
 		private readonly themeService: IThemeService,
 		contextKeyService: IContextKeyService,
 	) {
+		super();
 		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 
 		this._editor = editor;
 		this._editor.addContentWidget(this);
 
-		this._disposables.push(editor.onDidChangeConfiguration(e => {
+		this._register(editor.onDidChangeConfiguration(e => {
 			if (e.fontInfo) {
 				this.updateFont();
 			}
 		}));
 
-		this._disposables.push(themeService.onThemeChange(theme => this.onThemeChange(theme)));
+		this._register(themeService.onThemeChange(theme => this.onThemeChange(theme)));
 	}
 
 	private onThemeChange(theme: ITheme): void {
@@ -53,7 +53,7 @@ export class RenameInputField implements IContentWidget, IDisposable {
 	}
 
 	public dispose(): void {
-		this._disposables = dispose(this._disposables);
+		super.dispose();
 		this._editor.removeContentWidget(this);
 	}
 
@@ -138,9 +138,9 @@ export class RenameInputField implements IContentWidget, IDisposable {
 		this._inputField.setAttribute('selectionEnd', selectionEnd.toString());
 		this._inputField.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
 
-		const disposeOnDone: IDisposable[] = [];
+		const disposeOnDone = new DisposableStore();
 		const always = () => {
-			dispose(disposeOnDone);
+			disposeOnDone.dispose();
 			this._hide();
 		};
 

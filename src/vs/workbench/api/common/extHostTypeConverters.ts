@@ -808,7 +808,8 @@ export namespace DocumentLink {
 	export function from(link: vscode.DocumentLink): modes.ILink {
 		return {
 			range: Range.from(link.range),
-			url: link.target
+			url: link.target,
+			tooltip: link.tooltip
 		};
 	}
 
@@ -858,10 +859,7 @@ export namespace Color {
 
 export namespace SelectionRange {
 	export function from(obj: vscode.SelectionRange): modes.SelectionRange {
-		return {
-			kind: '',
-			range: Range.from(obj.range)
-		};
+		return { range: Range.from(obj.range) };
 	}
 
 	export function to(obj: modes.SelectionRange): vscode.SelectionRange {
