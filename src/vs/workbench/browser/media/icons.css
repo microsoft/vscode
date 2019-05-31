@@ -101,6 +101,8 @@ body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sideby
 body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .margin-view-overlays .folding,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .explorer-action.save-all,
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"],
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.refresh"],
 body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .explorer-viewlet .action-close-all-files,
@@ -446,21 +448,25 @@ body[data-icon-theme="icon-explorations-2"] .search-view .search-widget .toggle-
 	Git
 ****************/
 
-body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"] {
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"],
+body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"] {
 	-webkit-mask-image: url("images/git/check-alt1.svg");
 }
 
-body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"] {
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"],
+body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"] {
 	-webkit-mask-image: url("images/git/check-alt2.svg");
 }
 
 /* Refresh */
 
-body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.refresh"] {
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.refresh"],
+body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.refresh"] {
 	-webkit-mask-image: url("images/git/refresh-alt1.svg");
 }
 
-body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.refresh"] {
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.refresh"],
+body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.refresh"] {
 	-webkit-mask-image: url("images/git/refresh-alt2.svg");
 }
 
@@ -1854,6 +1860,10 @@ body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.panel > .tit
 	background: var(--gray) !important;
 }
 
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .margin-view-overlays .folding,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .margin-view-overlays .folding.collapsed {
+	-webkit-mask-position: 75% 50%;
+}
 body[data-icon-theme="icon-explorations-1"] .monaco-editor .margin-view-overlays .folding {
 	-webkit-mask-image: url("images/misc/fold-alt1.svg");
 }
