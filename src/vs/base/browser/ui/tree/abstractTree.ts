@@ -240,8 +240,8 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		return { container, twistie, templateData };
 	}
 
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, dynamicHeightProbing?: boolean): void {
-		if (!dynamicHeightProbing) {
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
+		if (typeof height === 'number') {
 			this.renderedNodes.set(node, templateData);
 			this.renderedElements.set(node.element, node);
 		}
@@ -250,15 +250,15 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		templateData.twistie.style.marginLeft = `${indent}px`;
 		this.update(node, templateData);
 
-		this.renderer.renderElement(node, index, templateData.templateData, dynamicHeightProbing);
+		this.renderer.renderElement(node, index, templateData.templateData, height);
 	}
 
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, dynamicHeightProbing?: boolean): void {
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
 		if (this.renderer.disposeElement) {
-			this.renderer.disposeElement(node, index, templateData.templateData, dynamicHeightProbing);
+			this.renderer.disposeElement(node, index, templateData.templateData, height);
 		}
 
-		if (!dynamicHeightProbing) {
+		if (typeof height === 'number') {
 			this.renderedNodes.delete(node);
 			this.renderedElements.delete(node.element);
 		}

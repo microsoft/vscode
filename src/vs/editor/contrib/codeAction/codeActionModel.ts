@@ -14,7 +14,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ILocalProgressService } from 'vs/platform/progress/common/progress';
 import { getCodeActions, CodeActionSet } from './codeAction';
 import { CodeActionTrigger } from './codeActionTrigger';
 
@@ -30,7 +30,7 @@ export class CodeActionOracle {
 		private readonly _markerService: IMarkerService,
 		private readonly _signalChange: (newState: CodeActionsState.State) => void,
 		private readonly _delay: number = 250,
-		private readonly _progressService?: IProgressService,
+		private readonly _progressService?: ILocalProgressService,
 	) {
 		this._disposables.push(
 			this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)),
@@ -179,7 +179,7 @@ export class CodeActionModel {
 		private readonly _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
 		contextKeyService: IContextKeyService,
-		private readonly _progressService: IProgressService
+		private readonly _progressService: ILocalProgressService
 	) {
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
 

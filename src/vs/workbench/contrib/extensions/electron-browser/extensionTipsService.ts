@@ -989,8 +989,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 								}), StorageScope.WORKSPACE);
 								/* __GDPR__
 									"dynamicWorkspaceRecommendations" : {
-										"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+										"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+										"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 									}
 								*/
 								this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 0 });

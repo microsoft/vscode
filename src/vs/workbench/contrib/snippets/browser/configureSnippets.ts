@@ -7,10 +7,8 @@ import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { join, basename, dirname, extname } from 'vs/base/common/path';
+import { join, basename, extname } from 'vs/base/common/path';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { timeout } from 'vs/base/common/async';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
@@ -19,8 +17,9 @@ import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/
 import { SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { isValidBasename } from 'vs/base/common/extpath';
+import { joinPath } from 'vs/base/common/resources';
 
 const id = 'workbench.action.openSnippets';
 
@@ -121,23 +120,38 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 	return { existing, future };
 }
 
-async function createSnippetFile(scope: string, defaultPath: URI, windowService: IWindowService, notificationService: INotificationService, fileService: IFileService, textFileService: ITextFileService, opener: IOpenerService) {
+async function createSnippetFile(scope: string, defaultPath: URI, quickInputService: IQuickInputService, fileService: IFileService, textFileService: ITextFileService, opener: IOpenerService) {
+
+	function createSnippetUri(input: string) {
+		const filename = extname(input) !== '.code-snippets'
+			? `${input}.code-snippets`
+			: input;
+		return joinPath(defaultPath, filename);
+	}
 
 	await fileService.createFolder(defaultPath);
-	await timeout(100); // ensure quick pick closes...
 
-	const path = await windowService.showSaveDialog({
-		defaultPath: defaultPath.fsPath,
-		filters: [{ name: 'Code Snippets', extensions: ['code-snippets'] }]
+	const input = await quickInputService.input({
+		placeHolder: nls.localize('name', "Type snippet file name"),
+		async validateInput(input) {
+			if (!input) {
+				return nls.localize('bad_name1', "Invalid file name");
+			}
+			if (!isValidBasename(input)) {
+				return nls.localize('bad_name2', "'{0}' is not a valid file name", input);
+			}
+			if (await fileService.exists(createSnippetUri(input))) {
+				return nls.localize('bad_name3', "'{0}' already exists", input);
+			}
+			return undefined;
+		}
 	});
-	if (!path) {
+
+	if (!input) {
 		return undefined;
 	}
-	const resource = URI.file(path);
-	if (dirname(resource.fsPath) !== defaultPath.fsPath) {
-		notificationService.error(nls.localize('badPath', "Snippets must be inside this folder: '{0}'. ", defaultPath.fsPath));
-		return undefined;
-	}
+
+	const resource = createSnippetUri(input);
 
 	await textFileService.write(resource, [
 		'{',
@@ -193,10 +207,8 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 	const snippetService = accessor.get(ISnippetsService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const opener = accessor.get(IOpenerService);
-	const windowService = accessor.get(IWindowService);
 	const modeService = accessor.get(IModeService);
 	const envService = accessor.get(IEnvironmentService);
-	const notificationService = accessor.get(INotificationService);
 	const workspaceService = accessor.get(IWorkspaceContextService);
 	const fileService = accessor.get(IFileService);
 	const textFileService = accessor.get(ITextFileService);
@@ -233,9 +245,9 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 	});
 
 	if (globalSnippetPicks.indexOf(pick as SnippetPick) >= 0) {
-		return createSnippetFile((pick as SnippetPick).scope, (pick as SnippetPick).uri, windowService, notificationService, fileService, textFileService, opener);
+		return createSnippetFile((pick as SnippetPick).scope, (pick as SnippetPick).uri, quickInputService, fileService, textFileService, opener);
 	} else if (workspaceSnippetPicks.indexOf(pick as SnippetPick) >= 0) {
-		return createSnippetFile((pick as SnippetPick).scope, (pick as SnippetPick).uri, windowService, notificationService, fileService, textFileService, opener);
+		return createSnippetFile((pick as SnippetPick).scope, (pick as SnippetPick).uri, quickInputService, fileService, textFileService, opener);
 	} else if (ISnippetPick.is(pick)) {
 		if (pick.hint) {
 			await createLanguageSnippetFile(pick, fileService, textFileService);

@@ -48,7 +48,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 	}
 
 	private _onEnter(): void {
-		if (this._xterm._core.buffer.x >= MINIMUM_PROMPT_LENGTH) {
+		if (this._xterm.buffer.cursorX >= MINIMUM_PROMPT_LENGTH) {
 			this._xterm.addMarker(0);
 		}
 	}
@@ -175,7 +175,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 	private _getLine(marker: IMarker | Boundary): number {
 		// Use the _second last_ row as the last row is likely the prompt
 		if (marker === Boundary.Bottom) {
-			return this._xterm._core.buffer.ybase + this._xterm.rows - 1;
+			return this._xterm.buffer.baseY + this._xterm.rows - 1;
 		}
 
 		if (marker === Boundary.Top) {
@@ -235,10 +235,10 @@ export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposa
 		if (this._currentMarker === Boundary.Bottom) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Top) {
-			return 0 - (this._xterm._core.buffer.ybase + this._xterm._core.buffer.y);
+			return 0 - (this._xterm.buffer.baseY + this._xterm.buffer.cursorY);
 		} else {
 			let offset = this._getLine(this._currentMarker);
-			offset -= this._xterm._core.buffer.ybase + this._xterm._core.buffer.y;
+			offset -= this._xterm.buffer.baseY + this._xterm.buffer.cursorY;
 			return offset;
 		}
 	}

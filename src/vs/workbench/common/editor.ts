@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
-import { isUndefinedOrNull, withUndefinedAsNull } from 'vs/base/common/types';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
@@ -23,7 +23,9 @@ import { coalesce } from 'vs/base/common/arrays';
 
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
+export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
+export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
@@ -1002,9 +1004,9 @@ export interface IResourceOptions {
 	filterByScheme?: string | string[];
 }
 
-export function toResource(editor: IEditorInput | null | undefined, options?: IResourceOptions): URI | null {
+export function toResource(editor: IEditorInput | undefined, options?: IResourceOptions): URI | undefined {
 	if (!editor) {
-		return null;
+		return undefined;
 	}
 
 	if (options && options.supportSideBySide && editor instanceof SideBySideEditorInput) {
@@ -1013,7 +1015,7 @@ export function toResource(editor: IEditorInput | null | undefined, options?: IR
 
 	const resource = editor.getResource();
 	if (!resource || !options || !options.filterByScheme) {
-		return withUndefinedAsNull(resource);
+		return resource;
 	}
 
 	if (Array.isArray(options.filterByScheme) && options.filterByScheme.some(scheme => resource.scheme === scheme)) {
@@ -1024,7 +1026,7 @@ export function toResource(editor: IEditorInput | null | undefined, options?: IR
 		return resource;
 	}
 
-	return null;
+	return undefined;
 }
 
 export const enum CloseDirection {

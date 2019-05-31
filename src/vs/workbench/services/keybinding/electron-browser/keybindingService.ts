@@ -41,6 +41,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { commandsExtensionPoint } from 'vs/workbench/api/common/menusExtensionPoint';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -239,6 +240,7 @@ let keybindingType: IJSONSchema = {
 
 const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>({
 	extensionPoint: 'keybindings',
+	deps: [commandsExtensionPoint],
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
 		oneOf: [
@@ -396,7 +398,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			const keybinding = item.keybinding;
 			if (!keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
+				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
 				for (const resolvedKeybinding of resolvedKeybindings) {
@@ -415,7 +417,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			const parts = item.parts;
 			if (parts.length === 0) {
 				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
+				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault);
 			} else {
 				const resolvedKeybindings = this._keyboardMapper.resolveUserBinding(parts);
 				for (const resolvedKeybinding of resolvedKeybindings) {
@@ -500,10 +502,21 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			weight = KeybindingWeight.ExternalExtension + idx;
 		}
 
+		let commandAction = MenuRegistry.getCommand(command);
+		let precondition = commandAction && commandAction.precondition;
+		let fullWhen: ContextKeyExpr | undefined;
+		if (when && precondition) {
+			fullWhen = ContextKeyExpr.and(precondition, ContextKeyExpr.deserialize(when));
+		} else if (when) {
+			fullWhen = ContextKeyExpr.deserialize(when);
+		} else if (precondition) {
+			fullWhen = precondition;
+		}
+
 		let desc: IKeybindingRule2 = {
 			id: command,
 			args,
-			when: ContextKeyExpr.deserialize(when),
+			when: fullWhen,
 			weight: weight,
 			primary: KeybindingParser.parseKeybinding(key, OS),
 			mac: mac ? { primary: KeybindingParser.parseKeybinding(mac, OS) } : null,

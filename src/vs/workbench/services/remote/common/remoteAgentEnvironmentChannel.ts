@@ -34,28 +34,28 @@ export class RemoteExtensionEnvironmentChannelClient {
 
 	constructor(private channel: IChannel) { }
 
-	getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI[]): Promise<IRemoteAgentEnvironment> {
+	async getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI[]): Promise<IRemoteAgentEnvironment> {
 		const args: IGetEnvironmentDataArguments = {
 			language: platform.language,
 			remoteAuthority,
 			extensionDevelopmentPath
 		};
-		return this.channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args)
-			.then((data: IRemoteAgentEnvironmentDTO): IRemoteAgentEnvironment => {
-				return {
-					pid: data.pid,
-					appRoot: URI.revive(data.appRoot),
-					appSettingsHome: URI.revive(data.appSettingsHome),
-					settingsPath: URI.revive(data.settingsPath),
-					logsPath: URI.revive(data.logsPath),
-					extensionsPath: URI.revive(data.extensionsPath),
-					extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
-					globalStorageHome: URI.revive(data.globalStorageHome),
-					userHome: URI.revive(data.userHome),
-					extensions: data.extensions.map(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); return ext; }),
-					os: data.os
-				};
-			});
+
+		const data = await this.channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args);
+
+		return {
+			pid: data.pid,
+			appRoot: URI.revive(data.appRoot),
+			appSettingsHome: URI.revive(data.appSettingsHome),
+			settingsPath: URI.revive(data.settingsPath),
+			logsPath: URI.revive(data.logsPath),
+			extensionsPath: URI.revive(data.extensionsPath),
+			extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
+			globalStorageHome: URI.revive(data.globalStorageHome),
+			userHome: URI.revive(data.userHome),
+			extensions: data.extensions.map(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); return ext; }),
+			os: data.os
+		};
 	}
 
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {

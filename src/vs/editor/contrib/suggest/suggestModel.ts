@@ -95,7 +95,6 @@ export class SuggestModel implements IDisposable {
 	private _quickSuggestDelay: number;
 	private _triggerCharacterListener: IDisposable;
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
-	private readonly _triggerRefilter = new TimeoutTimer();
 	private _state: State = State.Idle;
 
 	private _requestToken?: CancellationTokenSource;
@@ -161,7 +160,7 @@ export class SuggestModel implements IDisposable {
 	}
 
 	dispose(): void {
-		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerCharacterListener, this._triggerQuickSuggest, this._triggerRefilter]);
+		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerCharacterListener, this._triggerQuickSuggest]);
 		this._toDispose = dispose(this._toDispose);
 		dispose(this._completionModel);
 		this.cancel();
@@ -221,7 +220,6 @@ export class SuggestModel implements IDisposable {
 
 	cancel(retrigger: boolean = false): void {
 		if (this._state !== State.Idle) {
-			this._triggerRefilter.cancel();
 			this._triggerQuickSuggest.cancel();
 			if (this._requestToken) {
 				this._requestToken.cancel();
@@ -328,14 +326,15 @@ export class SuggestModel implements IDisposable {
 	}
 
 	private _refilterCompletionItems(): void {
-		if (this._state === State.Idle) {
-			return;
-		}
-		if (!this._editor.hasModel()) {
-			return;
-		}
-		// refine active suggestion
-		this._triggerRefilter.cancelAndSet(() => {
+		// Re-filter suggestions. This MUST run async because filtering/scoring
+		// uses the model content AND the cursor position. The latter is NOT
+		// updated when the document has changed (the event which drives this method)
+		// and therefore a little pause (next mirco task) is needed. See:
+		// https://stackoverflow.com/questions/25915634/difference-between-microtask-and-macrotask-within-an-event-loop-context#25933985
+		Promise.resolve().then(() => {
+			if (this._state === State.Idle) {
+				return;
+			}
 			if (!this._editor.hasModel()) {
 				return;
 			}
@@ -343,7 +342,7 @@ export class SuggestModel implements IDisposable {
 			const position = this._editor.getPosition();
 			const ctx = new LineContext(model, position, this._state === State.Auto, false);
 			this._onNewContext(ctx);
-		}, 0);
+		});
 	}
 
 	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existingItems?: CompletionItem[]): void {

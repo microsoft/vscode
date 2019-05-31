@@ -1536,14 +1536,13 @@ export class WindowsManager implements IWindowsMainService {
 		return state;
 	}
 
-	reload(win: ICodeWindow, cli?: ParsedArgs): void {
+	async reload(win: ICodeWindow, cli?: ParsedArgs): Promise<void> {
 
 		// Only reload when the window has not vetoed this
-		this.lifecycleService.unload(win, UnloadReason.RELOAD).then(veto => {
-			if (!veto) {
-				win.reload(undefined, cli);
-			}
-		});
+		const veto = await this.lifecycleService.unload(win, UnloadReason.RELOAD);
+		if (!veto) {
+			win.reload(undefined, cli);
+		}
 	}
 
 	closeWorkspace(win: ICodeWindow): void {
@@ -1554,8 +1553,10 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return this.workspacesManager.enterWorkspace(win, path).then(result => result ? this.doEnterWorkspace(win, result) : undefined);
+	async enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | undefined> {
+		const result = await this.workspacesManager.enterWorkspace(win, path);
+
+		return result ? this.doEnterWorkspace(win, result) : undefined;
 	}
 
 	private doEnterWorkspace(win: ICodeWindow, result: IEnterWorkspaceResult): IEnterWorkspaceResult {
@@ -1751,8 +1752,10 @@ export class WindowsManager implements IWindowsMainService {
 		const paths = await this.dialogs.pick({ ...options, pickFolders: true, pickFiles: true, title });
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFileFolder', options.telemetryExtraData);
-			const urisToOpen = await Promise.all(paths.map(path => {
-				return dirExists(path).then(isDir => isDir ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) });
+			const urisToOpen = await Promise.all(paths.map(async path => {
+				const isDir = await dirExists(path);
+
+				return isDir ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) };
 			}));
 			this.open({
 				context: OpenContext.DIALOG,
@@ -1880,7 +1883,7 @@ class Dialogs {
 		this.noWindowDialogQueue = new Queue<void>();
 	}
 
-	pick(options: IInternalNativeOpenDialogOptions): Promise<string[] | undefined> {
+	async pick(options: IInternalNativeOpenDialogOptions): Promise<string[] | undefined> {
 
 		// Ensure dialog options
 		const dialogOptions: Electron.OpenDialogOptions = {
@@ -1913,16 +1916,16 @@ class Dialogs {
 		// Show Dialog
 		const focusedWindow = (typeof options.windowId === 'number' ? this.windowsMainService.getWindowById(options.windowId) : undefined) || this.windowsMainService.getFocusedWindow();
 
-		return this.showOpenDialog(dialogOptions, focusedWindow).then(paths => {
-			if (paths && paths.length > 0) {
+		const paths = await this.showOpenDialog(dialogOptions, focusedWindow);
+		if (paths && paths.length > 0) {
 
-				// Remember path in storage for next time
-				this.stateService.setItem(Dialogs.workingDirPickerStorageKey, dirname(paths[0]));
-				return paths;
-			}
+			// Remember path in storage for next time
+			this.stateService.setItem(Dialogs.workingDirPickerStorageKey, dirname(paths[0]));
 
-			return undefined;
-		});
+			return paths;
+		}
+
+		return;
 	}
 
 	private getDialogQueue(window?: ICodeWindow): Queue<any> {
@@ -2028,28 +2031,26 @@ class WorkspacesManager {
 		private readonly windowsMainService: IWindowsMainService,
 	) { }
 
-	enterWorkspace(window: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | null> {
+	async enterWorkspace(window: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | null> {
 		if (!window || !window.win || !window.isReady) {
-			return Promise.resolve(null); // return early if the window is not ready or disposed
+			return null; // return early if the window is not ready or disposed
 		}
 
-		return this.isValidTargetWorkspacePath(window, path).then(isValid => {
-			if (!isValid) {
-				return null; // return early if the workspace is not valid
-			}
-			const workspaceIdentifier = getWorkspaceIdentifier(path);
-			return this.doOpenWorkspace(window, workspaceIdentifier);
-		});
+		const isValid = await this.isValidTargetWorkspacePath(window, path);
+		if (!isValid) {
+			return null; // return early if the workspace is not valid
+		}
 
+		return this.doOpenWorkspace(window, getWorkspaceIdentifier(path));
 	}
 
-	private isValidTargetWorkspacePath(window: ICodeWindow, path?: URI): Promise<boolean> {
+	private async isValidTargetWorkspacePath(window: ICodeWindow, path?: URI): Promise<boolean> {
 		if (!path) {
-			return Promise.resolve(true);
+			return true;
 		}
 
 		if (window.openedWorkspace && isEqual(window.openedWorkspace.configPath, path)) {
-			return Promise.resolve(false); // window is already opened on a workspace with that path
+			return false; // window is already opened on a workspace with that path
 		}
 
 		// Prevent overwriting a workspace that is currently opened in another window
@@ -2063,10 +2064,12 @@ class WorkspacesManager {
 				noLink: true
 			};
 
-			return this.windowsMainService.showMessageBox(options, this.windowsMainService.getFocusedWindow()).then(() => false);
+			await this.windowsMainService.showMessageBox(options, this.windowsMainService.getFocusedWindow());
+
+			return false;
 		}
 
-		return Promise.resolve(true); // OK
+		return true; // OK
 	}
 
 	private doOpenWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): IEnterWorkspaceResult {
@@ -2090,14 +2093,16 @@ class WorkspacesManager {
 
 		return { workspace, backupPath };
 	}
-
 }
 
-function resourceFromURIToOpen(u: IURIToOpen) {
+function resourceFromURIToOpen(u: IURIToOpen): URI {
 	if (isWorkspaceToOpen(u)) {
 		return u.workspaceUri;
-	} else if (isFolderToOpen(u)) {
+	}
+
+	if (isFolderToOpen(u)) {
 		return u.folderUri;
 	}
+
 	return u.fileUri;
 }

@@ -407,7 +407,7 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 /**
  * Will ensure no messages are lost if there are no event listeners.
  */
-function createBufferedEvent<T>(source: Event<T>): Event<T> {
+export function createBufferedEvent<T>(source: Event<T>): Event<T> {
 	let emitter: Emitter<T>;
 	let hasListeners = false;
 	let isDeliveringMessages = false;
@@ -514,7 +514,7 @@ class Queue<T> {
  * Same as Protocol, but will actually track messages and acks.
  * Moreover, it will ensure no messages are lost if there are no event listeners.
  */
-export class PersistentProtocol {
+export class PersistentProtocol implements IMessagePassingProtocol {
 
 	private _isReconnecting: boolean;
 

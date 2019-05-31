@@ -35,6 +35,10 @@ const previewStrings = {
 		'Content Disabled Security Warning')
 };
 
+function escapeAttribute(value: string): string {
+	return value.replace(/"/g, '&quot;');
+}
+
 export class MarkdownContentProvider {
 	constructor(
 		private readonly engine: MarkdownEngine,
@@ -75,9 +79,9 @@ export class MarkdownContentProvider {
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				${csp}
 				<meta id="vscode-markdown-preview-data"
-					data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}"
-					data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}"
-					data-state="${JSON.stringify(state || {}).replace(/"/g, '&quot;')}">
+					data-settings="${escapeAttribute(JSON.stringify(initialData))}"
+					data-strings="${escapeAttribute(JSON.stringify(previewStrings))}"
+					data-state="${escapeAttribute(JSON.stringify(state || {}))}">
 				<script src="${this.extensionResourcePath('pre.js')}" nonce="${nonce}"></script>
 				${this.getStyles(sourceUri, nonce, config, state)}
 				<base href="${markdownDocument.uri.with({ scheme: 'vscode-resource' }).toString(true)}">
@@ -142,7 +146,7 @@ export class MarkdownContentProvider {
 	private computeCustomStyleSheetIncludes(resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
 		if (Array.isArray(config.styles)) {
 			return config.styles.map(style => {
-				return `<link rel="stylesheet" class="code-user-style" data-source="${style.replace(/"/g, '&quot;')}" href="${this.fixHref(resource, style).replace(/"/g, '&quot;')}" type="text/css" media="screen">`;
+				return `<link rel="stylesheet" class="code-user-style" data-source="${escapeAttribute(style)}" href="${escapeAttribute(this.fixHref(resource, style))}" type="text/css" media="screen">`;
 			}).join('\n');
 		}
 		return '';
@@ -150,7 +154,7 @@ export class MarkdownContentProvider {
 
 	private getSettingsOverrideStyles(nonce: string, config: MarkdownPreviewConfiguration): string {
 		return `<style nonce="${nonce}">
-			body {
+			html, body {
 				${config.fontFamily ? `font-family: ${config.fontFamily};` : ''}
 				${isNaN(config.fontSize) ? '' : `font-size: ${config.fontSize}px;`}
 				${isNaN(config.lineHeight) ? '' : `line-height: ${config.lineHeight};`}
@@ -175,7 +179,7 @@ export class MarkdownContentProvider {
 
 	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfiguration, state?: any): string {
 		const baseStyles = this.contributionProvider.contributions.previewStyles
-			.map(resource => `<link rel="stylesheet" type="text/css" href="${resource.toString()}">`)
+			.map(resource => `<link rel="stylesheet" type="text/css" href="${escapeAttribute(resource.toString())}">`)
 			.join('\n');
 
 		return `${baseStyles}
@@ -186,7 +190,7 @@ export class MarkdownContentProvider {
 
 	private getScripts(nonce: string): string {
 		return this.contributionProvider.contributions.previewScripts
-			.map(resource => `<script async src="${resource.toString()}" nonce="${nonce}" charset="UTF-8"></script>`)
+			.map(resource => `<script async src="${escapeAttribute(resource.toString())}" nonce="${nonce}" charset="UTF-8"></script>`)
 			.join('\n');
 	}
 

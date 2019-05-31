@@ -9,7 +9,7 @@
 	"scopeName": "source.objcpp",
 	"patterns": [
 		{
-			"include": "source.cpp"
+			"include": "source.cppold"
 		},
 		{
 			"include": "source.objc"

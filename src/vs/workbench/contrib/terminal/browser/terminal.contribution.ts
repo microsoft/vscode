@@ -502,7 +502,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, Fi
 
 const sendSequenceTerminalCommand = new SendSequenceTerminalCommand({
 	id: SendSequenceTerminalCommand.ID,
-	precondition: null,
+	precondition: undefined,
 	description: {
 		description: `Send Custom Sequence To Terminal`,
 		args: [{

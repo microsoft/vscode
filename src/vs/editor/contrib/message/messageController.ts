@@ -35,7 +35,7 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 
 	private readonly _editor: ICodeEditor;
 	private readonly _visible: IContextKey<boolean>;
-	private _messageWidget: MessageWidget;
+	private _messageWidget?: MessageWidget;
 	private _messageListeners: IDisposable[] = [];
 
 	constructor(
@@ -96,7 +96,9 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 	closeMessage(): void {
 		this._visible.reset();
 		this._messageListeners = dispose(this._messageListeners);
-		this._messageListeners.push(MessageWidget.fadeOut(this._messageWidget));
+		if (this._messageWidget) {
+			this._messageListeners.push(MessageWidget.fadeOut(this._messageWidget));
+		}
 	}
 
 	private _onDidAttemptReadOnlyEdit(): void {
