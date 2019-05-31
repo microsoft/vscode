@@ -437,6 +437,37 @@ suite('URI', () => {
 		assert.equal('attp://example.com/over/there?name%3Dferret', URI.parse(input).toString());
 	});
 
+	test('Uri#parse can break path-component #45515', function () {
+		let uri: URI;
+		uri = URI.from({ scheme: 's', authority: 'a', path: '/o%2f' });
+		assert.equal(uri.toString(), 's://a/o%2f');
+		uri = URI.from({ scheme: 's', authority: 'a', path: '/o%2fü' });
+		assert.equal(uri.toString(), 's://a/o%2f%C3%BC');
+		uri = URI.from({ scheme: 's', authority: 'a', path: '/o%2f%' });
+		assert.equal(uri.toString(), 's://a/o%2f%25');
+
+		uri = URI.from({
+			scheme: 'http',
+			authority: 'a',
+			path: '/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg'
+		});
+		assert.equal(uri.path, '/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg');
+		assert.equal(uri.toString(), 'http://a/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg');
+
+		assert.equal(URI.parse(uri.toString()).path, '/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg');
+		assert.equal(uri.toString(), URI.parse(uri.toString()).toString()); // identity
+
+		uri = URI.parse('s://a/p%2ft%c3%bc');
+		assert.equal(uri.path, '/p%2ftü');
+
+		uri = URI.parse('s://a/%c3%bcp%2f-REST');
+		assert.equal(uri.path, '/üp%2f-REST');
+
+		uri = URI.parse('s://a/%c3%bcp%2fd%c3%b6wn');
+		assert.equal(uri.path, '/üp%2fdöwn');
+	});
+
+
 	test('URI - (de)serialize', function () {
 
 		const values = [

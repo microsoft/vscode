@@ -294,10 +294,10 @@ export class URI implements UriComponents {
 		}
 		return new _URI(
 			match[2] || _empty,
-			decodeURIComponent(match[4] || _empty),
-			decodeURIComponent(match[5] || _empty),
-			decodeURIComponent(match[7] || _empty),
-			decodeURIComponent(match[9] || _empty),
+			decodeURIComponentFast(match[4] || _empty, false),
+			decodeURIComponentFast(match[5] || _empty, true),
+			decodeURIComponentFast(match[7] || _empty, false),
+			decodeURIComponentFast(match[9] || _empty, false),
 			_strict
 		);
 	}
@@ -473,6 +473,76 @@ class _URI extends URI {
 	}
 }
 
+function isHex(value: string, pos: number): boolean {
+	if (pos >= value.length) {
+		return false;
+	}
+	const code = value.charCodeAt(pos);
+	return (code >= CharCode.Digit0 && code <= CharCode.Digit9)// 0-9
+		|| (code >= CharCode.a && code <= CharCode.f) //a-f
+		|| (code >= CharCode.A && code <= CharCode.F); //A-F
+}
+
+
+function decodeURIComponentFast(uriComponent: string, isPath: boolean): string {
+
+	let res: string | undefined;
+	let nativeDecodePos = -1;
+
+	for (let pos = 0; pos < uriComponent.length; pos++) {
+		const code = uriComponent.charCodeAt(pos);
+
+		// decoding needed
+		if (code === CharCode.PercentSign && isHex(uriComponent, pos + 1) && isHex(uriComponent, pos + 2)) {
+
+			// when in a path, check and accept %2f and %2F
+			if (isPath
+				&& uriComponent.charCodeAt(pos + 1) === CharCode.Digit2
+				&& (uriComponent.charCodeAt(pos + 2) === CharCode.F || uriComponent.charCodeAt(pos + 2) === CharCode.f)
+			) {
+
+				if (nativeDecodePos !== -1) {
+					res += decodeURIComponent(uriComponent.substring(nativeDecodePos, pos));
+					nativeDecodePos = -1;
+				}
+
+				if (res !== undefined) {
+					res += uriComponent.substr(pos, 3);
+				}
+
+				pos += 2;
+				continue;
+			}
+
+			if (res === undefined) {
+				res = uriComponent.substring(0, pos);
+			}
+			if (nativeDecodePos === -1) {
+				nativeDecodePos = pos;
+			}
+
+			pos += 2;
+
+		} else {
+
+			if (nativeDecodePos !== -1) {
+				res += decodeURIComponent(uriComponent.substring(nativeDecodePos, pos));
+				nativeDecodePos = -1;
+			}
+
+			if (res !== undefined) {
+				res += String.fromCharCode(code);
+			}
+		}
+	}
+
+	if (nativeDecodePos !== -1) {
+		res += decodeURIComponent(uriComponent.substr(nativeDecodePos));
+	}
+
+	return res !== undefined ? res : uriComponent;
+}
+
 // reserved characters: https://tools.ietf.org/html/rfc3986#section-2.2
 const encodeTable: { [ch: number]: string } = {
 	[CharCode.Colon]: '%3A', // gen-delims
@@ -526,6 +596,20 @@ function encodeURIComponentFast(uriComponent: string, isPath: boolean, isQuerySt
 			if (res !== undefined) {
 				res += uriComponent.charAt(pos);
 			}
+
+		} else if (code === CharCode.PercentSign && isHex(uriComponent, pos + 1) && isHex(uriComponent, pos + 2)) {
+			// at percentage encoded value
+
+			// check if we are delaying native encode
+			if (nativeEncodePos !== -1) {
+				res += encodeURIComponent(uriComponent.substring(nativeEncodePos, pos));
+				nativeEncodePos = -1;
+			}
+			// check if we write into a new string (by default we try to return the param)
+			if (res !== undefined) {
+				res += uriComponent.charAt(pos);
+			}
+			pos += 2;
 
 		} else {
 			// encoding needed, we need to allocate a new string
