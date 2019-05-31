@@ -18,12 +18,12 @@ function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean 
 		&& a.severity === b.severity
 		&& a.source === b.source
 		&& a.range.isEqual(b.range)
-		&& arrays.equals(a.relatedInformation || [], b.relatedInformation || [], (a, b) => {
+		&& arrays.equals(a.relatedInformation || arrays.empty, b.relatedInformation || arrays.empty, (a, b) => {
 			return a.message === b.message
 				&& a.location.range.isEqual(b.location.range)
 				&& a.location.uri.fsPath === b.location.uri.fsPath;
 		})
-		&& arrays.equals(a.tags || [], b.tags || []);
+		&& arrays.equals(a.tags || arrays.empty, b.tags || arrays.empty);
 }
 
 export const enum DiagnosticKind {
@@ -51,7 +51,7 @@ class FileDiagnostics {
 		}
 
 		const existing = this._diagnostics.get(kind);
-		if (arrays.equals(existing || [], diagnostics, diagnosticsEquals)) {
+		if (arrays.equals(existing || arrays.empty, diagnostics, diagnosticsEquals)) {
 			// No need to update
 			return false;
 		}

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+export const empty = Object.freeze([]);
+
 export function equals<T>(
 	a: ReadonlyArray<T>,
 	b: ReadonlyArray<T>,
