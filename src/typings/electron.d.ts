@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.2.2
+// Type definitions for Electron 4.2.3
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -1341,13 +1341,13 @@ declare namespace Electron {
 		 * prevent the native window's title from changing.
 		 */
 		on(event: 'page-title-updated', listener: (event: Event,
-			title: string) => void): this;
+			title: string, explicitSet: boolean) => void): this;
 		once(event: 'page-title-updated', listener: (event: Event,
-			title: string) => void): this;
+			title: string, explicitSet: boolean) => void): this;
 		addListener(event: 'page-title-updated', listener: (event: Event,
-			title: string) => void): this;
+			title: string, explicitSet: boolean) => void): this;
 		removeListener(event: 'page-title-updated', listener: (event: Event,
-			title: string) => void): this;
+			title: string, explicitSet: boolean) => void): this;
 		/**
 		 * Emitted when the web page has been rendered (while not being shown) and window
 		 * can be displayed without a visual flash.
