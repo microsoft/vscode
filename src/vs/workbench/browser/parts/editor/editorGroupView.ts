@@ -833,33 +833,34 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | null> {
 
 		// Show in editor control if the active editor changed
-		const openEditorPromise = this.editorControl.openEditor(editor, options);
+		let openEditorPromise: Promise<IEditor | null>;
+		if (active) {
+			openEditorPromise = (async () => {
+				try {
+					const result = await this.editorControl.openEditor(editor, options);
+
+					// Editor change event
+					if (result.editorChanged) {
+						this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
+					}
+
+					return result.control;
+				} catch (error) {
+
+					// Handle errors but do not bubble them up
+					this.doHandleOpenEditorError(error, editor, options);
+
+					return null; // error: return NULL as result to signal this
+				}
+			})();
+		} else {
+			openEditorPromise = Promise.resolve(null); // inactive: return NULL as result to signal this
+		}
 
 		// Show in title control after editor control because some actions depend on it
 		this.titleAreaControl.openEditor(editor);
 
-		// Return opened editor to caller (can be NULL)
-		let openedEditor: IEditor | null = null;
-		if (active) {
-			try {
-				const result = await openEditorPromise;
-
-				// Editor change event
-				if (result.editorChanged) {
-					this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
-				}
-
-				openedEditor = result.control;
-			} catch (error) {
-
-				// Handle errors but do not bubble them up
-				this.doHandleOpenEditorError(error, editor, options);
-			}
-		} else {
-			openedEditor = null; // inactive: return NULL as result to signal this
-		}
-
-		return openedEditor;
+		return openEditorPromise;
 	}
 
 	private doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): void {

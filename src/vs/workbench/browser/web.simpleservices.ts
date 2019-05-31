@@ -619,6 +619,7 @@ export class SimpleCommentService implements ICommentService {
 	onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent> = Event.None;
 	onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = Event.None;
 	onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges; }> = Event.None;
+	onDidChangeActiveCommentThread: Event<any> = Event.None;
 	onDidSetDataProvider: Event<void> = Event.None;
 	onDidDeleteDataProvider: Event<string> = Event.None;
 	setDocumentComments: any;
@@ -649,6 +650,7 @@ export class SimpleCommentService implements ICommentService {
 	deleteReaction: any;
 	getReactionGroup: any;
 	toggleReaction: any;
+	setActiveCommentThread: any;
 }
 registerSingleton(ICommentService, SimpleCommentService, true);
 //#endregion

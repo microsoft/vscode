@@ -65,7 +65,7 @@ This project incorporates components from the projects listed below. The origina
 58.	TypeScript-TmLanguage version 1.0.0 (https://github.com/Microsoft/TypeScript-TmLanguage)
 59.	Unicode version 12.0.0 (http://www.unicode.org/)
 60.	vscode-logfile-highlighter version 2.4.1 (https://github.com/emilast/vscode-logfile-highlighter)
-61.	vscode-octicons-font version 1.2.0 (https://github.com/Microsoft/vscode-octicons-font)
+61.	vscode-octicons-font version 1.3.0 (https://github.com/Microsoft/vscode-octicons-font)
 62.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 63.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
 
