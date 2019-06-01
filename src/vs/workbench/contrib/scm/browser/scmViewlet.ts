@@ -865,10 +865,6 @@ export class RepositoryPanel extends ViewletPanel {
 	private onDidChangeVisibility(visible: boolean): void {
 		if (visible) {
 			const listSplicer = new ResourceGroupSplicer(this.repository.provider.groups, this.list);
-			if (this.cachedScrollTop !== undefined) {
-				this.list.scrollTop = Math.min(this.cachedScrollTop, this.list.scrollHeight);
-			}
-
 			this.visibilityDisposables.push(listSplicer);
 		} else {
 			this.cachedScrollTop = this.list.scrollTop;
@@ -899,6 +895,13 @@ export class RepositoryPanel extends ViewletPanel {
 
 			this.listContainer.style.height = `${height}px`;
 			this.list.layout(height, width);
+		}
+
+		if (this.cachedScrollTop !== undefined && this.list.scrollTop !== this.cachedScrollTop) {
+			this.list.scrollTop = Math.min(this.cachedScrollTop, this.list.scrollHeight);
+			// Applying the cached scroll position just once until the next leave.
+			// This, also, avoids the scrollbar to flicker when resizing the sidebar.
+			this.cachedScrollTop = undefined;
 		}
 	}
 
