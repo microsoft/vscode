@@ -699,6 +699,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
+	private cachedScrollTop: number | undefined = undefined;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
@@ -864,8 +865,13 @@ export class RepositoryPanel extends ViewletPanel {
 	private onDidChangeVisibility(visible: boolean): void {
 		if (visible) {
 			const listSplicer = new ResourceGroupSplicer(this.repository.provider.groups, this.list);
+			if (this.cachedScrollTop !== undefined) {
+				this.list.scrollTop = Math.min(this.cachedScrollTop, this.list.scrollHeight);
+			}
+
 			this.visibilityDisposables.push(listSplicer);
 		} else {
+			this.cachedScrollTop = this.list.scrollTop;
 			this.visibilityDisposables = dispose(this.visibilityDisposables);
 		}
 	}
