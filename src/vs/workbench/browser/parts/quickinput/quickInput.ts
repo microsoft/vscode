@@ -27,7 +27,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -97,7 +97,7 @@ type Visibilities = {
 	customButton?: boolean;
 };
 
-class QuickInput implements IQuickInput {
+class QuickInput extends Disposable implements IQuickInput {
 
 	private _title: string;
 	private _steps: number;
@@ -109,18 +109,17 @@ class QuickInput implements IQuickInput {
 	private _ignoreFocusOut = false;
 	private _buttons: IQuickInputButton[] = [];
 	private buttonsUpdated = false;
-	private onDidTriggerButtonEmitter = new Emitter<IQuickInputButton>();
-	private onDidHideEmitter = new Emitter<void>();
+	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
+	private readonly onDidHideEmitter = this._register(new Emitter<void>());
 
-	protected visibleDisposables: IDisposable[] = [];
-	protected disposables: IDisposable[] = [
-		this.onDidTriggerButtonEmitter,
-		this.onDidHideEmitter,
-	];
+	protected readonly visibleDisposables = this._register(new DisposableStore());
 
 	private busyDelay: TimeoutTimer | null;
 
-	constructor(protected ui: QuickInputUI) {
+	constructor(
+		protected ui: QuickInputUI
+	) {
+		super();
 	}
 
 	get title() {
@@ -202,7 +201,7 @@ class QuickInput implements IQuickInput {
 		if (this.visible) {
 			return;
 		}
-		this.visibleDisposables.push(
+		this.visibleDisposables.add(
 			this.ui.onDidTriggerButton(button => {
 				if (this.buttons.indexOf(button) !== -1) {
 					this.onDidTriggerButtonEmitter.fire(button);
@@ -223,7 +222,7 @@ class QuickInput implements IQuickInput {
 
 	didHide(): void {
 		this.visible = false;
-		this.visibleDisposables = dispose(this.visibleDisposables);
+		this.visibleDisposables.clear();
 		this.onDidHideEmitter.fire();
 	}
 
@@ -317,7 +316,7 @@ class QuickInput implements IQuickInput {
 
 	public dispose(): void {
 		this.hide();
-		this.disposables = dispose(this.disposables);
+		super.dispose();
 	}
 }
 
@@ -327,9 +326,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	private _value = '';
 	private _placeholder: string;
-	private onDidChangeValueEmitter = new Emitter<string>();
-	private onDidAcceptEmitter = new Emitter<void>();
-	private onDidCustomEmitter = new Emitter<void>();
+	private readonly onDidChangeValueEmitter = this._register(new Emitter<string>());
+	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
+	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
 	private _items: Array<T | IQuickPickSeparator> = [];
 	private itemsUpdated = false;
 	private _canSelectMany = false;
@@ -340,12 +339,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
 	private activeItemsToConfirm: T[] | null = [];
-	private onDidChangeActiveEmitter = new Emitter<T[]>();
+	private readonly onDidChangeActiveEmitter = this._register(new Emitter<T[]>());
 	private _selectedItems: T[] = [];
 	private selectedItemsUpdated = false;
 	private selectedItemsToConfirm: T[] | null = [];
-	private onDidChangeSelectionEmitter = new Emitter<T[]>();
-	private onDidTriggerItemButtonEmitter = new Emitter<IQuickPickItemButtonEvent<T>>();
+	private readonly onDidChangeSelectionEmitter = this._register(new Emitter<T[]>());
+	private readonly onDidTriggerItemButtonEmitter = this._register(new Emitter<IQuickPickItemButtonEvent<T>>());
 	private _valueSelection: Readonly<[number, number]>;
 	private valueSelectionUpdated = true;
 	private _validationMessage: string;
@@ -356,17 +355,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	quickNavigate: IQuickNavigateConfiguration;
 
-	constructor(ui: QuickInputUI) {
-		super(ui);
-		this.disposables.push(
-			this.onDidChangeValueEmitter,
-			this.onDidAcceptEmitter,
-			this.onDidCustomEmitter,
-			this.onDidChangeActiveEmitter,
-			this.onDidChangeSelectionEmitter,
-			this.onDidTriggerItemButtonEmitter,
-		);
-	}
 
 	get value() {
 		return this._value;
@@ -542,7 +530,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	show() {
 		if (!this.visible) {
-			this.visibleDisposables.push(
+			this.visibleDisposables.add(
 				this.ui.inputBox.onDidChange(value => {
 					if (value === this.value) {
 						return;
@@ -551,105 +539,104 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					this.ui.list.filter(this.ui.inputBox.value);
 					this.trySelectFirst();
 					this.onDidChangeValueEmitter.fire(value);
-				}),
-				this.ui.inputBox.onMouseDown(event => {
-					if (!this.autoFocusOnList) {
-						this.ui.list.clearFocus();
-					}
-				}),
-				this.ui.inputBox.onKeyDown(event => {
-					switch (event.keyCode) {
-						case KeyCode.DownArrow:
-							this.ui.list.focus('Next');
-							if (this.canSelectMany) {
-								this.ui.list.domFocus();
-							}
-							event.preventDefault();
-							break;
-						case KeyCode.UpArrow:
-							if (this.ui.list.getFocusedElements().length) {
-								this.ui.list.focus('Previous');
-							} else {
-								this.ui.list.focus('Last');
-							}
-							if (this.canSelectMany) {
-								this.ui.list.domFocus();
-							}
-							event.preventDefault();
-							break;
-						case KeyCode.PageDown:
-							if (this.ui.list.getFocusedElements().length) {
-								this.ui.list.focus('NextPage');
-							} else {
-								this.ui.list.focus('First');
-							}
-							if (this.canSelectMany) {
-								this.ui.list.domFocus();
-							}
-							event.preventDefault();
-							break;
-						case KeyCode.PageUp:
-							if (this.ui.list.getFocusedElements().length) {
-								this.ui.list.focus('PreviousPage');
-							} else {
-								this.ui.list.focus('Last');
-							}
-							if (this.canSelectMany) {
-								this.ui.list.domFocus();
-							}
-							event.preventDefault();
-							break;
-					}
-				}),
-				this.ui.onDidAccept(() => {
-					if (!this.canSelectMany && this.activeItems[0]) {
-						this._selectedItems = [this.activeItems[0]];
-						this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-					}
-					this.onDidAcceptEmitter.fire(undefined);
-				}),
-				this.ui.onDidCustom(() => {
-					this.onDidCustomEmitter.fire(undefined);
-				}),
-				this.ui.list.onDidChangeFocus(focusedItems => {
-					if (this.activeItemsUpdated) {
-						return; // Expect another event.
-					}
-					if (this.activeItemsToConfirm !== this._activeItems && equals(focusedItems, this._activeItems, (a, b) => a === b)) {
-						return;
-					}
-					this._activeItems = focusedItems as T[];
-					this.onDidChangeActiveEmitter.fire(focusedItems as T[]);
-				}),
-				this.ui.list.onDidChangeSelection(selectedItems => {
-					if (this.canSelectMany) {
-						if (selectedItems.length) {
-							this.ui.list.setSelectedElements([]);
+				}));
+			this.visibleDisposables.add(this.ui.inputBox.onMouseDown(event => {
+				if (!this.autoFocusOnList) {
+					this.ui.list.clearFocus();
+				}
+			}));
+			this.visibleDisposables.add(this.ui.inputBox.onKeyDown(event => {
+				switch (event.keyCode) {
+					case KeyCode.DownArrow:
+						this.ui.list.focus('Next');
+						if (this.canSelectMany) {
+							this.ui.list.domFocus();
 						}
-						return;
-					}
-					if (this.selectedItemsToConfirm !== this._selectedItems && equals(selectedItems, this._selectedItems, (a, b) => a === b)) {
-						return;
-					}
-					this._selectedItems = selectedItems as T[];
-					this.onDidChangeSelectionEmitter.fire(selectedItems as T[]);
+						event.preventDefault();
+						break;
+					case KeyCode.UpArrow:
+						if (this.ui.list.getFocusedElements().length) {
+							this.ui.list.focus('Previous');
+						} else {
+							this.ui.list.focus('Last');
+						}
+						if (this.canSelectMany) {
+							this.ui.list.domFocus();
+						}
+						event.preventDefault();
+						break;
+					case KeyCode.PageDown:
+						if (this.ui.list.getFocusedElements().length) {
+							this.ui.list.focus('NextPage');
+						} else {
+							this.ui.list.focus('First');
+						}
+						if (this.canSelectMany) {
+							this.ui.list.domFocus();
+						}
+						event.preventDefault();
+						break;
+					case KeyCode.PageUp:
+						if (this.ui.list.getFocusedElements().length) {
+							this.ui.list.focus('PreviousPage');
+						} else {
+							this.ui.list.focus('Last');
+						}
+						if (this.canSelectMany) {
+							this.ui.list.domFocus();
+						}
+						event.preventDefault();
+						break;
+				}
+			}));
+			this.visibleDisposables.add(this.ui.onDidAccept(() => {
+				if (!this.canSelectMany && this.activeItems[0]) {
+					this._selectedItems = [this.activeItems[0]];
+					this.onDidChangeSelectionEmitter.fire(this.selectedItems);
+				}
+				this.onDidAcceptEmitter.fire(undefined);
+			}));
+			this.visibleDisposables.add(this.ui.onDidCustom(() => {
+				this.onDidCustomEmitter.fire(undefined);
+			}));
+			this.visibleDisposables.add(this.ui.list.onDidChangeFocus(focusedItems => {
+				if (this.activeItemsUpdated) {
+					return; // Expect another event.
+				}
+				if (this.activeItemsToConfirm !== this._activeItems && equals(focusedItems, this._activeItems, (a, b) => a === b)) {
+					return;
+				}
+				this._activeItems = focusedItems as T[];
+				this.onDidChangeActiveEmitter.fire(focusedItems as T[]);
+			}));
+			this.visibleDisposables.add(this.ui.list.onDidChangeSelection(selectedItems => {
+				if (this.canSelectMany) {
 					if (selectedItems.length) {
-						this.onDidAcceptEmitter.fire(undefined);
+						this.ui.list.setSelectedElements([]);
 					}
-				}),
-				this.ui.list.onChangedCheckedElements(checkedItems => {
-					if (!this.canSelectMany) {
-						return;
-					}
-					if (this.selectedItemsToConfirm !== this._selectedItems && equals(checkedItems, this._selectedItems, (a, b) => a === b)) {
-						return;
-					}
-					this._selectedItems = checkedItems as T[];
-					this.onDidChangeSelectionEmitter.fire(checkedItems as T[]);
-				}),
-				this.ui.list.onButtonTriggered(event => this.onDidTriggerItemButtonEmitter.fire(event as IQuickPickItemButtonEvent<T>)),
-				this.registerQuickNavigation()
-			);
+					return;
+				}
+				if (this.selectedItemsToConfirm !== this._selectedItems && equals(selectedItems, this._selectedItems, (a, b) => a === b)) {
+					return;
+				}
+				this._selectedItems = selectedItems as T[];
+				this.onDidChangeSelectionEmitter.fire(selectedItems as T[]);
+				if (selectedItems.length) {
+					this.onDidAcceptEmitter.fire(undefined);
+				}
+			}));
+			this.visibleDisposables.add(this.ui.list.onChangedCheckedElements(checkedItems => {
+				if (!this.canSelectMany) {
+					return;
+				}
+				if (this.selectedItemsToConfirm !== this._selectedItems && equals(checkedItems, this._selectedItems, (a, b) => a === b)) {
+					return;
+				}
+				this._selectedItems = checkedItems as T[];
+				this.onDidChangeSelectionEmitter.fire(checkedItems as T[]);
+			}));
+			this.visibleDisposables.add(this.ui.list.onButtonTriggered(event => this.onDidTriggerItemButtonEmitter.fire(event as IQuickPickItemButtonEvent<T>)));
+			this.visibleDisposables.add(this.registerQuickNavigation());
 			this.valueSelectionUpdated = true;
 		}
 		super.show(); // TODO: Why have show() bubble up while update() trickles down? (Could move setComboboxAccessibility() here.)
@@ -784,16 +771,8 @@ class InputBox extends QuickInput implements IInputBox {
 	private _prompt: string;
 	private noValidationMessage = InputBox.noPromptMessage;
 	private _validationMessage: string;
-	private onDidValueChangeEmitter = new Emitter<string>();
-	private onDidAcceptEmitter = new Emitter<void>();
-
-	constructor(ui: QuickInputUI) {
-		super(ui);
-		this.disposables.push(
-			this.onDidValueChangeEmitter,
-			this.onDidAcceptEmitter,
-		);
-	}
+	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
+	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 
 	get value() {
 		return this._value;
@@ -849,22 +828,21 @@ class InputBox extends QuickInput implements IInputBox {
 		this.update();
 	}
 
-	onDidChangeValue = this.onDidValueChangeEmitter.event;
+	readonly onDidChangeValue = this.onDidValueChangeEmitter.event;
 
-	onDidAccept = this.onDidAcceptEmitter.event;
+	readonly onDidAccept = this.onDidAcceptEmitter.event;
 
 	show() {
 		if (!this.visible) {
-			this.visibleDisposables.push(
+			this.visibleDisposables.add(
 				this.ui.inputBox.onDidChange(value => {
 					if (value === this.value) {
 						return;
 					}
 					this._value = value;
 					this.onDidValueChangeEmitter.fire(value);
-				}),
-				this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire(undefined)),
-			);
+				}));
+			this.visibleDisposables.add(this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire(undefined)));
 			this.valueSelectionUpdated = true;
 		}
 		super.show();
@@ -921,9 +899,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private inQuickOpenWidgets: Record<string, boolean> = {};
 	private inQuickOpenContext: IContextKey<boolean>;
 	private contexts: { [id: string]: IContextKey<boolean>; } = Object.create(null);
-	private onDidAcceptEmitter = this._register(new Emitter<void>());
-	private onDidCustomEmitter = this._register(new Emitter<void>());
-	private onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
+	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
+	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
+	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 	private keyMods: Writeable<IKeyMods> = { ctrlCmd: false, alt: false };
 
 	private controller: QuickInput | null = null;

@@ -5,7 +5,7 @@
 
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -160,12 +160,11 @@ export namespace CodeActionsState {
 	export type State = typeof Empty | Triggered;
 }
 
-export class CodeActionModel {
+export class CodeActionModel extends Disposable {
 
 	private _codeActionOracle?: CodeActionOracle;
 	private _state: CodeActionsState.State = CodeActionsState.Empty;
 	private _onDidChangeState = new Emitter<CodeActionsState.State>();
-	private _disposables: IDisposable[] = [];
 	private readonly _supportedCodeActions: IContextKey<string>;
 
 	constructor(
@@ -174,17 +173,18 @@ export class CodeActionModel {
 		contextKeyService: IContextKeyService,
 		private readonly _progressService: ILocalProgressService
 	) {
+		super();
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
 
-		this._disposables.push(this._editor.onDidChangeModel(() => this._update()));
-		this._disposables.push(this._editor.onDidChangeModelLanguage(() => this._update()));
-		this._disposables.push(CodeActionProviderRegistry.onDidChange(() => this._update()));
+		this._register(this._editor.onDidChangeModel(() => this._update()));
+		this._register(this._editor.onDidChangeModelLanguage(() => this._update()));
+		this._register(CodeActionProviderRegistry.onDidChange(() => this._update()));
 
 		this._update();
 	}
 
 	dispose(): void {
-		this._disposables = dispose(this._disposables);
+		super.dispose();
 		dispose(this._codeActionOracle);
 	}
 
