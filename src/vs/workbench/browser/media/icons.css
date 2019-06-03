@@ -68,6 +68,8 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .suggest-widget .mona
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .symbol-icon::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .peekview-widget .head .peekview-title .icon.error,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .peekview-widget .head .peekview-title .icon.warning,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .notifications-list-container .notification-list-item-icon,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench > .notifications-center > .notifications-center-header .clear-all-notifications-action,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench > .notifications-center > .notifications-center-header .hide-all-notifications-action,
@@ -84,18 +86,27 @@ body[data-icon-theme^="icon-explorations-"] .monaco-breadcrumbs .monaco-breadcru
 body[data-icon-theme^="icon-explorations-"] .monaco-tl-twistie.collapsible.collapsed:not(.loading),
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.closeActiveEditor"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.splitEditor"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openChange"],
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace-all::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .previous::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .next::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .close-fw::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .replace-all::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .replace::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .previous::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .next::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .close-fw::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .expand::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collapse::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .quick-open-sidebyside-vertical,
 body[data-icon-theme^="icon-explorations-"] .monaco-tree-action.collapse-all,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .margin-view-overlays .folding,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .explorer-action.save-all,
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"],
+body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.refresh"],
+body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
+body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .explorer-viewlet .action-close-all-files,
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more,
 body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-bar .action-item > .clear-input,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindingsFile"],
@@ -107,8 +118,11 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .peekview-widget .hea
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.nextChange"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openFile"],
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindings"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="toggle.diff.ignoreTrimWhitespace"],
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .peekview-widget .head .peekview-actions .action-label.icon[data-title="peekview.close"],
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.splitEditor"],
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="git.openChange"],
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
@@ -179,11 +193,11 @@ body[data-icon-theme="icon-explorations-2"] .monaco-workbench .activitybar > .co
 
 body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.collapse,
 body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.expand,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace-all,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .previous,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .next,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .close-fw,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .replace-all,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .replace,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .previous,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .next,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .close-fw,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .expand,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collapse,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label {
@@ -196,11 +210,11 @@ body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-
 body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.collapse::before,
 body[data-icon-theme^="icon-explorations-"] .search-view .search-widget .toggle-replace-button.expand::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-header::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace-all::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .replace::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .previous::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .next::before,
-body[data-icon-theme^="icon-explorations-"] .monaco-editor.vs-dark .find-widget .close-fw::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .replace-all::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .replace::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .previous::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .next::before,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .close-fw::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .expand::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .collapse::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-editor .find-widget .monaco-checkbox .label::before,
@@ -224,6 +238,8 @@ body[data-icon-theme^="icon-explorations-"] .keybindings-editor .monaco-action-b
 }
 
 body[data-icon-theme^="icon-explorations-"] .monaco-findInput > .controls .monaco-custom-checkbox::before,
+body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up::before,
+body[data-icon-theme^="icon-explorations-"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.useExcludesAndIgnoreFiles::before,
 body[data-icon-theme^="icon-explorations-"] .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude::before {
 	content: "";
@@ -244,10 +260,12 @@ body[data-icon-theme="icon-explorations-2"] .monaco-workbench .flip-editor-layou
 	-webkit-mask-image: url("images/explorer/layout-alt2.svg");
 }
 
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .explorer-action.save-all,
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .save-all {
 	-webkit-mask-image: url("images/explorer/save-alt1.svg");
 }
 
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .explorer-action.save-all,
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .save-all {
 	-webkit-mask-image: url("images/explorer/save-alt2.svg");
 }
@@ -430,21 +448,25 @@ body[data-icon-theme="icon-explorations-2"] .search-view .search-widget .toggle-
 	Git
 ****************/
 
-body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"] {
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"],
+body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"] {
 	-webkit-mask-image: url("images/git/check-alt1.svg");
 }
 
-body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"] {
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"],
+body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"] {
 	-webkit-mask-image: url("images/git/check-alt2.svg");
 }
 
 /* Refresh */
 
-body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.refresh"] {
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.refresh"],
+body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.refresh"] {
 	-webkit-mask-image: url("images/git/refresh-alt1.svg");
 }
 
-body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.refresh"] {
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.refresh"],
+body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.refresh"] {
 	-webkit-mask-image: url("images/git/refresh-alt2.svg");
 }
 
@@ -488,10 +510,12 @@ body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .res
 
 /* Open File */
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openFile"],
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindings"],
 body[data-icon-theme="icon-explorations-1"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.openFile2"] {
 	-webkit-mask-image: url("images/git/gotofile-alt1.svg");
 }
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openFile"],
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindings"],
 body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.openFile2"] {
 	-webkit-mask-image: url("images/git/gotofile-alt2.svg");
 }
@@ -499,21 +523,25 @@ body[data-icon-theme="icon-explorations-2"] .scm-viewlet .monaco-list-row > .res
 /* Chevrons */
 
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.nextChange"],
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.marker.next"],
 body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.dirtydiff.next"] {
 	-webkit-mask-image: url("images/git/next-alt1.svg");
 }
 
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.nextChange"],
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.marker.next"],
 body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.dirtydiff.next"] {
 	-webkit-mask-image: url("images/git/next-alt2.svg");
 }
 
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.marker.prev"],
 body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.dirtydiff.previous"] {
 	-webkit-mask-image: url("images/git/previous-alt1.svg");
 }
 
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.marker.prev"],
 body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.dirtydiff.previous"] {
 	-webkit-mask-image: url("images/git/previous-alt2.svg");
 }
@@ -1258,6 +1286,10 @@ body[data-icon-theme="icon-explorations-2"] .monaco-editor .suggest-widget .mona
 	Breadcrumbs
 ****************/
 
+body[data-icon-theme^="icon-explorations-"] .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before {
+	width: 16px !important;
+}
+
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .breadcrumbs-control .symbol-icon::before,
 body[data-icon-theme^="icon-explorations-"] .monaco-workbench .monaco-breadcrumb-item .symbol-icon {
 	top: -2px;
@@ -1511,22 +1543,26 @@ body[data-icon-theme="icon-explorations-2"] .markers-panel .marker-icon.info {
 }
 
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning,
-body[data-icon-theme="icon-explorations-1"] .markers-panel .marker-icon.warning {
+body[data-icon-theme="icon-explorations-1"] .markers-panel .marker-icon.warning,
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-title .icon.warning {
 	-webkit-mask-image: url("images/notifications/warning-alt1.svg");
 	background: var(--yellow);
 }
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning,
-body[data-icon-theme="icon-explorations-2"] .markers-panel .marker-icon.warning {
+body[data-icon-theme="icon-explorations-2"] .markers-panel .marker-icon.warning,
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .head .peekview-title .icon.warning {
 	-webkit-mask-image: url("images/notifications/warning-alt2.svg");
 	background: var(--yellow);
 }
 
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error,
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-title .icon.error,
 body[data-icon-theme="icon-explorations-1"] .markers-panel .marker-icon.error {
 	-webkit-mask-image: url("images/notifications/error-alt1.svg");
 	background: var(--redLight);
 }
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error,
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .head .peekview-title .icon.error,
 body[data-icon-theme="icon-explorations-2"] .markers-panel .marker-icon.error {
 	-webkit-mask-image: url("images/notifications/error-alt2.svg");
 	background: var(--redLight);
@@ -1592,12 +1628,14 @@ body[data-icon-theme^="icon-explorations-"] .monaco-panel-view .panel > .panel-h
 
 body[data-icon-theme="icon-explorations-1"] .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header.expanded::before,
+body[data-icon-theme="icon-explorations-1"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-icon-theme="icon-explorations-1"] .monaco-tl-twistie.collapsible:not(.loading) {
 	-webkit-mask-image: url("images/tree/expand-alt1.svg");
 }
 
 body[data-icon-theme="icon-explorations-2"] .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header.expanded::before,
+body[data-icon-theme="icon-explorations-2"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible:not(.loading) {
 	-webkit-mask-image: url("images/tree/expand-alt2.svg");
 }
@@ -1605,6 +1643,7 @@ body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible:not(.
 body[data-icon-theme="icon-explorations-1"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before,
 body[data-icon-theme="icon-explorations-1"] .monaco-panel-view .panel > .panel-header::before,
+body[data-icon-theme="icon-explorations-1"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-icon-theme="icon-explorations-1"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	-webkit-mask-image: url("images/tree/collapse-alt1.svg");
 }
@@ -1612,20 +1651,25 @@ body[data-icon-theme="icon-explorations-1"] .monaco-tl-twistie.collapsible.colla
 body[data-icon-theme="icon-explorations-2"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before,
 body[data-icon-theme="icon-explorations-2"] .monaco-panel-view .panel > .panel-header::before,
+body[data-icon-theme="icon-explorations-2"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-icon-theme="icon-explorations-2"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	-webkit-mask-image: url("images/tree/collapse-alt2.svg");
 }
 
-body[data-icon-theme="icon-explorations-1"] .monaco-editor.vs-dark .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action,
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.closeActiveEditor"],
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .peekview-widget .head .peekview-actions .action-label.icon[data-title="peekview.close"],
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
 	-webkit-mask-image: url("images/tree/close-alt1.svg");
 }
 
-body[data-icon-theme="icon-explorations-2"] .monaco-editor.vs-dark .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action,
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .peekview-widget .head .peekview-actions .action-label.icon[data-title="peekview.close"],
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.closeActiveEditor"],
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
 	-webkit-mask-image: url("images/tree/close-alt2.svg");
 }
@@ -1644,26 +1688,32 @@ body[data-icon-theme="icon-explorations-2"] .explorer-viewlet .explorer-open-edi
 	Tree
 ****************/
 
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.splitEditor"],
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.splitEditor"] {
 	-webkit-mask-image: url("images/editor/split-horizontal-alt1.svg");
 }
 
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.splitEditor"],
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.splitEditor"] {
 	-webkit-mask-image: url("images/editor/split-horizontal-alt2.svg");
 }
 
-body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"] {
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"],
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[title="Split Editor Down"] {
 	-webkit-mask-image: url("images/editor/split-vertical-alt1.svg");
 }
 
-body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"] {
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[title="Split Editor Down"],
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[title="Split Editor Down"] {
 	-webkit-mask-image: url("images/editor/split-vertical-alt2.svg");
 }
 
+body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="git.openChange"],
 body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openChange"] {
 	-webkit-mask-image: url("images/editor/open-change-alt1.svg");
 }
 
+body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="git.openChange"],
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openChange"] {
 	-webkit-mask-image: url("images/editor/open-change-alt2.svg");
 }
@@ -1808,4 +1858,24 @@ body[data-icon-theme="icon-explorations-1"] .monaco-workbench .part.panel > .tit
 body[data-icon-theme="icon-explorations-2"] .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
 	-webkit-mask-image: url("images/misc/more-alt2.svg");
 	background: var(--gray) !important;
+}
+
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .margin-view-overlays .folding,
+body[data-icon-theme^="icon-explorations-"] .monaco-editor .margin-view-overlays .folding.collapsed {
+	-webkit-mask-position: 75% 50%;
+}
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .margin-view-overlays .folding {
+	-webkit-mask-image: url("images/misc/fold-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .margin-view-overlays .folding {
+	-webkit-mask-image: url("images/misc/fold-alt2.svg");
+}
+
+body[data-icon-theme="icon-explorations-1"] .monaco-editor .margin-view-overlays .folding.collapsed {
+	-webkit-mask-image: url("images/misc/unfold-alt1.svg");
+}
+
+body[data-icon-theme="icon-explorations-2"] .monaco-editor .margin-view-overlays .folding.collapsed {
+	-webkit-mask-image: url("images/misc/unfold-alt2.svg");
 }
