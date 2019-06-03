@@ -109,10 +109,10 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		try {
 			this.parseErrors = [];
 			res = this.options.parse ? this.options.parse(raw, this.parseErrors) : json.parse(raw, this.parseErrors);
+
 			return res || this.options.defaultConfig;
 		} catch (error) {
-			// Ignore parsing errors
-			return this.options.defaultConfig;
+			return this.options.defaultConfig; // Ignore parsing errors
 		}
 	}
 
