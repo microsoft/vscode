@@ -508,6 +508,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private doSetFileIconTheme(iconThemeData: FileIconThemeData): void {
 		this.currentIconTheme = iconThemeData;
+		document.body.dataset.iconTheme = iconThemeData.settingsId!; // For icon explorations
 
 		if (this.container) {
 			if (iconThemeData.id) {
