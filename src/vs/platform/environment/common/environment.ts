@@ -68,6 +68,7 @@ export interface ParsedArgs {
 	'driver'?: string;
 	'driver-verbose'?: boolean;
 	remote?: string;
+	'disable-user-env-probe'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

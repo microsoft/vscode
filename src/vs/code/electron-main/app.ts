@@ -231,7 +231,7 @@ export class CodeApplication extends Disposable {
 			const webContents = event.sender;
 
 			try {
-				const shellEnv = await getShellEnvironment(this.logService);
+				const shellEnv = await getShellEnvironment(this.logService, this.environmentService);
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
 				}
@@ -340,7 +340,7 @@ export class CodeApplication extends Disposable {
 		const sharedProcessClient = sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 		this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
-				const userEnv = await getShellEnvironment(this.logService);
+				const userEnv = await getShellEnvironment(this.logService, this.environmentService);
 
 				sharedProcess.spawn(userEnv);
 			}, 3000)).schedule();
