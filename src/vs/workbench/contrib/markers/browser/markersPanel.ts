@@ -162,7 +162,11 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			return;
 		}
 
-		this.tree.getHTMLElement().focus();
+		if (this.isEmpty()) {
+			this.messageBoxContainer.focus();
+		} else {
+			this.tree.getHTMLElement().focus();
+		}
 	}
 
 	public focusFilter(): void {
@@ -470,11 +474,15 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}
 	}
 
+	private isEmpty(): boolean {
+		const { total, filtered } = this.getFilterStats();
+		return total === 0 || filtered === 0;
+	}
+
 	private render(): void {
 		this.cachedFilterStats = undefined;
 		this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
-		const { total, filtered } = this.getFilterStats();
-		dom.toggleClass(this.treeContainer, 'hidden', total === 0 || filtered === 0);
+		dom.toggleClass(this.treeContainer, 'hidden', this.isEmpty());
 		this.renderMessage();
 	}
 

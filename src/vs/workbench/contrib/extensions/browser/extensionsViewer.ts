@@ -255,7 +255,7 @@ export class ExtensionData implements IExtensionData {
 					toQuery.push(id);
 				}
 			}
-			const galleryResult = await this.extensionsWorkbenchService.queryGallery({ names: this.childrenExtensionIds, pageSize: this.childrenExtensionIds.length }, CancellationToken.None);
+			const galleryResult = await this.extensionsWorkbenchService.queryGallery({ names: toQuery, pageSize: toQuery.length }, CancellationToken.None);
 			result.push(...galleryResult.firstPage);
 			return result.map(extension => new ExtensionData(extension, this, this.getChildrenExtensionIds, this.extensionsWorkbenchService));
 		}

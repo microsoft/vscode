@@ -401,9 +401,9 @@ export class PanelView extends Disposable {
 
 		// https://github.com/Microsoft/vscode/issues/59950
 		let shouldAnimate = false;
-		disposables.push(scheduleAtNextAnimationFrame(() => shouldAnimate = true));
+		disposables.add(scheduleAtNextAnimationFrame(() => shouldAnimate = true));
 
-		disposables.push(Event.filter(panel.onDidChange, () => shouldAnimate)
+		disposables.add(Event.filter(panel.onDidChange, () => shouldAnimate)
 			(this.setupAnimation, this));
 
 		const panelItem = { panel, disposable: disposables };
@@ -413,8 +413,8 @@ export class PanelView extends Disposable {
 
 		if (this.dnd) {
 			const draggable = new PanelDraggable(panel, this.dnd, this.dndContext);
-			disposables.push(draggable);
-			disposables.push(draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop));
+			disposables.add(draggable);
+			disposables.add(draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop));
 		}
 	}
 

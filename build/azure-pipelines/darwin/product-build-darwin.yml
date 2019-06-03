@@ -34,7 +34,8 @@ steps:
     yarn gulp mixin
     yarn gulp hygiene
     yarn monaco-compile-check
-    node build/azure-pipelines/common/installDistro.js
+    node build/azure-pipelines/common/installDistroDependencies.js
+    node build/azure-pipelines/common/installDistroDependencies.js remote
     node build/lib/builtInExtensions.js
   displayName: Prepare build
 

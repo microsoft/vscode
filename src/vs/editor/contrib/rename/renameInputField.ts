@@ -172,8 +172,8 @@ export class RenameInputField extends Disposable implements IContentWidget {
 				}
 			};
 
-			disposeOnDone.push(this._editor.onDidChangeCursorSelection(onCursorChanged));
-			disposeOnDone.push(this._editor.onDidBlurEditorWidget(() => this.cancelInput(false)));
+			disposeOnDone.add(this._editor.onDidChangeCursorSelection(onCursorChanged));
+			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(false)));
 
 			this._show();
 

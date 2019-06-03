@@ -44,6 +44,7 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/node/con
 import { ConfigurationFileService } from 'vs/workbench/services/configuration/node/configurationFileService';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -1574,26 +1575,26 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		return promise;
 	});
 
-	// test('update remote settings', async () => {
-	// 	registerRemoteFileSystemProvider();
-	// 	resolveRemoteEnvironment();
-	// 	await initialize();
-	// 	assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
-	// 	const promise = new Promise((c, e) => {
-	// 		testObject.onDidChangeConfiguration(event => {
-	// 			try {
-	// 				assert.equal(event.source, ConfigurationTarget.USER);
-	// 				assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
-	// 				assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
-	// 				c();
-	// 			} catch (error) {
-	// 				e(error);
-	// 			}
-	// 		});
-	// 	});
-	// 	fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
-	// 	return promise;
-	// });
+	test('update remote settings', async () => {
+		registerRemoteFileSystemProvider();
+		resolveRemoteEnvironment();
+		await initialize();
+		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
+		const promise = new Promise((c, e) => {
+			testObject.onDidChangeConfiguration(event => {
+				try {
+					assert.equal(event.source, ConfigurationTarget.USER);
+					assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+					c();
+				} catch (error) {
+					e(error);
+				}
+			});
+		});
+		await instantiationService.get(IFileService).writeFile(URI.file(remoteSettingsFile), VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
+		return promise;
+	});
 
 	test('machine settings in local user settings does not override defaults', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.remote.machineSetting": "globalValue" }');

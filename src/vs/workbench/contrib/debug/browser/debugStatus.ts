@@ -10,17 +10,16 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { Themable } from 'vs/workbench/common/theme';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { STATUS_BAR_DEBUGGING_FOREGROUND, isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 const $ = dom.$;
 
 export class DebugStatus extends Themable implements IStatusbarItem {
 	private container: HTMLElement;
 	private statusBarItem: HTMLElement;
-	private label: HTMLElement;
-	private icon: HTMLElement;
+	private label: OcticonLabel;
 	private showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 
 	constructor(
@@ -56,16 +55,6 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 		}));
 	}
 
-	protected updateStyles(): void {
-		if (this.icon) {
-			if (isStatusbarInDebugMode(this.debugService)) {
-				this.icon.style.backgroundColor = this.getColor(STATUS_BAR_DEBUGGING_FOREGROUND);
-			} else {
-				this.icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
-			}
-		}
-	}
-
 	public render(container: HTMLElement): IDisposable {
 		this.container = container;
 		if (this.showInStatusBar === 'always') {
@@ -81,8 +70,7 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 			this._register(dom.addDisposableListener(this.statusBarItem, 'click', () => this.quickOpenService.show('debug ')));
 			this.statusBarItem.title = nls.localize('selectAndStartDebug', "Select and start debug configuration");
 			const a = dom.append(this.statusBarItem, $('a'));
-			this.icon = dom.append(a, $('.icon'));
-			this.label = dom.append(a, $('span.label'));
+			this.label = new OcticonLabel(a);
 			this.setLabel();
 		}
 
@@ -96,7 +84,7 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 			const nameAndLaunchPresent = name && manager.selectedConfiguration.launch;
 			dom.toggleClass(this.statusBarItem, 'hidden', this.showInStatusBar === 'never' || !nameAndLaunchPresent);
 			if (nameAndLaunchPresent) {
-				this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch!.name})` : name;
+				this.label.text = '$(play) ' + (manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch!.name})` : name);
 			}
 		}
 	}

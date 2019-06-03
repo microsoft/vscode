@@ -203,12 +203,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return !!this.config.extensionTestsPath;
 	}
 
-	/*
-	get extensionDevelopmentPaths(): string | string[] | undefined {
-		return this.config.extensionDevelopmentPath;
-	}
-	*/
-
 	get config(): IWindowConfiguration {
 		return this.currentConfig;
 	}

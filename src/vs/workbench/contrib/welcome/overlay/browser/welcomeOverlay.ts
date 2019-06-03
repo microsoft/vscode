@@ -214,7 +214,7 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private updateProblemsKey() {
-		const problems = document.querySelector('.task-statusbar-item');
+		const problems = document.querySelector('div[id="workbench.parts.statusbar"] .statusbar-item.left .octicon.octicon-warning');
 		const key = this._overlay.querySelector('.key.problems') as HTMLElement;
 		if (problems instanceof HTMLElement) {
 			const target = problems.getBoundingClientRect();

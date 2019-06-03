@@ -57,6 +57,7 @@ export async function main(argv: string[]): Promise<any> {
 	else if (shouldSpawnCliProcess(args)) {
 		const cli = await new Promise<IMainCli>((c, e) => require(['vs/code/node/cliProcessMain'], c, e));
 		await cli.main(args);
+
 		return;
 	}
 

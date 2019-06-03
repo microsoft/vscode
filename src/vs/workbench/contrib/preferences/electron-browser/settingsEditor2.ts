@@ -248,10 +248,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	setOptions(options: SettingsEditorOptions): void {
+	setOptions(options: SettingsEditorOptions | null): void {
 		super.setOptions(options);
 
-		this._setOptions(options);
+		if (options) {
+			this._setOptions(options);
+		}
 	}
 
 	private _setOptions(options: SettingsEditorOptions): void {
@@ -557,7 +559,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private createTOC(parent: HTMLElement): void {
-		this.tocTreeModel = new TOCTreeModel(this.viewState);
+		this.tocTreeModel = this.instantiationService.createInstance(TOCTreeModel, this.viewState);
 		this.tocTreeContainer = DOM.append(parent, $('.settings-toc-container'));
 
 		this.tocTree = this._register(this.instantiationService.createInstance(TOCTree,
