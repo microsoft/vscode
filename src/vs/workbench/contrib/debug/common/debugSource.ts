@@ -49,7 +49,11 @@ export class Source {
 		}
 
 		if (typeof this.raw.sourceReference === 'number' && this.raw.sourceReference > 0) {
-			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
+			this.uri = uri.from({
+				scheme: DEBUG_SCHEME,
+				path,
+				query: `session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`
+			});
 		} else {
 			if (isUri(path)) {	// path looks like a uri
 				this.uri = uri.parse(path);
@@ -60,7 +64,11 @@ export class Source {
 				} else {
 					// path is relative: since VS Code cannot deal with this by itself
 					// create a debug url that will result in a DAP 'source' request when the url is resolved.
-					this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}`);
+					this.uri = uri.from({
+						scheme: DEBUG_SCHEME,
+						path,
+						query: `session=${encodeURIComponent(sessionId)}`
+					});
 				}
 			}
 		}
