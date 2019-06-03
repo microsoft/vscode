@@ -303,7 +303,7 @@ export class Scope extends ExpressionContainer implements IScope {
 		indexedVariables?: number,
 		public range?: IRange
 	) {
-		super(stackFrame.thread.session, reference, `scope:${stackFrame.getId()}:${name}:${index}`, namedVariables, indexedVariables);
+		super(stackFrame.thread.session, reference, `scope:${name}:${index}`, namedVariables, indexedVariables);
 	}
 
 	toString(): string {
