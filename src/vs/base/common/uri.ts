@@ -96,13 +96,15 @@ const _empty = '';
 const _slash = '/';
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 
-const _queryStringSchemes = new Set<string>();
-_queryStringSchemes.add('http');
-_queryStringSchemes.add('https');
-_queryStringSchemes.add('ftp');
-_queryStringSchemes.add('HTTP');
-_queryStringSchemes.add('HTTPS');
-_queryStringSchemes.add('FTP');
+function _isQueryStringScheme(scheme: string) {
+	switch (scheme.toLowerCase()) {
+		case 'http':
+		case 'https':
+		case 'ftp':
+			return true;
+	}
+	return false;
+}
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -296,7 +298,7 @@ export class URI implements UriComponents {
 			match[2] || _empty,
 			decodeURIComponentFast(match[4] || _empty, false, false),
 			decodeURIComponentFast(match[5] || _empty, true, false),
-			decodeURIComponentFast(match[7] || _empty, false, _queryStringSchemes.has(match[2])),
+			decodeURIComponentFast(match[7] || _empty, false, _isQueryStringScheme(match[2])),
 			decodeURIComponentFast(match[9] || _empty, false, false),
 			_strict
 		);
@@ -761,7 +763,7 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 	}
 	if (query) {
 		res += '?';
-		res += encoder(query, false, _queryStringSchemes.has(scheme));
+		res += encoder(query, false, _isQueryStringScheme(scheme));
 	}
 	if (fragment) {
 		res += '#';
