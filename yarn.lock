@@ -9643,14 +9643,6 @@ vscode-windows-registry@1.0.1:
   dependencies:
     nan "^2.12.1"
 
-<<<<<<< HEAD
-=======
-vscode-xterm@3.14.0-beta6:
-  version "3.14.0-beta6"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.14.0-beta6.tgz#657f5f68d73c53298b53f912a0dea178445c1c54"
-  integrity sha512-4E9ioj78LRZbMruEmxrDDSOeoPt3GX87MkY2HaPIT+PNIWNxCRiTCFDwbwXSWLzZdYLBNV6QEqLtnel5w8+1rA==
-
->>>>>>> origin/master
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
   resolved "https://registry.yarnpkg.com/vso-node-api/-/vso-node-api-6.1.2-preview.tgz#aab3546df2451ecd894e071bb99b5df19c5fa78f"
@@ -9920,10 +9912,10 @@ xtend@~2.1.1:
   dependencies:
     object-keys "~0.4.0"
 
-xterm@3.14.0-beta27:
-  version "3.14.0-beta27"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.14.0-beta27.tgz#57843f7600aed80021b0f4f55c1a97a20e28be09"
-  integrity sha512-p/Z4iWZhnjKNYVv7k7tbSNd9BC5sG12RfLsU13Wd+YFyRlNf5S2CBAH8TXT+qWg0JyJTlgfDl1xp2/ROf3LKjA==
+xterm@3.14.0:
+  version "3.14.0"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.14.0.tgz#cee4c64aa3068955a42a15aad867ef40a20c8f5a"
+  integrity sha512-a5qL7iDLuzAzul6BHADoluO8yN3e8tEVMTACBXyi84WLExiz5Sc+hRrV4XL9gg3J3I3Gnh+C9FlsNuPtiRP7Wg==
 
 y18n@^3.2.1:
   version "3.2.1"
