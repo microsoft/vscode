@@ -47,7 +47,7 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					type: 'array'
 				},
 				variables: {
-					description: nls.localize('vscode.extension.contributes.debuggers.variables', "Mapping from interactive variables (e.g ${action.pickProcess}) in `launch.json` to a command."),
+					description: nls.localize('vscode.extension.contributes.debuggers.variables', "Mapping from interactive variables (e.g. ${action.pickProcess}) in `launch.json` to a command."),
 					type: 'object'
 				},
 				initialConfigurations: {

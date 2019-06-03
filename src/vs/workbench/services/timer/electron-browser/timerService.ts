@@ -209,7 +209,7 @@ export interface IStartupMetrics {
 		readonly ellapsedWorkspaceServiceInit: number;
 
 		/**
-		 * The time it took to load the main-bundle of the workbench, e.g `workbench.main.js`.
+		 * The time it took to load the main-bundle of the workbench, e.g. `workbench.main.js`.
 		 *
 		 * * Happens in the renderer-process
 		 * * Measured with the `willLoadWorkbenchMain` and `didLoadWorkbenchMain` performance marks.
