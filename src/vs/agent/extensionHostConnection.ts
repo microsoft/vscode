@@ -101,7 +101,7 @@ export class ExtensionHostConnection {
 			}
 
 			// TODO@Rob/Alex, we can't get a real log service here because the loglevel is sent over the management connection
-			const userShellEnv = await getShellEnvironment(new StubLogService());
+			const userShellEnv = await getShellEnvironment(new StubLogService(), this._environmentService);
 			const processEnv = process.env;
 			const binFolder = this._environmentService.isBuilt ? join(this._environmentService.appRoot, 'bin') : join(this._environmentService.appRoot, 'resources', 'server', 'bin-dev');
 			let PATH = userShellEnv['PATH'] || processEnv['PATH'];
