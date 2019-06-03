@@ -290,7 +290,7 @@ export class URI implements UriComponents {
 	static parse(value: string, _strict: boolean = false): URI {
 		const match = _regexp.exec(value);
 		if (!match) {
-			return new _URI(_empty, _empty, _empty, _empty, _empty);
+			return new _URI(_empty, _empty, _empty, _empty, _empty, _strict);
 		}
 		return new _URI(
 			match[2] || _empty,
