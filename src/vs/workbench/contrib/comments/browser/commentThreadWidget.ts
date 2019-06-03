@@ -772,7 +772,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentFormActions.setActions(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(container, (action: IAction) => {
+		this._commentFormActions = new CommentFormActions(container, async (action: IAction) => {
+			if (!commentThread.comments || !commentThread.comments.length) {
+				let newPosition = this.getPosition();
+
+				if (newPosition) {
+					this.commentService.updateCommentThreadTemplate(this.owner, commentThread.commentThreadHandle, new Range(newPosition.lineNumber, 1, newPosition.lineNumber, 1));
+				}
+			}
 			action.run({
 				thread: this._commentThread,
 				text: this._commentEditor.getValue(),
@@ -975,6 +982,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			const frameThickness = Math.round(lineHeight / 9) * 2;
 
 			const computedLinesNumber = Math.ceil((headHeight + dimensions.height + arrowHeight + frameThickness + 8 /** margin bottom to avoid margin collapse */) / lineHeight);
+
+			let currentPosition = this.getPosition();
+
+			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber) {
+				this._viewZone.afterLineNumber = currentPosition.lineNumber;
+			}
+
 			this._relayout(computedLinesNumber);
 		}
 	}
