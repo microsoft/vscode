@@ -1001,29 +1001,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (extension) {
 				return this.windowService.focusWindow()
 					.then(() => this.open(extension));
+			} else {
+				return Promise.resolve(null);
 			}
-
-			return this.queryGallery({ names: [extensionId], source: 'uri' }, CancellationToken.None).then(result => {
-				if (result.total < 1) {
-					return Promise.resolve(null);
-				}
-
-				const extension = result.firstPage[0];
-
-				return this.windowService.focusWindow().then(() => {
-					return this.open(extension).then(() => {
-						this.notificationService.prompt(
-							Severity.Info,
-							nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher),
-							[{
-								label: nls.localize('install', "Install"),
-								run: () => this.install(extension).then(undefined, error => this.onError(error))
-							}],
-							{ sticky: true }
-						);
-					});
-				});
-			});
 		}).then(undefined, error => this.onError(error));
 	}
 
