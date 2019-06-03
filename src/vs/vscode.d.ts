@@ -3515,6 +3515,10 @@ declare module 'vscode' {
 		 *
 		 * The editor will only resolve a completion item once.
 		 *
+		 * *Note* that accepting a completion item will not wait for it to be resolved. Because of that [`insertText`](#CompletionItem.insertText),
+		 * [`additionalTextEdits`](#CompletionItem.additionalTextEdits), and [`command`](#CompletionItem.command) should not
+		 * be changed when resolving an item.
+		 *
 		 * @param item A completion item currently active in the UI.
 		 * @param token A cancellation token.
 		 * @return The resolved completion item or a thenable that resolves to of such. It is OK to return the given
