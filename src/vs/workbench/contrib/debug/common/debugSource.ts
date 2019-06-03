@@ -26,7 +26,6 @@ export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Sourc
  *         |          |                             |                          |
  *      scheme   source.path                    session id            source.reference
  *
- * the arbitrary_path and the session id are encoded with 'encodeURIComponent'
  *
  */
 
@@ -52,7 +51,7 @@ export class Source {
 			this.uri = uri.from({
 				scheme: DEBUG_SCHEME,
 				path,
-				query: `session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`
+				query: `session=${sessionId}&ref=${this.raw.sourceReference}`
 			});
 		} else {
 			if (isUri(path)) {	// path looks like a uri
@@ -67,7 +66,7 @@ export class Source {
 					this.uri = uri.from({
 						scheme: DEBUG_SCHEME,
 						path,
-						query: `session=${encodeURIComponent(sessionId)}`
+						query: `session=${sessionId}`
 					});
 				}
 			}
@@ -126,7 +125,7 @@ export class Source {
 						if (pair.length === 2) {
 							switch (pair[0]) {
 								case 'session':
-									sessionId = decodeURIComponent(pair[1]);
+									sessionId = pair[1];
 									break;
 								case 'ref':
 									sourceReference = parseInt(pair[1]);
