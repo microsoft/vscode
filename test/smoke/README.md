@@ -15,6 +15,9 @@ yarn smoketest
 
 # Build
 yarn smoketest --build PATH_TO_NEW_BUILD_PARENT_FOLDER --stable-build PATH_TO_LAST_STABLE_BUILD_PARENT_FOLDER
+
+# Remote
+yarn smoketest --build PATH_TO_NEW_BUILD_PARENT_FOLDER --remote
 ```
 
 ### Run for a release

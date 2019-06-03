@@ -15,7 +15,7 @@ import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
 import { hasArgs, asArray } from 'vs/platform/environment/node/argv';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, FileFilter } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
-import { ILifecycleService, UnloadReason, LifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleService, UnloadReason, LifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen, isFileToOpen, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
@@ -38,6 +38,7 @@ import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
 import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { once } from 'vs/base/common/functional';
 
 const enum WindowError {
 	UNRESPONSIVE = 1,
@@ -159,9 +160,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	private static readonly windowsStateStorageKey = 'windowsState';
 
-	private static WINDOWS: ICodeWindow[] = [];
-
-	private initialUserEnv: IProcessEnvironment;
+	private static readonly WINDOWS: ICodeWindow[] = [];
 
 	private readonly windowsState: IWindowsState;
 	private lastClosedWindowState?: IWindowState;
@@ -170,19 +169,20 @@ export class WindowsManager implements IWindowsMainService {
 	private readonly workspacesManager: WorkspacesManager;
 
 	private _onWindowReady = new Emitter<ICodeWindow>();
-	onWindowReady: CommonEvent<ICodeWindow> = this._onWindowReady.event;
+	readonly onWindowReady: CommonEvent<ICodeWindow> = this._onWindowReady.event;
 
 	private _onWindowClose = new Emitter<number>();
-	onWindowClose: CommonEvent<number> = this._onWindowClose.event;
+	readonly onWindowClose: CommonEvent<number> = this._onWindowClose.event;
 
 	private _onWindowLoad = new Emitter<number>();
-	onWindowLoad: CommonEvent<number> = this._onWindowLoad.event;
+	readonly onWindowLoad: CommonEvent<number> = this._onWindowLoad.event;
 
 	private _onWindowsCountChanged = new Emitter<IWindowsCountChangedEvent>();
-	onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
+	readonly onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
 
 	constructor(
 		private readonly machineId: string,
+		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@IStateService private readonly stateService: IStateService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -203,12 +203,50 @@ export class WindowsManager implements IWindowsMainService {
 
 		this.dialogs = new Dialogs(stateService, this);
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, this);
+
+		this.lifecycleService.when(LifecycleMainPhase.Ready).then(() => this.registerListeners());
+		this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.setupNativeHelpers());
 	}
 
-	ready(initialUserEnv: IProcessEnvironment): void {
-		this.initialUserEnv = initialUserEnv;
+	private setupNativeHelpers(): void {
+		if (isWindows) {
 
-		this.registerListeners();
+			// Setup Windows mutex
+			try {
+				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
+				const mutex = new WindowsMutex(product.win32MutexName);
+				once(this.lifecycleService.onWillShutdown)(() => mutex.release());
+			} catch (e) {
+				this.logService.error(e);
+
+				if (!this.environmentService.isBuilt) {
+					this.showMessageBox({
+						title: product.nameLong,
+						type: 'warning',
+						message: 'Failed to load windows-mutex!',
+						detail: e.toString(),
+						noLink: true
+					});
+				}
+			}
+
+			// Dev only: Ensure Windows foreground love module is present
+			if (!this.environmentService.isBuilt) {
+				try {
+					require.__$__nodeRequire('windows-foreground-love');
+				} catch (e) {
+					this.logService.error(e);
+
+					this.showMessageBox({
+						title: product.nameLong,
+						type: 'warning',
+						message: 'Failed to load windows-foreground-love!',
+						detail: e.toString(),
+						noLink: true
+					});
+				}
+			}
+		}
 	}
 
 	private registerListeners(): void {
@@ -543,6 +581,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Find suitable window or folder path to open files in
 			const fileToCheck = fileInputs.filesToOpenOrCreate[0] || fileInputs.filesToDiff[0];
+
 			// only look at the windows with correct authority
 			const windows = WindowsManager.WINDOWS.filter(w => w.remoteAuthority === fileInputs!.remoteAuthority);
 
@@ -639,7 +678,6 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Handle folders to open (instructed and to restore)
 		const allFoldersToOpen = arrays.distinct(foldersToOpen, folder => getComparisonKey(folder.folderUri)); // prevent duplicates
-
 		if (allFoldersToOpen.length > 0) {
 
 			// Check for existing instances
@@ -713,7 +751,9 @@ export class WindowsManager implements IWindowsMainService {
 			if (fileInputs && !emptyToOpen) {
 				emptyToOpen++;
 			}
+
 			const remoteAuthority = fileInputs ? fileInputs.remoteAuthority : (openConfig.cli && openConfig.cli.remote || undefined);
+
 			for (let i = 0; i < emptyToOpen; i++) {
 				usedWindows.push(this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
