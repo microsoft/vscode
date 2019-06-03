@@ -294,10 +294,10 @@ export class URI implements UriComponents {
 		}
 		return new _URI(
 			match[2] || _empty,
-			decodeURIComponentFast(match[4] || _empty, false),
-			decodeURIComponentFast(match[5] || _empty, true),
-			decodeURIComponentFast(match[7] || _empty, false),
-			decodeURIComponentFast(match[9] || _empty, false),
+			decodeURIComponentFast(match[4] || _empty, false, false),
+			decodeURIComponentFast(match[5] || _empty, true, false),
+			decodeURIComponentFast(match[7] || _empty, false, _queryStringSchemes.has(match[2])),
+			decodeURIComponentFast(match[9] || _empty, false, false),
 			_strict
 		);
 	}
@@ -484,7 +484,7 @@ function isHex(value: string, pos: number): boolean {
 }
 
 
-function decodeURIComponentFast(uriComponent: string, isPath: boolean): string {
+function decodeURIComponentFast(uriComponent: string, isPath: boolean, isQueryString: boolean): string {
 
 	let res: string | undefined;
 	let nativeDecodePos = -1;
@@ -495,12 +495,20 @@ function decodeURIComponentFast(uriComponent: string, isPath: boolean): string {
 		// decoding needed
 		if (code === CharCode.PercentSign && isHex(uriComponent, pos + 1) && isHex(uriComponent, pos + 2)) {
 
-			// when in a path, check and accept %2f and %2F
-			if (isPath
-				&& uriComponent.charCodeAt(pos + 1) === CharCode.Digit2
-				&& (uriComponent.charCodeAt(pos + 2) === CharCode.F || uriComponent.charCodeAt(pos + 2) === CharCode.f)
-			) {
+			const chA = uriComponent.charCodeAt(pos + 1);
+			const chB = uriComponent.charCodeAt(pos + 2);
 
+			// when in a path -> check and accept %2f and %2F (fwd slash)
+			// when in a query string -> check and accept %3D, %26, and %3B (equals, ampersand, semi-colon)
+			if (
+				(isPath && chA === CharCode.Digit2 && (chB === CharCode.F || chB === CharCode.f))
+				||
+				(isQueryString && (
+					(chA === CharCode.Digit2 && chB === CharCode.Digit6) // %26
+					||
+					(chA === CharCode.Digit3 && (chB === CharCode.B || chB === CharCode.b || chB === CharCode.D || chB === CharCode.d)) // %3D, %3D
+				))
+			) {
 				if (nativeDecodePos !== -1) {
 					res += decodeURIComponent(uriComponent.substring(nativeDecodePos, pos));
 					nativeDecodePos = -1;

@@ -465,6 +465,11 @@ suite('URI', () => {
 
 		uri = URI.parse('s://a/%c3%bcp%2fd%c3%b6wn');
 		assert.equal(uri.path, '/üp%2fdöwn');
+
+		//https://github.com/microsoft/vscode/issues/25852
+		uri = URI.parse('http://www.test.com/path/service?authId=CN%3DQ10');
+		assert.equal(uri.query, 'authId=CN%3DQ10');
+		assert.equal(uri.toString(), 'http://www.test.com/path/service?authId=CN%3DQ10');
 	});
 
 
