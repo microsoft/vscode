@@ -22,6 +22,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
 import { toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/history/electron-main/historyStorage';
 import { exists } from 'vs/base/node/pfs';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { ILifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 
 export class HistoryMainService implements IHistoryMainService {
 
@@ -37,10 +39,10 @@ export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IHistoryMainService>;
 
 	private _onRecentlyOpenedChange = new Emitter<void>();
-	onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;
+	readonly onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;
 
 	private macOSRecentDocumentsUpdater: ThrottledDelayer<void>;
 
@@ -48,9 +50,21 @@ export class HistoryMainService implements IHistoryMainService {
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this.macOSRecentDocumentsUpdater = new ThrottledDelayer<void>(800);
+
+		lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
+	}
+
+	private handleWindowsJumpList(): void {
+		if (!isWindows) {
+			return; // only on windows
+		}
+
+		this.updateWindowsJumpList();
+		this.onRecentlyOpenedChange(() => this.updateWindowsJumpList());
 	}
 
 	addRecentlyOpened(newlyAdded: IRecent[]): void {
