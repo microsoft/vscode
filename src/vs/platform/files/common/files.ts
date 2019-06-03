@@ -517,7 +517,7 @@ interface IBaseStat {
 	resource: URI;
 
 	/**
-	 * The name which is the last segement
+	 * The name which is the last segment
 	 * of the {{path}}.
 	 */
 	name: string;
@@ -531,7 +531,7 @@ interface IBaseStat {
 	size?: number;
 
 	/**
-	 * The last modifictaion date represented
+	 * The last modification date represented
 	 * as millis from unix epoch.
 	 *
 	 * The value may or may not be resolved as

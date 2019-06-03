@@ -424,12 +424,14 @@ export class CommentNode extends Disposable {
 				uri: this._commentEditor.getModel()!.uri,
 				value: this.comment.body.value
 			};
+			this.commentService.setActiveCommentThread(commentThread);
 
 			this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 				commentThread.input = {
 					uri: this._commentEditor!.getModel()!.uri,
 					value: this.comment.body.value
 				};
+				this.commentService.setActiveCommentThread(commentThread);
 			}));
 
 			this._commentEditorDisposables.push(this._commentEditor.onDidChangeModelContent(e => {
@@ -439,6 +441,7 @@ export class CommentNode extends Disposable {
 						let input = commentThread.input;
 						input.value = newVal;
 						commentThread.input = input;
+						this.commentService.setActiveCommentThread(commentThread);
 					}
 				}
 			}));
@@ -486,6 +489,7 @@ export class CommentNode extends Disposable {
 					uri: this._commentEditor.getModel()!.uri,
 					value: newBody
 				};
+				this.commentService.setActiveCommentThread(commentThread);
 				let commandId = this.comment.editCommand.id;
 				let args = this.comment.editCommand.arguments || [];
 
@@ -523,6 +527,7 @@ export class CommentNode extends Disposable {
 				if (result.confirmed) {
 					try {
 						if (this.comment.deleteCommand) {
+							this.commentService.setActiveCommentThread(this.commentThread);
 							let commandId = this.comment.deleteCommand.id;
 							let args = this.comment.deleteCommand.arguments || [];
 

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/b2100c95d7857c5421d111a860fcdd20954a0263",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/b57388e5a0971412c081cf0cea8b50b9c24ea4e8",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -329,6 +329,44 @@
 							"name": "keyword.symbol.fsharp"
 						}
 					}
+				},
+				{
+					"include": "#keywords"
+				}
+			]
+		},
+		"anonymous_record_declaration": {
+			"begin": "(\\{\\|)",
+			"end": "(\\|\\})",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.symbol.fsharp"
+				}
+			},
+			"endCaptures": {
+				"1": {
+					"name": "keyword.symbol.fsharp"
+				}
+			},
+			"patterns": [
+				{
+					"match": "[[:alpha:]0-9'`^_ ]+(:)",
+					"captures": {
+						"1": {
+							"name": "keyword.symbol.fsharp"
+						}
+					}
+				},
+				{
+					"match": "([[:alpha:]0-9'`^_ ]+)",
+					"captures": {
+						"1": {
+							"name": "entity.name.type.fsharp"
+						}
+					}
+				},
+				{
+					"include": "#anonymous_record_declaration"
 				},
 				{
 					"include": "#keywords"
@@ -820,6 +858,9 @@
 					]
 				},
 				{
+					"include": "#anonymous_record_declaration"
+				},
+				{
 					"begin": "({)",
 					"end": "(})",
 					"beginCaptures": {
@@ -983,6 +1024,9 @@
 							}
 						},
 						{
+							"include": "#anonymous_record_declaration"
+						},
+						{
 							"include": "#keywords"
 						}
 					]
@@ -1062,6 +1106,9 @@
 									"name": "entity.name.section.fsharp"
 								}
 							}
+						},
+						{
+							"include": "#comments"
 						}
 					]
 				},
@@ -1254,6 +1301,9 @@
 							"name": "entity.name.type.fsharp"
 						}
 					}
+				},
+				{
+					"include": "#anonymous_record_declaration"
 				},
 				{
 					"begin": "(\\?{0,1})([[:alpha:]0-9'`^._ ]+)\\s*(:)(\\s*([?[:alpha:]0-9'`^._ ]+)(<))",

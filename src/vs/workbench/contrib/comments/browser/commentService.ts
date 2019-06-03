@@ -38,6 +38,7 @@ export interface ICommentService {
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
+	readonly onDidChangeActiveCommentThread: Event<CommentThread | null>;
 	readonly onDidChangeActiveCommentingRange: Event<{ range: Range, commentingRangesInfo: CommentingRanges }>;
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string>;
@@ -69,6 +70,7 @@ export interface ICommentService {
 	deleteReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	getReactionGroup(owner: string): CommentReaction[] | undefined;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread2, comment: Comment, reaction: CommentReaction): Promise<void>;
+	setActiveCommentThread(commentThread: CommentThread | null): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -89,6 +91,9 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentThreads: Emitter<ICommentThreadChangedEvent> = this._register(new Emitter<ICommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
+	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
+	readonly onDidChangeActiveCommentThread = this._onDidChangeActiveCommentThread.event;
+
 	private readonly _onDidChangeActiveCommentingRange: Emitter<{
 		range: Range, commentingRangesInfo:
 		CommentingRanges
@@ -107,6 +112,10 @@ export class CommentService extends Disposable implements ICommentService {
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
+	}
+
+	setActiveCommentThread(commentThread: CommentThread | null) {
+		this._onDidChangeActiveCommentThread.fire(commentThread);
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {

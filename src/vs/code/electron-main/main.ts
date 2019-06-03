@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/code/code.main';
+import 'vs/platform/update/node/update.config.contribution';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -39,6 +39,7 @@ import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
+import { once } from 'vs/base/common/functional';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -90,17 +91,14 @@ class CodeMain {
 		// log file access on Windows (https://github.com/Microsoft/vscode/issues/41218)
 		const bufferLogService = new BufferLogService();
 
-		const instantiationService = this.createServices(args, bufferLogService);
+		const [instantiationService, instanceEnvironment] = this.createServices(args, bufferLogService);
 		try {
+
+			// Init services
 			await instantiationService.invokeFunction(async accessor => {
 				const environmentService = accessor.get(IEnvironmentService);
 				const stateService = accessor.get(IStateService);
-				const logService = accessor.get(ILogService);
 
-				// Patch `process.env` with the instance's environment
-				const instanceEnvironment = this.patchEnvironment(environmentService);
-
-				// Startup
 				try {
 					await this.initServices(environmentService, stateService as StateService);
 				} catch (error) {
@@ -110,9 +108,19 @@ class CodeMain {
 
 					throw error;
 				}
+			});
 
-				const mainIpcServer = await this.doStartup(logService, environmentService, instantiationService, true);
+			// Startup
+			await instantiationService.invokeFunction(async accessor => {
+				const environmentService = accessor.get(IEnvironmentService);
+				const logService = accessor.get(ILogService);
+				const lifecycleService = accessor.get(ILifecycleService);
+				const configurationService = accessor.get(IConfigurationService);
+
+				const mainIpcServer = await this.doStartup(logService, environmentService, lifecycleService, instantiationService, true);
+
 				bufferLogService.logger = new SpdLogService('main', environmentService.logsPath, bufferLogService.getLevel());
+				once(lifecycleService.onWillShutdown)(() => (configurationService as ConfigurationService).dispose());
 
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
 			});
@@ -121,16 +129,17 @@ class CodeMain {
 		}
 	}
 
-	private createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
+	private createServices(args: ParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, typeof process.env] {
 		const services = new ServiceCollection();
 
 		const environmentService = new EnvironmentService(args, process.execPath);
+		const instanceEnvironment = this.patchEnvironment(environmentService); // Patch `process.env` with the instance's environment
+		services.set(IEnvironmentService, environmentService);
 
 		const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService)), bufferLogService]);
 		process.once('exit', () => logService.dispose());
-
-		services.set(IEnvironmentService, environmentService);
 		services.set(ILogService, logService);
+
 		services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 		services.set(IStateService, new SyncDescriptor(StateService));
 		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
@@ -138,12 +147,12 @@ class CodeMain {
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 
-		return new InstantiationService(services, true);
+		return [new InstantiationService(services, true), instanceEnvironment];
 	}
 
 	private initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<unknown> {
 
-		// Ensure paths for environment service exist
+		// Environment service (paths)
 		const environmentServiceInitialization = Promise.all<void | undefined>([
 			environmentService.extensionsPath,
 			environmentService.nodeCachedDataDir,
@@ -175,7 +184,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async doStartup(logService: ILogService, environmentService: IEnvironmentService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
+	private async doStartup(logService: ILogService, environmentService: IEnvironmentService, lifecycleService: ILifecycleService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
@@ -183,6 +192,7 @@ class CodeMain {
 		let server: Server;
 		try {
 			server = await serve(environmentService.mainIPCHandle);
+			once(lifecycleService.onWillShutdown)(() => server.dispose());
 		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that
@@ -226,10 +236,11 @@ class CodeMain {
 					fs.unlinkSync(environmentService.mainIPCHandle);
 				} catch (error) {
 					logService.warn('Could not delete obsolete instance handle', error);
+
 					throw error;
 				}
 
-				return this.doStartup(logService, environmentService, instantiationService, false);
+				return this.doStartup(logService, environmentService, lifecycleService, instantiationService, false);
 			}
 
 			// Tests from CLI require to be the only instance currently
@@ -261,8 +272,8 @@ class CodeMain {
 			if (environmentService.args.status) {
 				return instantiationService.invokeFunction(async accessor => {
 					const diagnostics = await accessor.get(IDiagnosticsService).getDiagnostics(launchClient);
-
 					console.log(diagnostics);
+
 					throw new ExpectedError();
 				});
 			}
@@ -300,12 +311,14 @@ class CodeMain {
 		// Print --status usage info
 		if (environmentService.args.status) {
 			logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
+
 			throw new ExpectedError('Terminating...');
 		}
 
 		// Log uploader usage info
 		if (typeof environmentService.args['upload-logs'] !== 'undefined') {
 			logService.warn('Warning: The --upload-logs argument can only be used if Code is already running. Please run it again after Code has started.');
+
 			throw new ExpectedError('Terminating...');
 		}
 

@@ -29,7 +29,7 @@ export interface BeforeShutdownEvent {
 	/**
 	 * The reason why the application will be shutting down.
 	 */
-	reason: ShutdownReason;
+	readonly reason: ShutdownReason;
 }
 
 /**
@@ -51,7 +51,7 @@ export interface WillShutdownEvent {
 	/**
 	 * The reason why the application is shutting down.
 	 */
-	reason: ShutdownReason;
+	readonly reason: ShutdownReason;
 }
 
 export const enum ShutdownReason {

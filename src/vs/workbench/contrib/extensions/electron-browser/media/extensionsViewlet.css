@@ -38,7 +38,7 @@
 }
 
 .extensions-viewlet > .extensions .extensions-list.hidden,
-.extensions-viewlet > .extensions .message.hidden {
+.extensions-viewlet > .extensions .message-container.hidden {
 	display: none;
 	visibility: hidden;
 }
@@ -51,9 +51,35 @@
 	flex: 1;
 }
 
-.extensions-viewlet > .extensions .message {
+.extensions-viewlet > .extensions .message-container {
 	padding: 5px 9px 5px 16px;
 	cursor: default;
+	display: flex;
+}
+
+.extensions-viewlet > .extensions .message-container .message-status {
+	height: 16px;
+	width: 16px;
+}
+
+.extensions-viewlet > .extensions .message-container .message-status.warning {
+	background: url('status-warning.svg') center center no-repeat;
+}
+
+.extensions-viewlet > .extensions .message-container .message-status.error {
+	background: url('status-error.svg') center center no-repeat;
+}
+
+.vs-dark .extensions-viewlet > .extensions .message-container .message-status.warning {
+	background: url('status-warning-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .extensions-viewlet > .extensions .message-container .message-status.error {
+	background: url('status-error-inverse.svg') center center no-repeat;
+}
+
+.extensions-viewlet > .extensions .message-container .message {
+	padding-left: 5px;
 }
 
 .extensions-viewlet > .extensions .monaco-list-row > .bookmark {
