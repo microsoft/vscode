@@ -91,15 +91,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._extensionHostConnection = null;
 		this._messageProtocol = null;
 
-		this._toDispose.push(this._onExit);
-		this._toDispose.push(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
-		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
-		this._toDispose.push(this._extensionHostDebugService.onClose(event => {
+		this._toDispose.add(this._onExit);
+		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
+		this._toDispose.add(this._lifecycleService.onShutdown(reason => this.terminate()));
+		this._toDispose.add(this._extensionHostDebugService.onClose(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._windowService.closeWindow();
 			}
 		}));
-		this._toDispose.push(this._extensionHostDebugService.onReload(event => {
+		this._toDispose.add(this._extensionHostDebugService.onReload(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
 				this._windowService.reloadWindow();
 			}
@@ -107,7 +107,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 		const globalExitListener = () => this.terminate();
 		process.once('exit', globalExitListener);
-		this._toDispose.push(toDisposable(() => {
+		this._toDispose.add(toDisposable(() => {
 			process.removeListener('exit', globalExitListener);
 		}));
 	}

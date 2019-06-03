@@ -125,21 +125,21 @@ suite('Disk File Service', () => {
 	let testProvider: TestDiskFileSystemProvider;
 	let testDir: string;
 
-	let disposables = new DisposableStore();
+	const disposables = new DisposableStore();
 
 	setup(async () => {
 		const logService = new NullLogService();
 
 		service = new FileService(logService);
-		disposables.push(service);
+		disposables.add(service);
 
 		fileProvider = new TestDiskFileSystemProvider(logService);
-		disposables.push(service.registerProvider(Schemas.file, fileProvider));
-		disposables.push(fileProvider);
+		disposables.add(service.registerProvider(Schemas.file, fileProvider));
+		disposables.add(fileProvider);
 
 		testProvider = new TestDiskFileSystemProvider(logService);
-		disposables.push(service.registerProvider(testSchema, testProvider));
-		disposables.push(testProvider);
+		disposables.add(service.registerProvider(testSchema, testProvider));
+		disposables.add(testProvider);
 
 		const id = generateUuid();
 		testDir = join(parentDir, id);
@@ -149,15 +149,14 @@ suite('Disk File Service', () => {
 	});
 
 	teardown(async () => {
-		disposables.dispose();
-		disposables = new DisposableStore();
+		disposables.clear();
 
 		await rimraf(parentDir, RimRafMode.MOVE);
 	});
 
 	test('createFolder', async () => {
 		let event: FileOperationEvent | undefined;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const parent = await service.resolve(URI.file(testDir));
 
@@ -177,7 +176,7 @@ suite('Disk File Service', () => {
 
 	test('createFolder: creating multiple folders at once', async function () {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
 		const parent = await service.resolve(URI.file(testDir));
@@ -412,7 +411,7 @@ suite('Disk File Service', () => {
 
 	test('deleteFile', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const resource = URI.file(join(testDir, 'deep', 'conway.js'));
 		const source = await service.resolve(resource);
@@ -427,7 +426,7 @@ suite('Disk File Service', () => {
 
 	test('deleteFolder (recursive)', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const resource = URI.file(join(testDir, 'deep'));
 		const source = await service.resolve(resource);
@@ -454,7 +453,7 @@ suite('Disk File Service', () => {
 
 	test('move', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, 'index.html'));
 		const sourceContents = readFileSync(source.fsPath);
@@ -534,7 +533,7 @@ suite('Disk File Service', () => {
 
 	async function testMoveAcrossProviders(sourceFile = 'index.html'): Promise<void> {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, sourceFile));
 		const sourceContents = readFileSync(source.fsPath);
@@ -558,7 +557,7 @@ suite('Disk File Service', () => {
 
 	test('move - multi folder', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
 		const renameToPath = join(...multiFolderPaths, 'other.html');
@@ -577,7 +576,7 @@ suite('Disk File Service', () => {
 
 	test('move - directory', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, 'deep'));
 
@@ -621,7 +620,7 @@ suite('Disk File Service', () => {
 
 	async function testMoveFolderAcrossProviders(): Promise<void> {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, 'deep'));
 		const sourceChildren = readdirSync(source.fsPath);
@@ -646,7 +645,7 @@ suite('Disk File Service', () => {
 
 	test('move - MIX CASE', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = URI.file(join(testDir, 'index.html'));
 		await service.resolve(source);
@@ -663,7 +662,7 @@ suite('Disk File Service', () => {
 
 	test('move - source parent of target', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		await service.resolve(URI.file(join(testDir, 'index.html')));
 		try {
@@ -676,7 +675,7 @@ suite('Disk File Service', () => {
 
 	test('move - FILE_MOVE_CONFLICT', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = await service.resolve(URI.file(join(testDir, 'index.html')));
 		try {
@@ -691,7 +690,7 @@ suite('Disk File Service', () => {
 		let createEvent: FileOperationEvent;
 		let moveEvent: FileOperationEvent;
 		let deleteEvent: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => {
+		disposables.add(service.onAfterOperation(e => {
 			if (e.operation === FileOperation.CREATE) {
 				createEvent = e;
 			} else if (e.operation === FileOperation.DELETE) {
@@ -755,7 +754,7 @@ suite('Disk File Service', () => {
 
 	async function doTestCopy(sourceName: string = 'index.html') {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const source = await service.resolve(URI.file(join(testDir, sourceName)));
 		const target = URI.file(join(testDir, 'other.html'));
@@ -780,7 +779,7 @@ suite('Disk File Service', () => {
 		let createEvent: FileOperationEvent;
 		let copyEvent: FileOperationEvent;
 		let deleteEvent: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => {
+		disposables.add(service.onAfterOperation(e => {
 			if (e.operation === FileOperation.CREATE) {
 				createEvent = e;
 			} else if (e.operation === FileOperation.DELETE) {
@@ -1169,7 +1168,7 @@ suite('Disk File Service', () => {
 
 	test('createFile', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));
@@ -1200,7 +1199,7 @@ suite('Disk File Service', () => {
 
 	test('createFile (allows to overwrite existing)', async () => {
 		let event: FileOperationEvent;
-		disposables.push(service.onAfterOperation(e => event = e));
+		disposables.add(service.onAfterOperation(e => event = e));
 
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));

@@ -517,7 +517,7 @@ export class SettingsTargetsWidget extends Widget {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const hostLabel = remoteAuthority && this.labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority);
 		const remoteSettingsLabel = localize('userSettingsRemote', "Remote") +
-			(hostLabel ? ` (${hostLabel})` : '');
+			(hostLabel ? ` [${hostLabel}]` : '');
 		this.userRemoteSettings = new Action('userSettingsRemote', remoteSettingsLabel, '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
 		this.userRemoteSettings.tooltip = this.userRemoteSettings.label;
 

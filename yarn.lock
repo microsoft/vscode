@@ -3178,6 +3178,13 @@ fd-slicer@~1.0.1:
   dependencies:
     pend "~1.2.0"
 
+fd-slicer@~1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/fd-slicer/-/fd-slicer-1.1.0.tgz#25c7c89cb1f9077f8891bbe61d8f390eae256f1e"
+  integrity sha1-JcfInLH5B3+IkbvmHY85Dq4lbx4=
+  dependencies:
+    pend "~1.2.0"
+
 figures@^1.3.5:
   version "1.7.0"
   resolved "https://registry.yarnpkg.com/figures/-/figures-1.7.0.tgz#cbe1e3affcf1cd44b80cadfed28dc793a9701d2e"
@@ -6124,10 +6131,10 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.9.0-beta9:
-  version "0.9.0-beta9"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta9.tgz#75cffcf4026f543475c115f017ca7fe66cf6e7fe"
-  integrity sha512-h6e8jUikGSZwqt1JHmzT5Zi0fdUCultX/BWrS35suTaZNJm/YSJA2QDG9HTVoSA6dhRvtFoaGiBtgbX9uZKe6w==
+node-pty@0.9.0-beta13:
+  version "0.9.0-beta13"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta13.tgz#615cae7447ac232aefa65a263d6821bc04d0f213"
+  integrity sha512-hO1U8Hd4OhSZMryTqfsog2bJnRGh8Ct3yTsfKRbLK8qhUnqmyOdHzLQkGTx5J7aG7iA8mDVcWBSx2YX2MpkDRQ==
   dependencies:
     nan "^2.13.2"
 
@@ -6401,6 +6408,11 @@ onetime@^2.0.0:
   integrity sha1-BnQoIw/WdEOyeUsiu6UotoZ5YtQ=
   dependencies:
     mimic-fn "^1.0.0"
+
+onigasm-umd@^2.2.2:
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.2.tgz#b989d762df61f899a3052ac794a50bd93fe20257"
+  integrity sha512-v2eMOJu7iE444L2iJN+U6s6s5S0y7oj/N0DAkrd6wokRtTVoq/v/yaDI1lIqFrTeJbNtqNzYvguDF5yNzW3Rvw==
 
 oniguruma@^7.0.0:
   version "7.0.2"
@@ -9548,10 +9560,10 @@ vscode-chokidar@1.6.5:
   optionalDependencies:
     vscode-fsevents "0.3.10"
 
-vscode-debugprotocol@1.34.0:
-  version "1.34.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.34.0.tgz#aef63274166ccbc6d1d68e68c7d7f6d013802f08"
-  integrity sha512-tcMThtgk9TUtE8zzAIwPvHZfgnEYnVa7cI3YaQk/o54Q9cme+TLd/ao60a6ycj5rCrI/B5r/mAfeK5EKSItm7g==
+vscode-debugprotocol@1.35.0:
+  version "1.35.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.35.0.tgz#565140cd42945e30c6c85cafb38c631457d4a46c"
+  integrity sha512-+OMm11R1bGYbpIJ5eQIkwoDGFF4GvBz3Ztl6/VM+/RNNb2Gjk2c0Ku+oMmfhlTmTlPCpgHBsH4JqVCbUYhu5bA==
 
 vscode-fsevents@0.3.10:
   version "0.3.10"
@@ -9610,10 +9622,10 @@ vscode-sqlite3@4.0.7:
   dependencies:
     nan "~2.10.0"
 
-vscode-textmate@^4.0.1:
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.0.1.tgz#6c36f28e9059ce12bc34907f7a33ea43166b26a8"
-  integrity sha512-gHTXTj04TUgbjB8y7pkVwxOiuCuD6aU5gnFzIByQuqdgFpe/bJaaEIS4geGjbjWbd1XJh6zG1EthLfpNaXEqUw==
+vscode-textmate@^4.1.1:
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.1.1.tgz#857e836fbc13a376ec624242437e1747d79610a9"
+  integrity sha512-xBjq9LH6fMhWDhIVkbKlB1JeCu6lT3FI/QKN24Xi4RKPBUm16IhHTqs6Q6SUGewkNsFZGkb1tJdZsuMnlmVpgw==
   dependencies:
     oniguruma "^7.0.0"
 
@@ -9631,10 +9643,10 @@ vscode-windows-registry@1.0.1:
   dependencies:
     nan "^2.12.1"
 
-vscode-xterm@3.14.0-beta3:
-  version "3.14.0-beta3"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.14.0-beta3.tgz#e2624e231f7b940edd0675eb569a10b3af75e29d"
-  integrity sha512-80Bbq6R4q0xABJl7COwE1DSNoJp3H2LyfKDHSbh1PwUY+6wofpW8/V9xSYELizeg3lVAd7mcEKW+rG+sY1hpqA==
+vscode-xterm@3.14.0-beta6:
+  version "3.14.0-beta6"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.14.0-beta6.tgz#657f5f68d73c53298b53f912a0dea178445c1c54"
+  integrity sha512-4E9ioj78LRZbMruEmxrDDSOeoPt3GX87MkY2HaPIT+PNIWNxCRiTCFDwbwXSWLzZdYLBNV6QEqLtnel5w8+1rA==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
@@ -10018,13 +10030,21 @@ yauzl@2.4.1:
   dependencies:
     fd-slicer "~1.0.1"
 
-yauzl@^2.2.1, yauzl@^2.3.1, yauzl@^2.9.1:
+yauzl@^2.2.1, yauzl@^2.3.1:
   version "2.9.1"
   resolved "https://registry.yarnpkg.com/yauzl/-/yauzl-2.9.1.tgz#a81981ea70a57946133883f029c5821a89359a7f"
   integrity sha1-qBmB6nCleUYTOIPwKcWCGok1mn8=
   dependencies:
     buffer-crc32 "~0.2.3"
     fd-slicer "~1.0.1"
+
+yauzl@^2.9.2:
+  version "2.10.0"
+  resolved "https://registry.yarnpkg.com/yauzl/-/yauzl-2.10.0.tgz#c7eb17c93e112cb1086fa6d8e51fb0667b79a5f9"
+  integrity sha1-x+sXyT4RLLEIb6bY5R+wZnt5pfk=
+  dependencies:
+    buffer-crc32 "~0.2.3"
+    fd-slicer "~1.1.0"
 
 yazl@^2.2.1, yazl@^2.2.2, yazl@^2.4.3:
   version "2.4.3"

@@ -859,10 +859,7 @@ export namespace Color {
 
 export namespace SelectionRange {
 	export function from(obj: vscode.SelectionRange): modes.SelectionRange {
-		return {
-			kind: '',
-			range: Range.from(obj.range)
-		};
+		return { range: Range.from(obj.range) };
 	}
 
 	export function to(obj: modes.SelectionRange): vscode.SelectionRange {

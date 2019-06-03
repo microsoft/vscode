@@ -23,7 +23,9 @@ import { coalesce } from 'vs/base/common/arrays';
 
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
+export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
+export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);

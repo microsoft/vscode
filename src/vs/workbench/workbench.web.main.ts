@@ -7,7 +7,7 @@
 
 import 'vs/editor/editor.all';
 
-// import 'vs/workbench/api/electron-browser/extensionHost.contribution';
+import 'vs/workbench/api/browser/extensionHost.contribution';
 
 // import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
@@ -90,7 +90,6 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { IURLService } from 'vs/platform/url/common/url';
 // import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
-import { IBroadcastService, NullBroadcastService } from 'vs/workbench/services/broadcast/common/broadcast';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
@@ -101,14 +100,13 @@ import 'vs/platform/dialogs/browser/dialogService';
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 // import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
-// import 'vs/workbench/services/textMate/electron-browser/textMateService';
+import 'vs/workbench/services/textMate/browser/textMateService';
 // import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
 // import 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/decorations/browser/decorationsService';
 // import 'vs/workbench/services/search/node/searchService';
 import 'vs/workbench/services/progress/browser/progressService';
 import 'vs/workbench/services/editor/browser/codeEditorService';
-// import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/output/common/outputChannelModelService';
 import 'vs/workbench/services/configuration/common/jsonEditingService';
@@ -166,7 +164,6 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IMenubarService, MenubarService);
 // registerSingleton(IURLService, RelayURLService);
 registerSingleton(IHeapService, NullHeapService);
-registerSingleton(IBroadcastService, NullBroadcastService);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 

@@ -236,7 +236,7 @@ export function createApiFactory(
 		};
 
 		// namespace: env
-		const env: typeof vscode.env = Object.freeze({
+		const env: typeof vscode.env = {
 			get machineId() { return initData.telemetryInfo.machineId; },
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return initData.environment.appLanguage; },
@@ -257,7 +257,11 @@ export function createApiFactory(
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remoteAuthority });
 			}
-		});
+		};
+		if (!initData.environment.extensionTestsLocationURI) {
+			// allow to patch env-function when running tests
+			Object.freeze(env);
+		}
 
 		// namespace: extensions
 		const extensions: typeof vscode.extensions = {
@@ -484,7 +488,8 @@ export function createApiFactory(
 			},
 			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
-					return extHostTerminalService.createTerminalFromOptions(<vscode.TerminalOptions>nameOrOptions);
+					nameOrOptions.runInBackground = nameOrOptions.runInBackground && extension.enableProposedApi;
+					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},

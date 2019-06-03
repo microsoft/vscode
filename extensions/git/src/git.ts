@@ -1578,6 +1578,14 @@ export class Repository {
 		}
 	}
 
+	async findTrackingBranches(upstreamBranch: string): Promise<Branch[]> {
+		const result = await this.run(['for-each-ref', '--format', '%(refname:short)%00%(upstream:short)', 'refs/heads']);
+		return result.stdout.trim().split('\n')
+			.map(line => line.trim().split('\0'))
+			.filter(([_, upstream]) => upstream === upstreamBranch)
+			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
+	}
+
 	async getRefs(): Promise<Ref[]> {
 		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)', '--sort', '-committerdate']);
 

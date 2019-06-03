@@ -786,19 +786,29 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			.then(undefined, () => null);
 	}
 
-	removeDeprecatedExtensions(): Promise<any> {
-		return this.removeUninstalledExtensions()
-			.then(() => this.removeOutdatedExtensions());
+	async removeDeprecatedExtensions(): Promise<void> {
+		await this.removeUninstalledExtensions();
+		await this.removeOutdatedExtensions();
 	}
 
-	private removeUninstalledExtensions(): Promise<void> {
-		return this.getUninstalledExtensions()
-			.then(uninstalled => this.scanExtensions(this.extensionsPath, ExtensionType.User) // All user extensions
-				.then(extensions => {
-					const toRemove: ILocalExtension[] = extensions.filter(e => uninstalled[new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version).key()]);
-					return Promise.all(toRemove.map(e => this.extensionLifecycle.postUninstall(e).then(() => this.removeUninstalledExtension(e))));
-				})
-			).then(() => undefined);
+	private async removeUninstalledExtensions(): Promise<void> {
+		const uninstalled = await this.getUninstalledExtensions();
+		const extensions = await this.scanExtensions(this.extensionsPath, ExtensionType.User); // All user extensions
+		const installed: Set<string> = new Set<string>();
+		for (const e of extensions) {
+			if (!uninstalled[new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version).key()]) {
+				installed.add(e.identifier.id.toLowerCase());
+			}
+		}
+		const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => e.identifier);
+		await Promise.all(byExtension.map(async e => {
+			const latest = e.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0];
+			if (!installed.has(latest.identifier.id.toLowerCase())) {
+				await this.extensionLifecycle.postUninstall(latest);
+			}
+		}));
+		const toRemove: ILocalExtension[] = extensions.filter(e => uninstalled[new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version).key()]);
+		await Promise.all(toRemove.map(e => this.removeUninstalledExtension(e)));
 	}
 
 	private removeOutdatedExtensions(): Promise<void> {

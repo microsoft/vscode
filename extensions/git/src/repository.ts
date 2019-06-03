@@ -299,6 +299,7 @@ export const enum Operation {
 	GetObjectDetails = 'GetObjectDetails',
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
+	FindTrackingBranches = 'GetTracking',
 	Apply = 'Apply',
 	Blame = 'Blame',
 	Log = 'Log',
@@ -907,6 +908,10 @@ export class Repository implements Disposable {
 
 	async checkoutTracking(treeish: string): Promise<void> {
 		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { track: true }));
+	}
+
+	async findTrackingBranches(upstreamRef: string): Promise<Branch[]> {
+		return await this.run(Operation.FindTrackingBranches, () => this.repository.findTrackingBranches(upstreamRef));
 	}
 
 	async getCommit(ref: string): Promise<Commit> {

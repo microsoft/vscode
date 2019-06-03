@@ -43,8 +43,8 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 			isChecked: this._action.checked,
 			title: this._action.label
 		});
-		this.disposables.push(this.checkbox);
-		this.disposables.push(this.checkbox.onChange(() => this._action.checked = this.checkbox.checked, this));
+		this.disposables.add(this.checkbox);
+		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox.checked, this));
 		this.element.appendChild(this.checkbox.domNode);
 	}
 

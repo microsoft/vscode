@@ -13,13 +13,15 @@
     "minimist": "1.2.0",
     "native-watchdog": "1.0.0",
     "node-pty": "0.8.1",
+    "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
     "spdlog": "0.8.1",
     "vscode-chokidar": "1.6.5",
     "vscode-nsfw": "1.1.1",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.2.5",
-    "yauzl": "^2.9.1",
+    "vscode-textmate": "^4.1.1",
+    "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
   "optionalDependencies": {

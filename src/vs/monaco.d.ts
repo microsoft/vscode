@@ -5343,7 +5343,6 @@ declare namespace monaco.languages {
 	}
 
 	export interface SelectionRange {
-		kind: string;
 		range: IRange;
 	}
 

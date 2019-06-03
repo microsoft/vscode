@@ -33,7 +33,7 @@ export class WebviewEditor extends BaseEditor {
 	private _content?: HTMLElement;
 	private _webviewContent: HTMLElement | undefined;
 
-	private _webviewFocusTrackerDisposables = new DisposableStore();
+	private readonly _webviewFocusTrackerDisposables = new DisposableStore();
 	private _onFocusWindowHandler?: IDisposable;
 
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
@@ -304,15 +304,14 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	private trackFocus() {
-		this._webviewFocusTrackerDisposables.dispose();
-		this._webviewFocusTrackerDisposables = new DisposableStore();
+		this._webviewFocusTrackerDisposables.clear();
 
 		// Track focus in webview content
 		const webviewContentFocusTracker = DOM.trackFocus(this._webviewContent!);
-		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker);
-		this._webviewFocusTrackerDisposables.push(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
+		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker);
+		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
 
 		// Track focus in webview element
-		this._webviewFocusTrackerDisposables.push(this._webview!.onDidFocus(() => this._onDidFocusWebview.fire()));
+		this._webviewFocusTrackerDisposables.add(this._webview!.onDidFocus(() => this._onDidFocusWebview.fire()));
 	}
 }

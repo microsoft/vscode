@@ -19,6 +19,7 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
 
@@ -71,7 +72,8 @@ export class FeedbackDropdown extends Dropdown {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
 			labelRenderer: (container: HTMLElement): IDisposable => {
-				dom.addClasses(container, 'send-feedback', 'mask-icon');
+				const label = new OcticonLabel(container);
+				label.text = '$(smiley)';
 
 				return Disposable.None;
 			}

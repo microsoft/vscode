@@ -46,6 +46,7 @@ import { isExtensionHostDebugging } from 'vs/workbench/contrib/debug/common/debu
 import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -789,8 +790,15 @@ export class DebugService implements IDebugService {
 		}
 
 		if (stackFrame) {
-			stackFrame.openInEditor(this.editorService, true);
-			aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
+			stackFrame.openInEditor(this.editorService, true).then(editor => {
+				if (editor) {
+					const control = editor.getControl();
+					if (stackFrame && isCodeEditor(control) && control.hasModel()) {
+						const lineContent = control.getModel().getLineContent(stackFrame.range.startLineNumber);
+						aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2} {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
+					}
+				}
+			});
 		}
 		if (session) {
 			this.debugType.set(session.configuration.type);

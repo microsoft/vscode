@@ -314,22 +314,24 @@ export class ElectronWindow extends Disposable {
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
 
 		// Root warning
-		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
-			let isAdmin: boolean;
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			let isAdminPromise: Promise<boolean>;
 			if (isWindows) {
-				const isElevated = await import('native-is-elevated');
-				isAdmin = isElevated();
+				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated()); // not using async here due to https://github.com/microsoft/vscode/issues/74321
 			} else {
-				isAdmin = isRootUser();
+				isAdminPromise = Promise.resolve(isRootUser());
 			}
 
-			// Update title
-			this.titleService.updateProperties({ isAdmin });
+			return isAdminPromise.then(isAdmin => {
 
-			// Show warning message (unix only)
-			if (isAdmin && !isWindows) {
-				this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
-			}
+				// Update title
+				this.titleService.updateProperties({ isAdmin });
+
+				// Show warning message (unix only)
+				if (isAdmin && !isWindows) {
+					this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
+				}
+			});
 		});
 
 		// Touchbar menu (if enabled)

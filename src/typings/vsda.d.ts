@@ -3,4 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/platform/update/node/update.config.contribution';
+declare module 'vsda' {
+	export class signer {
+		sign(arg: any): any;
+	}
+}

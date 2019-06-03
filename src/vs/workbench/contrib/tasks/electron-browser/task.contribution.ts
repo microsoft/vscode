@@ -14,8 +14,7 @@ import * as Objects from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
-import * as Dom from 'vs/base/browser/dom';
-import { IDisposable, dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -25,7 +24,6 @@ import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { LinkedMap, Touch } from 'vs/base/common/map';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -52,8 +50,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -85,13 +82,11 @@ import { TerminalTaskSystem } from './terminalTaskSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/contrib/tasks/node/processRunnerDetector';
 import { QuickOpenActionContributor } from '../browser/quickOpen';
 
-import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { RunAutomaticTasks, AllowAutomaticTaskRunning, DisallowAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/electron-browser/runAutomaticTasks';
 
@@ -106,247 +101,180 @@ const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Wo
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(AllowAutomaticTaskRunning, AllowAutomaticTaskRunning.ID, AllowAutomaticTaskRunning.LABEL), 'Tasks: Allow Automatic Tasks in Folder', tasksCategory);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DisallowAutomaticTaskRunning, DisallowAutomaticTaskRunning.ID, DisallowAutomaticTaskRunning.LABEL), 'Tasks: Disallow Automatic Tasks in Folder', tasksCategory);
 
-
 namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
 	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
 }
 
-class BuildStatusBarItem extends Themable implements IStatusbarItem {
-	private activeCount: number;
-	private icons: HTMLElement[];
+export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
+	private runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
+	private problemsStatusItem: IStatusbarEntryAccessor;
+
+	private activeTasksCount: number = 0;
 
 	constructor(
-		@IPanelService private readonly panelService: IPanelService,
-		@IMarkerService private readonly markerService: IMarkerService,
 		@ITaskService private readonly taskService: ITaskService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IMarkerService private readonly markerService: IMarkerService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
-		super(themeService);
+		super();
 
-		this.activeCount = 0;
-		this.icons = [];
+		this.problemsStatusItem = this._register(this.statusbarService.addEntry(this.getProblemsItem(), StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 
 		this.registerListeners();
 	}
 
-	private registerListeners(): void {
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
+	private getProblemsItem(): IStatusbarEntry {
+		const problems = this.markerService.getStatistics();
+
+		return {
+			text: this.getProblemsText(problems),
+			tooltip: this.getProblemsTooltip(problems),
+			command: 'workbench.action.tasks.toggleProblems'
+		};
 	}
 
-	protected updateStyles(): void {
-		super.updateStyles();
-
-		this.icons.forEach(icon => {
-			icon.style.backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND);
-		});
-	}
-
-	public render(container: HTMLElement): IDisposable {
-		let callOnDispose: IDisposable[] = [];
-
-		const element = document.createElement('div');
-		const label = document.createElement('a');
-		const errorIcon = document.createElement('div');
-		const warningIcon = document.createElement('div');
-		const infoIcon = document.createElement('div');
-		const error = document.createElement('div');
-		const warning = document.createElement('div');
-		const info = document.createElement('div');
-		const building = document.createElement('div');
-
+	private getProblemsTooltip(stats: MarkerStatistics): string {
 		const errorTitle = (n: number) => nls.localize('totalErrors', "{0} Errors", n);
 		const warningTitle = (n: number) => nls.localize('totalWarnings', "{0} Warnings", n);
 		const infoTitle = (n: number) => nls.localize('totalInfos', "{0} Infos", n);
 
-		Dom.addClass(element, 'task-statusbar-item');
-		element.title = nls.localize('problems', "Problems");
+		const titles: string[] = [];
 
-		Dom.addClass(label, 'task-statusbar-item-label');
-		element.appendChild(label);
+		if (stats.errors > 0) {
+			titles.push(errorTitle(stats.errors));
+		}
 
-		Dom.addClass(errorIcon, 'task-statusbar-item-label-error');
-		Dom.addClass(errorIcon, 'mask-icon');
-		label.appendChild(errorIcon);
-		this.icons.push(errorIcon);
+		if (stats.warnings > 0) {
+			titles.push(warningTitle(stats.warnings));
+		}
 
-		Dom.addClass(error, 'task-statusbar-item-label-counter');
-		error.innerHTML = '0';
-		error.title = errorIcon.title = errorTitle(0);
-		label.appendChild(error);
+		if (stats.infos > 0) {
+			titles.push(infoTitle(stats.infos));
+		}
 
-		Dom.addClass(warningIcon, 'task-statusbar-item-label-warning');
-		Dom.addClass(warningIcon, 'mask-icon');
-		label.appendChild(warningIcon);
-		this.icons.push(warningIcon);
+		if (titles.length === 0) {
+			return nls.localize('noProblems', "No Problems");
+		}
 
-		Dom.addClass(warning, 'task-statusbar-item-label-counter');
-		warning.innerHTML = '0';
-		warning.title = warningIcon.title = warningTitle(0);
-		label.appendChild(warning);
+		return titles.join(', ');
+	}
 
-		Dom.addClass(infoIcon, 'task-statusbar-item-label-info');
-		Dom.addClass(infoIcon, 'mask-icon');
-		label.appendChild(infoIcon);
-		this.icons.push(infoIcon);
-		Dom.hide(infoIcon);
+	private getProblemsText(stats: MarkerStatistics): string {
+		const problemsText: string[] = [];
 
-		Dom.addClass(info, 'task-statusbar-item-label-counter');
-		label.appendChild(info);
-		Dom.hide(info);
+		// Errors
+		problemsText.push('$(error) ' + this.packNumber(stats.errors));
 
-		Dom.addClass(building, 'task-statusbar-item-building');
-		element.appendChild(building);
-		building.innerHTML = nls.localize('building', 'Building...');
-		Dom.hide(building);
+		// Warnings
+		problemsText.push('$(warning) ' + this.packNumber(stats.warnings));
 
-		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
-			const panel = this.panelService.getActivePanel();
-			if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
-				this.layoutService.setPanelHidden(true);
-			} else {
-				this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
-			}
-		}));
+		// Info (only if any)
+		if (stats.infos > 0) {
+			problemsText.push('$(info) ' + this.packNumber(stats.infos));
+		}
 
+		// Building (only if any running tasks)
+		if (this.activeTasksCount > 0) {
+			problemsText.push(nls.localize('building', 'Building...'));
+		}
+
+		return problemsText.join(' ');
+	}
+
+	private packNumber(n: number): string {
 		const manyProblems = nls.localize('manyProblems', "10K+");
-		const packNumber = (n: number) => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
-		let updateLabel = (stats: MarkerStatistics) => {
-			error.innerHTML = packNumber(stats.errors);
-			error.title = errorIcon.title = errorTitle(stats.errors);
-			warning.innerHTML = packNumber(stats.warnings);
-			warning.title = warningIcon.title = warningTitle(stats.warnings);
-			if (stats.infos > 0) {
-				info.innerHTML = packNumber(stats.infos);
-				info.title = infoIcon.title = infoTitle(stats.infos);
-				Dom.show(info);
-				Dom.show(infoIcon);
-			} else {
-				Dom.hide(info);
-				Dom.hide(infoIcon);
-			}
-		};
 
-		this.markerService.onMarkerChanged((changedResources) => {
-			updateLabel(this.markerService.getStatistics());
-		});
+		return n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
+	}
 
-		callOnDispose.push(this.taskService.onDidStateChange((event) => {
-			if (this.ignoreEvent(event)) {
-				return;
+	private registerListeners(): void {
+		this.markerService.onMarkerChanged(() => this.updateProblemsStatus());
+
+		this.taskService.onDidStateChange(event => {
+			if (event.kind === TaskEventKind.Changed) {
+				this.updateRunningTasksStatus();
 			}
-			switch (event.kind) {
-				case TaskEventKind.Active:
-					this.activeCount++;
-					if (this.activeCount === 1) {
-						Dom.show(building);
-					}
-					break;
-				case TaskEventKind.Inactive:
-					// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
-					// So try to treat them accordingly.
-					if (this.activeCount > 0) {
-						this.activeCount--;
-						if (this.activeCount === 0) {
-							Dom.hide(building);
+
+			if (!this.ignoreEventForUpdateRunningTasksCount(event)) {
+				let needsUpdate = false;
+
+				switch (event.kind) {
+					case TaskEventKind.Active:
+						this.activeTasksCount++;
+						if (this.activeTasksCount === 1) {
+							needsUpdate = true;
 						}
-					}
-					break;
-				case TaskEventKind.Terminated:
-					if (this.activeCount !== 0) {
-						Dom.hide(building);
-						this.activeCount = 0;
-					}
-					break;
+						break;
+					case TaskEventKind.Inactive:
+						// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
+						// So try to treat them accordingly.
+						if (this.activeTasksCount > 0) {
+							this.activeTasksCount--;
+							if (this.activeTasksCount === 0) {
+								needsUpdate = true;
+							}
+						}
+						break;
+					case TaskEventKind.Terminated:
+						if (this.activeTasksCount !== 0) {
+							this.activeTasksCount = 0;
+							needsUpdate = true;
+						}
+						break;
+				}
+
+				if (needsUpdate) {
+					this.updateProblemsStatus();
+				}
 			}
-		}));
-
-		container.appendChild(element);
-
-		this.updateStyles();
-
-		return toDisposable(() => {
-			callOnDispose = dispose(callOnDispose);
 		});
 	}
 
-	private ignoreEvent(event: TaskEvent): boolean {
+	private async updateRunningTasksStatus(): Promise<void> {
+		const tasks = await this.taskService.getActiveTasks();
+		if (tasks.length === 0) {
+			if (this.runningTasksStatusItem) {
+				this.runningTasksStatusItem.dispose();
+				this.runningTasksStatusItem = undefined;
+			}
+		} else {
+			const itemProps: IStatusbarEntry = {
+				text: `$(tools) ${tasks.length}`,
+				tooltip: nls.localize('runningTasks', "Show Running Tasks"),
+				command: 'workbench.action.tasks.showTasks',
+			};
+
+			if (!this.runningTasksStatusItem) {
+				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, StatusbarAlignment.LEFT, 50 /* Medium Priority */);
+			} else {
+				this.runningTasksStatusItem.update(itemProps);
+			}
+		}
+	}
+
+	private updateProblemsStatus(): void {
+		this.problemsStatusItem.update(this.getProblemsItem());
+	}
+
+	private ignoreEventForUpdateRunningTasksCount(event: TaskEvent): boolean {
 		if (!this.taskService.inTerminal()) {
 			return false;
 		}
+
 		if (event.group !== TaskGroup.Build) {
 			return true;
 		}
+
 		if (!event.__task) {
 			return false;
 		}
+
 		return event.__task.configurationProperties.problemMatchers === undefined || event.__task.configurationProperties.problemMatchers.length === 0;
 	}
 }
 
-class TaskStatusBarItem extends Themable implements IStatusbarItem {
-
-	constructor(
-		@ITaskService private readonly taskService: ITaskService,
-		@IThemeService themeService: IThemeService,
-	) {
-		super(themeService);
-	}
-
-	protected updateStyles(): void {
-		super.updateStyles();
-	}
-
-	public render(container: HTMLElement): IDisposable {
-
-		let callOnDispose: IDisposable[] = [];
-		const element = document.createElement('a');
-		Dom.addClass(element, 'task-statusbar-runningItem');
-
-		let labelElement = document.createElement('div');
-		Dom.addClass(labelElement, 'task-statusbar-runningItem-label');
-		element.appendChild(labelElement);
-
-		let label = new OcticonLabel(labelElement);
-		label.title = nls.localize('runningTasks', "Show Running Tasks");
-
-		Dom.hide(element);
-
-		callOnDispose.push(Dom.addDisposableListener(labelElement, 'click', (e: MouseEvent) => {
-			(this.taskService as TaskService).runShowTasks();
-		}));
-
-		let updateStatus = (): void => {
-			this.taskService.getActiveTasks().then(tasks => {
-				if (tasks.length === 0) {
-					Dom.hide(element);
-				} else {
-					label.text = `$(tools) ${tasks.length}`;
-					Dom.show(element);
-				}
-			});
-		};
-
-		callOnDispose.push(this.taskService.onDidStateChange((event) => {
-			if (event.kind === TaskEventKind.Changed) {
-				updateStatus();
-			}
-		}));
-
-		container.appendChild(element);
-
-		this.updateStyles();
-		updateStatus();
-
-		return {
-			dispose: () => {
-				callOnDispose = dispose(callOnDispose);
-			}
-		};
-	}
-}
+workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, LifecyclePhase.Restored);
 
 class ProblemReporter implements TaskConfig.IProblemReporter {
 
@@ -488,7 +416,8 @@ class TaskService extends Disposable implements ITaskService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 
@@ -622,6 +551,15 @@ class TaskService extends Disposable implements ITaskService {
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', () => {
 			this.runShowTasks();
+		});
+
+		CommandsRegistry.registerCommand('workbench.action.tasks.toggleProblems', () => {
+			const panel = this.panelService.getActivePanel();
+			if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
+				this.layoutService.setPanelHidden(true);
+			} else {
+				this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+			}
 		});
 	}
 
@@ -1358,7 +1296,7 @@ class TaskService extends Disposable implements ITaskService {
 			this._taskSystem = new TerminalTaskSystem(
 				this.terminalService, this.outputService, this.panelService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
-				this.contextService, this._environmentService,
+				this.contextService, this.environmentService,
 				TaskService.OutputChannelId,
 				(workspaceFolder: IWorkspaceFolder) => {
 					if (!workspaceFolder) {
@@ -2704,11 +2642,6 @@ quickOpenRegistry.registerQuickOpenHandler(
 
 const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
-
-// Status bar
-let statusbarRegistry = Registry.as<IStatusbarRegistry>(StatusbarExtensions.Statusbar);
-statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(BuildStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(TaskStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 
 // tasks.json validation
 let schemaId = 'vscode://schemas/tasks';

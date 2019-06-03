@@ -9,7 +9,7 @@ import { Expression, Variable, ExpressionContainer } from 'vs/workbench/contrib/
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -127,7 +127,7 @@ export interface IExpressionTemplateData {
 	value: HTMLSpanElement;
 	inputBoxContainer: HTMLElement;
 	enableInputBox(expression: IExpression, options: IInputBoxOptions): void;
-	readonly toDispose: IDisposable;
+	toDispose: IDisposable[];
 	label: HighlightedLabel;
 }
 
@@ -148,7 +148,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		const label = new HighlightedLabel(name, false);
 
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
-		const toDispose = new DisposableStore();
+		const toDispose: IDisposable[] = [];
 
 		const enableInputBox = (expression: IExpression, options: IInputBoxOptions) => {
 			name.style.display = 'none';
@@ -180,7 +180,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 					name.style.display = 'initial';
 					value.style.display = 'initial';
 					inputBoxContainer.style.display = 'none';
-					toDispose.dispose();
+					dispose(toDispose);
 				}
 			};
 

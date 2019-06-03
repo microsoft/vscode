@@ -348,8 +348,10 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 
 			quote = (s: string) => {
 				s = s.replace(/\'/g, '\'\'');
+				if (s.length > 0 && s.charAt(s.length - 1) === '\\') {
+					return `'${s}\\'`;
+				}
 				return `'${s}'`;
-				//return s.indexOf(' ') >= 0 || s.indexOf('\'') >= 0 || s.indexOf('"') >= 0 ? `'${s}'` : s;
 			};
 
 			if (args.cwd) {
