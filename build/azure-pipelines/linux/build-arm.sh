@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 set -e
-echo 'noop'
+yarn gulp vscode-reh-linux-armhf-min

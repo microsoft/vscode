@@ -1,0 +1,5 @@
+{
+	"dependencies": {
+		"vsda": "git+https://monacotools.visualstudio.com/DefaultCollection/_git/vscode-debug-handshake#31bf016d04d013bb9b86117232e53e3ebb015c27"
+	}
+}

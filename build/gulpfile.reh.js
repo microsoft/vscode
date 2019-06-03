@@ -155,27 +155,26 @@ gulp.task(task.define('node-remote', () => {
 		ensureDirs(nodePath);
 		util.rimraf(nodePath);
 		fs.writeFileSync(nodeVersionPath, VERSION);
-		return nodejs(process.arch).pipe(vfs.dest(nodePath));
+		return nodejs(process.platform, process.arch).pipe(vfs.dest(nodePath));
 	}
 	return vfs.src(nodePath);
 }));
 
-function nodejs(arch) {
+function nodejs(platform, arch) {
 	const VERSION = getNodeVersion();
-	if (process.platform === 'win32') {
-		let down_path;
-		if (arch === 'x64') {
-			down_path = `/dist/v${VERSION}/win-x64/node.exe`;
-		} else {
-			down_path = `/dist/v${VERSION}/win-x86/node.exe`;
-		}
+
+	if (arch === 'ia32') {
+		arch = 'x86';
+	}
+
+	if (platform === 'win32') {
+		const downloadPath = `/dist/v${VERSION}/win-${arch}/node.exe`;
 
 		return (
-			util.download({ host: 'nodejs.org', path: down_path })
+			util.download({ host: 'nodejs.org', path: downloadPath })
 				.pipe(es.through(function (data) {
 					// base comes in looking like `https:\nodejs.org\dist\v10.2.1\win-x64\node.exe`
-					//@ts-ignore
-					let f = new File({
+					this.emit('data', new File({
 						path: data.path,
 						base: data.base.replace(/\\node\.exe$/, ''),
 						contents: data.contents,
@@ -183,52 +182,41 @@ function nodejs(arch) {
 							isFile: true,
 							mode: /* 100755 */ 33261
 						}
-					});
-					this.emit('data', f);
+					}));
 				}))
 		);
 	}
-	if (process.platform === 'darwin' || process.platform === 'linux') {
-		let down_path;
-		if (process.platform === 'darwin') {
-			down_path = `/dist/v${VERSION}/node-v${VERSION}-darwin-x64.tar.gz`;
-		} else {
-			if (arch === 'x64') {
-				down_path = `/dist/v${VERSION}/node-v${VERSION}-linux-x64.tar.gz`;
-			} else {
-				down_path = `/dist/v${VERSION}/node-v${VERSION}-linux-x86.tar.gz`;
-			}
-		}
 
-		return (
-			util.download({ host: 'nodejs.org', path: down_path })
-				.pipe(flatmap(stream => {
-					return (
-						stream
-							.pipe(gunzip())
-							.pipe(untar())
-					);
-				}))
-				.pipe(es.through(function (data) {
-					// base comes in looking like `https:/nodejs.org/dist/v8.9.3/node-v8.9.3-darwin-x64.tar.gz`
-					// => we must remove the `.tar.gz`
-					// Also, keep only bin/node
-					if (/\/bin\/node$/.test(data.path)) {
-						//@ts-ignore
-						let f = new File({
-							path: data.path.replace(/bin\/node$/, 'node'),
-							base: data.base.replace(/\.tar\.gz$/, ''),
-							contents: data.contents,
-							stat: {
-								isFile: true,
-								mode: /* 100755 */ 33261
-							}
-						});
-						this.emit('data', f);
-					}
-				}))
-		);
+	if (platform === 'darwin') {
+		arch = 'x64';
 	}
+
+	if (arch === 'armhf') {
+		arch = 'armv7l';
+	}
+
+	const downloadPath = `/dist/v${VERSION}/node-v${VERSION}-${platform}-${arch}.tar.gz`;
+
+	return (
+		util.download({ host: 'nodejs.org', path: downloadPath })
+			.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
+			.pipe(es.through(function (data) {
+				// base comes in looking like `https:/nodejs.org/dist/v8.9.3/node-v8.9.3-darwin-x64.tar.gz`
+				// => we must remove the `.tar.gz`
+				// Also, keep only bin/node
+				if (/\/bin\/node$/.test(data.path)) {
+					this.emit('data', new File({
+						path: data.path.replace(/bin\/node$/, 'node'),
+						base: data.base.replace(/\.tar\.gz$/, ''),
+						contents: data.contents,
+						stat: {
+							isFile: true,
+							mode: /* 100755 */ 33261
+						}
+					}));
+				}
+			}))
+	);
 }
 
 function packageTask(platform, arch, sourceFolderName, destinationFolderName) {
@@ -305,7 +293,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName) {
 			license,
 			sources,
 			deps,
-			nodejs(arch)
+			nodejs(process.platform, arch)
 		);
 
 		let result = all
@@ -389,7 +377,7 @@ const BUILD_TARGETS = [
 	{ platform: 'darwin', arch: null, pkgTarget: 'node8-macos-x64' },
 	{ platform: 'linux', arch: 'ia32', pkgTarget: 'node8-linux-x86' },
 	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
-	{ platform: 'linux', arch: 'arm', pkgTarget: 'node8-linux-armv7' },
+	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
 ];
 
 BUILD_TARGETS.forEach(buildTarget => {
