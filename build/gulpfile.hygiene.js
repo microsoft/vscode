@@ -155,6 +155,12 @@ const copyrightHeaderLines = [
 	' *--------------------------------------------------------------------------------------------*/'
 ];
 
+const copyrightHeaderLines2 = [
+	'/*---------------------------------------------------------------------------------------------',
+	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+	' *--------------------------------------------------------------------------------------------*/'
+];
+
 gulp.task('eslint', () => {
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(eslintFilter))
@@ -199,11 +205,21 @@ function hygiene(some) {
 	const copyrights = es.through(function (file) {
 		const lines = file.__lines;
 
-		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
-				console.error(file.relative + ': Missing or bad copyright statement');
-				errorCount++;
+
+		let privateCopyright = true;
+		for (let i = 0; i < copyrightHeaderLines2.length; i++) {
+			if (lines[i] !== copyrightHeaderLines2[i]) {
+				privateCopyright = false;
 				break;
+			}
+		}
+		if (!privateCopyright) {
+			for (let i = 0; i < copyrightHeaderLines.length; i++) {
+				if (lines[i] !== copyrightHeaderLines[i]) {
+					console.error(file.relative + ': Missing or bad copyright statement');
+					errorCount++;
+					break;
+				}
 			}
 		}
 
