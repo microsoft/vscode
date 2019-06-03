@@ -615,7 +615,7 @@ function encodeURIComponentFast(uriComponent: string, isPath: boolean, isQuerySt
 			}
 			// check if we write into a new string (by default we try to return the param)
 			if (res !== undefined) {
-				res += uriComponent.charAt(pos);
+				res += uriComponent.substr(pos, 3);
 			}
 			pos += 2;
 

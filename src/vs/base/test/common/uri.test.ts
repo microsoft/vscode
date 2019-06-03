@@ -262,11 +262,11 @@ suite('URI', () => {
 
 			value = URI.file('c:\\test with %25\\path');
 			assert.equal(value.path, '/c:/test with %25/path');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/path');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/path');
 
 			value = URI.file('c:\\test with %25\\c#code');
 			assert.equal(value.path, '/c:/test with %25/c#code');
-			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/c%23code');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/c%23code');
 
 			value = URI.file('\\\\shares');
 			assert.equal(value.scheme, 'file');
@@ -445,6 +445,10 @@ suite('URI', () => {
 		assert.equal(uri.toString(), 's://a/o%2f%C3%BC');
 		uri = URI.from({ scheme: 's', authority: 'a', path: '/o%2f%' });
 		assert.equal(uri.toString(), 's://a/o%2f%25');
+
+		uri = URI.file('/test with %25/c#code');
+		assert.equal(uri.path, '/test with %25/c#code');
+		assert.equal(uri.toString(), 'file:///test%20with%20%25/c%23code');
 
 		uri = URI.from({
 			scheme: 'http',
