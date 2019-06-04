@@ -261,7 +261,9 @@ export class ActionViewItem extends BaseActionViewItem {
 				this.label.setAttribute('role', 'menuitem');
 			} else {
 				this.label.setAttribute('role', 'button');
-				this.label.setAttribute('data-title', this._action.id); // For icon explorations
+
+				// TODO @misolori remove before shipping stable
+				this.label.setAttribute('data-title', this._action.id);
 			}
 		}
 
