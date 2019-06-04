@@ -417,7 +417,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	}
 
 	public async processLine(line: string): Promise<void> {
-		if (this.tryBegin(line) || this.tryFinish(line)) {
+		if (await this.tryBegin(line) || this.tryFinish(line)) {
 			return;
 		}
 		let markerMatch = this.tryFindMarker(line);
