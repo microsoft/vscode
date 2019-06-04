@@ -415,9 +415,7 @@ export class TerminalInstance implements ITerminalInstance {
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			// TODO: Guess whether to use canvas or dom better
-			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
-			// TODO: Remove this once the setting is removed upstream
-			experimentalCharAtlas: 'dynamic'
+			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
 		});
 		this._xtermSearch = new SearchAddon();
 		this._xterm.loadAddon(this._xtermSearch);
