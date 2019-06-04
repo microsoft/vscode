@@ -48,7 +48,7 @@
     "v8-inspect-profiler": "^0.0.20",
     "vscode-chokidar": "1.6.5",
     "vscode-debugprotocol": "1.35.0",
-    "vscode-nsfw": "1.1.1",
+    "vscode-nsfw": "1.1.2",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
