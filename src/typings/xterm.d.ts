@@ -9,7 +9,7 @@
 
 /// <reference lib="dom"/>
 
-declare module 'vscode-xterm' {
+declare module 'xterm' {
 	/**
 	 * A string representing text font weight.
 	 */
@@ -75,31 +75,6 @@ declare module 'vscode-xterm' {
 		 * Whether to draw bold text in bright colors. The default is true.
 		 */
 		drawBoldTextInBrightColors?: boolean;
-
-		/**
-		 * Whether to enable the rendering of bold text.
-		 *
-		 * @deprecated Use fontWeight and fontWeightBold instead.
-		 */
-		enableBold?: boolean;
-
-		/**
-		 * What character atlas implementation to use. The character atlas caches drawn characters,
-		 * speeding up rendering significantly. However, it can introduce some minor rendering
-		 * artifacts.
-		 *
-		 * - 'none': Don't use an atlas.
-		 * - 'static': Generate an atlas when the terminal starts or is reconfigured. This atlas will
-		 *   only contain ASCII characters in 16 colors.
-		 * - 'dynamic': Generate an atlas using a LRU cache as characters are requested. Limited to
-		 *   ASCII characters (for now), but supports 256 colors. For characters covered by the static
-		 *   cache, it's slightly slower in comparison, since there's more overhead involved in
-		 *   managing the cache.
-		 *
-		 * Currently defaults to 'static'. This option may be removed in the future. If it is, passed
-		 * parameters will be ignored.
-		 */
-		experimentalCharAtlas?: 'none' | 'static' | 'dynamic';
 
 		/**
 		 * The font size used to render text.
@@ -707,13 +682,6 @@ declare module 'vscode-xterm' {
 		dispose(): void;
 
 		/**
-		 * Destroys the terminal and detaches it from the DOM.
-		 *
-		 * @deprecated Use dispose() instead.
-		 */
-		destroy(): void;
-
-		/**
 		 * Scroll the display of the terminal
 		 * @param amount The number of lines to scroll down (negative scroll up).
 		 */
@@ -775,7 +743,7 @@ declare module 'vscode-xterm' {
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
 		 */
-		getOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'rightClickSelectsWord' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell' | 'windowsMode'): boolean;
+		getOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'macOptionIsMeta' | 'rightClickSelectsWord' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell' | 'windowsMode'): boolean;
 		/**
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
@@ -826,7 +794,7 @@ declare module 'vscode-xterm' {
 		 * @param key The option key.
 		 * @param value The option value.
 		 */
-		setOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'popOnBell' | 'rightClickSelectsWord' | 'screenKeys' | 'useFlowControl' | 'visualBell' | 'windowsMode', value: boolean): void;
+		setOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'macOptionIsMeta' | 'popOnBell' | 'rightClickSelectsWord' | 'screenKeys' | 'useFlowControl' | 'visualBell' | 'windowsMode', value: boolean): void;
 		/**
 		 * Sets an option on the terminal.
 		 * @param key The option key.
@@ -1013,8 +981,9 @@ declare module 'vscode-xterm' {
 }
 
 
+
 // Modifications to official .d.ts below
-declare module 'vscode-xterm' {
+declare module 'xterm' {
 	interface TerminalCore {
 		debug: boolean;
 
@@ -1037,42 +1006,7 @@ declare module 'vscode-xterm' {
 		fire(e: T): void;
 	}
 
-	interface ISearchOptions {
-		/**
-		 * Whether the find should be done as a regex.
-		 */
-		regex?: boolean;
-		/**
-		 * Whether only whole words should match.
-		 */
-		wholeWord?: boolean;
-		/**
-		 * Whether find should pay attention to case.
-		 */
-		caseSensitive?: boolean;
-	}
-
 	interface Terminal {
 		_core: TerminalCore;
-
-		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
-
-		/**
-		 * Find the next instance of the term, then scroll to and select it. If it
-		 * doesn't exist, do nothing.
-		 * @param term The search term.
-		 * @param findOptions Regex, whole word, and case sensitive options.
-		 * @return Whether a result was found.
-		 */
-		findNext(term: string, findOptions: ISearchOptions): boolean;
-
-		/**
-		 * Find the previous instance of the term, then scroll to and select it. If it
-		 * doesn't exist, do nothing.
-		 * @param term The search term.
-		 * @param findOptions Regex, whole word, and case sensitive options.
-		 * @return Whether a result was found.
-		 */
-		findPrevious(term: string, findOptions: ISearchOptions): boolean;
 	}
 }

@@ -101,7 +101,6 @@ export interface ITerminalConfiguration {
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
-	enableLatencyMitigation: boolean;
 	experimentalRefreshOnResume: boolean;
 }
 
