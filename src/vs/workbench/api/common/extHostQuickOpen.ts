@@ -6,7 +6,7 @@
 import { asPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
@@ -229,7 +229,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	}
 }
 
-class ExtHostQuickInput implements QuickInput {
+class ExtHostQuickInput extends Disposable implements QuickInput {
 
 	private static _nextId = 1;
 	_id = ExtHostQuickPick._nextId++;
@@ -246,22 +246,17 @@ class ExtHostQuickInput implements QuickInput {
 	private _placeholder: string;
 	private _buttons: QuickInputButton[] = [];
 	private _handlesToButtons = new Map<number, QuickInputButton>();
-	private _onDidAcceptEmitter = new Emitter<void>();
-	private _onDidChangeValueEmitter = new Emitter<string>();
-	private _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
-	private _onDidHideEmitter = new Emitter<void>();
+	private _onDidAcceptEmitter = this._register(new Emitter<void>());
+	private _onDidChangeValueEmitter = this._register(new Emitter<string>());
+	private _onDidTriggerButtonEmitter = this._register(new Emitter<QuickInputButton>());
+	private _onDidHideEmitter = this._register(new Emitter<void>());
 	private _updateTimeout: any;
 	private _pendingUpdate: TransferQuickInput = { id: this._id };
 
 	private _disposed = false;
-	protected _disposables: IDisposable[] = [
-		this._onDidTriggerButtonEmitter,
-		this._onDidHideEmitter,
-		this._onDidAcceptEmitter,
-		this._onDidChangeValueEmitter
-	];
 
 	constructor(protected _proxy: MainThreadQuickOpenShape, protected _extensionId: ExtensionIdentifier, private _onDidDispose: () => void) {
+		super();
 	}
 
 	get title() {
@@ -402,9 +397,9 @@ class ExtHostQuickInput implements QuickInput {
 		if (this._disposed) {
 			return;
 		}
+		super.dispose();
 		this._disposed = true;
 		this._fireDidHide();
-		this._disposables = dispose(this._disposables);
 		if (this._updateTimeout) {
 			clearTimeout(this._updateTimeout);
 			this._updateTimeout = undefined;
@@ -486,16 +481,12 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	private _matchOnDescription = true;
 	private _matchOnDetail = true;
 	private _activeItems: T[] = [];
-	private _onDidChangeActiveEmitter = new Emitter<T[]>();
+	private _onDidChangeActiveEmitter = this._register(new Emitter<T[]>());
 	private _selectedItems: T[] = [];
-	private _onDidChangeSelectionEmitter = new Emitter<T[]>();
+	private _onDidChangeSelectionEmitter = this._register(new Emitter<T[]>());
 
 	constructor(proxy: MainThreadQuickOpenShape, extensionId: ExtensionIdentifier, enableProposedApi: boolean, onDispose: () => void) {
 		super(proxy, extensionId, onDispose);
-		this._disposables.push(
-			this._onDidChangeActiveEmitter,
-			this._onDidChangeSelectionEmitter,
-		);
 		this.update({ type: 'quickPick' });
 	}
 

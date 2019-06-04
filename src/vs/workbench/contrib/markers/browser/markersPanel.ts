@@ -84,7 +84,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private filter: Filter;
 
-	private _onDidFilter = new Emitter<void>();
+	private _onDidFilter = this._register(new Emitter<void>());
 	readonly onDidFilter: Event<void> = this._onDidFilter.event;
 	private cachedFilterStats: { total: number; filtered: number; } | undefined = undefined;
 

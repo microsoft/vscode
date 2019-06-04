@@ -114,16 +114,16 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private readonly manifestCache: ExtensionsManifestCache;
 	private readonly extensionLifecycle: ExtensionsLifecycle;
 
-	private readonly _onInstallExtension = new Emitter<InstallExtensionEvent>();
+	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionEvent>());
 	readonly onInstallExtension: Event<InstallExtensionEvent> = this._onInstallExtension.event;
 
-	private readonly _onDidInstallExtension = new Emitter<DidInstallExtensionEvent>();
+	private readonly _onDidInstallExtension = this._register(new Emitter<DidInstallExtensionEvent>());
 	readonly onDidInstallExtension: Event<DidInstallExtensionEvent> = this._onDidInstallExtension.event;
 
-	private readonly _onUninstallExtension = new Emitter<IExtensionIdentifier>();
+	private readonly _onUninstallExtension = this._register(new Emitter<IExtensionIdentifier>());
 	readonly onUninstallExtension: Event<IExtensionIdentifier> = this._onUninstallExtension.event;
 
-	private _onDidUninstallExtension = new Emitter<DidUninstallExtensionEvent>();
+	private _onDidUninstallExtension = this._register(new Emitter<DidUninstallExtensionEvent>());
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(

@@ -25,7 +25,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -250,7 +250,7 @@ export interface ISettingOverrideClickEvent {
 	targetKey: string;
 }
 
-export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsTreeElement, never, any> {
+export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
 
@@ -262,19 +262,19 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 	static readonly SETTING_KEY_ATTR = 'data-key';
 	static readonly SETTING_ID_ATTR = 'data-id';
 
-	private readonly _onDidClickOverrideElement = new Emitter<ISettingOverrideClickEvent>();
+	private readonly _onDidClickOverrideElement = this._register(new Emitter<ISettingOverrideClickEvent>());
 	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
 
-	protected readonly _onDidChangeSetting = new Emitter<ISettingChangeEvent>();
+	protected readonly _onDidChangeSetting = this._register(new Emitter<ISettingChangeEvent>());
 	readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
-	protected readonly _onDidOpenSettings = new Emitter<string>();
+	protected readonly _onDidOpenSettings = this._register(new Emitter<string>());
 	readonly onDidOpenSettings: Event<string> = this._onDidOpenSettings.event;
 
-	private readonly _onDidClickSettingLink = new Emitter<ISettingLinkClickEvent>();
+	private readonly _onDidClickSettingLink = this._register(new Emitter<ISettingLinkClickEvent>());
 	readonly onDidClickSettingLink: Event<ISettingLinkClickEvent> = this._onDidClickSettingLink.event;
 
-	private readonly _onDidFocusSetting = new Emitter<SettingsTreeSettingElement>();
+	private readonly _onDidFocusSetting = this._register(new Emitter<SettingsTreeSettingElement>());
 	readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
 
 	// Put common injections back here
@@ -288,6 +288,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 		@IContextMenuService protected readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 	) {
+		super();
 	}
 
 	renderTemplate(container: HTMLElement): any {

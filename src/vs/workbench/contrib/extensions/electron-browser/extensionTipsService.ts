@@ -87,7 +87,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	public loadWorkspaceConfigPromise: Promise<void>;
 	private proactiveRecommendationsFetched: boolean = false;
 
-	private readonly _onRecommendationChange = new Emitter<RecommendationChangeNotification>();
+	private readonly _onRecommendationChange = this._register(new Emitter<RecommendationChangeNotification>());
 	onRecommendationChange: Event<RecommendationChangeNotification> = this._onRecommendationChange.event;
 	private sessionSeed: number;
 
