@@ -1043,24 +1043,7 @@ declare module 'xterm' {
 		fire(e: T): void;
 	}
 
-	interface ISearchOptions {
-		/**
-		 * Whether the find should be done as a regex.
-		 */
-		regex?: boolean;
-		/**
-		 * Whether only whole words should match.
-		 */
-		wholeWord?: boolean;
-		/**
-		 * Whether find should pay attention to case.
-		 */
-		caseSensitive?: boolean;
-	}
-
 	interface Terminal {
 		_core: TerminalCore;
-
-		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
 	}
 }

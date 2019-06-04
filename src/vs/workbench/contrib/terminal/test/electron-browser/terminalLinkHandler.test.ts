@@ -24,7 +24,6 @@ class TestTerminalLinkHandler extends TerminalLinkHandler {
 }
 
 class TestXterm {
-	public webLinksInit() { }
 	public registerLinkMatcher() { }
 }
 

@@ -55,6 +55,7 @@
     "vscode-textmate": "^4.1.1",
     "xterm": "3.14.0",
     "xterm-addon-search": "0.1.0-beta5",
+    "xterm-addon-web-links": "0.1.0-beta9",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },

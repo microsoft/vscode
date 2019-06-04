@@ -3,10 +3,8 @@
  * @license MIT
  */
 
-// gulp-tsb doesn't play nice with importing from typings
+// HACK: gulp-tsb doesn't play nice with importing from typings
 // import { Terminal, ITerminalAddon } from 'xterm';
-declare type Terminal = any;
-declare type ITerminalAddon = any;
 
 declare module 'xterm-addon-search' {
 	/**
@@ -40,12 +38,12 @@ declare module 'xterm-addon-search' {
 	/**
 	 * An xterm.js addon that provides search functionality.
 	 */
-	export class SearchAddon implements ITerminalAddon {
+	export class SearchAddon {
 		/**
 		 * Activates the addon
 		 * @param terminal The terminal the addon is being loaded in.
 		 */
-		public activate(terminal: Terminal): void;
+		public activate(terminal: any): void;
 
 		/**
 		 * Disposes the addon.

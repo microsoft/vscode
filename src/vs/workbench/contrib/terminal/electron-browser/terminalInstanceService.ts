@@ -33,9 +33,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
 			Terminal = (await import('xterm')).Terminal;
-			// Enable xterm.js addons
-			// Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/search/search'));
-			Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/webLinks/webLinks'));
+			// Enable xterm.js legacy addons
 			Terminal.applyAddon(typeAheadAddon);
 			// Localize strings
 			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');

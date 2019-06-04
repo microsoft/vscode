@@ -17,6 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILinkMatcherOptions } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
+import { WebLinksAddon } from 'xterm-addon-web-links';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -138,12 +139,12 @@ export class TerminalLinkHandler {
 		const wrappedHandler = this._wrapLinkHandler(uri => {
 			this._handleHypertextLink(uri);
 		});
-		this._xterm.webLinksInit(wrappedHandler, {
+		this._xterm.loadAddon(new WebLinksAddon(wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
 			tooltipCallback: this._tooltipCallback,
 			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
-		});
+		}));
 	}
 
 	public registerLocalLinkHandler(): void {

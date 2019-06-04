@@ -32,10 +32,10 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/browser/terminalCommandTracker';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchOptions, Terminal as XTermTerminal, IBuffer } from 'xterm';
+import { Terminal as XTermTerminal, IBuffer } from 'xterm';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { SearchAddon } from 'xterm-addon-search';
+import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
