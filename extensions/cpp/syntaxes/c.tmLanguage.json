@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/e33a317ccd0babba4b07ffc042ab9796e6412ddc",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/f88ac364a66b447bc16b966a66af52ae8b31795c",
 	"name": "C",
 	"scopeName": "source.c",
 	"patterns": [
@@ -16,6 +16,9 @@
 		},
 		{
 			"include": "#preprocessor-rule-conditional"
+		},
+		{
+			"include": "#predefined_macros"
 		},
 		{
 			"include": "#comments"
@@ -558,10 +561,6 @@
 						}
 					},
 					"name": "comment.block.c"
-				},
-				{
-					"match": "\\*/.*\\n",
-					"name": "invalid.illegal.stray-comment-end.c"
 				},
 				{
 					"captures": {
@@ -2124,12 +2123,12 @@
 					"name": "keyword.control.switch.c"
 				}
 			},
-			"end": "(?:(?<=\\})|(?=[;>\\[\\]=]))",
+			"end": "(?:(?<=\\}|%>|\\?\\?>)|(?=[;>\\[\\]=]))",
 			"patterns": [
 				{
 					"name": "meta.head.switch.c",
 					"begin": "\\G ?",
-					"end": "((?:\\{|(?=;)))",
+					"end": "((?:\\{|<%|\\?\\?<|(?=;)))",
 					"endCaptures": {
 						"1": {
 							"name": "punctuation.section.block.begin.bracket.curly.switch.c"
@@ -2140,14 +2139,14 @@
 							"include": "#switch_conditional_parentheses"
 						},
 						{
-							"include": "$base"
+							"include": "#root_context"
 						}
 					]
 				},
 				{
 					"name": "meta.body.switch.c",
-					"begin": "(?<=\\{)",
-					"end": "(\\})",
+					"begin": "(?<=\\{|<%|\\?\\?<)",
+					"end": "(\\}|%>|\\?\\?>)",
 					"endCaptures": {
 						"1": {
 							"name": "punctuation.section.block.end.bracket.curly.switch.c"
@@ -2161,7 +2160,7 @@
 							"include": "#case_statement"
 						},
 						{
-							"include": "$base"
+							"include": "#root_context"
 						},
 						{
 							"include": "#block_innards"
@@ -2170,11 +2169,11 @@
 				},
 				{
 					"name": "meta.tail.switch.c",
-					"begin": "(?<=})[\\s\\n]*",
+					"begin": "(?<=\\}|%>|\\?\\?>)[\\s\\n]*",
 					"end": "[\\s\\n]*(?=;)",
 					"patterns": [
 						{
-							"include": "$base"
+							"include": "#root_context"
 						}
 					]
 				}
@@ -2236,7 +2235,7 @@
 					]
 				},
 				{
-					"include": "#function_call_context_c"
+					"include": "#function_call_context"
 				}
 			]
 		},
@@ -2292,7 +2291,7 @@
 			}
 		},
 		"method_access": {
-			"contentName": "meta.function-call.member",
+			"contentName": "meta.function-call.member.c",
 			"begin": "((?:[a-zA-Z_]\\w*|(?<=\\]|\\)))\\s*)(?:((?:\\.\\*|\\.))|((?:->\\*|->)))((?:[a-zA-Z_]\\w*\\s*(?-mix:(?:(?:\\.\\*|\\.))|(?:(?:->\\*|->)))\\s*)*)\\s*([a-zA-Z_]\\w*)(\\()",
 			"beginCaptures": {
 				"1": {
@@ -2344,6 +2343,1026 @@
 			"patterns": [
 				{
 					"include": "#function-call-innards"
+				}
+			]
+		},
+		"predefined_macros": {
+			"patterns": [
+				{
+					"match": "\\b__cplusplus\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__cplusplus.c"
+				},
+				{
+					"match": "\\b__DATE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__DATE__.c"
+				},
+				{
+					"match": "\\b__FILE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FILE__.c"
+				},
+				{
+					"match": "\\b__LINE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LINE__.c"
+				},
+				{
+					"match": "\\b__STDC__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STDC__.c"
+				},
+				{
+					"match": "\\b__STDC_HOSTED__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STDC_HOSTED__.c"
+				},
+				{
+					"match": "\\b__STDC_NO_COMPLEX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STDC_NO_COMPLEX__.c"
+				},
+				{
+					"match": "\\b__STDC_VERSION__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STDC_VERSION__.c"
+				},
+				{
+					"match": "\\b__STDCPP_THREADS__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STDCPP_THREADS__.c"
+				},
+				{
+					"match": "\\b__TIME__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__TIME__.c"
+				},
+				{
+					"match": "\\bNDEBUG\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.NDEBUG.c"
+				},
+				{
+					"match": "\\b__OBJC__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__OBJC__.c"
+				},
+				{
+					"match": "\\b__ASSEMBLER__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ASSEMBLER__.c"
+				},
+				{
+					"match": "\\b__ATOM__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ATOM__.c"
+				},
+				{
+					"match": "\\b__AVX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__AVX__.c"
+				},
+				{
+					"match": "\\b__AVX2__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__AVX2__.c"
+				},
+				{
+					"match": "\\b_CHAR_UNSIGNED\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._CHAR_UNSIGNED.c"
+				},
+				{
+					"match": "\\b__CLR_VER\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__CLR_VER.c"
+				},
+				{
+					"match": "\\b_CONTROL_FLOW_GUARD\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._CONTROL_FLOW_GUARD.c"
+				},
+				{
+					"match": "\\b__COUNTER__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__COUNTER__.c"
+				},
+				{
+					"match": "\\b__cplusplus_cli\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__cplusplus_cli.c"
+				},
+				{
+					"match": "\\b__cplusplus_winrt\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__cplusplus_winrt.c"
+				},
+				{
+					"match": "\\b_CPPRTTI\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._CPPRTTI.c"
+				},
+				{
+					"match": "\\b_CPPUNWIND\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._CPPUNWIND.c"
+				},
+				{
+					"match": "\\b_DEBUG\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._DEBUG.c"
+				},
+				{
+					"match": "\\b_DLL\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._DLL.c"
+				},
+				{
+					"match": "\\b__FUNCDNAME__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FUNCDNAME__.c"
+				},
+				{
+					"match": "\\b__FUNCSIG__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FUNCSIG__.c"
+				},
+				{
+					"match": "\\b__FUNCTION__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FUNCTION__.c"
+				},
+				{
+					"match": "\\b_INTEGRAL_MAX_BITS\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._INTEGRAL_MAX_BITS.c"
+				},
+				{
+					"match": "\\b__INTELLISENSE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTELLISENSE__.c"
+				},
+				{
+					"match": "\\b_ISO_VOLATILE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._ISO_VOLATILE.c"
+				},
+				{
+					"match": "\\b_KERNEL_MODE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._KERNEL_MODE.c"
+				},
+				{
+					"match": "\\b_M_AMD64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_AMD64.c"
+				},
+				{
+					"match": "\\b_M_ARM\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_ARM.c"
+				},
+				{
+					"match": "\\b_M_ARM_ARMV7VE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_ARM_ARMV7VE.c"
+				},
+				{
+					"match": "\\b_M_ARM_FP\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_ARM_FP.c"
+				},
+				{
+					"match": "\\b_M_ARM64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_ARM64.c"
+				},
+				{
+					"match": "\\b_M_CEE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_CEE.c"
+				},
+				{
+					"match": "\\b_M_CEE_PURE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_CEE_PURE.c"
+				},
+				{
+					"match": "\\b_M_CEE_SAFE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_CEE_SAFE.c"
+				},
+				{
+					"match": "\\b_M_FP_EXCEPT\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_FP_EXCEPT.c"
+				},
+				{
+					"match": "\\b_M_FP_FAST\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_FP_FAST.c"
+				},
+				{
+					"match": "\\b_M_FP_PRECISE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_FP_PRECISE.c"
+				},
+				{
+					"match": "\\b_M_FP_STRICT\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_FP_STRICT.c"
+				},
+				{
+					"match": "\\b_M_IX86\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_IX86.c"
+				},
+				{
+					"match": "\\b_M_IX86_FP\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_IX86_FP.c"
+				},
+				{
+					"match": "\\b_M_X64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_X64.c"
+				},
+				{
+					"match": "\\b_MANAGED\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MANAGED.c"
+				},
+				{
+					"match": "\\b_MSC_BUILD\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MSC_BUILD.c"
+				},
+				{
+					"match": "\\b_MSC_EXTENSIONS\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MSC_EXTENSIONS.c"
+				},
+				{
+					"match": "\\b_MSC_FULL_VER\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MSC_FULL_VER.c"
+				},
+				{
+					"match": "\\b_MSC_VER\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MSC_VER.c"
+				},
+				{
+					"match": "\\b_MSVC_LANG\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MSVC_LANG.c"
+				},
+				{
+					"match": "\\b__MSVC_RUNTIME_CHECKS\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__MSVC_RUNTIME_CHECKS.c"
+				},
+				{
+					"match": "\\b_MT\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MT.c"
+				},
+				{
+					"match": "\\b_NATIVE_WCHAR_T_DEFINED\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._NATIVE_WCHAR_T_DEFINED.c"
+				},
+				{
+					"match": "\\b_OPENMP\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._OPENMP.c"
+				},
+				{
+					"match": "\\b_PREFAST\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._PREFAST.c"
+				},
+				{
+					"match": "\\b__TIMESTAMP__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__TIMESTAMP__.c"
+				},
+				{
+					"match": "\\b_VC_NO_DEFAULTLIB\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._VC_NO_DEFAULTLIB.c"
+				},
+				{
+					"match": "\\b_WCHAR_T_DEFINED\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._WCHAR_T_DEFINED.c"
+				},
+				{
+					"match": "\\b_WIN32\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._WIN32.c"
+				},
+				{
+					"match": "\\b_WIN64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._WIN64.c"
+				},
+				{
+					"match": "\\b_WINRT_DLL\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._WINRT_DLL.c"
+				},
+				{
+					"match": "\\b_ATL_VER\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._ATL_VER.c"
+				},
+				{
+					"match": "\\b_MFC_VER\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MFC_VER.c"
+				},
+				{
+					"match": "\\b__GFORTRAN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GFORTRAN__.c"
+				},
+				{
+					"match": "\\b__GNUC__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GNUC__.c"
+				},
+				{
+					"match": "\\b__GNUC_MINOR__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GNUC_MINOR__.c"
+				},
+				{
+					"match": "\\b__GNUC_PATCHLEVEL__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GNUC_PATCHLEVEL__.c"
+				},
+				{
+					"match": "\\b__GNUG__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GNUG__.c"
+				},
+				{
+					"match": "\\b__STRICT_ANSI__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STRICT_ANSI__.c"
+				},
+				{
+					"match": "\\b__BASE_FILE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__BASE_FILE__.c"
+				},
+				{
+					"match": "\\b__INCLUDE_LEVEL__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INCLUDE_LEVEL__.c"
+				},
+				{
+					"match": "\\b__ELF__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ELF__.c"
+				},
+				{
+					"match": "\\b__VERSION__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__VERSION__.c"
+				},
+				{
+					"match": "\\b__OPTIMIZE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__OPTIMIZE__.c"
+				},
+				{
+					"match": "\\b__OPTIMIZE_SIZE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__OPTIMIZE_SIZE__.c"
+				},
+				{
+					"match": "\\b__NO_INLINE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__NO_INLINE__.c"
+				},
+				{
+					"match": "\\b__GNUC_STDC_INLINE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GNUC_STDC_INLINE__.c"
+				},
+				{
+					"match": "\\b__CHAR_UNSIGNED__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__CHAR_UNSIGNED__.c"
+				},
+				{
+					"match": "\\b__WCHAR_UNSIGNED__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WCHAR_UNSIGNED__.c"
+				},
+				{
+					"match": "\\b__REGISTER_PREFIX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__REGISTER_PREFIX__.c"
+				},
+				{
+					"match": "\\b__REGISTER_PREFIX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__REGISTER_PREFIX__.c"
+				},
+				{
+					"match": "\\b__SIZE_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZE_TYPE__.c"
+				},
+				{
+					"match": "\\b__PTRDIFF_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__PTRDIFF_TYPE__.c"
+				},
+				{
+					"match": "\\b__WCHAR_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WCHAR_TYPE__.c"
+				},
+				{
+					"match": "\\b__WINT_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WINT_TYPE__.c"
+				},
+				{
+					"match": "\\b__INTMAX_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTMAX_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINTMAX_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINTMAX_TYPE__.c"
+				},
+				{
+					"match": "\\b__SIG_ATOMIC_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIG_ATOMIC_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT8_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT16_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT32_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT64_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT8_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT16_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT32_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT64_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST8_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST16_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST32_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST64_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST8_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST16_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST32_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST64_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_FAST8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST8_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_FAST16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST16_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_FAST32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST32_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_FAST64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST64_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST8_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST16_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST32_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST64_TYPE__.c"
+				},
+				{
+					"match": "\\b__INTPTR_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTPTR_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINTPTR_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINTPTR_TYPE__.c"
+				},
+				{
+					"match": "\\b__CHAR_BIT__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__CHAR_BIT__.c"
+				},
+				{
+					"match": "\\b__SCHAR_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SCHAR_MAX__.c"
+				},
+				{
+					"match": "\\b__WCHAR_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WCHAR_MAX__.c"
+				},
+				{
+					"match": "\\b__SHRT_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SHRT_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_MAX__.c"
+				},
+				{
+					"match": "\\b__LONG_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LONG_MAX__.c"
+				},
+				{
+					"match": "\\b__LONG_LONG_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LONG_LONG_MAX__.c"
+				},
+				{
+					"match": "\\b__WINT_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WINT_MAX__.c"
+				},
+				{
+					"match": "\\b__SIZE_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZE_MAX__.c"
+				},
+				{
+					"match": "\\b__PTRDIFF_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__PTRDIFF_MAX__.c"
+				},
+				{
+					"match": "\\b__INTMAX_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTMAX_MAX__.c"
+				},
+				{
+					"match": "\\b__UINTMAX_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINTMAX_MAX__.c"
+				},
+				{
+					"match": "\\b__SIG_ATOMIC_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIG_ATOMIC_MAX__.c"
+				},
+				{
+					"match": "\\b__INT8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT8_MAX__.c"
+				},
+				{
+					"match": "\\b__INT16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT16_MAX__.c"
+				},
+				{
+					"match": "\\b__INT32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT32_MAX__.c"
+				},
+				{
+					"match": "\\b__INT64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT64_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT8_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT16_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT32_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT64_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST8_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST16_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST32_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST64_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST8_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST16_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST32_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST64_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_FAST8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST8_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_FAST16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST16_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_FAST32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST32_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_FAST64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST64_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST8_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST16_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST32_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST64_MAX__.c"
+				},
+				{
+					"match": "\\b__INTPTR_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTPTR_MAX__.c"
+				},
+				{
+					"match": "\\b__UINTPTR_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINTPTR_MAX__.c"
+				},
+				{
+					"match": "\\b__WCHAR_MIN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WCHAR_MIN__.c"
+				},
+				{
+					"match": "\\b__WINT_MIN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WINT_MIN__.c"
+				},
+				{
+					"match": "\\b__SIG_ATOMIC_MIN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIG_ATOMIC_MIN__.c"
+				},
+				{
+					"match": "\\b__SCHAR_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SCHAR_WIDTH__.c"
+				},
+				{
+					"match": "\\b__SHRT_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SHRT_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_WIDTH__.c"
+				},
+				{
+					"match": "\\b__LONG_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LONG_WIDTH__.c"
+				},
+				{
+					"match": "\\b__LONG_LONG_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LONG_LONG_WIDTH__.c"
+				},
+				{
+					"match": "\\b__PTRDIFF_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__PTRDIFF_WIDTH__.c"
+				},
+				{
+					"match": "\\b__SIG_ATOMIC_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIG_ATOMIC_WIDTH__.c"
+				},
+				{
+					"match": "\\b__SIZE_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZE_WIDTH__.c"
+				},
+				{
+					"match": "\\b__WCHAR_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WCHAR_WIDTH__.c"
+				},
+				{
+					"match": "\\b__WINT_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WINT_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST8_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST8_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST16_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST16_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST32_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST32_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST64_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST64_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_FAST8_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST8_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_FAST16_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST16_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_FAST32_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST32_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_FAST64_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST64_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INTPTR_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTPTR_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INTMAX_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTMAX_WIDTH__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_INT__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_INT__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_LONG__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_LONG__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_LONG_LONG__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_LONG_LONG__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_SHORT__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_SHORT__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_POINTER__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_POINTER__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_FLOAT__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_FLOAT__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_DOUBLE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_DOUBLE__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_LONG_DOUBLE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_LONG_DOUBLE__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_SIZE_T__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_SIZE_T__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_WCHAR_T__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_WCHAR_T__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_WINT_T__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_WINT_T__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_PTRDIFF_T__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_PTRDIFF_T__.c"
+				},
+				{
+					"match": "\\b__BYTE_ORDER__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__BYTE_ORDER__.c"
+				},
+				{
+					"match": "\\b__ORDER_LITTLE_ENDIAN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ORDER_LITTLE_ENDIAN__.c"
+				},
+				{
+					"match": "\\b__ORDER_BIG_ENDIAN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ORDER_BIG_ENDIAN__.c"
+				},
+				{
+					"match": "\\b__ORDER_PDP_ENDIAN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ORDER_PDP_ENDIAN__.c"
+				},
+				{
+					"match": "\\b__FLOAT_WORD_ORDER__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FLOAT_WORD_ORDER__.c"
+				},
+				{
+					"match": "\\b__DEPRECATED\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__DEPRECATED.c"
+				},
+				{
+					"match": "\\b__EXCEPTIONS\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__EXCEPTIONS.c"
+				},
+				{
+					"match": "\\b__GXX_RTTI\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GXX_RTTI.c"
+				},
+				{
+					"match": "\\b__USING_SJLJ_EXCEPTIONS__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__USING_SJLJ_EXCEPTIONS__.c"
+				},
+				{
+					"match": "\\b__GXX_EXPERIMENTAL_CXX0X__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GXX_EXPERIMENTAL_CXX0X__.c"
+				},
+				{
+					"match": "\\b__GXX_WEAK__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GXX_WEAK__.c"
+				},
+				{
+					"match": "\\b__NEXT_RUNTIME__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__NEXT_RUNTIME__.c"
+				},
+				{
+					"match": "\\b__LP64__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LP64__.c"
+				},
+				{
+					"match": "\\b_LP64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._LP64.c"
+				},
+				{
+					"match": "\\b__SSP__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SSP__.c"
+				},
+				{
+					"match": "\\b__SSP_ALL__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SSP_ALL__.c"
+				},
+				{
+					"match": "\\b__SSP_STRONG__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SSP_STRONG__.c"
+				},
+				{
+					"match": "\\b__SSP_EXPLICIT__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SSP_EXPLICIT__.c"
+				},
+				{
+					"match": "\\b__SANITIZE_ADDRESS__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SANITIZE_ADDRESS__.c"
+				},
+				{
+					"match": "\\b__SANITIZE_THREAD__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SANITIZE_THREAD__.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16.c"
+				},
+				{
+					"match": "\\b__HAVE_SPECULATION_SAFE_VALUE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__HAVE_SPECULATION_SAFE_VALUE.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_DWARF2_CFI_ASM\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_DWARF2_CFI_ASM.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMA\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMA.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAL\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAL.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF16\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF16.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF32\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF32.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF64.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF128\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF128.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF32X\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF32X.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF64X\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF64X.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF128X\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF128X.c"
+				},
+				{
+					"match": "\\b__GCC_IEC_559\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_IEC_559.c"
+				},
+				{
+					"match": "\\b__GCC_IEC_559_COMPLEX\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_IEC_559_COMPLEX.c"
+				},
+				{
+					"match": "\\b__NO_MATH_ERRNO__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__NO_MATH_ERRNO__.c"
+				},
+				{
+					"match": "\\b__has_builtin\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_builtin.c"
+				},
+				{
+					"match": "\\b__has_feature\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_feature.c"
+				},
+				{
+					"match": "\\b__has_extension\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_extension.c"
+				},
+				{
+					"match": "\\b__has_cpp_attribute\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_cpp_attribute.c"
+				},
+				{
+					"match": "\\b__has_c_attribute\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_c_attribute.c"
+				},
+				{
+					"match": "\\b__has_attribute\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_attribute.c"
+				},
+				{
+					"match": "\\b__has_declspec_attribute\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_declspec_attribute.c"
+				},
+				{
+					"match": "\\b__is_identifier\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__is_identifier.c"
+				},
+				{
+					"match": "\\b__has_include\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_include.c"
+				},
+				{
+					"match": "\\b__has_include_next\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_include_next.c"
+				},
+				{
+					"match": "\\b__has_warning\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_warning.c"
+				},
+				{
+					"match": "\\b__BASE_FILE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__BASE_FILE__.c"
+				},
+				{
+					"match": "\\b__FILE_NAME__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FILE_NAME__.c"
+				},
+				{
+					"match": "\\b__clang__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__clang__.c"
+				},
+				{
+					"match": "\\b__clang_major__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__clang_major__.c"
+				},
+				{
+					"match": "\\b__clang_minor__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__clang_minor__.c"
+				},
+				{
+					"match": "\\b__clang_patchlevel__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__clang_patchlevel__.c"
+				},
+				{
+					"match": "\\b__clang_version__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__clang_version__.c"
+				},
+				{
+					"match": "\\b__fp16\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__fp16.c"
+				},
+				{
+					"match": "\\b_Float16\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._Float16.c"
+				},
+				{
+					"match": "(\\b__([A-Z_])__\\b)",
+					"captures": {
+						"1": {
+							"name": "entity.name.other.preprocessor.macro.predefined.probably.$2.c"
+						}
+					}
 				}
 			]
 		},
