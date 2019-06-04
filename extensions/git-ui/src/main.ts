@@ -43,11 +43,12 @@ export function exec(command: string, options: cp.ExecOptions & { stdin?: string
 		if (options.stdin) {
 			child.stdin.write(options.stdin, (err: any) => {
 				if (err) {
-					console.error(err);
+					reject(err);
+					return;
 				}
 				child.stdin.end((err: any) => {
 					if (err) {
-						console.error(err);
+						reject(err);
 					}
 				});
 			});
