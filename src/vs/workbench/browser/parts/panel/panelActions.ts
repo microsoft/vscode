@@ -16,6 +16,7 @@ import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/
 import { ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ActivePanelContext, PanelPositionContext } from 'vs/workbench/common/panel';
 
 export class ClosePanelAction extends Action {
 
@@ -92,8 +93,8 @@ export class TogglePanelPositionAction extends Action {
 	static readonly ID = 'workbench.action.togglePanelPosition';
 	static readonly LABEL = nls.localize('toggledPanelPosition', "Toggle Panel Position");
 
-	private static readonly MOVE_TO_RIGHT_LABEL = nls.localize('moveToRight', "Move Panel Right");
-	private static readonly MOVE_TO_BOTTOM_LABEL = nls.localize('moveToBottom', "Move Panel to Bottom");
+	static readonly MOVE_TO_RIGHT_LABEL = nls.localize('moveToRight', "Move Panel Right");
+	static readonly MOVE_TO_BOTTOM_LABEL = nls.localize('moveToBottom', "Move Panel to Bottom");
 
 	private toDispose: IDisposable[];
 
@@ -271,16 +272,28 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: TogglePanelAction.ID,
-		title: nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel")
+		title: nls.localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
+		toggled: ActivePanelContext
 	},
 	order: 5
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
+	group: '3_workbench_layout_move',
 	command: {
 		id: TogglePanelPositionAction.ID,
-		title: TogglePanelPositionAction.LABEL
+		title: TogglePanelPositionAction.MOVE_TO_RIGHT_LABEL
 	},
-	order: 3
+	when: PanelPositionContext.isEqualTo('bottom'),
+	order: 5
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '3_workbench_layout_move',
+	command: {
+		id: TogglePanelPositionAction.ID,
+		title: TogglePanelPositionAction.MOVE_TO_BOTTOM_LABEL
+	},
+	when: PanelPositionContext.isEqualTo('right'),
+	order: 5
 });

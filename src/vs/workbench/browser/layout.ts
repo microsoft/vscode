@@ -63,8 +63,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
 
-	private readonly _onZenMode: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onZenModeChange(): Event<boolean> { return this._onZenMode.event; }
+	private readonly _onZenModeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onZenModeChange(): Event<boolean> { return this._onZenModeChange.event; }
+
+	private readonly _onFullscreenChange: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onFullscreenChange(): Event<boolean> { return this._onFullscreenChange.event; }
+
+	private readonly _onCenteredLayoutChange: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onCenteredLayoutChange(): Event<boolean> { return this._onCenteredLayoutChange.event; }
+
+	private readonly _onPanelPositionChange: Emitter<string> = this._register(new Emitter<string>());
+	get onPanelPositionChange(): Event<string> { return this._onPanelPositionChange.event; }
 
 	private readonly _onLayout = this._register(new Emitter<IDimension>());
 	get onLayout(): Event<IDimension> { return this._onLayout.event; }
@@ -242,6 +251,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this._onTitleBarVisibilityChange.fire();
 			this.layout(); // handle title bar when fullscreen changes
 		}
+
+		this._onFullscreenChange.fire(this.state.fullscreen);
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
@@ -631,7 +642,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Event
-		this._onZenMode.fire(this.state.zenMode.active);
+		this._onZenModeChange.fire(this.state.zenMode.active);
 	}
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -828,6 +839,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.layout();
 			}
 		}
+
+		this._onCenteredLayoutChange.fire(this.state.editor.centered);
 	}
 
 	resizePart(part: Parts, sizeChange: number): void {
@@ -1069,6 +1082,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		} else {
 			this.workbenchGrid.layout();
 		}
+
+		this._onPanelPositionChange.fire(positionToString(this.state.panel.position));
 	}
 
 	private savePanelDimension(): void {

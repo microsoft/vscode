@@ -21,7 +21,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
+import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext, RemoteFileDialogContext, IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
@@ -362,7 +362,8 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 		group: '1_toggle_view',
 		command: {
 			id: ToggleFullScreenAction.ID,
-			title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")
+			title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
+			toggled: IsFullscreenContext
 		},
 		order: 1
 	});

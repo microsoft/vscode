@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
-import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
 import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -16,9 +16,10 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+import { PanelPositionContext } from 'vs/workbench/common/panel';
 
 export const IsMacContext = new RawContextKey<boolean>('isMac', isMacintosh);
 export const IsLinuxContext = new RawContextKey<boolean>('isLinux', isLinux);
@@ -38,6 +39,8 @@ export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceF
 
 export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
 
+export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false);
+
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
 
@@ -54,8 +57,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 
 	private inZenModeContext: IContextKey<boolean>;
-
+	private isFullscreenContext: IContextKey<boolean>;
+	private isCenteredLayoutContext: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
+	private panelPositionContext: IContextKey<string>;
 
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -93,6 +98,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		}));
 
 		this._register(this.layoutService.onZenModeChange(enabled => this.inZenModeContext.set(enabled)));
+		this._register(this.layoutService.onFullscreenChange(fullscreen => this.isFullscreenContext.set(fullscreen)));
+		this._register(this.layoutService.onCenteredLayoutChange(centered => this.isCenteredLayoutContext.set(centered)));
+		this._register(this.layoutService.onPanelPositionChange(position => this.panelPositionContext.set(position)));
 
 		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
 		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
@@ -140,11 +148,21 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);
 		this.updateSplitEditorsVerticallyContext();
 
+		// Fullscreen
+		this.isFullscreenContext = IsFullscreenContext.bindTo(this.contextKeyService);
+
 		// Zen Mode
 		this.inZenModeContext = InEditorZenModeContext.bindTo(this.contextKeyService);
 
+		// Centered Layout
+		this.isCenteredLayoutContext = IsCenteredLayoutContext.bindTo(this.contextKeyService);
+
 		// Sidebar
 		this.sideBarVisibleContext = SideBarVisibleContext.bindTo(this.contextKeyService);
+
+		// Panel Position
+		this.panelPositionContext = PanelPositionContext.bindTo(this.contextKeyService);
+		this.panelPositionContext.set(this.layoutService.getPanelPosition() === Position.RIGHT ? 'right' : 'bottom');
 	}
 
 	private updateEditorContextKeys(): void {
