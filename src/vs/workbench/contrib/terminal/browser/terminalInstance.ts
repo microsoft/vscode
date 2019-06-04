@@ -35,12 +35,12 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchOptions, Terminal as XTermTerminal, IBuffer } from 'xterm';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { SearchAddon } from 'xterm-addon-search';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
-
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TERMINAL_COMMAND_ID.CLEAR_SELECTION,
@@ -166,6 +166,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _title: string;
 	private _wrapperElement: HTMLDivElement;
 	private _xterm: XTermTerminal;
+	private _xtermSearch: SearchAddon;
 	private _xtermElement: HTMLDivElement;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
@@ -418,6 +419,8 @@ export class TerminalInstance implements ITerminalInstance {
 			// TODO: Remove this once the setting is removed upstream
 			experimentalCharAtlas: 'dynamic'
 		});
+		this._xtermSearch = new SearchAddon();
+		this._xterm.loadAddon(this._xtermSearch);
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
@@ -714,11 +717,11 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public findNext(term: string, searchOptions: ISearchOptions): boolean {
-		return this._xterm.findNext(term, searchOptions);
+		return this._xtermSearch.findNext(term, searchOptions);
 	}
 
 	public findPrevious(term: string, searchOptions: ISearchOptions): boolean {
-		return this._xterm.findPrevious(term, searchOptions);
+		return this._xtermSearch.findPrevious(term, searchOptions);
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean): void {

@@ -34,7 +34,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		if (!Terminal) {
 			Terminal = (await import('xterm')).Terminal;
 			// Enable xterm.js addons
-			Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/search/search'));
+			// Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/search/search'));
 			Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/webLinks/webLinks'));
 			Terminal.applyAddon(typeAheadAddon);
 			// Localize strings

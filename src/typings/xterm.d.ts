@@ -1062,23 +1062,5 @@ declare module 'xterm' {
 		_core: TerminalCore;
 
 		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
-
-		/**
-		 * Find the next instance of the term, then scroll to and select it. If it
-		 * doesn't exist, do nothing.
-		 * @param term The search term.
-		 * @param findOptions Regex, whole word, and case sensitive options.
-		 * @return Whether a result was found.
-		 */
-		findNext(term: string, findOptions: ISearchOptions): boolean;
-
-		/**
-		 * Find the previous instance of the term, then scroll to and select it. If it
-		 * doesn't exist, do nothing.
-		 * @param term The search term.
-		 * @param findOptions Regex, whole word, and case sensitive options.
-		 * @return Whether a result was found.
-		 */
-		findPrevious(term: string, findOptions: ISearchOptions): boolean;
 	}
 }

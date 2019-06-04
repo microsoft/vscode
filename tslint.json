@@ -507,6 +507,7 @@
 				"target": "**/vs/workbench/contrib/terminal/browser/**",
 				"restrictions": [
 					"xterm",
+					"xterm-addon-*",
 					"**/vs/**"
 				]
 			},
