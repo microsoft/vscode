@@ -1297,7 +1297,7 @@ class TaskService extends Disposable implements ITaskService {
 				this.terminalService, this.outputService, this.panelService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
 				this.contextService, this.environmentService,
-				TaskService.OutputChannelId,
+				TaskService.OutputChannelId, this.fileService,
 				(workspaceFolder: IWorkspaceFolder) => {
 					if (!workspaceFolder) {
 						return undefined;

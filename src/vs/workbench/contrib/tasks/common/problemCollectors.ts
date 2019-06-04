@@ -13,6 +13,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export const enum ProblemCollectorEventKind {
 	BackgroundProcessingBegins = 'backgroundProcessingBegins',
@@ -30,7 +31,7 @@ namespace ProblemCollectorEvent {
 }
 
 export interface IProblemMatcher {
-	processLine(line: string): void;
+	processLine(line: string): Promise<void>;
 }
 
 export class AbstractProblemCollector implements IDisposable {
@@ -55,10 +56,10 @@ export class AbstractProblemCollector implements IDisposable {
 
 	protected _onDidStateChange: Emitter<ProblemCollectorEvent>;
 
-	constructor(problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, private modelService: IModelService) {
+	constructor(problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, private modelService: IModelService, fileService?: IFileService) {
 		this.matchers = Object.create(null);
 		this.bufferLength = 1;
-		problemMatchers.map(elem => createLineMatcher(elem)).forEach((matcher) => {
+		problemMatchers.map(elem => createLineMatcher(elem, fileService)).forEach((matcher) => {
 			let length = matcher.matchLength;
 			if (length > this.bufferLength) {
 				this.bufferLength = length;
@@ -143,14 +144,14 @@ export class AbstractProblemCollector implements IDisposable {
 		return result;
 	}
 
-	protected shouldApplyMatch(result: ProblemMatch): boolean {
+	protected async shouldApplyMatch(result: ProblemMatch): Promise<boolean> {
 		switch (result.description.applyTo) {
 			case ApplyToKind.allDocuments:
 				return true;
 			case ApplyToKind.openDocuments:
-				return !!this.openModels[result.resource.toString()];
+				return !!this.openModels[(await result.resource).toString()];
 			case ApplyToKind.closedDocuments:
-				return !this.openModels[result.resource.toString()];
+				return !this.openModels[(await result.resource).toString()];
 			default:
 				return true;
 		}
@@ -333,8 +334,8 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 	private currentOwner: string;
 	private currentResource: string;
 
-	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, _strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean) {
-		super(problemMatchers, markerService, modelService);
+	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, _strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean, fileService?: IFileService) {
+		super(problemMatchers, markerService, modelService, fileService);
 		let ownerSet: { [key: string]: boolean; } = Object.create(null);
 		problemMatchers.forEach(description => ownerSet[description.owner] = true);
 		this.owners = Object.keys(ownerSet);
@@ -343,17 +344,17 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 		});
 	}
 
-	public processLine(line: string): void {
+	public async processLine(line: string): Promise<void> {
 		let markerMatch = this.tryFindMarker(line);
 		if (!markerMatch) {
 			return;
 		}
 
 		let owner = markerMatch.description.owner;
-		let resource = markerMatch.resource;
+		let resource = await markerMatch.resource;
 		let resourceAsString = resource.toString();
 		this.removeResourceToClean(owner, resourceAsString);
-		let shouldApplyMatch = this.shouldApplyMatch(markerMatch);
+		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
 		if (shouldApplyMatch) {
 			this.recordMarker(markerMatch.marker, owner, resourceAsString);
 			if (this.currentOwner !== owner || this.currentResource !== resourceAsString) {
@@ -386,8 +387,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	private currentOwner: string | null;
 	private currentResource: string | null;
 
-	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService) {
-		super(problemMatchers, markerService, modelService);
+	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, fileService?: IFileService) {
+		super(problemMatchers, markerService, modelService, fileService);
 		this.problemMatchers = problemMatchers;
 		this.resetCurrentResource();
 		this.backgroundPatterns = [];
@@ -415,7 +416,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		}
 	}
 
-	public processLine(line: string): void {
+	public async processLine(line: string): Promise<void> {
 		if (this.tryBegin(line) || this.tryFinish(line)) {
 			return;
 		}
@@ -423,11 +424,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		if (!markerMatch) {
 			return;
 		}
-		let resource = markerMatch.resource;
+		let resource = await markerMatch.resource;
 		let owner = markerMatch.description.owner;
 		let resourceAsString = resource.toString();
 		this.removeResourceToClean(owner, resourceAsString);
-		let shouldApplyMatch = this.shouldApplyMatch(markerMatch);
+		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
 		if (shouldApplyMatch) {
 			this.recordMarker(markerMatch.marker, owner, resourceAsString);
 			if (this.currentOwner !== owner || this.currentResource !== resourceAsString) {
@@ -442,7 +443,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		this.reportMarkersForCurrentResource();
 	}
 
-	private tryBegin(line: string): boolean {
+	private async tryBegin(line: string): Promise<boolean> {
 		let result = false;
 		for (const background of this.backgroundPatterns) {
 			let matches = background.begin.regexp.exec(line);
@@ -459,7 +460,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				let file = matches[background.begin.file!];
 				if (file) {
 					let resource = getResource(file, background.matcher);
-					this.recordResourceToClean(owner, resource);
+					this.recordResourceToClean(owner, await resource);
 				} else {
 					this.recordResourcesToClean(owner);
 				}
