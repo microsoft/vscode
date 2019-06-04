@@ -249,8 +249,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '4_panels',
 	command: {
 		id: ToggleMarkersPanelAction.ID,
-		title: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"),
-		toggled: ActivePanelContext.isEqualTo(Constants.MARKERS_PANEL_ID)
+		title: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems")
 	},
 	order: 4
 });

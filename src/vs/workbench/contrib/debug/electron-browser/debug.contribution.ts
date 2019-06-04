@@ -50,7 +50,6 @@ import { WatchExpressionsView } from 'vs/workbench/contrib/debug/browser/watchEx
 import { VariablesView } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
-import { ActivePanelContext } from 'vs/workbench/common/panel';
 import { ActiveViewletContext } from 'vs/workbench/common/viewlet';
 
 class OpenDebugViewletAction extends ShowViewletAction {
@@ -333,8 +332,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '4_panels',
 	command: {
 		id: OpenDebugPanelAction.ID,
-		title: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"),
-		toggled: ActivePanelContext.isEqualTo(REPL_ID)
+		title: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console")
 	},
 	order: 2
 });
