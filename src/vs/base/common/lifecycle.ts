@@ -15,22 +15,17 @@ export function isDisposable<E extends object>(thing: E): thing is E & IDisposab
 }
 
 export function dispose<T extends IDisposable>(disposable: T): T;
-export function dispose<T extends IDisposable>(...disposables: Array<T | undefined>): T[];
+export function dispose<T extends IDisposable>(disposable: T | undefined): T | undefined;
 export function dispose<T extends IDisposable>(disposables: T[]): T[];
-export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T | T[] | undefined {
-	if (Array.isArray(first)) {
-		first.forEach(d => d && d.dispose());
+export function dispose<T extends IDisposable>(disposables: T | T[] | undefined): T | T[] | undefined {
+	if (Array.isArray(disposables)) {
+		disposables.forEach(d => d && d.dispose());
 		return [];
-	} else if (rest.length === 0) {
-		if (first) {
-			first.dispose();
-			return first;
-		}
-		return undefined;
+	} else if (disposables) {
+		disposables.dispose();
+		return disposables;
 	} else {
-		dispose(first);
-		dispose(rest);
-		return [];
+		return undefined;
 	}
 }
 
