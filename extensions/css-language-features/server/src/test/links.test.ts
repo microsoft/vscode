@@ -5,7 +5,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import Uri from 'vscode-uri';
-import * as path from 'path';
+import { resolve } from 'path';
 import { TextDocument, DocumentLink } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver-protocol';
 import { getCSSLanguageService } from 'vscode-css-languageservice';
@@ -53,12 +53,17 @@ suite('Links', () => {
 		}
 	}
 
+	function getTestResource(path: string) {
+		return Uri.file(resolve(__dirname, '../../test/linkTestFixtures', path)).toString();
+	}
+
 	test('url links', function () {
-		let testUri = Uri.file(path.resolve(__dirname, '../../test/linkTestFixtures/about.css')).toString();
-		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test/linkTestFixtures')).toString() }];
+
+		let testUri = getTestResource('about.css');
+		let folders = [{ name: 'x', uri: getTestResource('') }];
 
 		assertLinks('html { background-image: url("hello.html|")',
-			[{ offset: 29, value: '"hello.html"', target: 'file:///home/aeschli/workspaces/vscode/extensions/css-language-features/server/test/linkTestFixtures/hello.html' }], testUri, folders
+			[{ offset: 29, value: '"hello.html"', target: getTestResource('hello.html') }], testUri, folders
 		);
 	});
 });
