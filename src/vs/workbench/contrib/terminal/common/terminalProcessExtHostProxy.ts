@@ -16,26 +16,26 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	private _disposables: IDisposable[] = [];
 
 	private readonly _onProcessData = new Emitter<string>();
-	public get onProcessData(): Event<string> { return this._onProcessData.event; }
+	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessExit = new Emitter<number>();
-	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
+	public readonly onProcessExit: Event<number> = this._onProcessExit.event;
 	private readonly _onProcessIdReady = new Emitter<number>();
-	public get onProcessIdReady(): Event<number> { return this._onProcessIdReady.event; }
+	public readonly onProcessIdReady: Event<number> = this._onProcessIdReady.event;
 	private readonly _onProcessTitleChanged = new Emitter<string>();
-	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
+	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
 
 	private readonly _onInput = new Emitter<string>();
-	public get onInput(): Event<string> { return this._onInput.event; }
+	public readonly onInput: Event<string> = this._onInput.event;
 	private readonly _onResize: Emitter<{ cols: number, rows: number }> = new Emitter<{ cols: number, rows: number }>();
-	public get onResize(): Event<{ cols: number, rows: number }> { return this._onResize.event; }
+	public readonly onResize: Event<{ cols: number, rows: number }> = this._onResize.event;
 	private readonly _onShutdown = new Emitter<boolean>();
-	public get onShutdown(): Event<boolean> { return this._onShutdown.event; }
+	public readonly onShutdown: Event<boolean> = this._onShutdown.event;
 	private readonly _onRequestInitialCwd = new Emitter<void>();
-	public get onRequestInitialCwd(): Event<void> { return this._onRequestInitialCwd.event; }
+	public readonly onRequestInitialCwd: Event<void> = this._onRequestInitialCwd.event;
 	private readonly _onRequestCwd = new Emitter<void>();
-	public get onRequestCwd(): Event<void> { return this._onRequestCwd.event; }
+	public readonly onRequestCwd: Event<void> = this._onRequestCwd.event;
 	private readonly _onRequestLatency = new Emitter<void>();
-	public get onRequestLatency(): Event<void> { return this._onRequestLatency.event; }
+	public readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
 
 	private _pendingInitialCwdRequests: ((value?: string | Thenable<string>) => void)[] = [];
 	private _pendingCwdRequests: ((value?: string | Thenable<string>) => void)[] = [];
