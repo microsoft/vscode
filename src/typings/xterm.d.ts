@@ -1,16 +1,11 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 /**
-* @license MIT
-*
-* This contains the type declarations for the xterm.js library. Note that
-* some interfaces differ between this file and the actual implementation in
-* src/, that's because this file declares the *public* API which is intended
-* to be stable and consumed by external programs.
-*/
+ * @license MIT
+ *
+ * This contains the type declarations for the xterm.js library. Note that
+ * some interfaces differ between this file and the actual implementation in
+ * src/, that's because this file declares the *public* API which is intended
+ * to be stable and consumed by external programs.
+ */
 
 /// <reference lib="dom"/>
 
