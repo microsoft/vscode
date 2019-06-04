@@ -229,7 +229,7 @@ function getCredential(cmd: string) {
 async function sendGetCredential(command: 'fill' | 'approve' | 'reject', stdin: string) {
 	const json = await sendToPipe({
 		type: 'command',
-		command: 'openindocker.gitCredential',
+		command: 'git.credential',
 		args: [{ command, stdin }]
 	});
 	const { stdout, stderr, code } = JSON.parse(json);
