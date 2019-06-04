@@ -37,7 +37,6 @@ import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { withUndefinedAsNull } from 'vs/base/common/types';
@@ -98,7 +97,7 @@ export class CodeApplication extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IConfigurationService private readonly configurationService: ConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStateService private readonly stateService: IStateService
 	) {
 		super();

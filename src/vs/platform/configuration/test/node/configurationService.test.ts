@@ -21,6 +21,7 @@ suite('ConfigurationService - Node', () => {
 		fs.writeFileSync(res.testFile, '{ "foo": "bar" }');
 
 		const service = new ConfigurationService(res.testFile);
+		await service.initialize();
 		const config = service.getValue<{
 			foo: string;
 		}>();
@@ -38,6 +39,7 @@ suite('ConfigurationService - Node', () => {
 		fs.writeFileSync(res.testFile, '{ "testworkbench.editor.tabs": true }');
 
 		const service = new ConfigurationService(res.testFile);
+		await service.initialize();
 		const config = service.getValue<{
 			testworkbench: {
 				editor: {
@@ -60,6 +62,7 @@ suite('ConfigurationService - Node', () => {
 		fs.writeFileSync(res.testFile, ',,,,');
 
 		const service = new ConfigurationService(res.testFile);
+		await service.initialize();
 		const config = service.getValue<{
 			foo: string;
 		}>();
@@ -69,13 +72,14 @@ suite('ConfigurationService - Node', () => {
 		return res.cleanUp();
 	});
 
-	test('missing file does not explode', () => {
+	test('missing file does not explode', async () => {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'config', id);
 		const testFile = path.join(newDir, 'config.json');
 
 		const service = new ConfigurationService(testFile);
+		await service.initialize();
 
 		const config = service.getValue<{ foo: string }>();
 		assert.ok(config);
@@ -87,6 +91,7 @@ suite('ConfigurationService - Node', () => {
 		const res = await testFile('config', 'config.json');
 
 		const service = new ConfigurationService(res.testFile);
+		await service.initialize();
 		return new Promise((c, e) => {
 			service.onDidChangeConfiguration(() => {
 				assert.equal(service.getValue('foo'), 'bar');
@@ -104,6 +109,7 @@ suite('ConfigurationService - Node', () => {
 		fs.writeFileSync(res.testFile, '{ "foo": "bar" }');
 
 		const service = new ConfigurationService(res.testFile);
+		await service.initialize();
 		let config = service.getValue<{
 			foo: string;
 		}>();
@@ -130,7 +136,7 @@ suite('ConfigurationService - Node', () => {
 		return res.cleanUp();
 	});
 
-	test('model defaults', () => {
+	test('model defaults', async () => {
 		interface ITestSetting {
 			configuration: {
 				service: {
@@ -152,6 +158,7 @@ suite('ConfigurationService - Node', () => {
 		});
 
 		let serviceWithoutFile = new ConfigurationService('__testFile');
+		await serviceWithoutFile.initialize();
 		let setting = serviceWithoutFile.getValue<ITestSetting>();
 
 		assert.ok(setting);
@@ -194,6 +201,8 @@ suite('ConfigurationService - Node', () => {
 
 		const r = await testFile('config', 'config.json');
 		const service = new ConfigurationService(r.testFile);
+		service.initialize();
+
 		let res = service.inspect('something.missing');
 		assert.strictEqual(res.value, undefined);
 		assert.strictEqual(res.default, undefined);
@@ -230,6 +239,8 @@ suite('ConfigurationService - Node', () => {
 
 		const r = await testFile('config', 'config.json');
 		const service = new ConfigurationService(r.testFile);
+		service.initialize();
+
 		let res = service.inspect('lookup.service.testNullSetting');
 		assert.strictEqual(res.default, null);
 		assert.strictEqual(res.value, null);
