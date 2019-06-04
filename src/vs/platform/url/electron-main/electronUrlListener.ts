@@ -8,7 +8,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/product/node/product';
 import { app } from 'electron';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { isWindows } from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
@@ -21,15 +21,14 @@ function uriFromRawUrl(url: string): URI | null {
 	}
 }
 
-export class ElectronURLListener {
-
-	private disposables: IDisposable[] = [];
+export class ElectronURLListener extends Disposable {
 
 	constructor(
 		initial: string | string[],
 		@IURLService private readonly urlService: IURLService,
 		@IWindowsMainService windowsService: IWindowsMainService
 	) {
+		super();
 		const globalBuffer = ((<any>global).getOpenUrls() || []) as string[];
 		const rawBuffer = [
 			...(typeof initial === 'string' ? [initial] : initial),
@@ -56,7 +55,7 @@ export class ElectronURLListener {
 			});
 
 		const onOpenUrl = Event.filter(Event.map(onOpenElectronUrl, uriFromRawUrl), uri => !!uri);
-		onOpenUrl(this.urlService.open, this.urlService, this.disposables);
+		this._register(onOpenUrl(this.urlService.open, this.urlService));
 
 		const isWindowReady = windowsService.getWindows()
 			.filter(w => w.isReady)
@@ -67,9 +66,5 @@ export class ElectronURLListener {
 		} else {
 			Event.once(windowsService.onWindowReady)(flush);
 		}
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }
