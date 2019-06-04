@@ -15,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, SuggestDataDto, LinksListDto, ChainedCacheId } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, SuggestDataDto, LinksListDto, ChainedCacheId, CodeLensListDto } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -28,6 +28,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { LRUCache } from 'vs/base/common/map';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 
 // --- adapter
 
@@ -102,34 +103,48 @@ class CodeLensAdapter {
 
 	private static _badCmd: vscode.Command = { command: 'missing', title: '!!MISSING: command!!' };
 
+	private readonly _cache = new Cache<vscode.CodeLens>();
+	private readonly _disposables = new Map<number, DisposableStore>();
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
-		private readonly _heapService: ExtHostHeapService,
 		private readonly _provider: vscode.CodeLensProvider
 	) { }
 
-	provideCodeLenses(resource: URI, token: CancellationToken): Promise<CodeLensDto[]> {
+	provideCodeLenses(resource: URI, token: CancellationToken): Promise<CodeLensListDto | undefined> {
 		const doc = this._documents.getDocument(resource);
 
 		return asPromise(() => this._provider.provideCodeLenses(doc, token)).then(lenses => {
-			const result: CodeLensDto[] = [];
-			if (isNonEmptyArray(lenses)) {
-				for (const lens of lenses) {
-					const id = this._heapService.keep(lens);
-					result.push(ObjectIdentifier.mixin({
-						range: typeConvert.Range.from(lens.range),
-						command: this._commands.toInternal(lens.command)
-					}, id));
-				}
+
+			if (!lenses || token.isCancellationRequested) {
+				return undefined;
 			}
+
+			const cacheId = this._cache.add(lenses);
+			const disposables = new DisposableStore();
+			this._disposables.set(cacheId, disposables);
+
+			const result: CodeLensListDto = {
+				cacheId,
+				lenses: [],
+			};
+
+			for (let i = 0; i < lenses.length; i++) {
+				result.lenses.push({
+					cacheId: [cacheId, i],
+					range: typeConvert.Range.from(lenses[i].range),
+					command: this._commands.toInternal2(lenses[i].command, disposables)
+				});
+			}
+
 			return result;
 		});
 	}
 
 	resolveCodeLens(symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined> {
 
-		const lens = this._heapService.get<vscode.CodeLens>(ObjectIdentifier.of(symbol));
+		const lens = symbol.cacheId && this._cache.get(...symbol.cacheId);
 		if (!lens) {
 			return Promise.resolve(undefined);
 		}
@@ -146,6 +161,12 @@ class CodeLensAdapter {
 			symbol.command = this._commands.toInternal(newLens.command || CodeLensAdapter._badCmd);
 			return symbol;
 		});
+	}
+
+	releaseCodeLenses(cachedId: number): void {
+		dispose(this._disposables.get(cachedId));
+		this._disposables.delete(cachedId);
+		this._cache.delete(cachedId);
 	}
 }
 
@@ -1136,7 +1157,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		const handle = this._nextHandle();
 		const eventHandle = typeof provider.onDidChangeCodeLenses === 'function' ? this._nextHandle() : undefined;
 
-		this._adapter.set(handle, new AdapterData(new CodeLensAdapter(this._documents, this._commands.converter, this._heapService, provider), extension));
+		this._adapter.set(handle, new AdapterData(new CodeLensAdapter(this._documents, this._commands.converter, provider), extension));
 		this._proxy.$registerCodeLensSupport(handle, this._transformDocumentSelector(selector), eventHandle);
 		let result = this._createDisposable(handle);
 
@@ -1148,12 +1169,16 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return result;
 	}
 
-	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.ICodeLensSymbol[]> {
-		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.provideCodeLenses(URI.revive(resource), token), []);
+	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeLensListDto | undefined> {
+		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.provideCodeLenses(URI.revive(resource), token), undefined);
 	}
 
-	$resolveCodeLens(handle: number, symbol: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> {
+	$resolveCodeLens(handle: number, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined> {
 		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(symbol, token), undefined);
+	}
+
+	$releaseCodeLenses(handle: number, cacheId: number): void {
+		this._withAdapter(handle, CodeLensAdapter, adapter => Promise.resolve(adapter.releaseCodeLenses(cacheId)), undefined);
 	}
 
 	// --- declaration

@@ -139,25 +139,19 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number | undefined): void {
 
 		const provider = <modes.CodeLensProvider>{
-			provideCodeLenses: (model: ITextModel, token: CancellationToken): modes.ICodeLensSymbol[] | Promise<modes.ICodeLensSymbol[]> => {
-				return this._proxy.$provideCodeLenses(handle, model.uri, token).then(dto => {
-					if (dto) {
-						dto.forEach(obj => {
-							this._heapService.trackObject(obj);
-							this._heapService.trackObject(obj.command);
-						});
+			provideCodeLenses: (model: ITextModel, token: CancellationToken): Promise<modes.CodeLensList | undefined> => {
+				return this._proxy.$provideCodeLenses(handle, model.uri, token).then(listDto => {
+					if (!listDto) {
+						return undefined;
 					}
-					return dto;
+					return {
+						lenses: listDto.lenses,
+						dispose: () => listDto.cacheId && this._proxy.$releaseCodeLenses(handle, listDto.cacheId)
+					};
 				});
 			},
-			resolveCodeLens: (_model: ITextModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> => {
-				return this._proxy.$resolveCodeLens(handle, codeLens, token).then(obj => {
-					if (obj) {
-						this._heapService.trackObject(obj);
-						this._heapService.trackObject(obj.command);
-					}
-					return obj;
-				});
+			resolveCodeLens: (_model: ITextModel, codeLens: modes.CodeLens, token: CancellationToken): Promise<modes.CodeLens | undefined> => {
+				return this._proxy.$resolveCodeLens(handle, codeLens, token);
 			}
 		};
 

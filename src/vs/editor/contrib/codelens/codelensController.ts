@@ -12,9 +12,9 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
-import { ICodeLensData, getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
-import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
+import { CodeLensProviderRegistry, CodeLens } from 'vs/editor/common/modes';
+import { CodeLensModel, getCodeLensData, CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
+import { CodeLensWidget, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
@@ -27,8 +27,9 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 	private _globalToDispose: IDisposable[];
 	private _localToDispose: IDisposable[];
-	private _lenses: CodeLens[];
-	private _currentFindCodeLensSymbolsPromise: CancelablePromise<ICodeLensData[]> | null;
+	private _lenses: CodeLensWidget[];
+	private _currentFindCodeLensSymbolsPromise: CancelablePromise<CodeLensModel> | null;
+	private _currentCodeLensModel: CodeLensModel | undefined;
 	private _modelChangeCounter: number;
 	private _currentResolveCodeLensSymbolsPromise: CancelablePromise<any> | null;
 	private _detectVisibleLenses: RunOnceScheduler;
@@ -76,6 +77,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			this._currentResolveCodeLensSymbolsPromise = null;
 		}
 		this._localToDispose = dispose(this._localToDispose);
+		dispose(this._currentCodeLensModel);
 	}
 
 	getId(): string {
@@ -136,7 +138,14 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 			this._currentFindCodeLensSymbolsPromise.then(result => {
 				if (counterValue === this._modelChangeCounter) { // only the last one wins
+					// lifecycle -> dispose old model
+					dispose(this._currentCodeLensModel);
+					this._currentCodeLensModel = result;
+
+					// cache model to reduce flicker
 					this._codeLensCache.put(model, result);
+
+					// render lenses
 					this._renderCodeLensSymbols(result);
 					this._detectVisibleLenses.schedule();
 				}
@@ -147,7 +156,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
 			this._editor.changeDecorations((changeAccessor) => {
 				this._editor.changeViewZones((viewAccessor) => {
-					let toDispose: CodeLens[] = [];
+					let toDispose: CodeLensWidget[] = [];
 					let lastLensLineNumber: number = -1;
 
 					this._lenses.forEach((lens) => {
@@ -228,16 +237,16 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._lenses = [];
 	}
 
-	private _renderCodeLensSymbols(symbols: ICodeLensData[]): void {
+	private _renderCodeLensSymbols(symbols: CodeLensModel): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
 
 		let maxLineNumber = this._editor.getModel().getLineCount();
-		let groups: ICodeLensData[][] = [];
-		let lastGroup: ICodeLensData[] | undefined;
+		let groups: CodeLensItem[][] = [];
+		let lastGroup: CodeLensItem[] | undefined;
 
-		for (let symbol of symbols) {
+		for (let symbol of symbols.lenses) {
 			let line = symbol.symbol.range.startLineNumber;
 			if (line < 1 || line > maxLineNumber) {
 				// invalid code lens
@@ -272,7 +281,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 						groupsIndex++;
 						codeLensIndex++;
 					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, () => this._detectVisibleLenses.schedule()));
+						this._lenses.splice(codeLensIndex, 0, new CodeLensWidget(groups[groupsIndex], this._editor, helper, accessor, () => this._detectVisibleLenses.schedule()));
 						codeLensIndex++;
 						groupsIndex++;
 					}
@@ -286,7 +295,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, () => this._detectVisibleLenses.schedule()));
+					this._lenses.push(new CodeLensWidget(groups[groupsIndex], this._editor, helper, accessor, () => this._detectVisibleLenses.schedule()));
 					groupsIndex++;
 				}
 
@@ -308,8 +317,8 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		const toResolve: ICodeLensData[][] = [];
-		const lenses: CodeLens[] = [];
+		const toResolve: CodeLensItem[][] = [];
+		const lenses: CodeLensWidget[] = [];
 		this._lenses.forEach((lens) => {
 			const request = lens.computeIfNecessary(model);
 			if (request) {
@@ -326,7 +335,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 			const promises = toResolve.map((request, i) => {
 
-				const resolvedSymbols = new Array<ICodeLensSymbol | undefined | null>(request.length);
+				const resolvedSymbols = new Array<CodeLens | undefined | null>(request.length);
 				const promises = request.map((request, i) => {
 					if (!request.symbol.command && typeof request.provider.resolveCodeLens === 'function') {
 						return Promise.resolve(request.provider.resolveCodeLens(model, request.symbol, token)).then(symbol => {

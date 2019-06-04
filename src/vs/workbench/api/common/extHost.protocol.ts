@@ -1008,9 +1008,14 @@ export interface LinkDto {
 	tooltip?: string;
 }
 
-export interface CodeLensDto extends ObjectIdentifier {
+export interface CodeLensListDto {
+	cacheId?: number;
+	lenses: CodeLensDto[];
+}
+
+export interface CodeLensDto {
+	cacheId?: ChainedCacheId;
 	range: IRange;
-	id?: string;
 	command?: CommandDto;
 }
 
@@ -1026,8 +1031,9 @@ export interface CallHierarchyDto {
 
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
-	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeLensDto[]>;
+	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<CodeLensListDto | undefined>;
 	$resolveCodeLens(handle: number, symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined>;
+	$releaseCodeLenses(handle: number, id: number): void;
 	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
 	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<DefinitionLinkDto[]>;
