@@ -11,7 +11,7 @@ export async function deactivate(): Promise<any> {
 }
 
 export async function activate(context: ExtensionContext): Promise<void> {
-	context.subscriptions.push(commands.registerCommand('git-ui.gitCredential', async (data: any) => {
+	context.subscriptions.push(commands.registerCommand('git.credential', async (data: any) => {
 		try {
 			const { stdout, stderr } = await exec(`git credential ${data.command}`, {
 				stdin: data.stdin,

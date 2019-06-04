@@ -13,7 +13,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:git-ui.gitCredential"
+    "onCommand:git.credential"
   ],
   "main": "./out/main",
   "icon": "resources/icons/git.png",
