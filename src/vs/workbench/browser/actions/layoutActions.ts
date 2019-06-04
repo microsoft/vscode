@@ -62,19 +62,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleActivityBarVisibilityAction.ID,
-		title: nls.localize({ key: 'miHideActivityBar', comment: ['&& denotes a mnemonic'] }, "Hide &&Activity Bar")
+		title: nls.localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar"),
+		toggled: ContextKeyExpr.equals('config.workbench.activityBar.visible', true)
 	},
-	when: ContextKeyExpr.equals('config.workbench.activityBar.visible', true),
-	order: 4
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
-	command: {
-		id: ToggleActivityBarVisibilityAction.ID,
-		title: nls.localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar")
-	},
-	when: ContextKeyExpr.equals('config.workbench.activityBar.visible', false),
 	order: 4
 });
 
@@ -216,7 +206,7 @@ export class ToggleSidebarPositionAction extends Action {
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.LABEL), 'View: Toggle Side Bar Position', viewCategory);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
+	group: '3_workbench_layout_move',
 	command: {
 		id: ToggleSidebarPositionAction.ID,
 		title: nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right")
@@ -226,7 +216,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
+	group: '3_workbench_layout_move',
 	command: {
 		id: ToggleSidebarPositionAction.ID,
 		title: nls.localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left")
@@ -290,19 +280,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleSidebarVisibilityAction.ID,
-		title: nls.localize({ key: 'miHideSidebar', comment: ['&& denotes a mnemonic'] }, "&&Hide Side Bar"),
+		title: nls.localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar"),
+		toggled: SideBarVisibleContext
 	},
-	when: SideBarVisibleContext,
-	order: 1
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
-	command: {
-		id: ToggleSidebarVisibilityAction.ID,
-		title: nls.localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "&&Show Side Bar"),
-	},
-	when: SideBarVisibleContext.toNegated(),
 	order: 1
 });
 
@@ -340,19 +320,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleStatusbarVisibilityAction.ID,
-		title: nls.localize({ key: 'miHideStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Hide Status Bar")
+		title: nls.localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "Show S&&tatus Bar"),
+		toggled: ContextKeyExpr.equals('config.workbench.statusBar.visible', true)
 	},
-	when: ContextKeyExpr.equals('config.workbench.statusBar.visible', true),
-	order: 3
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
-	command: {
-		id: ToggleStatusbarVisibilityAction.ID,
-		title: nls.localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Show Status Bar")
-	},
-	when: ContextKeyExpr.equals('config.workbench.statusBar.visible', false),
 	order: 3
 });
 
@@ -477,19 +447,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleMenuBarAction.ID,
-		title: nls.localize({ key: 'miHideMenuBar', comment: ['&& denotes a mnemonic'] }, "Hide Menu &&Bar")
+		title: nls.localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
+		toggled: ContextKeyExpr.and(IsMacContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'))
 	},
-	when: ContextKeyExpr.and(IsMacContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle')),
-	order: 0
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
-	command: {
-		id: ToggleMenuBarAction.ID,
-		title: nls.localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar")
-	},
-	when: ContextKeyExpr.and(IsMacContext.toNegated(), ContextKeyExpr.and(ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'visible'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'default'))),
 	order: 0
 });
 

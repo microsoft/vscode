@@ -273,23 +273,13 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	command: {
 		id: TogglePanelAction.ID,
 		title: nls.localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
+		toggled: ActivePanelContext
 	},
-	when: ActivePanelContext.toNegated(),
 	order: 5
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
-	command: {
-		id: TogglePanelAction.ID,
-		title: nls.localize({ key: 'miHidePanel', comment: ['&& denotes a mnemonic'] }, "Hide &&Panel"),
-	},
-	when: ActivePanelContext,
-	order: 5
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
+	group: '3_workbench_layout_move',
 	command: {
 		id: TogglePanelPositionAction.ID,
 		title: TogglePanelPositionAction.MOVE_TO_RIGHT_LABEL
@@ -299,7 +289,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
+	group: '3_workbench_layout_move',
 	command: {
 		id: TogglePanelPositionAction.ID,
 		title: TogglePanelPositionAction.MOVE_TO_BOTTOM_LABEL

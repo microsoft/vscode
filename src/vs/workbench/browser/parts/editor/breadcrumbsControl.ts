@@ -499,18 +499,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	order: 3,
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: localize('miShowBreadcrumbs', "Show &&Breadcrumbs")
-	},
-	when: ContextKeyExpr.equals('config.breadcrumbs.enabled', false)
-});
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '5_editor',
-	order: 3,
-	command: {
-		id: 'breadcrumbs.toggle',
-		title: localize('miHideBreadcrumbs', "Hide &&Breadcrumbs")
-	},
-	when: ContextKeyExpr.equals('config.breadcrumbs.enabled', true)
+		title: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
+		toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true)
+	}
 });
 CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
 	let config = accessor.get(IConfigurationService);
