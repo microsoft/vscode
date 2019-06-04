@@ -32,7 +32,7 @@ import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope, RevealProblemKind
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope, RevealProblemKind, DependsOrder
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -333,10 +333,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Promise.all<TaskTerminateResponse>(promises);
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver, trigger: string): Promise<ITaskSummary> {
+	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string): Promise<ITaskSummary> {
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
-			task.configurationProperties.dependsOn.forEach((dependency) => {
+			for (let index in task.configurationProperties.dependsOn) {
+				const dependency = task.configurationProperties.dependsOn[index];
 				let dependencyTask = resolver.resolve(dependency.workspaceFolder, dependency.task!);
 				if (dependencyTask) {
 					let key = dependencyTask.getMapKey();
@@ -344,6 +345,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (!promise) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
 						promise = this.executeTask(dependencyTask, resolver, trigger);
+					}
+					if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
+						promise = Promise.resolve(await promise);
 					}
 					promises.push(promise);
 				} else {
@@ -354,7 +358,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					));
 					this.showOutput();
 				}
-			});
+			}
 		}
 
 		if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command)) {
