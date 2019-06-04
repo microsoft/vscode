@@ -303,7 +303,7 @@
 		"build-preview": "webpack --mode development"
 	},
 	"dependencies": {
-		"highlight.js": "9.13.1",
+		"highlight.js": "9.15.8",
 		"markdown-it": "^8.4.2",
 		"markdown-it-front-matter": "^0.1.2",
 		"vscode-extension-telemetry": "0.1.1",
