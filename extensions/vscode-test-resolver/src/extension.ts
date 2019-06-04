@@ -65,7 +65,7 @@ export function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const { updateUrl, commit, quality } = getProductConfiguration();
+			const { updateUrl, commit, quality, serverDataFolderName, dataFolderName } = getProductConfiguration();
 			if (!commit) { // dev mode
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
 				const nodeExec = process.platform === 'win32' ? 'node.exe' : 'node';
@@ -86,7 +86,10 @@ export function activate(context: vscode.ExtensionContext) {
 				const env = getNewEnv();
 				extHostProcess = cp.spawn(nodePath, [path.join('out', 'remoteExtensionHostAgent'), '--port=0'], { cwd: vscodePath, env });
 			} else {
-				const serverBin = path.resolve(os.homedir(), '.vscode-remote', 'bin');
+				const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
+				outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
+
+				const serverBin = path.join(remoteDataDir, 'bin');
 				progress.report({ message: 'Installing VSCode Server' });
 				const serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin);
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);
@@ -95,8 +98,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 				const env = getNewEnv();
 				env['PATH'] = path.join(serverLocation, 'bin') + path.delimiter + env['PATH']; // code command for the terminal
+				env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 
-				extHostProcess = cp.spawn(path.join(serverLocation, 'server.sh'), commandArgs, { env, cwd: serverLocation });
+				const serverCommand = process.platform === 'win32' ? 'server.bat' : 'server.sh';
+				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
 			}
 			extHostProcess.stdout.on('data', (data: Buffer) => processOutput(data.toString()));
 			extHostProcess.stderr.on('data', (data: Buffer) => processOutput(data.toString()));
@@ -166,6 +171,8 @@ export interface IProductConfiguration {
 	updateUrl: string;
 	commit: string;
 	quality: string;
+	dataFolderName: string;
+	serverDataFolderName?: string;
 }
 
 function getProductConfiguration(): IProductConfiguration {
