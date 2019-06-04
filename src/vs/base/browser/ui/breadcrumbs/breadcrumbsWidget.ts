@@ -9,7 +9,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { commonPrefixLength } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./breadcrumbsWidget';
 
@@ -55,16 +55,15 @@ export interface IBreadcrumbsItemEvent {
 	payload: any;
 }
 
-export class BreadcrumbsWidget {
+export class BreadcrumbsWidget extends Disposable {
 
-	private readonly _disposables = new Array<IDisposable>();
 	private readonly _domNode: HTMLDivElement;
 	private readonly _styleElement: HTMLStyleElement;
 	private readonly _scrollable: DomScrollableElement;
 
-	private readonly _onDidSelectItem = new Emitter<IBreadcrumbsItemEvent>();
-	private readonly _onDidFocusItem = new Emitter<IBreadcrumbsItemEvent>();
-	private readonly _onDidChangeFocus = new Emitter<boolean>();
+	private readonly _onDidSelectItem = this._register(new Emitter<IBreadcrumbsItemEvent>());
+	private readonly _onDidFocusItem = this._register(new Emitter<IBreadcrumbsItemEvent>());
+	private readonly _onDidChangeFocus = this._register(new Emitter<boolean>());
 
 	readonly onDidSelectItem: Event<IBreadcrumbsItemEvent> = this._onDidSelectItem.event;
 	readonly onDidFocusItem: Event<IBreadcrumbsItemEvent> = this._onDidFocusItem.event;
@@ -83,6 +82,7 @@ export class BreadcrumbsWidget {
 	constructor(
 		container: HTMLElement
 	) {
+		super();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs';
 		this._domNode.tabIndex = 0;
@@ -94,26 +94,22 @@ export class BreadcrumbsWidget {
 			useShadows: false,
 			scrollYToX: true
 		});
-		this._disposables.push(this._scrollable);
-		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
+		this._register(this._scrollable);
+		this._register(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
 		container.appendChild(this._scrollable.getDomNode());
 
 		this._styleElement = dom.createStyleSheet(this._domNode);
 
 		let focusTracker = dom.trackFocus(this._domNode);
-		this._disposables.push(focusTracker);
-		this._disposables.push(focusTracker.onDidBlur(_ => this._onDidChangeFocus.fire(false)));
-		this._disposables.push(focusTracker.onDidFocus(_ => this._onDidChangeFocus.fire(true)));
+		this._register(focusTracker);
+		this._register(focusTracker.onDidBlur(_ => this._onDidChangeFocus.fire(false)));
+		this._register(focusTracker.onDidFocus(_ => this._onDidChangeFocus.fire(true)));
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		super.dispose();
 		dispose(this._pendingLayout);
-		this._onDidSelectItem.dispose();
-		this._onDidFocusItem.dispose();
-		this._onDidChangeFocus.dispose();
 		this._domNode.remove();
-		this._disposables.length = 0;
 		this._nodes.length = 0;
 		this._freeNodes.length = 0;
 	}
