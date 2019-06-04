@@ -506,6 +506,7 @@
 			{
 				"target": "**/vs/workbench/contrib/terminal/browser/**",
 				"restrictions": [
+					// xterm and its addons are strictly browser-only components
 					"xterm",
 					"xterm-addon-*",
 					"**/vs/**"
