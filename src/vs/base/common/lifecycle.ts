@@ -34,7 +34,7 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 }
 
 export function toDisposable(fn: () => void): IDisposable {
-	return { dispose() { fn(); } };
+	return { dispose: fn };
 }
 
 export class DisposableStore implements IDisposable {
