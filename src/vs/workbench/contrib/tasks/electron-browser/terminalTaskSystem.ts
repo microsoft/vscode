@@ -17,7 +17,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isUNC } from 'vs/base/common/extpath';
 
 import { win32 } from 'vs/base/node/processes';
-
+import { IFileService } from 'vs/platform/files/common/files';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -29,7 +29,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/contrib/tasks/common/problemCollectors';
+import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
 	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope, RevealProblemKind
@@ -171,6 +171,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private contextService: IWorkspaceContextService,
 		private environmentService: IWorkbenchEnvironmentService,
 		private outputChannelId: string,
+		private fileService: IFileService,
 		taskSystemInfoResolver: TaskSystemInfoResovler,
 	) {
 
@@ -509,7 +510,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (task.configurationProperties.isBackground) {
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
+				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService, this.fileService);
 				let toDispose: IDisposable[] | undefined = [];
 				let eventCounter: number = 0;
 				toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
@@ -554,13 +555,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
-					watchingProblemMatcher.processLine(line);
-					if (!delayer) {
-						delayer = new Async.Delayer(3000);
-					}
-					delayer.trigger(() => {
-						watchingProblemMatcher.forceDelivery();
-						delayer = undefined;
+					return watchingProblemMatcher.processLine(line).then(() => {
+						if (!delayer) {
+							delayer = new Async.Delayer(3000);
+						}
+						delayer.trigger(() => {
+							watchingProblemMatcher.forceDelivery();
+							delayer = undefined;
+						});
 					});
 				});
 				const onExit = terminal.onExit((exitCode) => {
@@ -630,10 +632,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService);
+				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
-					startStopProblemMatcher.processLine(line);
+					return startStopProblemMatcher.processLine(line);
 				});
 				const onExit = terminal.onExit((exitCode) => {
 					onData.dispose();
