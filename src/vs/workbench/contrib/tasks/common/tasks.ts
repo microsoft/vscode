@@ -431,6 +431,11 @@ export const enum GroupType {
 	user = 'user'
 }
 
+export const enum DependsOrder {
+	parallel = 'parallel',
+	sequence = 'sequence'
+}
+
 export interface ConfigurationProperties {
 
 	/**
@@ -477,6 +482,11 @@ export interface ConfigurationProperties {
 	 * The other tasks this task depends on.
 	 */
 	dependsOn?: TaskDependency[];
+
+	/**
+	 * The order the dependsOn tasks should be executed in.
+	 */
+	dependsOrder?: DependsOrder;
 
 	/**
 	 * The problem watchers to use for this task

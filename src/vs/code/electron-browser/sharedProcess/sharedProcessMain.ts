@@ -79,7 +79,7 @@ class MainProcessService implements IMainProcessService {
 	}
 }
 
-function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): void {
+async function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): Promise<void> {
 	const services = new ServiceCollection();
 
 	const disposables: IDisposable[] = [];
@@ -96,12 +96,15 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', mainRouter));
 	const logService = new FollowerLogService(logLevelClient, new SpdLogService('sharedprocess', environmentService.logsPath, initData.logLevel));
 	disposables.push(logService);
-
 	logService.info('main', JSON.stringify(configuration));
+
+	const configurationService = new ConfigurationService(environmentService.appSettingsPath);
+	disposables.push(configurationService);
+	await configurationService.initialize();
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
+	services.set(IConfigurationService, configurationService);
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
@@ -218,6 +221,6 @@ async function handshake(configuration: ISharedProcessConfiguration): Promise<vo
 
 	const server = await setupIPC(data.sharedIPCHandle);
 
-	main(server, data, configuration);
+	await main(server, data, configuration);
 	ipcRenderer.send('handshake:im ready');
 }

@@ -267,9 +267,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	async installFromGallery(extension: IGalleryExtension): Promise<void> {
 		const startTime = new Date().getTime();
 
-		this.logService.info('Installing extension:', extension.identifier.id);
-		this._onInstallExtension.fire({ identifier: extension.identifier, gallery: extension });
-
 		const onDidInstallExtensionSuccess = (extension: IGalleryExtension, operation: InstallOperation, local: ILocalExtension) => {
 			this.logService.info(`Extensions installed successfully:`, extension.identifier.id);
 			this._onDidInstallExtension.fire({ identifier: extension.identifier, gallery: extension, local, operation });
@@ -296,6 +293,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		const key = new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key();
 		let cancellablePromise = this.installingExtensions.get(key);
 		if (!cancellablePromise) {
+
+			this.logService.info('Installing extension:', extension.identifier.id);
+			this._onInstallExtension.fire({ identifier: extension.identifier, gallery: extension });
 
 			let operation: InstallOperation = InstallOperation.Install;
 			let cancellationToken: CancellationToken, successCallback: (a?: any) => void, errorCallback: (e?: any) => any | null;
@@ -723,7 +723,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this.logService.trace('Started scanning system extensions');
 		const systemExtensionsPromise = this.scanExtensions(this.systemExtensionsPath, ExtensionType.System)
 			.then(result => {
-				this.logService.info('Scanned system extensions:', result.length);
+				this.logService.trace('Scanned system extensions:', result.length);
 				return result;
 			});
 		if (this.environmentService.isBuilt) {
@@ -736,7 +736,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				if (devSystemExtensionsList.length) {
 					return this.scanExtensions(this.devSystemExtensionsPath, ExtensionType.System)
 						.then(result => {
-							this.logService.info('Scanned dev system extensions:', result.length);
+							this.logService.trace('Scanned dev system extensions:', result.length);
 							return result.filter(r => devSystemExtensionsList.some(id => areSameExtensions(r.identifier, { id })));
 						});
 				} else {
@@ -756,7 +756,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => e.identifier);
 					extensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
 				}
-				this.logService.info('Scanned user extensions:', extensions.length);
+				this.logService.trace('Scanned user extensions:', extensions.length);
 				return extensions;
 			});
 	}

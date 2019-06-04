@@ -3,9 +3,6 @@ resources:
   - container: vscode-x64
     image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
     endpoint: VSCodeHub
-  - container: vscode-ia32
-    image: vscodehub.azurecr.io/vscode-linux-build-agent:ia32
-    endpoint: VSCodeHub
   - container: snapcraft
     image: snapcore/snapcraft
 
@@ -49,16 +46,6 @@ jobs:
   steps:
   - template: linux/snap-build-linux.yml
 
-- job: Linux32
-  condition: eq(variables['VSCODE_BUILD_LINUX_32BIT'], 'true')
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  variables:
-    VSCODE_ARCH: ia32
-  container: vscode-ia32
-  steps:
-  - template: linux/product-build-linux.yml
-
 - job: LinuxArmhf
   condition: eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true')
   pool:
@@ -84,7 +71,6 @@ jobs:
   - Windows32
   - Linux
   - LinuxSnap
-  - Linux32
   - LinuxArmhf
   - macOS
   steps:

@@ -275,17 +275,22 @@ export class Main {
 
 const eventPrefix = 'monacoworkbench';
 
-export function main(argv: ParsedArgs): Promise<void> {
+export async function main(argv: ParsedArgs): Promise<void> {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(argv, process.execPath);
 	const logService: ILogService = new SpdLogService('cli', environmentService.logsPath, getLogLevel(environmentService));
 	process.once('exit', () => logService.dispose());
-
 	logService.info('main', argv);
+
+	await Promise.all([environmentService.appSettingsHome, environmentService.extensionsPath].map(p => mkdirp(p)));
+
+	const configurationService = new ConfigurationService(environmentService.appSettingsPath);
+	await configurationService.initialize();
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
+	services.set(IConfigurationService, configurationService);
 	services.set(IStateService, new SyncDescriptor(StateService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
@@ -294,40 +299,37 @@ export function main(argv: ParsedArgs): Promise<void> {
 		const envService = accessor.get(IEnvironmentService);
 		const stateService = accessor.get(IStateService);
 
-		return Promise.all([envService.appSettingsHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
-			const { appRoot, extensionsPath, extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, isBuilt, installSourcePath } = envService;
+		const { appRoot, extensionsPath, extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, isBuilt, installSourcePath } = envService;
 
-			const services = new ServiceCollection();
-			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
-			services.set(IRequestService, new SyncDescriptor(RequestService));
-			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
-			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+		const services = new ServiceCollection();
+		services.set(IRequestService, new SyncDescriptor(RequestService));
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
-			const appenders: AppInsightsAppender[] = [];
-			if (isBuilt && !extensionDevelopmentLocationURI && !envService.args['disable-telemetry'] && product.enableTelemetry) {
+		const appenders: AppInsightsAppender[] = [];
+		if (isBuilt && !extensionDevelopmentLocationURI && !envService.args['disable-telemetry'] && product.enableTelemetry) {
 
-				if (product.aiConfig && product.aiConfig.asimovKey) {
-					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, logService));
-				}
-
-				const config: ITelemetryServiceConfig = {
-					appender: combinedAppender(...appenders),
-					commonProperties: resolveCommonProperties(product.commit, pkg.version, stateService.getItem('telemetry.machineId'), installSourcePath),
-					piiPaths: [appRoot, extensionsPath]
-				};
-
-				services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
-			} else {
-				services.set(ITelemetryService, NullTelemetryService);
+			if (product.aiConfig && product.aiConfig.asimovKey) {
+				appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, logService));
 			}
 
-			const instantiationService2 = instantiationService.createChild(services);
-			const main = instantiationService2.createInstance(Main);
+			const config: ITelemetryServiceConfig = {
+				appender: combinedAppender(...appenders),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version, stateService.getItem('telemetry.machineId'), installSourcePath),
+				piiPaths: [appRoot, extensionsPath]
+			};
 
-			return main.run(argv).then(() => {
-				// Dispose the AI adapter so that remaining data gets flushed.
-				return combinedAppender(...appenders).dispose();
-			});
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
+		} else {
+			services.set(ITelemetryService, NullTelemetryService);
+		}
+
+		const instantiationService2 = instantiationService.createChild(services);
+		const main = instantiationService2.createInstance(Main);
+
+		return main.run(argv).then(() => {
+			// Dispose the AI adapter so that remaining data gets flushed.
+			return combinedAppender(...appenders).dispose();
 		});
 	});
 }

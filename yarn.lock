@@ -6131,10 +6131,10 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.9.0-beta13:
-  version "0.9.0-beta13"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta13.tgz#615cae7447ac232aefa65a263d6821bc04d0f213"
-  integrity sha512-hO1U8Hd4OhSZMryTqfsog2bJnRGh8Ct3yTsfKRbLK8qhUnqmyOdHzLQkGTx5J7aG7iA8mDVcWBSx2YX2MpkDRQ==
+node-pty@0.9.0-beta16:
+  version "0.9.0-beta16"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta16.tgz#f11521e73bb4a26df23c40a05f4ca1be93340864"
+  integrity sha512-5onsCFXGTPcOZFAKh+E+aYalMomMAGqCnz/ibxCEL3xP73VAHRD6L+EadxRXFGbAG9o/EQzT0Wso+xLqhxXtgQ==
   dependencies:
     nan "^2.13.2"
 
@@ -9590,10 +9590,10 @@ vscode-nls-dev@3.2.5:
     xml2js "^0.4.19"
     yargs "^10.1.1"
 
-vscode-nsfw@1.1.1:
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.1.1.tgz#7c3febe153677c5850b197a0b64a197cd11e95c7"
-  integrity sha512-Wg3vzN1U3T6P1uE13LdVVRIhdy7XWnWkwmAXhkLsIkH2QY0E/pvNDRLrwAMMW6GC1Fvvbxm3hzdIrCmr7Hq3FA==
+vscode-nsfw@1.1.2:
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.1.2.tgz#9cb9073b5854386801afe41f7152f721b4ea9e80"
+  integrity sha512-J0So+JNK/5kQboTO1hKNk4ie/wwUegrJilYSY5sVxU9JJlo3aQdP0zi2NtU8CEK3kkN6qRp0MbXCzbT0LKGorg==
   dependencies:
     fs-extra "^7.0.0"
     lodash.isinteger "^4.0.4"

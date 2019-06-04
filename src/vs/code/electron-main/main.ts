@@ -97,10 +97,11 @@ class CodeMain {
 			// Init services
 			await instantiationService.invokeFunction(async accessor => {
 				const environmentService = accessor.get(IEnvironmentService);
+				const configurationService = accessor.get(IConfigurationService);
 				const stateService = accessor.get(IStateService);
 
 				try {
-					await this.initServices(environmentService, stateService as StateService);
+					await this.initServices(environmentService, configurationService as ConfigurationService, stateService as StateService);
 				} catch (error) {
 
 					// Show a dialog for errors that can be resolved by the user
@@ -140,9 +141,9 @@ class CodeMain {
 		process.once('exit', () => logService.dispose());
 		services.set(ILogService, logService);
 
+		services.set(IConfigurationService, new ConfigurationService(environmentService.appSettingsPath));
 		services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 		services.set(IStateService, new SyncDescriptor(StateService));
-		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.appSettingsPath]));
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
@@ -150,7 +151,7 @@ class CodeMain {
 		return [new InstantiationService(services, true), instanceEnvironment];
 	}
 
-	private initServices(environmentService: IEnvironmentService, stateService: StateService): Promise<unknown> {
+	private initServices(environmentService: IEnvironmentService, configurationService: ConfigurationService, stateService: StateService): Promise<unknown> {
 
 		// Environment service (paths)
 		const environmentServiceInitialization = Promise.all<void | undefined>([
@@ -162,10 +163,13 @@ class CodeMain {
 			environmentService.backupHome
 		].map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
 
+		// Configuration service
+		const configurationServiceInitialization = configurationService.initialize();
+
 		// State service
 		const stateServiceInitialization = stateService.init();
 
-		return Promise.all([environmentServiceInitialization, stateServiceInitialization]);
+		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateServiceInitialization]);
 	}
 
 	private patchEnvironment(environmentService: IEnvironmentService): typeof process.env {

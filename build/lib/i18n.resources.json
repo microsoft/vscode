@@ -39,10 +39,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/codeinset",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/callHierarchy",
 			"project": "vscode-workbench"
 		},
