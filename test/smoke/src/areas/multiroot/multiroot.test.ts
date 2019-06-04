@@ -47,7 +47,9 @@ export function setup() {
 			const app = this.app as Application;
 			await app.workbench.quickopen.openQuickOpen('*.*');
 
-			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 6);
+			const numResultsExpected = this.app.remote ? 7 : 6;
+
+			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === numResultsExpected);
 			await app.workbench.quickopen.closeQuickOpen();
 		});
 
