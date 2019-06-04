@@ -12,7 +12,7 @@ import { Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { ActionViewItem, Separator, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -148,7 +148,6 @@ export class InstallAction extends ExtensionAction {
 	private static readonly Class = 'extension-action prominent install';
 	private static readonly InstallingClass = 'extension-action install installing';
 
-	private readonly disposables = new DisposableStore();
 
 	private _manifest: IExtensionManifest | null;
 	set manifest(manifest: IExtensionManifest) {
@@ -170,7 +169,7 @@ export class InstallAction extends ExtensionAction {
 	) {
 		super(`extensions.install`, InstallAction.INSTALL_LABEL, InstallAction.Class, false);
 		this.update();
-		this.disposables.add(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
+		this._register(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 	}
 
 	update(): void {
@@ -270,11 +269,6 @@ export class InstallAction extends ExtensionAction {
 		}
 		return null;
 	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		super.dispose();
-	}
 }
 
 export class RemoteInstallAction extends ExtensionAction {
@@ -286,7 +280,6 @@ export class RemoteInstallAction extends ExtensionAction {
 	private static readonly InstallingClass = 'extension-action install installing';
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	private readonly disposables = new DisposableStore();
 	private installing: boolean = false;
 
 	constructor(
@@ -298,7 +291,7 @@ export class RemoteInstallAction extends ExtensionAction {
 		@IProductService private readonly productService: IProductService,
 	) {
 		super(`extensions.remoteinstall`, RemoteInstallAction.INSTALL_LABEL, RemoteInstallAction.Class, false);
-		this.disposables.add(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
+		this._register(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 		this.updateLabel();
 		this.update();
 	}
@@ -355,11 +348,6 @@ export class RemoteInstallAction extends ExtensionAction {
 			}
 		}
 	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		super.dispose();
-	}
 }
 
 export class LocalInstallAction extends ExtensionAction {
@@ -371,7 +359,6 @@ export class LocalInstallAction extends ExtensionAction {
 	private static readonly InstallingClass = 'extension-action install installing';
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	private readonly disposables = new DisposableStore();
 	private installing: boolean = false;
 
 	constructor(
@@ -383,7 +370,7 @@ export class LocalInstallAction extends ExtensionAction {
 		@IProductService private readonly productService: IProductService,
 	) {
 		super(`extensions.localinstall`, LocalInstallAction.INSTALL_LABEL, LocalInstallAction.Class, false);
-		this.disposables.add(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
+		this._register(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 		this.updateLabel();
 		this.update();
 	}
@@ -434,11 +421,6 @@ export class LocalInstallAction extends ExtensionAction {
 				this.update();
 			}
 		}
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		super.dispose();
 	}
 }
 
@@ -503,15 +485,14 @@ export class CombinedInstallAction extends ExtensionAction {
 	private static readonly NoExtensionClass = 'extension-action prominent install no-extension';
 	private installAction: InstallAction;
 	private uninstallAction: UninstallAction;
-	private readonly disposables = new DisposableStore();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super('extensions.combinedInstall', '', '', false);
 
-		this.installAction = this.disposables.add(instantiationService.createInstance(InstallAction));
-		this.uninstallAction = this.disposables.add(instantiationService.createInstance(UninstallAction));
+		this.installAction = this._register(instantiationService.createInstance(InstallAction));
+		this.uninstallAction = this._register(instantiationService.createInstance(UninstallAction));
 
 		this.update();
 	}
@@ -563,11 +544,6 @@ export class CombinedInstallAction extends ExtensionAction {
 		}
 
 		return Promise.resolve();
-	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables.dispose();
 	}
 }
 
@@ -671,8 +647,6 @@ export class ExtensionActionViewItem extends ActionViewItem {
 
 export abstract class ExtensionDropDownAction extends ExtensionAction {
 
-	protected readonly disposables = new DisposableStore();
-
 	constructor(
 		id: string,
 		label: string,
@@ -696,16 +670,9 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 		}
 		return Promise.resolve();
 	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		super.dispose();
-	}
 }
 
 export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
-
-	private readonly disposables = new DisposableStore();
 
 	constructor(action: ExtensionDropDownAction,
 		tabOnlyOnFocus: boolean,
@@ -734,11 +701,6 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 			actions = [...actions, ...menuActions, new Separator()];
 		}
 		return actions.length ? actions.slice(0, actions.length - 1) : actions;
-	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables.dispose();
 	}
 }
 
@@ -1191,8 +1153,6 @@ export class UpdateAllAction extends Action {
 	static readonly ID = 'workbench.extensions.action.updateAllExtensions';
 	static LABEL = localize('updateAll', "Update All Extensions");
 
-	private readonly disposables = new DisposableStore();
-
 	constructor(
 		id = UpdateAllAction.ID,
 		label = UpdateAllAction.LABEL,
@@ -1203,7 +1163,7 @@ export class UpdateAllAction extends Action {
 	) {
 		super(id, label, '', false);
 
-		this.disposables.add(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this._register(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 	}
 
@@ -1226,11 +1186,6 @@ export class UpdateAllAction extends Action {
 			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
 		});
 	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables.dispose();
-	}
 }
 
 export class ReloadAction extends ExtensionAction {
@@ -1239,7 +1194,6 @@ export class ReloadAction extends ExtensionAction {
 	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	private readonly disposables = new DisposableStore();
 	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
@@ -1253,7 +1207,7 @@ export class ReloadAction extends ExtensionAction {
 		@IProductService private readonly productService: IProductService,
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
-		this.disposables.add(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
+		this._register(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
 		this.updateRunningExtensions();
 	}
 
@@ -1363,11 +1317,6 @@ export class ReloadAction extends ExtensionAction {
 	run(): Promise<any> {
 		return Promise.resolve(this.windowService.reloadWindow());
 	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		super.dispose();
-	}
 }
 
 export class SetColorThemeAction extends ExtensionAction {
@@ -1379,7 +1328,6 @@ export class SetColorThemeAction extends ExtensionAction {
 	private static readonly EnabledClass = 'extension-action theme';
 	private static readonly DisabledClass = `${SetColorThemeAction.EnabledClass} disabled`;
 
-	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private readonly colorThemes: IColorTheme[],
@@ -1389,7 +1337,7 @@ export class SetColorThemeAction extends ExtensionAction {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(`extensions.colorTheme`, localize('color theme', "Set Color Theme"), SetColorThemeAction.DisabledClass, false);
-		this.disposables.add(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidColorThemeChange)(() => this.update(), this));
+		this._register(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidColorThemeChange)(() => this.update(), this));
 		this.update();
 	}
 
@@ -1435,11 +1383,6 @@ export class SetColorThemeAction extends ExtensionAction {
 		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 		return this.workbenchThemeService.setColorTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
 	}
-
-	dispose() {
-		this.disposables.dispose();
-		super.dispose();
-	}
 }
 
 export class SetFileIconThemeAction extends ExtensionAction {
@@ -1447,7 +1390,6 @@ export class SetFileIconThemeAction extends ExtensionAction {
 	private static readonly EnabledClass = 'extension-action theme';
 	private static readonly DisabledClass = `${SetFileIconThemeAction.EnabledClass} disabled`;
 
-	private readonly disposables = new DisposableStore();
 
 	static getFileIconThemes(fileIconThemes: IFileIconTheme[], extension: IExtension): IFileIconTheme[] {
 		return fileIconThemes.filter(c => c.extensionData && ExtensionIdentifier.equals(c.extensionData.extensionId, extension.identifier.id));
@@ -1461,7 +1403,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(`extensions.fileIconTheme`, localize('file icon theme', "Set File Icon Theme"), SetFileIconThemeAction.DisabledClass, false);
-		this.disposables.add(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidFileIconThemeChange)(() => this.update(), this));
+		this._register(Event.any<any>(extensionService.onDidChangeExtensions, workbenchThemeService.onDidFileIconThemeChange)(() => this.update(), this));
 		this.update();
 	}
 
@@ -1506,11 +1448,6 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 		return this.workbenchThemeService.setFileIconTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
-	}
-
-	dispose() {
-		this.disposables.dispose();
-		super.dispose();
 	}
 }
 
@@ -1609,8 +1546,6 @@ export class ClearExtensionsInputAction extends Action {
 	static readonly ID = 'workbench.extensions.action.clearExtensionsInput';
 	static LABEL = localize('clearExtensionsInput', "Clear Extensions Input");
 
-	private readonly disposables = new DisposableStore();
-
 	constructor(
 		id: string,
 		label: string,
@@ -1620,7 +1555,7 @@ export class ClearExtensionsInputAction extends Action {
 	) {
 		super(id, label, 'clear-extensions', true);
 		this.onSearchChange(value);
-		this.disposables.add(onSearchChange(this.onSearchChange, this));
+		this._register(onSearchChange(this.onSearchChange, this));
 	}
 
 	private onSearchChange(value: string): void {
@@ -1634,10 +1569,6 @@ export class ClearExtensionsInputAction extends Action {
 				viewlet.search('');
 				viewlet.focus();
 			});
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
 	}
 }
 
@@ -1843,7 +1774,6 @@ export class IgnoreExtensionRecommendationAction extends Action {
 
 	private static readonly Class = 'extension-action ignore';
 
-	private readonly disposables = new DisposableStore();
 	extension: IExtension;
 
 	constructor(
@@ -1860,11 +1790,6 @@ export class IgnoreExtensionRecommendationAction extends Action {
 		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.identifier.id, true);
 		return Promise.resolve();
 	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables.dispose();
-	}
 }
 
 export class UndoIgnoreExtensionRecommendationAction extends Action {
@@ -1873,7 +1798,6 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 
 	private static readonly Class = 'extension-action undo-ignore';
 
-	private readonly disposables = new DisposableStore();
 	extension: IExtension;
 
 	constructor(
@@ -1889,11 +1813,6 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 	public run(): Promise<any> {
 		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.identifier.id, false);
 		return Promise.resolve();
-	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables.dispose();
 	}
 }
 
@@ -1970,7 +1889,6 @@ export class ShowAzureExtensionsAction extends Action {
 export class ChangeSortAction extends Action {
 
 	private query: Query;
-	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string,
@@ -1987,7 +1905,7 @@ export class ChangeSortAction extends Action {
 
 		this.query = Query.parse('');
 		this.enabled = false;
-		this.disposables.add(onSearchChange(this.onSearchChange, this));
+		this._register(onSearchChange(this.onSearchChange, this));
 	}
 
 	private onSearchChange(value: string): void {
@@ -2292,7 +2210,6 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 	static readonly ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
 	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Recommended Extensions (Workspace)");
 
-	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string,
@@ -2305,7 +2222,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		super(id, label, contextService, fileService, textFileService, editorService, jsonEditingService, textModelResolverService);
-		this.disposables.add(this.contextService.onDidChangeWorkbenchState(() => this.update(), this));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.update(), this));
 		this.update();
 	}
 
@@ -2322,11 +2239,6 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		}
 		return Promise.resolve();
 	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		super.dispose();
-	}
 }
 
 export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends AbstractConfigureRecommendedExtensionsAction {
@@ -2334,7 +2246,6 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 	static readonly ID = 'workbench.extensions.action.configureWorkspaceFolderRecommendedExtensions';
 	static LABEL = localize('configureWorkspaceFolderRecommendedExtensions', "Configure Recommended Extensions (Workspace Folder)");
 
-	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string,
@@ -2348,7 +2259,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(id, label, contextService, fileService, textFileService, editorService, jsonEditingService, textModelResolverService);
-		this.disposables.add(this.contextService.onDidChangeWorkspaceFolders(() => this.update(), this));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update(), this));
 		this.update();
 	}
 
@@ -2366,11 +2277,6 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 				}
 				return null;
 			});
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		super.dispose();
 	}
 }
 
@@ -2660,7 +2566,6 @@ export class DisabledLabelAction extends ExtensionAction {
 	private static readonly Class = 'disable-status';
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	private readonly disposables = new DisposableStore();
 	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
@@ -2669,8 +2574,8 @@ export class DisabledLabelAction extends ExtensionAction {
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super('extensions.disabledLabel', warningAction.tooltip, `${DisabledLabelAction.Class} hide`, false);
-		this.disposables.add(warningAction.onDidChange(() => this.update(), this));
-		this.disposables.add(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
+		this._register(warningAction.onDidChange(() => this.update(), this));
+		this._register(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
 		this.updateRunningExtensions();
 	}
 
@@ -2703,11 +2608,6 @@ export class DisabledLabelAction extends ExtensionAction {
 	run(): Promise<any> {
 		return Promise.resolve(null);
 	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		super.dispose();
-	}
 }
 
 export class SystemDisabledWarningAction extends ExtensionAction {
@@ -2717,7 +2617,6 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	private static readonly INFO_CLASS = `${SystemDisabledWarningAction.CLASS} info`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
-	private readonly disposables = new DisposableStore();
 	private _runningExtensions: IExtensionDescription[] | null = null;
 
 	constructor(
@@ -2730,8 +2629,8 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super('extensions.install', '', `${SystemDisabledWarningAction.CLASS} hide`, false);
-		this.disposables.add(this.labelService.onDidChangeFormatters(() => this.update(), this));
-		this.disposables.add(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
+		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
+		this._register(this.extensionService.onDidChangeExtensions(this.updateRunningExtensions, this));
 		this.updateRunningExtensions();
 		this.update();
 	}
@@ -2802,11 +2701,6 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	run(): Promise<any> {
 		return Promise.resolve(null);
 	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		super.dispose();
-	}
 }
 
 export class DisableAllAction extends Action {
@@ -2814,7 +2708,6 @@ export class DisableAllAction extends Action {
 	static readonly ID = 'workbench.extensions.action.disableAll';
 	static LABEL = localize('disableAll', "Disable All Installed Extensions");
 
-	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string = DisableAllAction.ID, label: string = DisableAllAction.LABEL,
@@ -2823,7 +2716,7 @@ export class DisableAllAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.disposables.add(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this._register(this.extensionsWorkbenchService.onChange(() => this.update()));
 	}
 
 	private update(): void {
@@ -2833,11 +2726,6 @@ export class DisableAllAction extends Action {
 	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local.filter(e => e.type === ExtensionType.User), EnablementState.Disabled);
 	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables.dispose();
-	}
 }
 
 export class DisableAllWorkpsaceAction extends Action {
@@ -2845,7 +2733,6 @@ export class DisableAllWorkpsaceAction extends Action {
 	static readonly ID = 'workbench.extensions.action.disableAllWorkspace';
 	static LABEL = localize('disableAllWorkspace', "Disable All Installed Extensions for this Workspace");
 
-	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string = DisableAllWorkpsaceAction.ID, label: string = DisableAllWorkpsaceAction.LABEL,
@@ -2854,8 +2741,8 @@ export class DisableAllWorkpsaceAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.disposables.add(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
-		this.disposables.add(this.extensionsWorkbenchService.onChange(() => this.update(), this));
+		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
+		this._register(this.extensionsWorkbenchService.onChange(() => this.update(), this));
 	}
 
 	private update(): void {
@@ -2865,11 +2752,6 @@ export class DisableAllWorkpsaceAction extends Action {
 	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local.filter(e => e.type === ExtensionType.User), EnablementState.WorkspaceDisabled);
 	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables.dispose();
-	}
 }
 
 export class EnableAllAction extends Action {
@@ -2877,7 +2759,6 @@ export class EnableAllAction extends Action {
 	static readonly ID = 'workbench.extensions.action.enableAll';
 	static LABEL = localize('enableAll', "Enable All Extensions");
 
-	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string = EnableAllAction.ID, label: string = EnableAllAction.LABEL,
@@ -2886,7 +2767,7 @@ export class EnableAllAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.disposables.add(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this._register(this.extensionsWorkbenchService.onChange(() => this.update()));
 	}
 
 	private update(): void {
@@ -2896,11 +2777,6 @@ export class EnableAllAction extends Action {
 	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local, EnablementState.Enabled);
 	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables.dispose();
-	}
 }
 
 export class EnableAllWorkpsaceAction extends Action {
@@ -2908,7 +2784,6 @@ export class EnableAllWorkpsaceAction extends Action {
 	static readonly ID = 'workbench.extensions.action.enableAllWorkspace';
 	static LABEL = localize('enableAllWorkspace', "Enable All Extensions for this Workspace");
 
-	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string = EnableAllWorkpsaceAction.ID, label: string = EnableAllWorkpsaceAction.LABEL,
@@ -2918,8 +2793,8 @@ export class EnableAllWorkpsaceAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.disposables.add(this.extensionsWorkbenchService.onChange(() => this.update(), this));
-		this.disposables.add(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
+		this._register(this.extensionsWorkbenchService.onChange(() => this.update(), this));
+		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
 	}
 
 	private update(): void {
@@ -2928,11 +2803,6 @@ export class EnableAllWorkpsaceAction extends Action {
 
 	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local, EnablementState.WorkspaceEnabled);
-	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables.dispose();
 	}
 }
 
