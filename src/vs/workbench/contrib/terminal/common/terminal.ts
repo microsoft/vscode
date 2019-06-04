@@ -671,7 +671,6 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number>;
 
-	addDisposable(disposable: IDisposable): void;
 	dispose(immediate?: boolean): void;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
 	write(data: string): void;
