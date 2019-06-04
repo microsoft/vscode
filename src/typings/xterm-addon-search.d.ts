@@ -3,7 +3,10 @@
  * @license MIT
  */
 
-import { Terminal, ILinkMatcherOptions, IDisposable, ITerminalAddon } from 'xterm';
+// gulp-tsb doesn't play nice with importing from typings
+// import { Terminal, ITerminalAddon } from 'xterm';
+declare type Terminal = any;
+declare type ITerminalAddon = any;
 
 declare module 'xterm-addon-search' {
 	/**
