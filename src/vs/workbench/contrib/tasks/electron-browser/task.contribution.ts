@@ -115,7 +115,8 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	constructor(
 		@ITaskService private readonly taskService: ITaskService,
 		@IMarkerService private readonly markerService: IMarkerService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
 
@@ -174,11 +175,6 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			problemsText.push('$(info) ' + this.packNumber(stats.infos));
 		}
 
-		// Building (only if any running tasks)
-		if (this.activeTasksCount > 0) {
-			problemsText.push(nls.localize('building', 'Building...'));
-		}
-
 		return problemsText.join(' ');
 	}
 
@@ -190,7 +186,8 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 
 	private registerListeners(): void {
 		this.markerService.onMarkerChanged(() => this.updateProblemsStatus());
-
+		let promise: Promise<void> | undefined = undefined;
+		let resolver: (value?: void | Thenable<void>) => void;
 		this.taskService.onDidStateChange(event => {
 			if (event.kind === TaskEventKind.Changed) {
 				this.updateRunningTasksStatus();
@@ -198,11 +195,15 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 
 			if (!this.ignoreEventForUpdateRunningTasksCount(event)) {
 				let needsUpdate = false;
-
 				switch (event.kind) {
 					case TaskEventKind.Active:
 						this.activeTasksCount++;
 						if (this.activeTasksCount === 1) {
+							if (!promise) {
+								promise = new Promise<void>((resolve) => {
+									resolver = resolve;
+								});
+							}
 							needsUpdate = true;
 						}
 						break;
@@ -212,6 +213,9 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 						if (this.activeTasksCount > 0) {
 							this.activeTasksCount--;
 							if (this.activeTasksCount === 0) {
+								if (promise && resolver!) {
+									resolver!();
+								}
 								needsUpdate = true;
 							}
 						}
@@ -219,6 +223,9 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 					case TaskEventKind.Terminated:
 						if (this.activeTasksCount !== 0) {
 							this.activeTasksCount = 0;
+							if (promise && resolver!) {
+								resolver!();
+							}
 							needsUpdate = true;
 						}
 						break;
@@ -227,6 +234,15 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 				if (needsUpdate) {
 					this.updateProblemsStatus();
 				}
+			}
+
+			if (promise && (event.kind === TaskEventKind.Active) && (this.activeTasksCount === 1)) {
+				this.progressService.withProgress({ location: ProgressLocation.Window }, progress => {
+					progress.report({ message: nls.localize('building', 'Building...') });
+					return promise!;
+				}).then(() => {
+					promise = undefined;
+				});
 			}
 		});
 	}
