@@ -63,14 +63,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
 
-	private readonly _onZenMode: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onZenModeChange(): Event<boolean> { return this._onZenMode.event; }
+	private readonly _onZenModeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onZenModeChange(): Event<boolean> { return this._onZenModeChange.event; }
 
-	private readonly _onFullscreen: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onFullscreenChange(): Event<boolean> { return this._onFullscreen.event; }
+	private readonly _onFullscreenChange: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onFullscreenChange(): Event<boolean> { return this._onFullscreenChange.event; }
 
-	private readonly _onCenteredLayout: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onCenteredLayoutChange(): Event<boolean> { return this._onCenteredLayout.event; }
+	private readonly _onCenteredLayoutChange: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onCenteredLayoutChange(): Event<boolean> { return this._onCenteredLayoutChange.event; }
 
 	private readonly _onPanelPositionChange: Emitter<string> = this._register(new Emitter<string>());
 	get onPanelPositionChange(): Event<string> { return this._onPanelPositionChange.event; }
@@ -246,13 +246,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		this._onFullscreen.fire(this.state.fullscreen);
-
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			this._onTitleBarVisibilityChange.fire();
 			this.layout(); // handle title bar when fullscreen changes
 		}
+
+		this._onFullscreenChange.fire(this.state.fullscreen);
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
@@ -642,7 +642,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Event
-		this._onZenMode.fire(this.state.zenMode.active);
+		this._onZenModeChange.fire(this.state.zenMode.active);
 	}
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -840,7 +840,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		this._onCenteredLayout.fire(this.state.editor.centered);
+		this._onCenteredLayoutChange.fire(this.state.editor.centered);
 	}
 
 	resizePart(part: Parts, sizeChange: number): void {
@@ -1064,8 +1064,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.storageService.store(Storage.PANEL_POSITION, positionToString(this.state.panel.position), StorageScope.WORKSPACE);
 
-		this._onPanelPositionChange.fire(positionToString(this.state.panel.position));
-
 		// Adjust CSS
 		removeClass(panelPart.getContainer(), oldPositionValue);
 		addClass(panelPart.getContainer(), newPositionValue);
@@ -1084,6 +1082,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		} else {
 			this.workbenchGrid.layout();
 		}
+
+		this._onPanelPositionChange.fire(positionToString(this.state.panel.position));
 	}
 
 	private savePanelDimension(): void {
