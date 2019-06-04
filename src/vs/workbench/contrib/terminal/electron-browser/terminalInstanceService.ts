@@ -12,7 +12,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
-import * as typeAheadAddon from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
 import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
 
 let Terminal: typeof XTermTerminal;
@@ -33,8 +32,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
 			Terminal = (await import('xterm')).Terminal;
-			// Enable xterm.js legacy addons
-			Terminal.applyAddon(typeAheadAddon);
 			// Localize strings
 			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');
 			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
