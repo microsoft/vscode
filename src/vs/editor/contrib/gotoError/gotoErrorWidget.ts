@@ -27,6 +27,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { SeverityIcon } from 'vs/base/browser/ui/severityIcon/severityIcon';
 
 class MessageWidget extends Disposable {
 
@@ -164,6 +165,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	private _parentContainer: HTMLElement;
 	private _container: HTMLElement;
+	private readonly _headingSeverityIcon: SeverityIcon;
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
@@ -180,6 +182,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this._severity = MarkerSeverity.Warning;
+		this._headingSeverityIcon = new SeverityIcon();
 		this._backgroundColor = Color.white;
 
 		this._applyTheme(_themeService.getTheme());
@@ -225,6 +228,10 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 		this._actionbarWidget.push(this.actions, { label: false, icon: true });
+	}
+
+	protected _fillTitleIcon(container: HTMLElement): void {
+		dom.append(container, this._headingSeverityIcon.element);
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
@@ -274,13 +281,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 				: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
 			this.setTitle(basename(model.uri), detail);
 		}
-		let headingIconClassName = 'error';
-		if (this._severity === MarkerSeverity.Warning) {
-			headingIconClassName = 'warning';
-		} else if (this._severity === MarkerSeverity.Info) {
-			headingIconClassName = 'info';
-		}
-		this.setTitleIcon(headingIconClassName);
+		this._headingSeverityIcon.severity = MarkerSeverity.toSeverity(this._severity);
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
 
