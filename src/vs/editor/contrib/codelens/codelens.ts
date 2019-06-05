@@ -46,7 +46,7 @@ export function getCodeLensData(model: ITextModel, token: CancellationToken): Pr
 
 		providerRanks.set(provider, i);
 
-		Promise.resolve(provider.provideCodeLenses(model, token))
+		return Promise.resolve(provider.provideCodeLenses(model, token))
 			.then(list => list && result.add(list, provider))
 			.catch(onUnexpectedExternalError);
 	});
