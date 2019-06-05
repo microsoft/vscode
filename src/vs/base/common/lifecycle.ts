@@ -14,7 +14,7 @@ import { once } from 'vs/base/common/functional';
  */
 const TRACK_DISPOSABLES = false;
 
-const __is_disposable_tracked__ = Symbol('__is_disposable_tracked__');
+const __is_disposable_tracked__ = '__is_disposable_tracked__';
 
 function markTracked<T extends IDisposable>(x: T): void {
 	if (!TRACK_DISPOSABLES) {
