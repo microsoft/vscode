@@ -134,11 +134,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			}
 			this.selectSession();
 		}));
-		this._register(this.debugService.onWillNewSession(() => {
+		this._register(this.debugService.onWillNewSession(newSession => {
 			// Need to listen to output events for sessions which are not yet fully initialised
 			const input = this.tree.getInput();
 			if (!input || input.state === State.Inactive) {
-				this.selectSession();
+				this.selectSession(newSession);
 			}
 			this.updateTitleArea();
 		}));
