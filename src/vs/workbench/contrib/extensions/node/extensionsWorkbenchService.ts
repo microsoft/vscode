@@ -35,6 +35,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -500,7 +501,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IProgressService private readonly progressService: IProgressService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		super();
 		this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer));
@@ -582,6 +584,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	queryGallery(arg1: any, arg2?: any): Promise<IPager<IExtension>> {
 		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
 		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
+		options.text = options.text ? this.resolveQueryText(options.text) : options.text;
 		return this.extensionService.getExtensionsReport()
 			.then(report => {
 				const maliciousSet = getMaliciousExtensionsSet(report);
@@ -596,6 +599,27 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						return Promise.reject<IPager<IExtension>>(err);
 					});
 			});
+	}
+
+	private resolveQueryText(text: string): string {
+		const extensionRegex = /\bext:([^\s]+)\b/g;
+		if (extensionRegex.test(text)) {
+			text = text.replace(extensionRegex, (m, ext) => {
+
+				// Get curated keywords
+				const lookup = product.extensionKeywords || {};
+				const keywords = lookup[ext] || [];
+
+				// Get mode name
+				const modeId = this.modeService.getModeIdByFilepathOrFirstLine(`.${ext}`);
+				const languageName = modeId && this.modeService.getLanguageName(modeId);
+				const languageTag = languageName ? ` tag:"${languageName}"` : '';
+
+				// Construct a rich query
+				return `tag:"__ext_${ext}" tag:"__ext_.${ext}" ${keywords.map(tag => `tag:"${tag}"`).join(' ')}${languageTag} tag:"${ext}"`;
+			});
+		}
+		return text.substr(0, 350);
 	}
 
 	open(extension: IExtension, sideByside: boolean = false): Promise<any> {

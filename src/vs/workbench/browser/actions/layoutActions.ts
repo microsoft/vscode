@@ -288,7 +288,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 // --- Toggle Statusbar Visibility
 
-class ToggleStatusbarVisibilityAction extends Action {
+export class ToggleStatusbarVisibilityAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleStatusbarVisibility';
 	static readonly LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");

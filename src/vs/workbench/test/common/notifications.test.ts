@@ -142,19 +142,19 @@ suite('Notifications', () => {
 		let item2Duplicate: INotification = { severity: Severity.Warning, message: 'Warning Message', source: 'Some Source' };
 		let item3: INotification = { severity: Severity.Info, message: 'Info Message' };
 
-		let item1Handle = model.notify(item1);
+		let item1Handle = model.addNotification(item1);
 		assert.equal(lastEvent.item.severity, item1.severity);
 		assert.equal(lastEvent.item.message.value, item1.message);
 		assert.equal(lastEvent.index, 0);
 		assert.equal(lastEvent.kind, NotificationChangeType.ADD);
 
-		let item2Handle = model.notify(item2);
+		let item2Handle = model.addNotification(item2);
 		assert.equal(lastEvent.item.severity, item2.severity);
 		assert.equal(lastEvent.item.message.value, item2.message);
 		assert.equal(lastEvent.index, 0);
 		assert.equal(lastEvent.kind, NotificationChangeType.ADD);
 
-		model.notify(item3);
+		model.addNotification(item3);
 		assert.equal(lastEvent.item.severity, item3.severity);
 		assert.equal(lastEvent.item.message.value, item3.message);
 		assert.equal(lastEvent.index, 0);
@@ -175,7 +175,7 @@ suite('Notifications', () => {
 		assert.equal(lastEvent.index, 2);
 		assert.equal(lastEvent.kind, NotificationChangeType.REMOVE);
 
-		model.notify(item2Duplicate);
+		model.addNotification(item2Duplicate);
 		assert.equal(model.notifications.length, 2);
 		assert.equal(lastEvent.item.severity, item2Duplicate.severity);
 		assert.equal(lastEvent.item.message.value, item2Duplicate.message);

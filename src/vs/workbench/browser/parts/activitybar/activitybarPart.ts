@@ -181,14 +181,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
+
 		const content = document.createElement('div');
 		addClass(content, 'content');
 		parent.appendChild(content);
 
-		// Top Actionbar with action items for each viewlet action
+		// Viewlets action bar
 		this.compositeBar.create(content);
 
-		// Top Actionbar with action items for each viewlet action
+		// Global action bar
 		const globalActivities = document.createElement('div');
 		addClass(globalActivities, 'global-activity');
 		content.appendChild(globalActivities);

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import BaseSeverity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IAction } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export import Severity = BaseSeverity;
 
@@ -172,6 +173,21 @@ export interface IPromptOptions extends INotificationProperties {
 	onCancel?: () => void;
 }
 
+export interface IStatusMessageOptions {
+
+	/**
+	 * An optional timeout after which the status message should show. By default
+	 * the status message will show immediately.
+	 */
+	showAfter?: number;
+
+	/**
+	 * An optional timeout after which the status message is to be hidden. By default
+	 * the status message will not hide until another status message is displayed.
+	 */
+	hideAfter?: number;
+}
+
 /**
  * A service to bring up notifications and non-modal prompts.
  *
@@ -179,7 +195,7 @@ export interface IPromptOptions extends INotificationProperties {
  */
 export interface INotificationService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<INotificationService>;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
@@ -221,16 +237,24 @@ export interface INotificationService {
 	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle;
+
+	/**
+	 * Shows a status message in the status area with the provied text.
+	 *
+	 * @param message the message to show as status
+	 * @param options provides some optional configuration options
+	 *
+	 * @returns a disposable to hide the status message
+	 */
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
 }
 
 export class NoOpNotification implements INotificationHandle {
+
 	readonly progress = new NoOpProgress();
 
 	private readonly _onDidClose: Emitter<void> = new Emitter();
-
-	get onDidClose(): Event<void> {
-		return this._onDidClose.event;
-	}
+	get onDidClose(): Event<void> { return this._onDidClose.event; }
 
 	updateSeverity(severity: Severity): void { }
 	updateMessage(message: NotificationMessage): void { }

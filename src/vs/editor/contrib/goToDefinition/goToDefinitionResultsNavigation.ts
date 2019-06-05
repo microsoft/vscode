@@ -15,9 +15,9 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { Range } from 'vs/editor/common/core/range';
 import { Disposable, dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const ctxHasSymbols = new RawContextKey('hasSymbols', false);
 
@@ -45,7 +45,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		this._ctxHasSymbols = ctxHasSymbols.bindTo(contextKeyService);
@@ -143,7 +143,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 			? localize('location.kb', "Symbol {0} of {1}, {2} for next", this._currentIdx + 1, this._currentModel!.references.length, kb.getLabel())
 			: localize('location', "Symbol {0} of {1}", this._currentIdx + 1, this._currentModel!.references.length);
 
-		this._currentMessage = this._statusbarService.setStatusMessage(message);
+		this._currentMessage = this._notificationService.status(message);
 	}
 }
 
