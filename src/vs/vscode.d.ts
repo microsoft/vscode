@@ -1101,7 +1101,7 @@ declare module 'vscode' {
 
 		/**
 		 * The column in which this editor shows. Will be `undefined` in case this
-		 * isn't one of the main editors, e.g an embedded editor, or when the editor
+		 * isn't one of the main editors, e.g. an embedded editor, or when the editor
 		 * column is larger than three.
 		 */
 		viewColumn?: ViewColumn;
@@ -1900,7 +1900,7 @@ declare module 'vscode' {
 	 *
 	 * *Note* that a document selector that is just a language identifier selects *all*
 	 * documents, even those that are not saved on disk. Only use such selectors when
-	 * a feature works without further context, e.g without the need to resolve related
+	 * a feature works without further context, e.g. without the need to resolve related
 	 * 'files'.
 	 *
 	 * @sample `let sel:DocumentSelector = { scheme: 'file', language: 'typescript' }`;
@@ -2595,7 +2595,7 @@ declare module 'vscode' {
 		name: string;
 
 		/**
-		 * More detail for this symbol, e.g the signature of a function.
+		 * More detail for this symbol, e.g. the signature of a function.
 		 */
 		detail: string;
 
@@ -2605,12 +2605,12 @@ declare module 'vscode' {
 		kind: SymbolKind;
 
 		/**
-		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g comments and code.
+		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
 		 */
 		range: Range;
 
 		/**
-		 * The range that should be selected and reveal when this symbol is being picked, e.g the name of a function.
+		 * The range that should be selected and reveal when this symbol is being picked, e.g. the name of a function.
 		 * Must be contained by the [`range`](#DocumentSymbol.range).
 		 */
 		selectionRange: Range;
@@ -3649,7 +3649,7 @@ declare module 'vscode' {
 	 *
 	 * For some languages one color can have multiple presentations, e.g. css can represent the color red with
 	 * the constant `Red`, the hex-value `#ff0000`, or in rgba and hsla forms. In csharp other representations
-	 * apply, e.g `System.Drawing.Color.Red`.
+	 * apply, e.g. `System.Drawing.Color.Red`.
 	 */
 	export class ColorPresentation {
 
@@ -4235,7 +4235,7 @@ declare module 'vscode' {
 
 	/**
 	 * Represents a related message and source code location for a diagnostic. This should be
-	 * used to point to code locations that cause or related to a diagnostics, e.g when duplicating
+	 * used to point to code locations that cause or related to a diagnostics, e.g. when duplicating
 	 * a symbol in a scope.
 	 */
 	export class DiagnosticRelatedInformation {
@@ -6680,7 +6680,7 @@ declare module 'vscode' {
 		 * the following rules:
 		 *
 		 * - The uri-scheme must be `vscode.env.uriScheme`;
-		 * - The uri-authority must be the extension id (eg. `my.extension`);
+		 * - The uri-authority must be the extension id (e.g. `my.extension`);
 		 * - The uri-path, -query and -fragment parts are arbitrary.
 		 *
 		 * For example, if the `my.extension` extension registers a uri handler, it will only
@@ -8421,9 +8421,9 @@ declare module 'vscode' {
 		/**
 		 * Creates a new [source control](#SourceControl) instance.
 		 *
-		 * @param id An `id` for the source control. Something short, eg: `git`.
-		 * @param label A human-readable string for the source control. Eg: `Git`.
-		 * @param rootUri An optional Uri of the root of the source control. Eg: `Uri.parse(workspaceRoot)`.
+		 * @param id An `id` for the source control. Something short, e.g.: `git`.
+		 * @param label A human-readable string for the source control. E.g.: `Git`.
+		 * @param rootUri An optional Uri of the root of the source control. E.g.: `Uri.parse(workspaceRoot)`.
 		 * @return An instance of [source control](#SourceControl).
 		 */
 		export function createSourceControl(id: string, label: string, rootUri?: Uri): SourceControl;

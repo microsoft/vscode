@@ -57,27 +57,6 @@
 	display: flex;
 }
 
-.extensions-viewlet > .extensions .message-container .message-status {
-	height: 16px;
-	width: 16px;
-}
-
-.extensions-viewlet > .extensions .message-container .message-status.warning {
-	background: url('status-warning.svg') center center no-repeat;
-}
-
-.extensions-viewlet > .extensions .message-container .message-status.error {
-	background: url('status-error.svg') center center no-repeat;
-}
-
-.vs-dark .extensions-viewlet > .extensions .message-container .message-status.warning {
-	background: url('status-warning-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .extensions-viewlet > .extensions .message-container .message-status.error {
-	background: url('status-error-inverse.svg') center center no-repeat;
-}
-
 .extensions-viewlet > .extensions .message-container .message {
 	padding-left: 5px;
 }

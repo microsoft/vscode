@@ -22,7 +22,7 @@ yarn smoketest --build PATH_TO_NEW_BUILD_PARENT_FOLDER --remote
 
 ### Run for a release
 
-You must always run the smoketest version which matches the release you are testing. So, if you want to run the smoketest for a release build (eg `release/1.22`), you need that version of the smoke tests too:
+You must always run the smoketest version which matches the release you are testing. So, if you want to run the smoketest for a release build (e.g. `release/1.22`), you need that version of the smoke tests too:
 
 ```bash
 git checkout release/1.22

@@ -43,6 +43,7 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -255,7 +256,7 @@ class MarkerWidget extends Disposable {
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
 			actionViewItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionViewItem, action) : undefined
 		}));
-		this.icon = dom.append(parent, dom.$('.icon'));
+		this.icon = dom.append(parent, dom.$(''));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details'));
 		this._register(toDisposable(() => this.disposables = dispose(this.disposables)));
@@ -269,7 +270,7 @@ class MarkerWidget extends Disposable {
 		}
 		dom.clearNode(this.messageAndDetailsContainer);
 
-		this.icon.className = 'marker-icon ' + MarkerWidget.iconClassNameFor(element.marker);
+		this.icon.className = `marker-icon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
 		this.renderQuickfixActionbar(element);
 		this.renderMultilineActionbar(element);
 
@@ -344,20 +345,6 @@ class MarkerWidget extends Disposable {
 
 		const lnCol = dom.append(parent, dom.$('span.marker-line'));
 		lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
-	}
-
-	private static iconClassNameFor(element: IMarker): string {
-		switch (element.severity) {
-			case MarkerSeverity.Hint:
-				return 'info';
-			case MarkerSeverity.Info:
-				return 'info';
-			case MarkerSeverity.Warning:
-				return 'warning';
-			case MarkerSeverity.Error:
-				return 'error';
-		}
-		return '';
 	}
 }
 

@@ -30,7 +30,7 @@ import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { distinct, coalesce } from 'vs/base/common/arrays';
@@ -45,6 +45,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IProductService } from 'vs/platform/product/common/product';
+import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -73,7 +74,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 	private readonly server: IExtensionManagementServer | undefined;
 	private messageContainer: HTMLElement;
-	private messageStatus: HTMLElement;
+	private messageSeverityIcon: HTMLElement;
 	private messageBox: HTMLElement;
 	private extensionsList: HTMLElement;
 	private badge: CountBadge;
@@ -119,7 +120,7 @@ export class ExtensionsListView extends ViewletPanel {
 	renderBody(container: HTMLElement): void {
 		this.extensionsList = append(container, $('.extensions-list'));
 		this.messageContainer = append(container, $('.message-container'));
-		this.messageStatus = append(this.messageContainer, $(''));
+		this.messageSeverityIcon = append(this.messageContainer, $(''));
 		this.messageBox = append(this.messageContainer, $('.message'));
 		const delegate = new Delegate();
 		const extensionsViewState = new ExtensionsViewState();
@@ -697,14 +698,14 @@ export class ExtensionsListView extends ViewletPanel {
 			if (count === 0 && this.isBodyVisible()) {
 				if (error) {
 					if (error instanceof ExtensionListViewWarning) {
-						this.messageStatus.className = 'message-status warning';
+						this.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
 						this.messageBox.textContent = getErrorMessage(error);
 					} else {
-						this.messageStatus.className = 'message-status error';
+						this.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
 						this.messageBox.textContent = localize('error', "Error while loading extensions. {0}", getErrorMessage(error));
 					}
 				} else {
-					this.messageStatus.className = '';
+					this.messageSeverityIcon.className = '';
 					this.messageBox.textContent = localize('no extensions found', "No extensions found.");
 				}
 				alert(this.messageBox.textContent);

@@ -458,7 +458,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				if (PyModulesToLookFor.indexOf(packageName) > -1) {
 					tags['workspace.py.' + packageName] = true;
 				}
-				// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
+				// cognitive services has a lot of tiny packages. e.g. 'azure-cognitiveservices-search-autosuggest'
 				if (packageName.indexOf('azure-cognitiveservices') > -1) {
 					tags['workspace.py.azure-cognitiveservices'] = true;
 				}
