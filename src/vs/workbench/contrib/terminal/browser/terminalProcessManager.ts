@@ -52,6 +52,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	private _latency: number = -1;
 	private _latencyRequest: Promise<number>;
 	private _latencyLastMeasured: number = 0;
+	private _initialCwd: string;
 
 	private readonly _onProcessReady = new Emitter<void>();
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
@@ -148,13 +149,16 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 		this._process.onProcessIdReady(pid => {
 			this.shellProcessId = pid;
-			this._onProcessReady.fire();
+			return this._process!.getInitialCwd().then(cwd => {
+				this._initialCwd = cwd;
+				this._onProcessReady.fire();
 
-			// Send any queued data that's waiting
-			if (this._preLaunchInputQueue.length > 0 && this._process) {
-				this._process.input(this._preLaunchInputQueue.join(''));
-				this._preLaunchInputQueue.length = 0;
-			}
+				// Send any queued data that's waiting
+				if (this._preLaunchInputQueue.length > 0 && this._process) {
+					this._process.input(this._preLaunchInputQueue.join(''));
+					this._preLaunchInputQueue.length = 0;
+				}
+			});
 		});
 
 		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
@@ -214,10 +218,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public getInitialCwd(): Promise<string> {
-		if (!this._process) {
-			return Promise.resolve('');
-		}
-		return this._process.getInitialCwd();
+		return Promise.resolve(this._initialCwd);
 	}
 
 	public getCwd(): Promise<string> {
