@@ -417,7 +417,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService, this.labelService);
 
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.disposables.push(this.treeLabels);
+		this._register(this.treeLabels);
 
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new LoadedScriptsDelegate(),
 			[new LoadedScriptsRenderer(this.treeLabels)],
@@ -443,11 +443,11 @@ export class LoadedScriptsView extends ViewletPanel {
 				this.tree.updateChildren();
 			}
 		}, 300);
-		this.disposables.push(this.changeScheduler);
+		this._register(this.changeScheduler);
 
 		const loadedScriptsNavigator = new TreeResourceNavigator2(this.tree);
-		this.disposables.push(loadedScriptsNavigator);
-		this.disposables.push(loadedScriptsNavigator.onDidOpenResource(e => {
+		this._register(loadedScriptsNavigator);
+		this._register(loadedScriptsNavigator.onDidOpenResource(e => {
 			if (e.element instanceof BaseTreeItem) {
 				const source = e.element.getSource();
 				if (source && source.available) {
@@ -457,7 +457,7 @@ export class LoadedScriptsView extends ViewletPanel {
 			}
 		}));
 
-		this.disposables.push(this.tree.onDidChangeFocus(() => {
+		this._register(this.tree.onDidChangeFocus(() => {
 			const focus = this.tree.getFocus();
 			if (focus instanceof SessionTreeItem) {
 				this.loadedScriptsItemType.set('session');
@@ -467,7 +467,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		}));
 
 		const registerLoadedSourceListener = (session: IDebugSession) => {
-			this.disposables.push(session.onDidLoadedSource(event => {
+			this._register(session.onDidLoadedSource(event => {
 				let sessionRoot: SessionTreeItem;
 				switch (event.reason) {
 					case 'new':
@@ -501,17 +501,17 @@ export class LoadedScriptsView extends ViewletPanel {
 			}));
 		};
 
-		this.disposables.push(this.debugService.onDidNewSession(registerLoadedSourceListener));
+		this._register(this.debugService.onDidNewSession(registerLoadedSourceListener));
 		this.debugService.getModel().getSessions().forEach(registerLoadedSourceListener);
 
-		this.disposables.push(this.debugService.onDidEndSession(session => {
+		this._register(this.debugService.onDidEndSession(session => {
 			root.remove(session.getId());
 			this.changeScheduler.schedule();
 		}));
 
 		this.changeScheduler.schedule(0);
 
-		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.treeNeedsRefreshOnVisible) {
 				this.changeScheduler.schedule();
 			}
