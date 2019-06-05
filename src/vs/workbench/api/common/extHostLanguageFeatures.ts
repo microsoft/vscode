@@ -145,7 +145,8 @@ class CodeLensAdapter {
 	resolveCodeLens(symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined> {
 
 		const lens = symbol.cacheId && this._cache.get(...symbol.cacheId);
-		if (!lens) {
+		const disposables = symbol.cacheId && this._disposables.get(symbol.cacheId[0]);
+		if (!lens || !disposables) {
 			return Promise.resolve(undefined);
 		}
 
@@ -158,7 +159,7 @@ class CodeLensAdapter {
 
 		return resolve.then(newLens => {
 			newLens = newLens || lens;
-			symbol.command = this._commands.toInternal(newLens.command || CodeLensAdapter._badCmd);
+			symbol.command = this._commands.toInternal2(newLens.command || CodeLensAdapter._badCmd, disposables);
 			return symbol;
 		});
 	}
