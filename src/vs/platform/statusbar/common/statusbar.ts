@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -64,18 +64,13 @@ export interface IStatusbarEntry {
 
 export interface IStatusbarService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IStatusbarService>;
 
 	/**
 	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
 	 * to update or remove the statusbar entry.
 	 */
 	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
-
-	/**
-	 * Prints something to the status bar area with optional auto dispose and delay.
-	 */
-	setStatusMessage(message: string, autoDisposeAfter?: number, delayBy?: number): IDisposable;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

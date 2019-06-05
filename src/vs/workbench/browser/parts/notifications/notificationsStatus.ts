@@ -5,17 +5,19 @@
 
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, INotificationViewItem, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem } from 'vs/workbench/common/notifications';
 import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
 
 export class NotificationsStatus extends Disposable {
-	private notificationsCenterStatusItem: IStatusbarEntryAccessor;
-	private isNotificationsCenterVisible: boolean;
 
+	private notificationsCenterStatusItem: IStatusbarEntryAccessor;
 	private currentNotifications = new Set<INotificationViewItem>();
 
+	private statusMessageDispose: IDisposable;
 	private currentStatusMessage: [IStatusMessageViewItem, IDisposable] | undefined;
+
+	private isNotificationsCenterVisible: boolean;
 
 	constructor(
 		private model: INotificationsModel,
@@ -108,7 +110,7 @@ export class NotificationsStatus extends Disposable {
 
 				this.currentStatusMessage = [
 					statusItem,
-					this.statusbarService.setStatusMessage(statusItem.message, hideAfter, showAfter)
+					this.doSetStatusMessage(statusItem.message, hideAfter, showAfter)
 				];
 
 				break;
@@ -122,5 +124,43 @@ export class NotificationsStatus extends Disposable {
 
 				break;
 		}
+	}
+
+	private doSetStatusMessage(message: string, autoDisposeAfter: number = -1, delayBy: number = 0): IDisposable {
+
+		// Dismiss any previous
+		dispose(this.statusMessageDispose);
+
+		// Create new
+		let statusMessageEntry: IStatusbarEntryAccessor;
+		let showHandle: any = setTimeout(() => {
+			statusMessageEntry = this.statusbarService.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
+			showHandle = null;
+		}, delayBy);
+
+		// Dispose function takes care of timeouts and actual entry
+		let hideHandle: any;
+		const statusMessageDispose = {
+			dispose: () => {
+				if (showHandle) {
+					clearTimeout(showHandle);
+				}
+
+				if (hideHandle) {
+					clearTimeout(hideHandle);
+				}
+
+				if (statusMessageEntry) {
+					statusMessageEntry.dispose();
+				}
+			}
+		};
+		this.statusMessageDispose = statusMessageDispose;
+
+		if (typeof autoDisposeAfter === 'number' && autoDisposeAfter > 0) {
+			hideHandle = setTimeout(() => statusMessageDispose.dispose(), autoDisposeAfter);
+		}
+
+		return statusMessageDispose;
 	}
 }

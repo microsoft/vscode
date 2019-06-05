@@ -51,7 +51,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	//#endregion
 
-	private statusMessageDispose: IDisposable;
 	private styleElement: HTMLStyleElement;
 
 	private pendingEntries: PendingEntry[] = [];
@@ -283,44 +282,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		el.setAttribute(StatusbarPart.ALIGNMENT_PROP, String(alignment));
 
 		return el;
-	}
-
-	setStatusMessage(message: string, autoDisposeAfter: number = -1, delayBy: number = 0): IDisposable {
-
-		// Dismiss any previous
-		dispose(this.statusMessageDispose);
-
-		// Create new
-		let statusMessageEntry: IStatusbarEntryAccessor;
-		let showHandle: any = setTimeout(() => {
-			statusMessageEntry = this.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
-			showHandle = null;
-		}, delayBy);
-
-		// Dispose function takes care of timeouts and actual entry
-		let hideHandle: any;
-		const statusMessageDispose = {
-			dispose: () => {
-				if (showHandle) {
-					clearTimeout(showHandle);
-				}
-
-				if (hideHandle) {
-					clearTimeout(hideHandle);
-				}
-
-				if (statusMessageEntry) {
-					statusMessageEntry.dispose();
-				}
-			}
-		};
-		this.statusMessageDispose = statusMessageDispose;
-
-		if (typeof autoDisposeAfter === 'number' && autoDisposeAfter > 0) {
-			hideHandle = setTimeout(() => statusMessageDispose.dispose(), autoDisposeAfter);
-		}
-
-		return statusMessageDispose;
 	}
 
 	layout(width: number, height: number): void {
