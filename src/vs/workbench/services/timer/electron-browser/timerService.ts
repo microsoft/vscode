@@ -12,7 +12,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -432,16 +431,16 @@ export function didUseCachedData(): boolean {
 	if (!Boolean((<any>global).require.getConfig().nodeCachedData)) {
 		return false;
 	}
-	// whenever cached data is produced or rejected a onNodeCachedData-callback is invoked. That callback
-	// stores data in the `MonacoEnvironment.onNodeCachedData` global. See:
-	// https://github.com/Microsoft/vscode/blob/efe424dfe76a492eab032343e2fa4cfe639939f0/src/vs/workbench/electron-browser/bootstrap/index.js#L299
-	if (isNonEmptyArray(MonacoEnvironment.onNodeCachedData)) {
-		return false;
+	// There are loader events that signal if cached data was missing, rejected,
+	// or used. The former two mean no cached data.
+	for (const event of require.getStats()) {
+		switch (event.type) {
+			case LoaderEventType.CachedDataRejected:
+			case LoaderEventType.CachedDataMissed:
+				return false;
+		}
 	}
 	return true;
 }
-
-declare type OnNodeCachedDataArgs = [{ errorCode: string, path: string, detail?: string }, { path: string, length: number }];
-declare const MonacoEnvironment: { onNodeCachedData: OnNodeCachedDataArgs[] };
 
 //#endregion

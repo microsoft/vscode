@@ -20,7 +20,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
 
@@ -73,7 +72,6 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITimerService private readonly _timerService: ITimerService,
-		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 	) { }
 
@@ -107,7 +105,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		]).then(([metrics]) => {
 			if (this._model && !this._model.isDisposed()) {
 
-				let stats = this._envService.args['prof-modules'] ? LoaderStats.get() : undefined;
+				let stats = LoaderStats.get();
 				let md = new MarkdownBuilder();
 				this._addSummary(md, metrics);
 				md.blank();
