@@ -16,13 +16,14 @@ function getModuleNameFromPath(path: string) {
 	return path.substring(0, path.indexOf('/'));
 }
 
-function resolvePathToModule(moduleName: string, relativeTo: string) {
+function resolvePathToModule(_moduleName: string, _relativeTo: string) {
 	// if we require.resolve('my-module') then it will follow the main property in the linked package.json
 	// but we want the root of the module so resolve to the package.json and then trim
 	let resolved;
 	try {
-		resolved = require
-			.resolve(`${moduleName}/package.json`, { paths: [relativeTo] });
+		// resolved = require
+		// 	.resolve(`${moduleName}/package.json`, { paths: [relativeTo] });
+		throw new Error();
 	}
 	catch (ex) {
 		return null;
