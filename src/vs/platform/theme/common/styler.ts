@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, editorWidgetBorder, inputValidationInfoForeground, inputValidationWarningForeground, inputValidationErrorForeground, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuBorder, menuSeparatorBackground, darken, listFilterWidgetOutline, listFilterWidgetNoMatchesOutline, listFilterWidgetBackground, editorWidgetBackground } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, editorWidgetBorder, inputValidationInfoForeground, inputValidationWarningForeground, inputValidationErrorForeground, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuBorder, menuSeparatorBackground, darken, listFilterWidgetOutline, listFilterWidgetNoMatchesOutline, listFilterWidgetBackground, editorWidgetBackground, severityIconErrorForeground, severityIconWarningForeground, severityIconInfoForeground, severityIconIgnoreForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import Severity from 'vs/base/common/severity';
 
 export type styleFn = (colors: { [name: string]: Color | undefined }) => void;
 
@@ -351,4 +352,37 @@ export const defaultDialogStyles = <IDialogStyleOverrides>{
 
 export function attachDialogStyler(widget: IThemable, themeService: IThemeService, style?: IDialogStyleOverrides): IDisposable {
 	return attachStyler(themeService, { ...defaultDialogStyles, ...style }, widget);
+}
+
+export interface ISeverityStyleOverrides extends IStyleOverrides {
+	color?: ColorIdentifier;
+}
+
+export const defaultErrorSeverityStyles = <ISeverityStyleOverrides>{
+	color: severityIconErrorForeground
+};
+export const defaultWarningSeverityStyles = <ISeverityStyleOverrides>{
+	color: severityIconWarningForeground
+};
+export const defaultInfoSeverityStyles = <ISeverityStyleOverrides>{
+	color: severityIconInfoForeground
+};
+export const defaultIgnoreSeverityStyles = <ISeverityStyleOverrides>{
+	color: severityIconIgnoreForeground
+};
+
+export function attachSeverityStyler(severity: Severity, widget: IThemable, themeService: IThemeService, style?: ISeverityStyleOverrides): IDisposable {
+	let defaultSeverityStyles: ISeverityStyleOverrides = defaultIgnoreSeverityStyles;
+	switch (severity) {
+		case Severity.Error:
+			defaultSeverityStyles = defaultErrorSeverityStyles;
+			break;
+		case Severity.Warning:
+			defaultSeverityStyles = defaultWarningSeverityStyles;
+			break;
+		case Severity.Info:
+			defaultSeverityStyles = defaultInfoSeverityStyles;
+			break;
+	}
+	return attachStyler(themeService, { ...defaultSeverityStyles, ...style }, widget);
 }

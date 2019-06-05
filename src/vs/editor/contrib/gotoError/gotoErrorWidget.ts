@@ -11,7 +11,7 @@ import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/marker
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerColor, oneOf, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, oneOf, textLinkForeground, severityIconErrorForeground, severityIconWarningForeground, severityIconInfoForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/editor/common/view/editorColorRegistry';
@@ -321,9 +321,9 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 // theming
 
-let errorDefault = oneOf(editorErrorForeground, editorErrorBorder);
-let warningDefault = oneOf(editorWarningForeground, editorWarningBorder);
-let infoDefault = oneOf(editorInfoForeground, editorInfoBorder);
+let errorDefault = oneOf(severityIconErrorForeground, editorErrorForeground, editorErrorBorder);
+let warningDefault = oneOf(severityIconWarningForeground, editorWarningForeground, editorWarningBorder);
+let infoDefault = oneOf(severityIconInfoForeground, editorInfoForeground, editorInfoBorder);
 
 export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: errorDefault, light: errorDefault, hc: errorDefault }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
 export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: warningDefault, light: warningDefault, hc: warningDefault }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));

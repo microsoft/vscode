@@ -264,6 +264,11 @@ export const menuSelectionBackground = registerColor('menu.selectionBackground',
 export const menuSelectionBorder = registerColor('menu.selectionBorder', { dark: null, light: null, hc: activeContrastBorder }, nls.localize('menuSelectionBorder', "Border color of the selected menu item in menus."));
 export const menuSeparatorBackground = registerColor('menu.separatorBackground', { dark: '#BBBBBB', light: '#888888', hc: contrastBorder }, nls.localize('menuSeparatorBackground', "Color of a separator menu item in menus."));
 
+export const severityIconErrorForeground = registerColor('severity.errorForeground', { dark: '#ea4646', light: '#d60a0a', hc: null }, nls.localize('severity.errorForeground', 'Foreground color of error icon.'));
+export const severityIconWarningForeground = registerColor('severity.warningForeground', { dark: '#FFCC00', light: '#E9A700', hc: null }, nls.localize('severity.warningForeground', 'Foreground color of warning icon.'));
+export const severityIconInfoForeground = registerColor('severity.infoForeground', { dark: '#008000', light: '#008000', hc: null }, nls.localize('severity.infoForeground', 'Foreground color of info icon.'));
+export const severityIconIgnoreForeground = registerColor('severity.ignoreForeground', { dark: Color.fromHex('#eeeeee').transparent(0.7), light: '#6c6c6c', hc: null }, nls.localize('severity.ignoreForeground', 'Foreground color of ignore icon.'));
+
 /**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254

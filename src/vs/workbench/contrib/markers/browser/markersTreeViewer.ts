@@ -13,7 +13,7 @@ import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ResourceMarkers, Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { attachBadgeStyler, attachSeverityStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -43,6 +43,7 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { SeverityIcon } from 'vs/base/browser/ui/severityIcon/severityIcon';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -217,14 +218,15 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 	constructor(
 		private readonly markersViewState: MarkersViewModel,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService protected themeService: IThemeService
 	) { }
 
 	templateId = TemplateId.Marker;
 
 	renderTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.instantiationService);
+		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.instantiationService, this.themeService);
 		return data;
 	}
 
@@ -241,7 +243,8 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 class MarkerWidget extends Disposable {
 
 	private readonly actionBar: ActionBar;
-	private readonly icon: HTMLElement;
+	private readonly iconContainer: HTMLElement;
+	private readonly severityIcon: SeverityIcon;
 	private readonly multilineActionbar: ActionBar;
 	private readonly messageAndDetailsContainer: HTMLElement;
 	private disposables: IDisposable[] = [];
@@ -249,13 +252,16 @@ class MarkerWidget extends Disposable {
 	constructor(
 		private parent: HTMLElement,
 		private readonly markersViewModel: MarkersViewModel,
-		instantiationService: IInstantiationService
+		instantiationService: IInstantiationService,
+		private readonly themeService: IThemeService
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
 			actionViewItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionViewItem, action) : undefined
 		}));
-		this.icon = dom.append(parent, dom.$('.icon'));
+		this.iconContainer = dom.append(parent, dom.$('.marker-icon'));
+		this.severityIcon = this._register(new SeverityIcon());
+		dom.append(this.iconContainer, this.severityIcon.element);
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details'));
 		this._register(toDisposable(() => this.disposables = dispose(this.disposables)));
@@ -269,7 +275,9 @@ class MarkerWidget extends Disposable {
 		}
 		dom.clearNode(this.messageAndDetailsContainer);
 
-		this.icon.className = 'marker-icon ' + MarkerWidget.iconClassNameFor(element.marker);
+		const severity = MarkerSeverity.toSeverity(element.marker.severity);
+		this.severityIcon.severity = severity;
+		this.disposables.push(attachSeverityStyler(severity, this.severityIcon, this.themeService));
 		this.renderQuickfixActionbar(element);
 		this.renderMultilineActionbar(element);
 
@@ -283,10 +291,10 @@ class MarkerWidget extends Disposable {
 		if (viewModel) {
 			const quickFixAction = viewModel.quickFixAction;
 			this.actionBar.push([quickFixAction], { icon: true, label: false });
-			dom.toggleClass(this.icon, 'quickFix', quickFixAction.enabled);
+			dom.toggleClass(this.iconContainer, 'quickFix', quickFixAction.enabled);
 			quickFixAction.onDidChange(({ enabled }) => {
 				if (!isUndefinedOrNull(enabled)) {
-					dom.toggleClass(this.icon, 'quickFix', enabled);
+					dom.toggleClass(this.iconContainer, 'quickFix', enabled);
 				}
 			}, this, this.disposables);
 			quickFixAction.onShowQuickFixes(() => {
@@ -344,20 +352,6 @@ class MarkerWidget extends Disposable {
 
 		const lnCol = dom.append(parent, dom.$('span.marker-line'));
 		lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
-	}
-
-	private static iconClassNameFor(element: IMarker): string {
-		switch (element.severity) {
-			case MarkerSeverity.Hint:
-				return 'info';
-			case MarkerSeverity.Info:
-				return 'info';
-			case MarkerSeverity.Warning:
-				return 'warning';
-			case MarkerSeverity.Error:
-				return 'error';
-		}
-		return '';
 	}
 }
 
