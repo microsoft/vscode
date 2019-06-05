@@ -6,18 +6,19 @@
 import { ITextModel } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ICodeLensData } from 'vs/editor/contrib/codelens/codelens';
+import { CodeLensModel } from 'vs/editor/contrib/codelens/codelens';
 import { LRUCache, values } from 'vs/base/common/map';
-import { ICodeLensSymbol, CodeLensProvider } from 'vs/editor/common/modes';
+import { CodeLensProvider, CodeLensList, CodeLens } from 'vs/editor/common/modes';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Range } from 'vs/editor/common/core/range';
+import { runWhenIdle } from 'vs/base/common/async';
 
 export const ICodeLensCache = createDecorator<ICodeLensCache>('ICodeLensCache');
 
 export interface ICodeLensCache {
 	_serviceBrand: any;
-	put(model: ITextModel, data: ICodeLensData[]): void;
-	get(model: ITextModel): ICodeLensData[] | undefined;
+	put(model: ITextModel, data: CodeLensModel): void;
+	get(model: ITextModel): CodeLensModel | undefined;
 	delete(model: ITextModel): void;
 }
 
@@ -30,7 +31,7 @@ class CacheItem {
 
 	constructor(
 		readonly lineCount: number,
-		readonly data: ICodeLensData[]
+		readonly data: CodeLensModel
 	) { }
 }
 
@@ -39,7 +40,7 @@ export class CodeLensCache implements ICodeLensCache {
 	_serviceBrand: any;
 
 	private readonly _fakeProvider = new class implements CodeLensProvider {
-		provideCodeLenses(): ICodeLensSymbol[] {
+		provideCodeLenses(): CodeLensList {
 			throw new Error('not supported');
 		}
 	};
@@ -48,9 +49,12 @@ export class CodeLensCache implements ICodeLensCache {
 
 	constructor(@IStorageService storageService: IStorageService) {
 
-		const key = 'codelens/cache';
+		// remove old data
+		const oldkey = 'codelens/cache';
+		runWhenIdle(() => storageService.remove(oldkey, StorageScope.WORKSPACE));
 
 		// restore lens data on start
+		const key = 'codelens/cache2';
 		const raw = storageService.get(key, StorageScope.WORKSPACE, '{}');
 		this._deserialize(raw);
 
@@ -61,13 +65,12 @@ export class CodeLensCache implements ICodeLensCache {
 		});
 	}
 
-	put(model: ITextModel, data: ICodeLensData[]): void {
-		const item = new CacheItem(model.getLineCount(), data.map(item => {
-			return {
-				symbol: item.symbol,
-				provider: this._fakeProvider
-			};
-		}));
+	put(model: ITextModel, data: CodeLensModel): void {
+
+		const lensModel = new CodeLensModel();
+		lensModel.add({ lenses: data.lenses.map(v => v.symbol), dispose() { } }, this._fakeProvider);
+
+		const item = new CacheItem(model.getLineCount(), lensModel);
 		this._cache.set(model.uri.toString(), item);
 	}
 
@@ -86,7 +89,7 @@ export class CodeLensCache implements ICodeLensCache {
 		const data: Record<string, ISerializedCacheData> = Object.create(null);
 		this._cache.forEach((value, key) => {
 			const lines = new Set<number>();
-			for (const d of value.data) {
+			for (const d of value.data.lenses) {
 				lines.add(d.symbol.range.startLineNumber);
 			}
 			data[key] = {
@@ -102,14 +105,14 @@ export class CodeLensCache implements ICodeLensCache {
 			const data: Record<string, ISerializedCacheData> = JSON.parse(raw);
 			for (const key in data) {
 				const element = data[key];
-				const symbols: ICodeLensData[] = [];
+				const lenses: CodeLens[] = [];
 				for (const line of element.lines) {
-					symbols.push({
-						provider: this._fakeProvider,
-						symbol: { range: new Range(line, 1, line, 11) }
-					});
+					lenses.push({ range: new Range(line, 1, line, 11) });
 				}
-				this._cache.set(key, new CacheItem(element.lineCount, symbols));
+
+				const model = new CodeLensModel();
+				model.add({ lenses, dispose() { } }, this._fakeProvider);
+				this._cache.set(key, new CacheItem(element.lineCount, model));
 			}
 		} catch {
 			// ignore...

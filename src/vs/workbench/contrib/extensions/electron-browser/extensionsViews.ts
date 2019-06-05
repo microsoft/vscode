@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
 import { SortBy, SortOrder, IQueryOptions, IExtensionTipsService, IExtensionRecommendation, IExtensionManagementServer, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -69,9 +69,13 @@ export interface ExtensionsListViewOptions extends IViewletViewOptions {
 	server?: IExtensionManagementServer;
 }
 
+class ExtensionListViewWarning extends Error { }
+
 export class ExtensionsListView extends ViewletPanel {
 
 	private readonly server: IExtensionManagementServer | undefined;
+	private messageContainer: HTMLElement;
+	private messageStatus: HTMLElement;
 	private messageBox: HTMLElement;
 	private extensionsList: HTMLElement;
 	private badge: CountBadge;
@@ -117,7 +121,9 @@ export class ExtensionsListView extends ViewletPanel {
 
 	renderBody(container: HTMLElement): void {
 		this.extensionsList = append(container, $('.extensions-list'));
-		this.messageBox = append(container, $('.message'));
+		this.messageContainer = append(container, $('.message-container'));
+		this.messageStatus = append(this.messageContainer, $(''));
+		this.messageBox = append(this.messageContainer, $('.message'));
 		const delegate = new Delegate();
 		const extensionsViewState = new ExtensionsViewState();
 		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState);
@@ -178,12 +184,11 @@ export class ExtensionsListView extends ViewletPanel {
 		};
 
 
-		const errorCallback = (e: Error) => {
+		const errorCallback = (e: any) => {
 			const model = new PagedModel([]);
 			if (!isPromiseCanceledError(e)) {
 				this.queryRequest = null;
-				console.warn('Error querying extensions gallery', e);
-				this.setModel(model, true);
+				this.setModel(model, e);
 			}
 			return this.list ? this.list.model : model;
 		};
@@ -238,7 +243,11 @@ export class ExtensionsListView extends ViewletPanel {
 		if (ExtensionsListView.isLocalExtensionsQuery(query.value) || /@builtin/.test(query.value)) {
 			return this.queryLocal(query, options);
 		}
-		return this.queryGallery(query, options, token);
+		return this.queryGallery(query, options, token)
+			.then(null, e => {
+				console.warn('Error querying extensions gallery', getErrorMessage(e));
+				return Promise.reject(new ExtensionListViewWarning(localize('galleryError', "We cannot connect to the Extensions Marketplace at this time, please try again later.")));
+			});
 	}
 
 	private async queryByIds(ids: string[], options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
@@ -696,23 +705,30 @@ export class ExtensionsListView extends ViewletPanel {
 		});
 	}
 
-	private setModel(model: IPagedModel<IExtension>, isGalleryError?: boolean) {
+	private setModel(model: IPagedModel<IExtension>, error?: any) {
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(model);
 			this.list.scrollTop = 0;
 			const count = this.count();
 
 			toggleClass(this.extensionsList, 'hidden', count === 0);
-			toggleClass(this.messageBox, 'hidden', count > 0);
+			toggleClass(this.messageContainer, 'hidden', count > 0);
 			this.badge.setCount(count);
 
 			if (count === 0 && this.isBodyVisible()) {
-				this.messageBox.textContent = isGalleryError ? localize('galleryError', "We cannot connect to the Extensions Marketplace at this time, please try again later.") : localize('no extensions found', "No extensions found.");
-				if (isGalleryError) {
-					alert(this.messageBox.textContent);
+				if (error) {
+					if (error instanceof ExtensionListViewWarning) {
+						this.messageStatus.className = 'message-status warning';
+						this.messageBox.textContent = getErrorMessage(error);
+					} else {
+						this.messageStatus.className = 'message-status error';
+						this.messageBox.textContent = localize('error', "Error while loading extensions. {0}", getErrorMessage(error));
+					}
+				} else {
+					this.messageStatus.className = '';
+					this.messageBox.textContent = localize('no extensions found', "No extensions found.");
 				}
-			} else {
-				this.messageBox.textContent = '';
+				alert(this.messageBox.textContent);
 			}
 		}
 	}

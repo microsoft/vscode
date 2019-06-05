@@ -299,7 +299,8 @@ export class MainThreadCommentController {
 		this._features = features;
 	}
 
-	createCommentThread(commentThreadHandle: number,
+	createCommentThread(extensionId: string,
+		commentThreadHandle: number,
 		threadId: string,
 		resource: UriComponents,
 		range: IRange,
@@ -307,7 +308,7 @@ export class MainThreadCommentController {
 		let thread = new MainThreadCommentThread(
 			commentThreadHandle,
 			this.handle,
-			'',
+			extensionId,
 			threadId,
 			URI.revive(resource).toString(),
 			range
@@ -451,6 +452,10 @@ export class MainThreadCommentController {
 		this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
 	}
 
+	async updateCommentThreadTemplate(threadHandle: number, range: IRange) {
+		await this._proxy.$updateCommentThreadTemplate(this.handle, threadHandle, range);
+	}
+
 	toJSON(): any {
 		return {
 			$mid: 6,
@@ -548,7 +553,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		commentThreadHandle: number,
 		threadId: string,
 		resource: UriComponents,
-		range: IRange
+		range: IRange,
+		extensionId: ExtensionIdentifier
 	): modes.CommentThread2 | undefined {
 		let provider = this._commentControllers.get(handle);
 
@@ -556,7 +562,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			return undefined;
 		}
 
-		return provider.createCommentThread(commentThreadHandle, threadId, resource, range);
+		return provider.createCommentThread(extensionId.value, commentThreadHandle, threadId, resource, range);
 	}
 
 	$updateCommentThread(handle: number,

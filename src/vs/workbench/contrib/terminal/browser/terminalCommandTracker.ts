@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, IMarker } from 'vscode-xterm';
+import { Terminal, IMarker } from 'xterm';
 import { ITerminalCommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IDisposable } from 'vs/base/common/lifecycle';
 

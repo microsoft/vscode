@@ -32,15 +32,15 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/browser/terminalCommandTracker';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchOptions, Terminal as XTermTerminal, IBuffer } from 'vscode-xterm';
+import { Terminal as XTermTerminal, IBuffer } from 'xterm';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
-
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TERMINAL_COMMAND_ID.CLEAR_SELECTION,
@@ -166,6 +166,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _title: string;
 	private _wrapperElement: HTMLDivElement;
 	private _xterm: XTermTerminal;
+	private _xtermSearch: SearchAddon;
 	private _xtermElement: HTMLDivElement;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
@@ -414,10 +415,10 @@ export class TerminalInstance implements ITerminalInstance {
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			// TODO: Guess whether to use canvas or dom better
-			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
-			// TODO: Remove this once the setting is removed upstream
-			experimentalCharAtlas: 'dynamic'
+			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
 		});
+		this._xtermSearch = new SearchAddon();
+		this._xterm.loadAddon(this._xtermSearch);
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
@@ -595,19 +596,6 @@ export class TerminalInstance implements ITerminalInstance {
 			if (this._processManager) {
 				this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
 				this._processManager.onProcessReady(() => this._linkHandler.setWidgetManager(this._widgetManager));
-
-				this._processManager.onProcessReady(() => {
-					if (this._configHelper.config.enableLatencyMitigation) {
-						if (!this._processManager) {
-							return;
-						}
-						this._processManager.getLatency().then(latency => {
-							if (latency > 20 && (this._xterm as any).typeAheadInit) {
-								(this._xterm as any).typeAheadInit(this._processManager, this._themeService);
-							}
-						});
-					}
-				});
 			} else if (this._shellLaunchConfig.isRendererOnly) {
 				this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
 				this._linkHandler.setWidgetManager(this._widgetManager);
@@ -714,11 +702,11 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public findNext(term: string, searchOptions: ISearchOptions): boolean {
-		return this._xterm.findNext(term, searchOptions);
+		return this._xtermSearch.findNext(term, searchOptions);
 	}
 
 	public findPrevious(term: string, searchOptions: ISearchOptions): boolean {
-		return this._xterm.findPrevious(term, searchOptions);
+		return this._xtermSearch.findPrevious(term, searchOptions);
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean): void {

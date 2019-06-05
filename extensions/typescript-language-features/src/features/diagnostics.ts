@@ -6,6 +6,25 @@
 import * as vscode from 'vscode';
 import { ResourceMap } from '../utils/resourceMap';
 import { DiagnosticLanguage, allDiagnosticLanguages } from '../utils/languageDescription';
+import * as arrays from '../utils/arrays';
+
+function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	return a.code === b.code
+		&& a.message === b.message
+		&& a.severity === b.severity
+		&& a.source === b.source
+		&& a.range.isEqual(b.range)
+		&& arrays.equals(a.relatedInformation || arrays.empty, b.relatedInformation || arrays.empty, (a, b) => {
+			return a.message === b.message
+				&& a.location.range.isEqual(b.location.range)
+				&& a.location.uri.fsPath === b.location.uri.fsPath;
+		})
+		&& arrays.equals(a.tags || arrays.empty, b.tags || arrays.empty);
+}
 
 export const enum DiagnosticKind {
 	Syntax,
@@ -31,12 +50,10 @@ class FileDiagnostics {
 			this.language = language;
 		}
 
-		if (diagnostics.length === 0) {
-			const existing = this._diagnostics.get(kind);
-			if (!existing || existing && existing.length === 0) {
-				// No need to update
-				return false;
-			}
+		const existing = this._diagnostics.get(kind);
+		if (arrays.equals(existing || arrays.empty, diagnostics, diagnosticsEquals)) {
+			// No need to update
+			return false;
 		}
 
 		this._diagnostics.set(kind, diagnostics);

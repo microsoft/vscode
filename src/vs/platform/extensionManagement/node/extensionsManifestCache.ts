@@ -16,11 +16,11 @@ export class ExtensionsManifestCache extends Disposable {
 
 	constructor(
 		private readonly environmentService: IEnvironmentService,
-		extensionsManagementServuce: IExtensionManagementService
+		extensionsManagementService: IExtensionManagementService
 	) {
 		super();
-		this._register(extensionsManagementServuce.onDidInstallExtension(e => this.onDidInstallExtension(e)));
-		this._register(extensionsManagementServuce.onDidUninstallExtension(e => this.onDidUnInstallExtension(e)));
+		this._register(extensionsManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
+		this._register(extensionsManagementService.onDidUninstallExtension(e => this.onDidUnInstallExtension(e)));
 	}
 
 	private onDidInstallExtension(e: DidInstallExtensionEvent): void {

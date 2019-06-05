@@ -11,14 +11,13 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, WorkspaceSymbolDto, CodeActionDto, reviveWorkspaceEditDto, ISerializedDocumentFilter, DefinitionLinkDto, ISerializedSignatureHelpProviderMetadata, CodeInsetDto, LinkDto, CallHierarchyDto, SuggestDataDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, WorkspaceSymbolDto, CodeActionDto, reviveWorkspaceEditDto, ISerializedDocumentFilter, DefinitionLinkDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CallHierarchyDto, SuggestDataDto } from '../common/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as codeInset from 'vs/workbench/contrib/codeinset/common/codeInset';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IHeapService } from 'vs/workbench/services/heap/common/heap';
@@ -140,25 +139,19 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number | undefined): void {
 
 		const provider = <modes.CodeLensProvider>{
-			provideCodeLenses: (model: ITextModel, token: CancellationToken): modes.ICodeLensSymbol[] | Promise<modes.ICodeLensSymbol[]> => {
-				return this._proxy.$provideCodeLenses(handle, model.uri, token).then(dto => {
-					if (dto) {
-						dto.forEach(obj => {
-							this._heapService.trackObject(obj);
-							this._heapService.trackObject(obj.command);
-						});
+			provideCodeLenses: (model: ITextModel, token: CancellationToken): Promise<modes.CodeLensList | undefined> => {
+				return this._proxy.$provideCodeLenses(handle, model.uri, token).then(listDto => {
+					if (!listDto) {
+						return undefined;
 					}
-					return dto;
+					return {
+						lenses: listDto.lenses,
+						dispose: () => listDto.cacheId && this._proxy.$releaseCodeLenses(handle, listDto.cacheId)
+					};
 				});
 			},
-			resolveCodeLens: (_model: ITextModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): Promise<modes.ICodeLensSymbol | undefined> => {
-				return this._proxy.$resolveCodeLens(handle, codeLens, token).then(obj => {
-					if (obj) {
-						this._heapService.trackObject(obj);
-						this._heapService.trackObject(obj.command);
-					}
-					return obj;
-				});
+			resolveCodeLens: (_model: ITextModel, codeLens: modes.CodeLens, token: CancellationToken): Promise<modes.CodeLens | undefined> => {
+				return this._proxy.$resolveCodeLens(handle, codeLens, token);
 			}
 		};
 
@@ -176,35 +169,6 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		if (obj instanceof Emitter) {
 			obj.fire(event);
 		}
-	}
-
-	// -- code inset
-
-	$registerCodeInsetSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void {
-
-		const provider = <codeInset.CodeInsetProvider>{
-			provideCodeInsets: (model: ITextModel, token: CancellationToken): CodeInsetDto[] | Thenable<CodeInsetDto[]> => {
-				return this._proxy.$provideCodeInsets(handle, model.uri, token).then(dto => {
-					if (dto) { dto.forEach(obj => this._heapService.trackObject(obj)); }
-					return dto;
-				});
-			},
-			resolveCodeInset: (model: ITextModel, codeInset: CodeInsetDto, token: CancellationToken): CodeInsetDto | Thenable<CodeInsetDto> => {
-				return this._proxy.$resolveCodeInset(handle, model.uri, codeInset, token).then(obj => {
-					this._heapService.trackObject(obj);
-					return obj;
-				});
-			}
-		};
-
-		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<codeInset.CodeInsetProvider>();
-			this._registrations[eventHandle] = emitter;
-			provider.onDidChange = emitter.event;
-		}
-
-		const langSelector = selector;
-		this._registrations[handle] = codeInset.CodeInsetProviderRegistry.register(langSelector, provider);
 	}
 
 	// --- declaration

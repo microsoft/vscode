@@ -3,6 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .code-inset {
-	z-index: 10;
-}
+//@ts-check
+
+'use strict';
+
+const withDefaults = require('../shared.webpack.config');
+
+module.exports = withDefaults({
+	context: __dirname,
+	entry: {
+		main: './src/main.ts'
+	}
+});
