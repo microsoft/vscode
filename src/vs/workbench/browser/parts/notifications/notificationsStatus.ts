@@ -14,7 +14,6 @@ export class NotificationsStatus extends Disposable {
 	private notificationsCenterStatusItem: IStatusbarEntryAccessor;
 	private currentNotifications = new Set<INotificationViewItem>();
 
-	private statusMessageDispose: IDisposable;
 	private currentStatusMessage: [IStatusMessageViewItem, IDisposable] | undefined;
 
 	private isNotificationsCenterVisible: boolean;
@@ -26,6 +25,10 @@ export class NotificationsStatus extends Disposable {
 		super();
 
 		this.updateNotificationsCenterStatusItem();
+
+		if (model.statusMessage) {
+			this.doSetStatusMessage(model.statusMessage);
+		}
 
 		this.registerListeners();
 	}
@@ -105,20 +108,14 @@ export class NotificationsStatus extends Disposable {
 
 			// Show status notification
 			case StatusMessageChangeType.ADD:
-				const showAfter = statusItem.options ? statusItem.options.showAfter : undefined;
-				const hideAfter = statusItem.options ? statusItem.options.hideAfter : undefined;
-
-				this.currentStatusMessage = [
-					statusItem,
-					this.doSetStatusMessage(statusItem.message, hideAfter, showAfter)
-				];
+				this.doSetStatusMessage(statusItem);
 
 				break;
 
 			// Hide status notification (if its still the current one)
 			case StatusMessageChangeType.REMOVE:
 				if (this.currentStatusMessage && this.currentStatusMessage[0] === statusItem) {
-					this.currentStatusMessage[1].dispose();
+					dispose(this.currentStatusMessage[1]);
 					this.currentStatusMessage = undefined;
 				}
 
@@ -126,17 +123,23 @@ export class NotificationsStatus extends Disposable {
 		}
 	}
 
-	private doSetStatusMessage(message: string, autoDisposeAfter: number = -1, delayBy: number = 0): IDisposable {
+	private doSetStatusMessage(item: IStatusMessageViewItem): void {
+		const message = item.message;
+
+		const showAfter = item.options && typeof item.options.showAfter === 'number' ? item.options.showAfter : 0;
+		const hideAfter = item.options && typeof item.options.hideAfter === 'number' ? item.options.hideAfter : -1;
 
 		// Dismiss any previous
-		dispose(this.statusMessageDispose);
+		if (this.currentStatusMessage) {
+			dispose(this.currentStatusMessage[1]);
+		}
 
 		// Create new
 		let statusMessageEntry: IStatusbarEntryAccessor;
 		let showHandle: any = setTimeout(() => {
 			statusMessageEntry = this.statusbarService.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
 			showHandle = null;
-		}, delayBy);
+		}, showAfter);
 
 		// Dispose function takes care of timeouts and actual entry
 		let hideHandle: any;
@@ -155,12 +158,12 @@ export class NotificationsStatus extends Disposable {
 				}
 			}
 		};
-		this.statusMessageDispose = statusMessageDispose;
 
-		if (typeof autoDisposeAfter === 'number' && autoDisposeAfter > 0) {
-			hideHandle = setTimeout(() => statusMessageDispose.dispose(), autoDisposeAfter);
+		if (hideAfter > 0) {
+			hideHandle = setTimeout(() => statusMessageDispose.dispose(), hideAfter);
 		}
 
-		return statusMessageDispose;
+		// Remember as current status message
+		this.currentStatusMessage = [item, statusMessageDispose];
 	}
 }

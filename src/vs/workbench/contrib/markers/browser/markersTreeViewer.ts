@@ -259,7 +259,7 @@ class MarkerWidget extends Disposable {
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
 			actionViewItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionViewItem, action) : undefined
 		}));
-		this.iconContainer = dom.append(parent, dom.$('.marker-icon'));
+		this.iconContainer = dom.append(parent, dom.$('.marker-icon-container'));
 		this.severityIcon = this._register(new SeverityIcon());
 		dom.append(this.iconContainer, this.severityIcon.element);
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/severityIcon';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import * as DOM from 'vs/base/browser/dom';
@@ -17,8 +18,11 @@ export class SeverityIcon extends Disposable {
 		this.element = DOM.$('');
 	}
 
-	set severity(severity: Severity) {
-		this.element.className = this.iconClassNameFor(severity);
+	set severity(severity: Severity | undefined) {
+		this.element.className = '';
+		if (severity !== undefined) {
+			this.element.className = this.iconClassNameFor(severity);
+		}
 	}
 
 	style({ color }: {

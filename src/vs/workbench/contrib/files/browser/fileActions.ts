@@ -788,14 +788,6 @@ export function validateFileName(item: ExplorerItem, name: string): string | nul
 		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
 	}
 
-	// Max length restriction (on Windows)
-	if (isWindows) {
-		const fullPathLength = item.resource.fsPath.length + 1 /* path segment */;
-		if (fullPathLength > 255) {
-			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", trimLongName(name));
-		}
-	}
-
 	return null;
 }
 

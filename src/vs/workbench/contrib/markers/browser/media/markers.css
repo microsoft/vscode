@@ -141,7 +141,7 @@
 	margin-left: 6px;
 }
 
-.markers-panel .monaco-tl-contents .marker-icon,
+.markers-panel .monaco-tl-contents .marker-icon-container,
 .markers-panel .monaco-tl-contents .actions .action-item {
 	margin-right: 6px;
 }
@@ -158,7 +158,7 @@
 	font-weight: bold;
 }
 
-.markers-panel .monaco-tl-contents .marker-icon .octicon {
+.markers-panel .monaco-tl-contents .marker-icon-container .octicon {
 	font-size: 12px;
 }
 
@@ -184,9 +184,9 @@
 	display: none;
 }
 
-.markers-panel .monaco-list-row:hover .monaco-tl-contents > .marker-icon.quickFix,
-.markers-panel .monaco-list-row.selected .monaco-tl-contents > .marker-icon.quickFix,
-.markers-panel .monaco-list-row.focused .monaco-tl-contents > .marker-icon.quickFix {
+.markers-panel .monaco-list-row:hover .monaco-tl-contents > .marker-icon-container.quickFix,
+.markers-panel .monaco-list-row.selected .monaco-tl-contents > .marker-icon-container.quickFix,
+.markers-panel .monaco-list-row.focused .monaco-tl-contents > .marker-icon-container.quickFix {
 	display: none;
 }
 
