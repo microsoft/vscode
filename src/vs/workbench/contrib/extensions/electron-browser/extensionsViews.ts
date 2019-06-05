@@ -120,13 +120,7 @@ export class ExtensionsListView extends ViewletPanel {
 	renderBody(container: HTMLElement): void {
 		this.extensionsList = append(container, $('.extensions-list'));
 		this.messageContainer = append(container, $('.message-container'));
-<<<<<<< HEAD
 		this.messageSeverityIcon = append(this.messageContainer, $(''));
-=======
-		this.messageSeverityIcon = new SeverityIcon();
-		append(this.messageContainer, this.messageSeverityIcon.element);
-		this._register(this.messageSeverityIcon);
->>>>>>> Have Panel extend Disposable
 		this.messageBox = append(this.messageContainer, $('.message'));
 		const delegate = new Delegate();
 		const extensionsViewState = new ExtensionsViewState();
