@@ -558,7 +558,7 @@ export function parseGitmodules(raw: string): Submodule[] {
 			return;
 		}
 
-		const propertyMatch = /^\s*(\w+) = (.*)$/.exec(line);
+		const propertyMatch = /^\s*(\w+)\s+=\s+(.*)$/.exec(line);
 
 		if (!propertyMatch) {
 			return;
