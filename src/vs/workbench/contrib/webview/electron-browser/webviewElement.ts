@@ -532,10 +532,13 @@ export class WebviewElement extends Disposable implements Webview {
 			if (this._webview.parentElement) {
 				this._webview.parentElement.removeChild(this._webview);
 			}
+			this._webview = undefined;
 		}
 
-		this._webview = undefined;
-		this._webviewFindWidget = undefined;
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.dispose();
+			this._webviewFindWidget = undefined;
+		}
 		super.dispose();
 	}
 

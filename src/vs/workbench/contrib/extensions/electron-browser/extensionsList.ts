@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -116,10 +116,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, disabledLabelAction]);
 
 		actionbar.push(actions, actionOptions);
-		const disposables = [...actions, ...widgets, actionbar, extensionContainers];
+		const disposables = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers);
 
 		return {
-			root, element, icon, name, installCount, ratings, author, description, disposables, actionbar,
+			root, element, icon, name, installCount, ratings, author, description, disposables: [disposables], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;

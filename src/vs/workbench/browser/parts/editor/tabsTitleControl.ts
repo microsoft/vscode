@@ -107,7 +107,7 @@ export class TabsTitleControl extends TitleControl {
 		this.registerTabsContainerListeners();
 
 		// Tabs Scrollbar
-		this.tabsScrollbar = this.createTabsScrollbar(this.tabsContainer);
+		this.tabsScrollbar = this._register(this.createTabsScrollbar(this.tabsContainer));
 		tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
 
 		// Editor Toolbar Container
