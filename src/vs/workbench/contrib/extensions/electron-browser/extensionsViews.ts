@@ -24,7 +24,6 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenGlobalSettingsAction } from 'vs/workbench/contrib/preferences/browser/preferencesActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -43,7 +42,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAction } from 'vs/base/common/actions';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import product from 'vs/platform/product/node/product';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IProductService } from 'vs/platform/product/common/product';
@@ -94,7 +92,6 @@ export class ExtensionsListView extends ViewletPanel {
 		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IExtensionTipsService protected tipsService: IExtensionTipsService,
-		@IModeService private readonly modeService: IModeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
@@ -439,29 +436,11 @@ export class ExtensionsListView extends ViewletPanel {
 			return this.getCuratedModel(query, options, token);
 		}
 
-		let text = query.value;
-		const extensionRegex = /\bext:([^\s]+)\b/g;
+		const text = query.value;
 
-		if (extensionRegex.test(query.value)) {
-			text = query.value.replace(extensionRegex, (m, ext) => {
-
-				// Get curated keywords
-				const lookup = product.extensionKeywords || {};
-				const keywords = lookup[ext] || [];
-
-				// Get mode name
-				const modeId = this.modeService.getModeIdByFilepathOrFirstLine(`.${ext}`);
-				const languageName = modeId && this.modeService.getLanguageName(modeId);
-				const languageTag = languageName ? ` tag:"${languageName}"` : '';
-
-				// Construct a rich query
-				return `tag:"__ext_${ext}" tag:"__ext_.${ext}" ${keywords.map(tag => `tag:"${tag}"`).join(' ')}${languageTag} tag:"${ext}"`;
-			});
-
-			if (text !== query.value) {
-				options = assign(options, { text: text.substr(0, 350), source: 'file-extension-tags' });
-				return this.extensionsWorkbenchService.queryGallery(options, token).then(pager => this.getPagedModel(pager));
-			}
+		if (/\bext:([^\s]+)\b/g.test(text)) {
+			options = assign(options, { text, source: 'file-extension-tags' });
+			return this.extensionsWorkbenchService.queryGallery(options, token).then(pager => this.getPagedModel(pager));
 		}
 
 		let preferredResults: string[] = [];
@@ -861,7 +840,6 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorService editorService: IEditorService,
 		@IExtensionTipsService tipsService: IExtensionTipsService,
-		@IModeService modeService: IModeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -872,7 +850,7 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IProductService productService: IProductService,
 	) {
 		options.server = server;
-		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, modeService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService);
+		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService);
 		this.disposables.push(onDidChangeTitle(title => this.updateTitle(title)));
 	}
 
