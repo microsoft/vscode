@@ -16,7 +16,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 export interface CodeLensItem {
 	symbol: CodeLens;
 	provider: CodeLensProvider;
-	providerRank: number;
 }
 
 export class CodeLensModel {
@@ -29,23 +28,40 @@ export class CodeLensModel {
 		this._dispoables.dispose();
 	}
 
-	add(list: CodeLensList, provider: CodeLensProvider, providerIdx: number): void {
+	add(list: CodeLensList, provider: CodeLensProvider): void {
 		this._dispoables.add(list);
 		for (const symbol of list.lenses) {
-			this.lenses.push({ symbol, provider, providerRank: providerIdx });
+			this.lenses.push({ symbol, provider });
 		}
 	}
+}
 
-	seal(): void {
-		this.lenses = mergeSort(this.lenses, (a, b) => {
+export function getCodeLensData(model: ITextModel, token: CancellationToken): Promise<CodeLensModel> {
+
+	const provider = CodeLensProviderRegistry.ordered(model);
+	const providerRanks = new Map<CodeLensProvider, number>();
+	const result = new CodeLensModel();
+
+	const promises = provider.map((provider, i) => {
+
+		providerRanks.set(provider, i);
+
+		Promise.resolve(provider.provideCodeLenses(model, token))
+			.then(list => list && result.add(list, provider))
+			.catch(onUnexpectedExternalError);
+	});
+
+	return Promise.all(promises).then(() => {
+
+		result.lenses = mergeSort(result.lenses, (a, b) => {
 			// sort by lineNumber, provider-rank, and column
 			if (a.symbol.range.startLineNumber < b.symbol.range.startLineNumber) {
 				return -1;
 			} else if (a.symbol.range.startLineNumber > b.symbol.range.startLineNumber) {
 				return 1;
-			} else if (a.providerRank < b.providerRank) {
+			} else if (providerRanks.get(a.provider)! < providerRanks.get(b.provider)!) {
 				return -1;
-			} else if (a.providerRank > b.providerRank) {
+			} else if (providerRanks.get(a.provider)! > providerRanks.get(b.provider)!) {
 				return 1;
 			} else if (a.symbol.range.startColumn < b.symbol.range.startColumn) {
 				return -1;
@@ -55,20 +71,7 @@ export class CodeLensModel {
 				return 0;
 			}
 		});
-	}
-}
 
-export function getCodeLensData(model: ITextModel, token: CancellationToken): Promise<CodeLensModel> {
-
-	const provider = CodeLensProviderRegistry.ordered(model);
-	const result = new CodeLensModel();
-
-	const promises = provider.map((provider, i) => Promise.resolve(provider.provideCodeLenses(model, token))
-		.then(list => list && result.add(list, provider, i))
-		.catch(onUnexpectedExternalError));
-
-	return Promise.all(promises).then(() => {
-		result.seal();
 		return result;
 	});
 }

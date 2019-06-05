@@ -68,7 +68,7 @@ export class CodeLensCache implements ICodeLensCache {
 	put(model: ITextModel, data: CodeLensModel): void {
 
 		const lensModel = new CodeLensModel();
-		lensModel.add({ lenses: data.lenses.map(v => v.symbol), dispose() { } }, this._fakeProvider, 0);
+		lensModel.add({ lenses: data.lenses.map(v => v.symbol), dispose() { } }, this._fakeProvider);
 
 		const item = new CacheItem(model.getLineCount(), lensModel);
 		this._cache.set(model.uri.toString(), item);
@@ -111,7 +111,7 @@ export class CodeLensCache implements ICodeLensCache {
 				}
 
 				const model = new CodeLensModel();
-				model.add({ lenses, dispose() { } }, this._fakeProvider, 0);
+				model.add({ lenses, dispose() { } }, this._fakeProvider);
 				this._cache.set(key, new CacheItem(element.lineCount, model));
 			}
 		} catch {
