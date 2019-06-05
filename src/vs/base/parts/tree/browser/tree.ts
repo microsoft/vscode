@@ -231,7 +231,7 @@ export interface IDataSource {
 	 *
 	 * You should not attempt to "move" an element to a different
 	 * parent by keeping its ID. The idea here is to have tree location
-	 * related IDs (eg. full file path, in the Explorer example).
+	 * related IDs (e.g. full file path, in the Explorer example).
 	 */
 	getId(tree: ITree, element: any): string;
 

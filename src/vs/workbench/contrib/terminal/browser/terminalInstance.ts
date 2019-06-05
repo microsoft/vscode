@@ -763,7 +763,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public rendererExit(exitCode: number): void {
 		// The use of this API is for cases where there is no backing process behind a terminal
-		// instance (eg. a custom execution task).
+		// instance (e.g. a custom execution task).
 		if (!this.shellLaunchConfig.isRendererOnly) {
 			throw new Error('rendererExit is only expected to be called on a renderer only terminal');
 		}
@@ -947,7 +947,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	/**
 	 * Called when either a process tied to a terminal has exited or when a terminal renderer
-	 * simulates a process exiting (eg. custom execution task).
+	 * simulates a process exiting (e.g. custom execution task).
 	 * @param exitCode The exit code of the process, this is undefined when the terminal was exited
 	 * through user action.
 	 */

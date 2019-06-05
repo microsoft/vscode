@@ -4271,7 +4271,7 @@ declare namespace monaco.languages {
 		 *  - f = foreground ColorId (9 bits)
 		 *  - b = background ColorId (9 bits)
 		 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
-		 * e.g colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
+		 * e.g. colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
 		 * id = 1 is for the default foreground color, id = 2 for the default background.
 		 */
 		tokens: Uint32Array;

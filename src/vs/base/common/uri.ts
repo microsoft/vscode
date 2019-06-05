@@ -331,7 +331,7 @@ export class URI implements UriComponents {
 
 		// normalize to fwd-slashes on windows,
 		// on other systems bwd-slashes are valid
-		// filename character, eg /f\oo/ba\r.txt
+		// filename character, e.g. /f\oo/ba\r.txt
 		if (isWindows) {
 			path = path.replace(/\\/g, _slash);
 		}

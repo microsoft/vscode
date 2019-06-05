@@ -64,7 +64,7 @@ function showPartsSplash(configuration) {
 		}
 	}
 
-	// high contrast mode has been turned on from the outside, e.g OS -> ignore stored colors and layouts
+	// high contrast mode has been turned on from the outside, e.g. OS -> ignore stored colors and layouts
 	if (data && configuration.highContrast && data.baseTheme !== 'hc-black') {
 		data = undefined;
 	}
