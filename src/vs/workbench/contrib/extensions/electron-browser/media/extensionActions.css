@@ -81,22 +81,6 @@
 	width: 10px;
 }
 
-.monaco-action-bar .action-item .action-label.system-disable.warning.icon {
-	background: url('status-warning.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-action-bar .action-item .action-label.system-disable.warning.icon {
-	background: url('status-warning-inverse.svg') center center no-repeat;
-}
-
-.monaco-action-bar .action-item .action-label.system-disable.info.icon {
-	background: url('status-info.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-action-bar .action-item .action-label.system-disable.info.icon {
-	background: url('status-info-inverse.svg') center center no-repeat;
-}
-
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.extension-status-label,
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.disable-status,
 .extension-editor>.header>.details>.actions>.monaco-action-bar .action-item .action-label.malicious-status {
