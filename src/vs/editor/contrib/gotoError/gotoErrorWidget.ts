@@ -199,11 +199,10 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		} else if (this._severity === MarkerSeverity.Info) {
 			colorId = editorMarkerNavigationInfo;
 		}
-		const severityColor = theme.getColor(colorId);
-		this._headingSeverityIcon.style({ color: severityColor });
+		const frameColor = theme.getColor(colorId);
 		this.style({
-			arrowColor: severityColor,
-			frameColor: severityColor,
+			arrowColor: frameColor,
+			frameColor: frameColor,
 			headerBackgroundColor: this._backgroundColor,
 			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
 			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)

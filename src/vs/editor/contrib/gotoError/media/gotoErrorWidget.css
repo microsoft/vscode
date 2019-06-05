@@ -6,8 +6,9 @@
 /* marker zone */
 
 .monaco-editor .peekview-widget .head .peekview-title .severity-icon {
+	display: inline-block;
+	vertical-align: text-top;
 	margin-right: 4px;
-	font-size: 12px;
 }
 
 .monaco-editor .marker-widget {
