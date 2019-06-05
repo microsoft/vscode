@@ -16,16 +16,14 @@ interface IKeytarModule {
 @extHostNamedCustomer(MainContext.MainThreadKeytar)
 export class MainThreadKeytar implements MainThreadKeytarShape {
 
-	private _keytar: IKeytarModule | null;
+	private _keytar: Promise<IKeytarModule | null>;
 
 	constructor(
 		extHostContext: IExtHostContext
 	) {
-		try {
-			this._keytar = <IKeytarModule>require.__$__nodeRequire('keytar');
-		} catch (e) {
-			this._keytar = null;
-		}
+		// tslint:disable-next-line:import-patterns
+		this._keytar = import('keytar')
+			.catch(e => null);
 	}
 
 	dispose(): void {
@@ -33,28 +31,32 @@ export class MainThreadKeytar implements MainThreadKeytarShape {
 	}
 
 	async $getPassword(service: string, account: string): Promise<string | null> {
-		if (this._keytar) {
-			return this._keytar.getPassword(service, account);
+		const keytar = await this._keytar;
+		if (keytar) {
+			return keytar.getPassword(service, account);
 		}
 		return null;
 	}
 
 	async $setPassword(service: string, account: string, password: string): Promise<void> {
-		if (this._keytar) {
-			return this._keytar.setPassword(service, account, password);
+		const keytar = await this._keytar;
+		if (keytar) {
+			return keytar.setPassword(service, account, password);
 		}
 	}
 
 	async $deletePassword(service: string, account: string): Promise<boolean> {
-		if (this._keytar) {
-			return this._keytar.deletePassword(service, account);
+		const keytar = await this._keytar;
+		if (keytar) {
+			return keytar.deletePassword(service, account);
 		}
 		return false;
 	}
 
 	async $findPassword(service: string): Promise<string | null> {
-		if (this._keytar) {
-			return this._keytar.findPassword(service);
+		const keytar = await this._keytar;
+		if (keytar) {
+			return keytar.findPassword(service);
 		}
 		return null;
 	}
