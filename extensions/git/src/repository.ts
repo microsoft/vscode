@@ -984,11 +984,12 @@ export class Repository implements Disposable {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
+				const tags = config.get<boolean>('pullTags');
 
 				if (fetchOnPull) {
-					await this.repository.pull(rebase, undefined, undefined, { unshallow });
+					await this.repository.pull(rebase, undefined, undefined, { unshallow, tags });
 				} else {
-					await this.repository.pull(rebase, remote, branch, { unshallow });
+					await this.repository.pull(rebase, remote, branch, { unshallow, tags });
 				}
 			});
 		});
@@ -1044,11 +1045,12 @@ export class Repository implements Disposable {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
+				const tags = config.get<boolean>('pullTags');
 
 				if (fetchOnPull) {
-					await this.repository.pull(rebase);
+					await this.repository.pull(rebase, undefined, undefined, { tags });
 				} else {
-					await this.repository.pull(rebase, remoteName, pullBranch);
+					await this.repository.pull(rebase, remoteName, pullBranch, { tags });
 				}
 
 				const remote = this.remotes.find(r => r.name === remoteName);
