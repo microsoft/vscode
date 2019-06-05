@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, INotificationViewItem } from 'vs/workbench/common/notifications';
+import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, INotificationViewItem, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem } from 'vs/workbench/common/notifications';
 import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
 
 export class NotificationsStatus extends Disposable {
-	private statusItem: IStatusbarEntryAccessor;
+	private notificationsCenterStatusItem: IStatusbarEntryAccessor;
 	private isNotificationsCenterVisible: boolean;
-	private _counter: Set<INotificationViewItem>;
+
+	private currentNotifications = new Set<INotificationViewItem>();
+
+	private currentStatusMessage: [IStatusMessageViewItem, IDisposable] | undefined;
 
 	constructor(
 		private model: INotificationsModel,
@@ -20,29 +23,14 @@ export class NotificationsStatus extends Disposable {
 	) {
 		super();
 
-		this._counter = new Set<INotificationViewItem>();
-
-		this.updateNotificationsStatusItem();
+		this.updateNotificationsCenterStatusItem();
 
 		this.registerListeners();
 	}
 
-	private get count(): number {
-		return this._counter.size;
-	}
-
-	update(isCenterVisible: boolean): void {
-		if (this.isNotificationsCenterVisible !== isCenterVisible) {
-			this.isNotificationsCenterVisible = isCenterVisible;
-
-			// Showing the notification center resets the counter to 0
-			this._counter.clear();
-			this.updateNotificationsStatusItem();
-		}
-	}
-
 	private registerListeners(): void {
 		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.model.onDidStatusMessageChange(e => this.onDidStatusMessageChange(e)));
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -52,29 +40,29 @@ export class NotificationsStatus extends Disposable {
 
 		// Notification got Added
 		if (e.kind === NotificationChangeType.ADD) {
-			this._counter.add(e.item);
+			this.currentNotifications.add(e.item);
 		}
 
 		// Notification got Removed
 		else if (e.kind === NotificationChangeType.REMOVE) {
-			this._counter.delete(e.item);
+			this.currentNotifications.delete(e.item);
 		}
 
-		this.updateNotificationsStatusItem();
+		this.updateNotificationsCenterStatusItem();
 	}
 
-	private updateNotificationsStatusItem(): void {
+	private updateNotificationsCenterStatusItem(): void {
 		const statusProperties: IStatusbarEntry = {
-			text: this.count === 0 ? '$(bell)' : `$(bell) ${this.count}`,
+			text: this.currentNotifications.size === 0 ? '$(bell)' : `$(bell) ${this.currentNotifications.size}`,
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
 			tooltip: this.getTooltip(),
 			showBeak: this.isNotificationsCenterVisible
 		};
 
-		if (!this.statusItem) {
-			this.statusItem = this.statusbarService.addEntry(statusProperties, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
+		if (!this.notificationsCenterStatusItem) {
+			this.notificationsCenterStatusItem = this.statusbarService.addEntry(statusProperties, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
 		} else {
-			this.statusItem.update(statusProperties);
+			this.notificationsCenterStatusItem.update(statusProperties);
 		}
 	}
 
@@ -87,14 +75,52 @@ export class NotificationsStatus extends Disposable {
 			return localize('zeroNotifications', "No Notifications");
 		}
 
-		if (this.count === 0) {
+		if (this.currentNotifications.size === 0) {
 			return localize('noNotifications', "No New Notifications");
 		}
 
-		if (this.count === 1) {
+		if (this.currentNotifications.size === 1) {
 			return localize('oneNotification', "1 New Notification");
 		}
 
-		return localize('notifications', "{0} New Notifications", this.count);
+		return localize('notifications', "{0} New Notifications", this.currentNotifications.size);
+	}
+
+	update(isCenterVisible: boolean): void {
+		if (this.isNotificationsCenterVisible !== isCenterVisible) {
+			this.isNotificationsCenterVisible = isCenterVisible;
+
+			// Showing the notification center resets the counter to 0
+			this.currentNotifications.clear();
+			this.updateNotificationsCenterStatusItem();
+		}
+	}
+
+	private onDidStatusMessageChange(e: IStatusMessageChangeEvent): void {
+		const statusItem = e.item;
+
+		switch (e.kind) {
+
+			// Show status notification
+			case StatusMessageChangeType.ADD:
+				const showAfter = statusItem.options ? statusItem.options.showAfter : undefined;
+				const hideAfter = statusItem.options ? statusItem.options.hideAfter : undefined;
+
+				this.currentStatusMessage = [
+					statusItem,
+					this.statusbarService.setStatusMessage(statusItem.message, hideAfter, showAfter)
+				];
+
+				break;
+
+			// Hide status notification (if its still the current one)
+			case StatusMessageChangeType.REMOVE:
+				if (this.currentStatusMessage && this.currentStatusMessage[0] === statusItem) {
+					this.currentStatusMessage[1].dispose();
+					this.currentStatusMessage = undefined;
+				}
+
+				break;
+		}
 	}
 }

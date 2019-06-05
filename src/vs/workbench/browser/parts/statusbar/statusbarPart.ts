@@ -17,25 +17,27 @@ import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiat
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
-import { addClass, EventHelper, createStyleSheet, addDisposableListener, addClasses, clearNode, removeClass } from 'vs/base/browser/dom';
+import { addClass, EventHelper, createStyleSheet, addDisposableListener, addClasses, clearNode, removeClass, EventType } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 
 interface PendingEntry { entry: IStatusbarEntry; alignment: StatusbarAlignment; priority: number; accessor?: IStatusbarEntryAccessor; }
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: ServiceIdentifier<IStatusbarService>;
 
 	private static readonly PRIORITY_PROP = 'statusbar-entry-priority';
 	private static readonly ALIGNMENT_PROP = 'statusbar-entry-alignment';
@@ -54,14 +56,19 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private pendingEntries: PendingEntry[] = [];
 
+	private hideStatusBarAction: ToggleStatusbarVisibilityAction;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+
+		this.hideStatusBarAction = this._register(this.instantiationService.createInstance(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, nls.localize('hideStatusBar', "Hide Status Bar")));
 
 		this.registerListeners();
 	}
@@ -161,6 +168,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
+		// Context menu support
+		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
+
 		// Fill in initial items that were contributed from the registry
 		const registry = Registry.as<IStatusbarRegistry>(Extensions.Statusbar);
 
@@ -197,6 +207,39 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 
 		return this.element;
+	}
+
+	private showContextMenu(e: MouseEvent): void {
+		EventHelper.stop(e, true);
+
+		const event = new StandardMouseEvent(e);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => { return { x: event.posx, y: event.posy }; },
+			getActions: () => this.getContextMenuActions()
+		});
+	}
+
+	private getContextMenuActions(): IAction[] {
+		const actions: IAction[] = [];
+
+		// TODO@Ben collect more context menu actions
+		// .map(({ id, name, activityAction }) => (<IAction>{
+		// 	id,
+		// 	label: name || id,
+		// 	checked: this.isPinned(id),
+		// 	run: () => {
+		// 		if (this.isPinned(id)) {
+		// 			this.unpin(id);
+		// 		} else {
+		// 			this.pin(id, true);
+		// 		}
+		// 	}
+		// }));
+		// actions.push(new Separator());
+
+		actions.push(this.hideStatusBarAction);
+
+		return actions;
 	}
 
 	updateStyles(): void {
@@ -253,9 +296,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			statusMessageEntry = this.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
 			showHandle = null;
 		}, delayBy);
-		let hideHandle: any;
 
 		// Dispose function takes care of timeouts and actual entry
+		let hideHandle: any;
 		const statusMessageDispose = {
 			dispose: () => {
 				if (showHandle) {

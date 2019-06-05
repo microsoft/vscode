@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class NotificationService extends Disposable implements INotificationService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<INotificationService>;
 
 	private _model: INotificationsModel = this._register(new NotificationsModel());
 
@@ -26,7 +27,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.model.notify({ severity: Severity.Info, message });
+		this.model.addNotification({ severity: Severity.Info, message });
 	}
 
 	warn(message: NotificationMessage | NotificationMessage[]): void {
@@ -36,7 +37,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.model.notify({ severity: Severity.Warning, message });
+		this.model.addNotification({ severity: Severity.Warning, message });
 	}
 
 	error(message: NotificationMessage | NotificationMessage[]): void {
@@ -46,11 +47,11 @@ export class NotificationService extends Disposable implements INotificationServ
 			return;
 		}
 
-		this.model.notify({ severity: Severity.Error, message });
+		this.model.addNotification({ severity: Severity.Error, message });
 	}
 
 	notify(notification: INotification): INotificationHandle {
-		return this.model.notify(notification);
+		return this.model.addNotification(notification);
 	}
 
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
@@ -103,6 +104,10 @@ export class NotificationService extends Disposable implements INotificationServ
 		});
 
 		return handle;
+	}
+
+	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
+		return this.model.showStatusMessage(message, options);
 	}
 }
 
