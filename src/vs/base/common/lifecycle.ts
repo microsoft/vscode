@@ -5,6 +5,44 @@
 
 import { once } from 'vs/base/common/functional';
 
+/**
+ * Enables logging of potentially leaked disposables.
+ *
+ * A disposable is considered leaked if it is not disposed or not registered as the child of
+ * another disposable. This tracking is very simple an only works for classes that either
+ * extend Disposable or use a DisposableStore. This means there are a lot of false positives.
+ */
+const TRACK_DISPOSABLES = false;
+
+const __is_disposable_tracked__ = Symbol('__is_disposable_tracked__');
+
+function markTracked<T extends IDisposable>(x: T): void {
+	if (!TRACK_DISPOSABLES) {
+		return;
+	}
+
+	if (x && x !== Disposable.None) {
+		try {
+			x[__is_disposable_tracked__] = true;
+		} catch {
+			// noop
+		}
+	}
+}
+
+function trackDisposable<T extends IDisposable>(x: T): void {
+	if (!TRACK_DISPOSABLES) {
+		return;
+	}
+
+	const stack = new Error().stack!;
+	setTimeout(() => {
+		if (!x[__is_disposable_tracked__]) {
+			console.log(stack);
+		}
+	}, 3000);
+}
+
 export interface IDisposable {
 	dispose(): void;
 }
@@ -19,9 +57,15 @@ export function dispose<T extends IDisposable>(disposable: T | undefined): T | u
 export function dispose<T extends IDisposable>(disposables: T[]): T[];
 export function dispose<T extends IDisposable>(disposables: T | T[] | undefined): T | T[] | undefined {
 	if (Array.isArray(disposables)) {
-		disposables.forEach(d => d && d.dispose());
+		disposables.forEach(d => {
+			if (d) {
+				markTracked(d);
+				d.dispose();
+			}
+		});
 		return [];
 	} else if (disposables) {
+		markTracked(disposables);
 		disposables.dispose();
 		return disposables;
 	} else {
@@ -30,6 +74,7 @@ export function dispose<T extends IDisposable>(disposables: T | T[] | undefined)
 }
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
+	disposables.forEach(markTracked);
 	return { dispose: () => dispose(disposables) };
 }
 
@@ -47,6 +92,7 @@ export class DisposableStore implements IDisposable {
 	 * Any future disposables added to this object will be disposed of on `add`.
 	 */
 	public dispose(): void {
+		markTracked(this);
 		this._isDisposed = true;
 		this.clear();
 	}
@@ -64,6 +110,7 @@ export class DisposableStore implements IDisposable {
 			return t;
 		}
 
+		markTracked(t);
 		if (this._isDisposed) {
 			console.warn('Registering disposable on object that has already been disposed.');
 			t.dispose();
@@ -81,7 +128,13 @@ export abstract class Disposable implements IDisposable {
 
 	private readonly _store = new DisposableStore();
 
+	constructor() {
+		trackDisposable(this);
+	}
+
 	public dispose(): void {
+		markTracked(this);
+
 		this._store.dispose();
 	}
 
