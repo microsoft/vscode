@@ -45,7 +45,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IProductService } from 'vs/platform/product/common/product';
-import { SeverityIcon } from 'vs/base/browser/ui/severityIcon/severityIcon';
+import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -74,7 +74,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 	private readonly server: IExtensionManagementServer | undefined;
 	private messageContainer: HTMLElement;
-	private messageSeverityIcon: SeverityIcon;
+	private messageSeverityIcon: HTMLElement;
 	private messageBox: HTMLElement;
 	private extensionsList: HTMLElement;
 	private badge: CountBadge;
@@ -120,9 +120,7 @@ export class ExtensionsListView extends ViewletPanel {
 	renderBody(container: HTMLElement): void {
 		this.extensionsList = append(container, $('.extensions-list'));
 		this.messageContainer = append(container, $('.message-container'));
-		this.messageSeverityIcon = new SeverityIcon();
-		append(this.messageContainer, this.messageSeverityIcon.element);
-		this.disposables.push(this.messageSeverityIcon);
+		this.messageSeverityIcon = append(this.messageContainer, $(''));
 		this.messageBox = append(this.messageContainer, $('.message'));
 		const delegate = new Delegate();
 		const extensionsViewState = new ExtensionsViewState();
@@ -700,14 +698,14 @@ export class ExtensionsListView extends ViewletPanel {
 			if (count === 0 && this.isBodyVisible()) {
 				if (error) {
 					if (error instanceof ExtensionListViewWarning) {
-						this.messageSeverityIcon.severity = Severity.Warning;
+						this.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
 						this.messageBox.textContent = getErrorMessage(error);
 					} else {
-						this.messageSeverityIcon.severity = Severity.Error;
+						this.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
 						this.messageBox.textContent = localize('error', "Error while loading extensions. {0}", getErrorMessage(error));
 					}
 				} else {
-					this.messageSeverityIcon.severity = undefined;
+					this.messageSeverityIcon.className = '';
 					this.messageBox.textContent = localize('no extensions found', "No extensions found.");
 				}
 				alert(this.messageBox.textContent);
