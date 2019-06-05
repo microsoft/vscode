@@ -21,7 +21,7 @@
 	],
 	"main": "./out/extension",
 	"devDependencies": {
-		"@types/node": "^10.12.21",
+		"@types/node": "^10.14.8",
 		"vscode": "1.1.5"
 	},
 	"contributes": {
