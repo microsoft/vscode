@@ -27,15 +27,16 @@ import { IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2, IGrammar, ITokenTypeMa
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export class TMScopeRegistry {
+export class TMScopeRegistry extends Disposable {
 
 	private _scopeNameToLanguageRegistration: { [scopeName: string]: TMLanguageRegistration; };
 	private _encounteredLanguages: boolean[];
 
-	private readonly _onDidEncounterLanguage = new Emitter<LanguageId>();
+	private readonly _onDidEncounterLanguage = this._register(new Emitter<LanguageId>());
 	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
 
 	constructor() {
+		super();
 		this.reset();
 	}
 
