@@ -54,7 +54,7 @@ suite('Links', () => {
 	}
 
 	function getTestResource(path: string) {
-		return Uri.file(resolve(__dirname, '../../test/linkTestFixtures', path)).toString();
+		return Uri.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString();
 	}
 
 	test('url links', function () {
@@ -64,6 +64,16 @@ suite('Links', () => {
 
 		assertLinks('html { background-image: url("hello.html|")',
 			[{ offset: 29, value: '"hello.html"', target: getTestResource('hello.html') }], testUri, folders
+		);
+	});
+
+	test('url links', function () {
+
+		let testUri = getTestResource('about.css');
+		let folders = [{ name: 'x', uri: getTestResource('') }];
+
+		assertLinks('html { background-image: url("~foo/hello.html|")',
+			[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
 		);
 	});
 });
