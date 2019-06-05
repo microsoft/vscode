@@ -603,6 +603,7 @@ class SuggestAdapter {
 	private _provider: vscode.CompletionItemProvider;
 
 	private _cache = new Cache<vscode.CompletionItem>();
+	private _disposables = new Map<number, DisposableStore>();
 
 	constructor(documents: ExtHostDocuments, commands: CommandsConverter, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
@@ -628,13 +629,12 @@ class SuggestAdapter {
 				return undefined;
 			}
 
-			let list = Array.isArray(value) ? new CompletionList(value) : value;
-			let pid: number | undefined;
+			const list = Array.isArray(value) ? new CompletionList(value) : value;
 
 			// keep result for providers that support resolving
-			if (SuggestAdapter.supportsResolving(this._provider)) {
-				pid = this._cache.add(list.items);
-			}
+			const pid: number = SuggestAdapter.supportsResolving(this._provider) ? this._cache.add(list.items) : this._cache.add([]);
+			const disposables = new DisposableStore();
+			this._disposables.set(pid, disposables);
 
 			// the default text edit range
 			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos))
@@ -648,7 +648,7 @@ class SuggestAdapter {
 			};
 
 			for (let i = 0; i < list.items.length; i++) {
-				const suggestion = this._convertCompletionItem(list.items[i], pos, pid && [pid, i] || undefined);
+				const suggestion = this._convertCompletionItem(list.items[i], pos, [pid, i]);
 				// check for bad completion item
 				// for the converter did warn
 				if (suggestion) {
@@ -683,13 +683,20 @@ class SuggestAdapter {
 	}
 
 	releaseCompletionItems(id: number): any {
+		dispose(this._disposables.get(id));
+		this._disposables.delete(id);
 		this._cache.delete(id);
 	}
 
-	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: ChainedCacheId | undefined): SuggestDataDto | undefined {
+	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: ChainedCacheId): SuggestDataDto | undefined {
 		if (typeof item.label !== 'string' || item.label.length === 0) {
 			console.warn('INVALID text edit -> must have at least a label');
 			return undefined;
+		}
+
+		const disposables = this._disposables.get(id[0]);
+		if (!disposables) {
+			throw Error('DisposableStore is missing...');
 		}
 
 		const result: SuggestDataDto = {
@@ -706,7 +713,7 @@ class SuggestAdapter {
 			i: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			k: item.commitCharacters,
 			l: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
-			m: this._commands.toInternal(item.command),
+			m: this._commands.toInternal2(item.command, disposables),
 		};
 
 		// 'insertText'-logic
