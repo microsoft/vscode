@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/severityIcon';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import * as DOM from 'vs/base/browser/dom';
@@ -26,21 +25,21 @@ export class SeverityIcon extends Disposable {
 	}
 
 	style({ color }: {
-		color: Color
+		color?: Color | null
 	}): void {
-		this.element.style.color = color.toString();
+		this.element.style.color = color ? color.toString() : '';
 	}
 
 	private iconClassNameFor(severity: Severity): string {
 		switch (severity) {
 			case Severity.Ignore:
-				return 'octicon octicon-info';
+				return 'severity-icon octicon octicon-info';
 			case Severity.Info:
-				return 'octicon octicon-info';
+				return 'severity-icon octicon octicon-info';
 			case Severity.Warning:
-				return 'octicon octicon-warning';
+				return 'severity-icon octicon octicon-warning';
 			case Severity.Error:
-				return 'octicon octicon-error';
+				return 'severity-icon octicon octicon-error';
 		}
 		return '';
 	}
