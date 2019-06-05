@@ -17,8 +17,7 @@ export interface Event<T> {
 }
 
 export namespace Event {
-	const _disposable = { dispose() { } };
-	export const None: Event<any> = function () { return _disposable; };
+	export const None: Event<any> = () => Disposable.None;
 
 	/**
 	 * Given an event, returns another event which only fires once.
