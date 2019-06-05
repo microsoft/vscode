@@ -11,7 +11,7 @@ import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/marker
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerColor, oneOf, textLinkForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, editorErrorBorder, editorWarningBorder, editorInfoBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, oneOf, textLinkForeground, editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
