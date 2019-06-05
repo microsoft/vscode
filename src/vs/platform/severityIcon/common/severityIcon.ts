@@ -5,7 +5,6 @@
 
 import Severity from 'vs/base/common/severity';
 import { registerThemingParticipant, ITheme, LIGHT } from 'vs/platform/theme/common/themeService';
-import { editorErrorForeground, editorWarningForeground, editorInfoForeground, editorHintForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
 
 const errorStart = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" enable-background="new 0 0 16 16" height="16" width="16"><circle cx="8" cy="8" r="6" fill="#F6F6F6"/><path d="M8 3C5.238 3 3 5.238 3 8s2.238 5 5 5 5-2.238 5-5-2.238-5-5-5zm3 7l-1 1-2-2-2 2-1-1 2-2.027L5 6l1-1 2 2 2-2 1 1-2 1.973L11 10z" fill="`);
@@ -28,19 +27,19 @@ export namespace SeverityIcon {
 	export function getSVGData(severity: Severity, theme: ITheme): string {
 		switch (severity) {
 			case Severity.Ignore:
-				const ignoreColor = theme.getColor(editorHintForeground) || (theme.type === LIGHT ? Color.fromHex('#1BA1E2') : Color.fromHex('#1BA1E2'));
+				const ignoreColor = theme.type === LIGHT ? Color.fromHex('#1BA1E2') : Color.fromHex('#1BA1E2');
 				return theme.type === LIGHT ? infoStart + encodeURIComponent(ignoreColor.toString()) + infoEnd
 					: infoDarkStart + encodeURIComponent(ignoreColor.toString()) + infoDarkEnd;
 			case Severity.Info:
-				const infoColor = theme.getColor(editorInfoForeground) || (theme.type === LIGHT ? Color.fromHex('#1BA1E2') : Color.fromHex('#1BA1E2'));
+				const infoColor = theme.type === LIGHT ? Color.fromHex('#1BA1E2') : Color.fromHex('#1BA1E2');
 				return theme.type === LIGHT ? infoStart + encodeURIComponent(infoColor.toString()) + infoEnd
 					: infoDarkStart + encodeURIComponent(infoColor.toString()) + infoDarkEnd;
 			case Severity.Warning:
-				const warningColor = theme.getColor(editorWarningForeground) || (theme.type === LIGHT ? Color.fromHex('#fc0') : Color.fromHex('#fc0'));
+				const warningColor = theme.type === LIGHT ? Color.fromHex('#fc0') : Color.fromHex('#fc0');
 				return theme.type === LIGHT ? warningStart + encodeURIComponent(warningColor.toString()) + warningEnd
 					: warningDarkStart + encodeURIComponent(warningColor.toString()) + warningDarkEnd;
 			case Severity.Error:
-				const errorColor = theme.getColor(editorErrorForeground) || (theme.type === LIGHT ? Color.fromHex('#E51400') : Color.fromHex('#F48771'));
+				const errorColor = theme.type === LIGHT ? Color.fromHex('#E51400') : Color.fromHex('#F48771');
 				return theme.type === LIGHT ? errorStart + encodeURIComponent(errorColor.toString()) + errorEnd
 					: errorDarkStart + encodeURIComponent(errorColor.toString()) + errorDarkEnd;
 		}
