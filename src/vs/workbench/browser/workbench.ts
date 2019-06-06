@@ -260,6 +260,7 @@ export class Workbench extends Layout {
 		const workbenchClasses = coalesce([
 			'monaco-workbench',
 			platformClass,
+			isWeb ? 'web' : undefined,
 			this.state.sideBar.hidden ? 'nosidebar' : undefined,
 			this.state.panel.hidden ? 'nopanel' : undefined,
 			this.state.statusBar.hidden ? 'nostatusbar' : undefined,
