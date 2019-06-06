@@ -67,13 +67,13 @@ suite('Links', () => {
 		);
 	});
 
-	test('url links', function () {
+	// test('url links', function () {
 
-		let testUri = getTestResource('about.css');
-		let folders = [{ name: 'x', uri: getTestResource('') }];
+	// 	let testUri = getTestResource('about.css');
+	// 	let folders = [{ name: 'x', uri: getTestResource('') }];
 
-		assertLinks('html { background-image: url("~foo/hello.html|")',
-			[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
-		);
-	});
+	// 	assertLinks('html { background-image: url("~foo/hello.html|")',
+	// 		[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
+	// 	);
+	// });
 });
