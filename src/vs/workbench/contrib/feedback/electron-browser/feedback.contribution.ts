@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(new StatusbarItemDescriptor(
 	FeedbackStatusbarItem,
 	'status.feedback',
-	localize('status.feedback', "Send Feedback"),
+	localize('status.feedback', "Tweet Feedback"),
 	StatusbarAlignment.RIGHT,
 	-100 /* towards the end of the right hand side */
 ));
