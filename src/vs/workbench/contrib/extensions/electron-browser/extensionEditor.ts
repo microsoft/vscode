@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join, toggleClass, hide, show } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -85,9 +85,9 @@ function removeEmbeddedSVGs(documentContent: string): string {
 	return newDocument.documentElement.outerHTML;
 }
 
-class NavBar {
+class NavBar extends Disposable {
 
-	private _onChange = new Emitter<{ id: string | null, focus: boolean }>();
+	private _onChange = this._register(new Emitter<{ id: string | null, focus: boolean }>());
 	get onChange(): Event<{ id: string | null, focus: boolean }> { return this._onChange.event; }
 
 	private currentId: string | null = null;
@@ -95,9 +95,10 @@ class NavBar {
 	private actionbar: ActionBar;
 
 	constructor(container: HTMLElement) {
+		super();
 		const element = append(container, $('.navbar'));
 		this.actions = [];
-		this.actionbar = new ActionBar(element, { animated: false });
+		this.actionbar = this._register(new ActionBar(element, { animated: false }));
 	}
 
 	push(id: string, label: string, tooltip: string): void {
@@ -127,10 +128,6 @@ class NavBar {
 		this._onChange.fire({ id, focus: !!focus });
 		this.actions.forEach(a => a.enabled = a.id !== id);
 		return Promise.resolve(undefined);
-	}
-
-	dispose(): void {
-		dispose(this.actionbar);
 	}
 }
 

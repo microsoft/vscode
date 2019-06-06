@@ -15,8 +15,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions } from 'vs/workbench/common/actions';
 import { ShowViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
-import { StatusbarItemDescriptor, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -40,7 +38,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { DebugViewlet } from 'vs/workbench/contrib/debug/browser/debugViewlet';
 import { DebugQuickOpenHandler } from 'vs/workbench/contrib/debug/browser/debugQuickOpen';
-import { DebugStatus } from 'vs/workbench/contrib/debug/browser/debugStatus';
+import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -258,8 +256,7 @@ configurationRegistry.registerConfiguration({
 });
 
 // Register Debug Status
-const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
-statusBar.registerStatusbarItem(new StatusbarItemDescriptor(DebugStatus, StatusbarAlignment.LEFT, 30 /* Low Priority */));
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugStatusContribution, LifecyclePhase.Eventually);
 
 // Debug toolbar
 
@@ -532,7 +529,9 @@ if (isMacintosh) {
 	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpr, icon: string) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
-				id, title, iconLocation: { dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/electron-browser/media/${icon}`)) }
+				id,
+				title,
+				iconLocation: { dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/electron-browser/media/${icon}`)) }
 			},
 			when,
 			group: '9_debug',
@@ -544,9 +543,9 @@ if (isMacintosh) {
 	registerTouchBarEntry(RunAction.ID, RunAction.LABEL, 1, CONTEXT_IN_DEBUG_MODE.toNegated(), 'continue-without-debugging-tb.png');
 	registerTouchBarEntry(CONTINUE_ID, continueLabel, 0, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), 'continue-tb.png');
 	registerTouchBarEntry(PAUSE_ID, pauseLabel, 1, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, ContextKeyExpr.notEquals('debugState', 'stopped')), 'pause-tb.png');
-	registerTouchBarEntry(STEP_OVER_ID, stepOverLabel, 2, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), 'stepover-tb.png');
-	registerTouchBarEntry(STEP_INTO_ID, stepIntoLabel, 3, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), 'stepinto-tb.png');
-	registerTouchBarEntry(STEP_OUT_ID, stepOutLabel, 4, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), 'stepout-tb.png');
+	registerTouchBarEntry(STEP_OVER_ID, stepOverLabel, 2, CONTEXT_IN_DEBUG_MODE, 'stepover-tb.png');
+	registerTouchBarEntry(STEP_INTO_ID, stepIntoLabel, 3, CONTEXT_IN_DEBUG_MODE, 'stepinto-tb.png');
+	registerTouchBarEntry(STEP_OUT_ID, stepOutLabel, 4, CONTEXT_IN_DEBUG_MODE, 'stepout-tb.png');
 	registerTouchBarEntry(RESTART_SESSION_ID, restartLabel, 5, CONTEXT_IN_DEBUG_MODE, 'restart-tb.png');
 	registerTouchBarEntry(STOP_ID, stopLabel, 6, CONTEXT_IN_DEBUG_MODE, 'stop-tb.png');
 }

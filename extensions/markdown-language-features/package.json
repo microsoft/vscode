@@ -303,7 +303,7 @@
 		"build-preview": "webpack --mode development"
 	},
 	"dependencies": {
-		"highlight.js": "9.13.1",
+		"highlight.js": "9.15.8",
 		"markdown-it": "^8.4.2",
 		"markdown-it-front-matter": "^0.1.2",
 		"vscode-extension-telemetry": "0.1.1",
@@ -313,7 +313,7 @@
 		"@types/highlight.js": "9.12.3",
 		"@types/lodash.throttle": "^4.1.3",
 		"@types/markdown-it": "0.0.2",
-		"@types/node": "^10.12.21",
+		"@types/node": "^10.14.8",
 		"lodash.throttle": "^4.1.1",
 		"mocha-junit-reporter": "^1.17.0",
 		"mocha-multi-reporters": "^1.1.7",

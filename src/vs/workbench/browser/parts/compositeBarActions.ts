@@ -549,11 +549,11 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		}));
 
 		// Activate on drag over to reveal targets
-		[this.badge, this.label].forEach(b => new DelayedDragHandler(b, () => {
+		[this.badge, this.label].forEach(b => this._register(new DelayedDragHandler(b, () => {
 			if (!this.compositeTransfer.hasData(DraggedCompositeIdentifier.prototype) && !this.getAction().checked) {
 				this.getAction().run();
 			}
-		}));
+		})));
 
 		this.updateStyles();
 	}

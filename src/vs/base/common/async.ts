@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 
 export function isThenable<T>(obj: any): obj is Promise<T> {
@@ -497,13 +497,12 @@ export class ResourceQueue {
 	}
 }
 
-export class TimeoutTimer extends Disposable {
+export class TimeoutTimer implements IDisposable {
 	private _token: any;
 
 	constructor();
 	constructor(runner: () => void, timeout: number);
 	constructor(runner?: () => void, timeout?: number) {
-		super();
 		this._token = -1;
 
 		if (typeof runner === 'function' && typeof timeout === 'number') {
@@ -513,7 +512,6 @@ export class TimeoutTimer extends Disposable {
 
 	dispose(): void {
 		this.cancel();
-		super.dispose();
 	}
 
 	cancel(): void {
@@ -543,18 +541,16 @@ export class TimeoutTimer extends Disposable {
 	}
 }
 
-export class IntervalTimer extends Disposable {
+export class IntervalTimer implements IDisposable {
 
 	private _token: any;
 
 	constructor() {
-		super();
 		this._token = -1;
 	}
 
 	dispose(): void {
 		this.cancel();
-		super.dispose();
 	}
 
 	cancel(): void {

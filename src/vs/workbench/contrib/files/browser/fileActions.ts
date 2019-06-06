@@ -83,15 +83,13 @@ export class NewFileAction extends Action {
 	static readonly ID = 'workbench.files.action.createFileFromExplorer';
 	static readonly LABEL = nls.localize('createNewFile', "New File");
 
-	private toDispose: IDisposable[] = [];
-
 	constructor(
 		@IExplorerService explorerService: IExplorerService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFile', NEW_FILE_LABEL);
 		this.class = 'explorer-action new-file';
-		this.toDispose.push(explorerService.onDidChangeEditable(e => {
+		this._register(explorerService.onDidChangeEditable(e => {
 			const elementIsBeingEdited = explorerService.isEditable(e);
 			this.enabled = !elementIsBeingEdited;
 		}));
@@ -100,11 +98,6 @@ export class NewFileAction extends Action {
 	run(): Promise<any> {
 		return this.commandService.executeCommand(NEW_FILE_COMMAND_ID);
 	}
-
-	dispose(): void {
-		super.dispose();
-		dispose(this.toDispose);
-	}
 }
 
 /* New Folder */
@@ -112,15 +105,13 @@ export class NewFolderAction extends Action {
 	static readonly ID = 'workbench.files.action.createFolderFromExplorer';
 	static readonly LABEL = nls.localize('createNewFolder', "New Folder");
 
-	private toDispose: IDisposable[] = [];
-
 	constructor(
 		@IExplorerService explorerService: IExplorerService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFolder', NEW_FOLDER_LABEL);
 		this.class = 'explorer-action new-folder';
-		this.toDispose.push(explorerService.onDidChangeEditable(e => {
+		this._register(explorerService.onDidChangeEditable(e => {
 			const elementIsBeingEdited = explorerService.isEditable(e);
 			this.enabled = !elementIsBeingEdited;
 		}));
@@ -128,11 +119,6 @@ export class NewFolderAction extends Action {
 
 	run(): Promise<any> {
 		return this.commandService.executeCommand(NEW_FOLDER_COMMAND_ID);
-	}
-
-	dispose(): void {
-		super.dispose();
-		dispose(this.toDispose);
 	}
 }
 
@@ -508,7 +494,6 @@ export class ToggleAutoSaveAction extends Action {
 }
 
 export abstract class BaseSaveAllAction extends Action {
-	private toDispose: IDisposable[];
 	private lastIsDirty: boolean;
 
 	constructor(
@@ -521,7 +506,6 @@ export abstract class BaseSaveAllAction extends Action {
 	) {
 		super(id, label);
 
-		this.toDispose = [];
 		this.lastIsDirty = this.textFileService.isDirty();
 		this.enabled = this.lastIsDirty;
 
@@ -534,13 +518,13 @@ export abstract class BaseSaveAllAction extends Action {
 	private registerListeners(): void {
 
 		// listen to files being changed locally
-		this.toDispose.push(this.textFileService.models.onModelsDirty(e => this.updateEnablement(true)));
-		this.toDispose.push(this.textFileService.models.onModelsSaved(e => this.updateEnablement(false)));
-		this.toDispose.push(this.textFileService.models.onModelsReverted(e => this.updateEnablement(false)));
-		this.toDispose.push(this.textFileService.models.onModelsSaveError(e => this.updateEnablement(true)));
+		this._register(this.textFileService.models.onModelsDirty(e => this.updateEnablement(true)));
+		this._register(this.textFileService.models.onModelsSaved(e => this.updateEnablement(false)));
+		this._register(this.textFileService.models.onModelsReverted(e => this.updateEnablement(false)));
+		this._register(this.textFileService.models.onModelsSaveError(e => this.updateEnablement(true)));
 
 		if (this.includeUntitled()) {
-			this.toDispose.push(this.untitledEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledEditorService.isDirty(resource))));
+			this._register(this.untitledEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledEditorService.isDirty(resource))));
 		}
 	}
 
@@ -556,12 +540,6 @@ export abstract class BaseSaveAllAction extends Action {
 			onError(this.notificationService, error);
 			return false;
 		});
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-
-		super.dispose();
 	}
 }
 
@@ -664,16 +642,14 @@ export class CollapseExplorerView extends Action {
 
 	public static readonly ID = 'workbench.files.action.collapseExplorerFolders';
 	public static readonly LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
-	private toDispose: IDisposable[] = [];
 
-	constructor(
-		id: string,
+	constructor(id: string,
 		label: string,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IExplorerService readonly explorerService: IExplorerService
 	) {
 		super(id, label, 'explorer-action collapse-explorer');
-		this.toDispose.push(explorerService.onDidChangeEditable(e => {
+		this._register(explorerService.onDidChangeEditable(e => {
 			const elementIsBeingEdited = explorerService.isEditable(e);
 			this.enabled = !elementIsBeingEdited;
 		}));
@@ -687,11 +663,6 @@ export class CollapseExplorerView extends Action {
 			}
 		});
 	}
-
-	dispose(): void {
-		super.dispose();
-		dispose(this.toDispose);
-	}
 }
 
 export class RefreshExplorerView extends Action {
@@ -699,16 +670,14 @@ export class RefreshExplorerView extends Action {
 	public static readonly ID = 'workbench.files.action.refreshFilesExplorer';
 	public static readonly LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
 
-	private toDispose: IDisposable[] = [];
 
 	constructor(
-		id: string,
-		label: string,
+		id: string, label: string,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super(id, label, 'explorer-action refresh-explorer');
-		this.toDispose.push(explorerService.onDidChangeEditable(e => {
+		this._register(explorerService.onDidChangeEditable(e => {
 			const elementIsBeingEdited = explorerService.isEditable(e);
 			this.enabled = !elementIsBeingEdited;
 		}));
@@ -718,11 +687,6 @@ export class RefreshExplorerView extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID).then(() =>
 			this.explorerService.refresh()
 		);
-	}
-
-	dispose(): void {
-		super.dispose();
-		dispose(this.toDispose);
 	}
 }
 
@@ -786,14 +750,6 @@ export function validateFileName(item: ExplorerItem, name: string): string | nul
 	// Invalid File name
 	if (names.some((folderName) => !extpath.isValidBasename(folderName))) {
 		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
-	}
-
-	// Max length restriction (on Windows)
-	if (isWindows) {
-		const fullPathLength = item.resource.fsPath.length + 1 /* path segment */;
-		if (fullPathLength > 255) {
-			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", trimLongName(name));
-		}
 	}
 
 	return null;

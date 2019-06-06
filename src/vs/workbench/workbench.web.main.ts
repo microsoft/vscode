@@ -322,9 +322,6 @@ import 'vs/workbench/contrib/outline/browser/outline.contribution';
 // Experiments
 // import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';
 
-// Code Insets
-// import 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
-
 // Issues
 // import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
 

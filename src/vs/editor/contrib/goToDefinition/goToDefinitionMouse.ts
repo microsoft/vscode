@@ -16,7 +16,7 @@ import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { getDefinitionsAtPosition } from './goToDefinition';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -27,13 +27,12 @@ import { IWordAtPosition, IModelDeltaDecoration, ITextModel, IFoundBracket } fro
 import { Position } from 'vs/editor/common/core/position';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
-class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
+class GotoDefinitionWithMouseEditorContribution extends Disposable implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
 	static MAX_SOURCE_PREVIEW_LINES = 8;
 
 	private readonly editor: ICodeEditor;
-	private toUnhook: IDisposable[];
 	private decorations: string[];
 	private currentWordUnderMouse: IWordAtPosition | null;
 	private previousPromise: CancelablePromise<LocationLink[] | null> | null;
@@ -43,19 +42,19 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
-		this.toUnhook = [];
+		super();
 		this.decorations = [];
 		this.editor = editor;
 		this.previousPromise = null;
 
 		let linkGesture = new ClickLinkGesture(editor);
-		this.toUnhook.push(linkGesture);
+		this._register(linkGesture);
 
-		this.toUnhook.push(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
+		this._register(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
 			this.startFindDefinition(mouseEvent, withNullAsUndefined(keyboardEvent));
 		}));
 
-		this.toUnhook.push(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
+		this._register(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
 			if (this.isEnabled(mouseEvent)) {
 				this.gotoDefinition(mouseEvent.target, mouseEvent.hasSideBySideModifier).then(() => {
 					this.removeDecorations();
@@ -66,7 +65,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			}
 		}));
 
-		this.toUnhook.push(linkGesture.onCancel(() => {
+		this._register(linkGesture.onCancel(() => {
 			this.removeDecorations();
 			this.currentWordUnderMouse = null;
 		}));
@@ -300,10 +299,6 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	public getId(): string {
 		return GotoDefinitionWithMouseEditorContribution.ID;
-	}
-
-	public dispose(): void {
-		this.toUnhook = dispose(this.toUnhook);
 	}
 }
 

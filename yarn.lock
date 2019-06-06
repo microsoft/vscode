@@ -1466,14 +1466,6 @@ class-utils@^0.3.5:
     isobject "^3.0.0"
     static-extend "^0.1.1"
 
-clean-css@3.4.6:
-  version "3.4.6"
-  resolved "https://registry.yarnpkg.com/clean-css/-/clean-css-3.4.6.tgz#fcb4f17057ddb7f8721616f70b07b294d95ffc45"
-  integrity sha1-/LTxcFfdt/hyFhb3CweylNlf/EU=
-  dependencies:
-    commander "2.8.x"
-    source-map "0.4.x"
-
 cli-cursor@^1.0.1:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/cli-cursor/-/cli-cursor-1.0.2.tgz#64da3f7d56a54412e59794bd62dc35295e8f2987"
@@ -1690,13 +1682,6 @@ commander@2.3.0:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/commander/-/commander-2.3.0.tgz#fd430e889832ec353b9acd1de217c11cb3eef873"
   integrity sha1-/UMOiJgy7DU7ms0d4hfBHLPu+HM=
-
-commander@2.8.x:
-  version "2.8.1"
-  resolved "https://registry.yarnpkg.com/commander/-/commander-2.8.1.tgz#06be367febfda0c330aa1e2a072d3dc9762425d4"
-  integrity sha1-Br42f+v9oMMwqh4qBy09yXYkJdQ=
-  dependencies:
-    graceful-readlink ">= 1.0.0"
 
 commander@^2.12.1, commander@~2.13.0:
   version "2.13.0"
@@ -3814,11 +3799,6 @@ graceful-fs@4.1.11, graceful-fs@^4.0.0, graceful-fs@^4.1.11, graceful-fs@^4.1.2,
   version "4.1.11"
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.1.11.tgz#0e8bdfe4d1ddb8854d64e04ea7c00e2a026e5658"
   integrity sha1-Dovf5NHduIVNZOBOp8AOKgJuVlg=
-
-"graceful-readlink@>= 1.0.0":
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/graceful-readlink/-/graceful-readlink-1.0.1.tgz#4cafad76bc62f02fa039b2f94e9a3dd3a391a725"
-  integrity sha1-TK+tdrxi8C+gObL5Tpo906ORpyU=
 
 growl@1.9.2:
   version "1.9.2"
@@ -6131,10 +6111,10 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.9.0-beta13:
-  version "0.9.0-beta13"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta13.tgz#615cae7447ac232aefa65a263d6821bc04d0f213"
-  integrity sha512-hO1U8Hd4OhSZMryTqfsog2bJnRGh8Ct3yTsfKRbLK8qhUnqmyOdHzLQkGTx5J7aG7iA8mDVcWBSx2YX2MpkDRQ==
+node-pty@0.9.0-beta16:
+  version "0.9.0-beta16"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta16.tgz#f11521e73bb4a26df23c40a05f4ca1be93340864"
+  integrity sha512-5onsCFXGTPcOZFAKh+E+aYalMomMAGqCnz/ibxCEL3xP73VAHRD6L+EadxRXFGbAG9o/EQzT0Wso+xLqhxXtgQ==
   dependencies:
     nan "^2.13.2"
 
@@ -8301,17 +8281,17 @@ source-map-url@^0.4.0:
   resolved "https://registry.yarnpkg.com/source-map-url/-/source-map-url-0.4.0.tgz#3e935d7ddd73631b97659956d55128e87b5084a3"
   integrity sha1-PpNdfd1zYxuXZZlW1VEo6HtQhKM=
 
-source-map@0.4.x, source-map@^0.4.4:
+source-map@0.6.1, source-map@^0.6.0, source-map@^0.6.1, source-map@~0.6.1:
+  version "0.6.1"
+  resolved "https://registry.yarnpkg.com/source-map/-/source-map-0.6.1.tgz#74722af32e9614e9c287a8d0bbde48b5e2f1a263"
+  integrity sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==
+
+source-map@^0.4.4:
   version "0.4.4"
   resolved "https://registry.yarnpkg.com/source-map/-/source-map-0.4.4.tgz#eba4f5da9c0dc999de68032d8b4f76173652036b"
   integrity sha1-66T12pwNyZneaAMti092FzZSA2s=
   dependencies:
     amdefine ">=0.0.4"
-
-source-map@0.6.1, source-map@^0.6.0, source-map@^0.6.1, source-map@~0.6.1:
-  version "0.6.1"
-  resolved "https://registry.yarnpkg.com/source-map/-/source-map-0.6.1.tgz#74722af32e9614e9c287a8d0bbde48b5e2f1a263"
-  integrity sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==
 
 source-map@^0.5.1, source-map@^0.5.3, source-map@^0.5.6, source-map@~0.5.1:
   version "0.5.7"
@@ -9075,10 +9055,10 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@3.4.5:
-  version "3.4.5"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.4.5.tgz#2d2618d10bb566572b8d7aad5180d84257d70a99"
-  integrity sha512-YycBxUb49UUhdNMU5aJ7z5Ej2XGmaIBL0x34vZ82fn3hGvD+bgrMrVDpatgz2f7YxUMJxMkbWxJZeAvDxVe7Vw==
+typescript@3.5.1:
+  version "3.5.1"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.5.1.tgz#ba72a6a600b2158139c5dd8850f700e231464202"
+  integrity sha512-64HkdiRv1yYZsSe4xC1WVgamNigVYjlssIoaH2HcZF0+ijsk5YK2g0G34w9wJkze8+5ow4STd22AynfO6ZYYLw==
 
 typescript@^2.6.2:
   version "2.6.2"
@@ -9590,10 +9570,10 @@ vscode-nls-dev@3.2.5:
     xml2js "^0.4.19"
     yargs "^10.1.1"
 
-vscode-nsfw@1.1.1:
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.1.1.tgz#7c3febe153677c5850b197a0b64a197cd11e95c7"
-  integrity sha512-Wg3vzN1U3T6P1uE13LdVVRIhdy7XWnWkwmAXhkLsIkH2QY0E/pvNDRLrwAMMW6GC1Fvvbxm3hzdIrCmr7Hq3FA==
+vscode-nsfw@1.1.2:
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.1.2.tgz#9cb9073b5854386801afe41f7152f721b4ea9e80"
+  integrity sha512-J0So+JNK/5kQboTO1hKNk4ie/wwUegrJilYSY5sVxU9JJlo3aQdP0zi2NtU8CEK3kkN6qRp0MbXCzbT0LKGorg==
   dependencies:
     fs-extra "^7.0.0"
     lodash.isinteger "^4.0.4"
@@ -9642,11 +9622,6 @@ vscode-windows-registry@1.0.1:
   integrity sha512-q0aKXi9Py1OBdmXIJJFeJBzpPJMMUxMJNBU9FysWIXEwJyMQGEVevKzM2J3Qz/cHSc5LVqibmoUWzZ7g+97qRg==
   dependencies:
     nan "^2.12.1"
-
-vscode-xterm@3.14.0-beta6:
-  version "3.14.0-beta6"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.14.0-beta6.tgz#657f5f68d73c53298b53f912a0dea178445c1c54"
-  integrity sha512-4E9ioj78LRZbMruEmxrDDSOeoPt3GX87MkY2HaPIT+PNIWNxCRiTCFDwbwXSWLzZdYLBNV6QEqLtnel5w8+1rA==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
@@ -9916,6 +9891,21 @@ xtend@~2.1.1:
   integrity sha1-bv7MKk2tjmlixJAbM3znuoe10os=
   dependencies:
     object-keys "~0.4.0"
+
+xterm-addon-search@0.1.0-beta5:
+  version "0.1.0-beta5"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.1.0-beta5.tgz#a9ad03d8fc02f8dfaab57809d446d4100b194fda"
+  integrity sha512-+50eYWs6D77kDHOFxaVss6r4lRskvkrmEXiz5x5aAgO07YIhOfQ3S0RFnQPch2kQ1mS66hsRnnUf0NGNEIZ1+A==
+
+xterm-addon-web-links@0.1.0-beta9:
+  version "0.1.0-beta9"
+  resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.1.0-beta9.tgz#8d30e41f54887ba668974d736488518322bea2c5"
+  integrity sha512-2UbhFqYMNGY2Eg6jrn+j2jpK2gGRqluiF5I++lSDYbKrxtfj7+WJZYhBzb0EeE7gbzDfcGZqsoueM/q+fAWB8Q==
+
+xterm@3.15.0-beta14:
+  version "3.15.0-beta14"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta14.tgz#75afb888be23a31db26cf14131513cd85d0dd550"
+  integrity sha512-faqJWrweQ2zyD2iQGV6XOq/Evl6iob7vRPQlF2VauBnVg0Nwbuh+/2suD2Oc5BKHyq8dsftpooOsIbIPfiVdnQ==
 
 y18n@^3.2.1:
   version "3.2.1"

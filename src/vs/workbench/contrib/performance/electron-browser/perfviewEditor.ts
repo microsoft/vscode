@@ -20,7 +20,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
 
@@ -73,7 +72,6 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITimerService private readonly _timerService: ITimerService,
-		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 	) { }
 
@@ -107,7 +105,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		]).then(([metrics]) => {
 			if (this._model && !this._model.isDisposed()) {
 
-				let stats = this._envService.args['prof-modules'] ? LoaderStats.get() : undefined;
+				let stats = LoaderStats.get();
 				let md = new MarkdownBuilder();
 				this._addSummary(md, metrics);
 				md.blank();
@@ -136,7 +134,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			md.li(`Memory(System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)} GB(${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
 		}
 		if (metrics.meminfo) {
-			md.li(`Memory(Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)} MB working set(${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
+			md.li(`Memory(Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)} MB working set(${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
 		}
 		md.li(`VM(likelyhood): ${metrics.isVMLikelyhood}%`);
 		md.li(`Initial Startup: ${metrics.initialStartup}`);

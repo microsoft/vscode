@@ -67,6 +67,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { values } from 'vs/base/common/collections';
 import { Schemas } from 'vs/base/common/network';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -109,6 +110,7 @@ export function createApiFactory(
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
 	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
+	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors));
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol));
 	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics, extHostLogService));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
@@ -160,7 +162,7 @@ export function createApiFactory(
 
 		// Check document selectors for being overly generic. Technically this isn't a problem but
 		// in practice many extensions say they support `fooLang` but need fs-access to do so. Those
-		// extension should specify then the `file`-scheme, e.g `{ scheme: 'fooLang', language: 'fooLang' }`
+		// extension should specify then the `file`-scheme, e.g. `{ scheme: 'fooLang', language: 'fooLang' }`
 		// We only inform once, it is not a warning because we just want to raise awareness and because
 		// we cannot say if the extension is doing it right or wrong...
 		const checkSelector = (function () {
@@ -305,10 +307,6 @@ export function createApiFactory(
 			},
 			registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeLensProvider(extension, checkSelector(selector), provider);
-			},
-			registerCodeInsetProvider(selector: vscode.DocumentSelector, provider: vscode.CodeInsetProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension);
-				return extHostLanguageFeatures.registerCodeInsetProvider(extension, checkSelector(selector), provider);
 			},
 			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDefinitionProvider(extension, checkSelector(selector), provider);
@@ -485,6 +483,10 @@ export function createApiFactory(
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviews.createWebviewPanel(extension, viewType, title, showOptions, options);
+			},
+			createWebviewTextEditorInset(editor: vscode.TextEditor, range: vscode.Range, options: vscode.WebviewOptions): vscode.WebviewEditorInset {
+				checkProposedApiEnabled(extension);
+				return extHostEditorInsets.createWebviewEditorInset(editor, range, options);
 			},
 			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {

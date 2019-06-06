@@ -107,6 +107,6 @@
     "request-light": "^0.2.4"
   },
   "devDependencies": {
-    "@types/node": "^10.12.21"
+    "@types/node": "^10.14.8"
   }
 }

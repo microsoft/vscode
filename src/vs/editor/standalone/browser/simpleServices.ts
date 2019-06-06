@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
-import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -37,7 +37,7 @@ import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/com
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, ILocalProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -219,6 +219,10 @@ export class SimpleNotificationService implements INotificationService {
 
 	public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		return SimpleNotificationService.NO_OP;
+	}
+
+	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
+		return Disposable.None;
 	}
 }
 

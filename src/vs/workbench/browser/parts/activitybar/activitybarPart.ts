@@ -181,14 +181,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
+
 		const content = document.createElement('div');
 		addClass(content, 'content');
 		parent.appendChild(content);
 
-		// Top Actionbar with action items for each viewlet action
+		// Viewlets action bar
 		this.compositeBar.create(content);
 
-		// Top Actionbar with action items for each viewlet action
+		// Global action bar
 		const globalActivities = document.createElement('div');
 		addClass(globalActivities, 'global-activity');
 		content.appendChild(globalActivities);
@@ -208,7 +209,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : null;
+		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : '';
 		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
 		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
 		container.style.borderRightColor = isPositionLeft ? borderColor : null;

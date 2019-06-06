@@ -304,7 +304,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._inputContainer = dom.$('.outline-input');
 
 		this._progressBar = new ProgressBar(progressContainer);
-		this.disposables.push(attachProgressBarStyler(this._progressBar, this._themeService));
+		this._register(attachProgressBarStyler(this._progressBar, this._themeService));
 
 		let treeContainer = dom.$('.outline-tree');
 		dom.append(
@@ -340,13 +340,13 @@ export class OutlinePanel extends ViewletPanel {
 		});
 
 		// feature: filter on type - keep tree and menu in sync
-		this.disposables.push(this._tree.onDidUpdateOptions(e => {
+		this._register(this._tree.onDidUpdateOptions(e => {
 			this._outlineViewState.filterOnType = Boolean(e.filterOnType);
 		}));
 
 		// feature: expand all nodes when filtering (not when finding)
 		let viewState: IDataTreeViewState | undefined;
-		this.disposables.push(this._tree.onDidChangeTypeFilterPattern(pattern => {
+		this._register(this._tree.onDidChangeTypeFilterPattern(pattern => {
 			if (!this._tree.options.filterOnType) {
 				return;
 			}
@@ -360,13 +360,13 @@ export class OutlinePanel extends ViewletPanel {
 		}));
 
 		// feature: toggle icons
-		this.disposables.push(this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
 				this._tree.updateChildren();
 			}
 		}));
 
-		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && !this._requestOracle) {
 				this._requestOracle = this._instantiationService.createInstance(RequestOracle, (editor: ICodeEditor | undefined, event: IModelContentChangedEvent | undefined) => this._doUpdate(editor, event), DocumentSymbolProviderRegistry);
 			} else if (!visible) {
@@ -390,20 +390,21 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	getSecondaryActions(): IAction[] {
-		let group = new RadioGroup([
+		const group = this._register(new RadioGroup([
 			new SimpleToggleAction(this._outlineViewState, localize('sortByPosition', "Sort By: Position"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByPosition, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByPosition),
 			new SimpleToggleAction(this._outlineViewState, localize('sortByName', "Sort By: Name"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByName, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByName),
 			new SimpleToggleAction(this._outlineViewState, localize('sortByKind', "Sort By: Type"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByKind, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByKind),
-		]);
-		let result = [
+		]));
+		const result = [
 			new SimpleToggleAction(this._outlineViewState, localize('followCur', "Follow Cursor"), () => this._outlineViewState.followCursor, action => this._outlineViewState.followCursor = action.checked),
 			new SimpleToggleAction(this._outlineViewState, localize('filterOnType', "Filter on Type"), () => this._outlineViewState.filterOnType, action => this._outlineViewState.filterOnType = action.checked),
 			new Separator(),
 			...group.actions,
 		];
+		for (const r of result) {
+			this._register(r);
+		}
 
-		this.disposables.push(...result);
-		this.disposables.push(group);
 		return result;
 	}
 

@@ -43,7 +43,10 @@ enum Settings {
 	SIDEBAR_POSITION = 'workbench.sideBar.location',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 
-	ZEN_MODE_RESTORE = 'zenMode.restore'
+	ZEN_MODE_RESTORE = 'zenMode.restore',
+
+	// TODO @misolori remove before shipping stable
+	ICON_EXPLORATION_ENABLED = 'workbench.iconExploration.enabled'
 }
 
 enum Storage {
@@ -63,8 +66,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
 
-	private readonly _onZenMode: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onZenModeChange(): Event<boolean> { return this._onZenMode.event; }
+	private readonly _onZenModeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onZenModeChange(): Event<boolean> { return this._onZenModeChange.event; }
+
+	private readonly _onFullscreenChange: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onFullscreenChange(): Event<boolean> { return this._onFullscreenChange.event; }
+
+	private readonly _onCenteredLayoutChange: Emitter<boolean> = this._register(new Emitter<boolean>());
+	get onCenteredLayoutChange(): Event<boolean> { return this._onCenteredLayoutChange.event; }
+
+	private readonly _onPanelPositionChange: Emitter<string> = this._register(new Emitter<string>());
+	get onPanelPositionChange(): Event<string> { return this._onPanelPositionChange.event; }
 
 	private readonly _onLayout = this._register(new Emitter<IDimension>());
 	get onLayout(): Event<IDimension> { return this._onLayout.event; }
@@ -148,6 +160,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			wasSideBarVisible: false,
 			wasPanelVisible: false,
 			transitionDisposeables: [] as IDisposable[]
+		},
+
+		// TODO @misolori remove before shipping stable
+		iconExploration: {
+			enabled: false
 		}
 	};
 
@@ -242,6 +259,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this._onTitleBarVisibilityChange.fire();
 			this.layout(); // handle title bar when fullscreen changes
 		}
+
+		this._onFullscreenChange.fire(this.state.fullscreen);
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
@@ -274,6 +293,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Menubar visibility
 		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
+
+		// TODO @misolori remove before shipping stable
+		// Icon exploration on setting change
+		const newIconExplorationEnabled = this.configurationService.getValue<boolean>(Settings.ICON_EXPLORATION_ENABLED);
+		this.setIconExploration(newIconExplorationEnabled);
+
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -386,6 +411,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Zen mode enablement
 		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
+
+		// TODO @misolori remove before shipping stable
+		// Icon exploration
+		this.state.iconExploration.enabled = this.configurationService.getValue<boolean>(Settings.ICON_EXPLORATION_ENABLED);
+		this.setIconExploration(this.state.iconExploration.enabled);
 	}
 
 	private resolveEditorsToOpen(fileService: IFileService): Promise<IResourceEditor[]> | IResourceEditor[] {
@@ -631,7 +661,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Event
-		this._onZenMode.fire(this.state.zenMode.active);
+		this._onZenModeChange.fire(this.state.zenMode.active);
 	}
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
@@ -652,6 +682,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.workbenchGrid.layout();
 			}
 		}
+	}
+
+	// TODO @misolori remove before shipping stable
+	private setIconExploration(enabled: boolean): void {
+		this.state.iconExploration.enabled = enabled;
+
+		// Update DOM
+		if (enabled) {
+			document.body.dataset.exploration = 'icon-exploration';
+		} else {
+			document.body.dataset.exploration = '';
+		}
+
 	}
 
 	protected createWorkbenchLayout(instantiationService: IInstantiationService): void {
@@ -828,6 +871,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.layout();
 			}
 		}
+
+		this._onCenteredLayoutChange.fire(this.state.editor.centered);
 	}
 
 	resizePart(part: Parts, sizeChange: number): void {
@@ -1069,6 +1114,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		} else {
 			this.workbenchGrid.layout();
 		}
+
+		this._onPanelPositionChange.fire(positionToString(this.state.panel.position));
 	}
 
 	private savePanelDimension(): void {

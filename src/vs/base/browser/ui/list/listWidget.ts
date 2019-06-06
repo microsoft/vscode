@@ -5,7 +5,7 @@
 
 import 'vs/css!./list';
 import { localize } from 'vs/nls';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { range, firstIndex, binarySearch } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
@@ -226,9 +226,8 @@ function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
 
-class KeyboardController<T> implements IDisposable {
+class KeyboardController<T> extends Disposable {
 
-	private disposables: IDisposable[];
 	private openController: IOpenController;
 
 	constructor(
@@ -236,8 +235,8 @@ class KeyboardController<T> implements IDisposable {
 		private view: ListView<T>,
 		options: IListOptions<T>
 	) {
+		super();
 		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
-		this.disposables = [];
 
 		this.openController = options.openController || DefaultOpenController;
 
@@ -245,15 +244,15 @@ class KeyboardController<T> implements IDisposable {
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(e => new StandardKeyboardEvent(e));
 
-		onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
-		onKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.disposables);
-		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
-		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
-		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
-		onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
+		this._register(onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this));
+		this._register(onKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this));
+		this._register(onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this));
+		this._register(onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this));
+		this._register(onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this));
+		this._register(onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this));
 
 		if (multipleSelectionSupport) {
-			onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this, this.disposables);
+			this._register(onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this));
 		}
 	}
 
@@ -311,10 +310,6 @@ class KeyboardController<T> implements IDisposable {
 		e.stopPropagation();
 		this.list.setSelection([], e.browserEvent);
 		this.view.domNode.focus();
-	}
-
-	dispose() {
-		this.disposables = dispose(this.disposables);
 	}
 }
 

@@ -28,7 +28,6 @@ import { IKeybindingItem, IKeybindingRule2, KeybindingWeight, KeybindingsRegistr
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -216,7 +215,7 @@ let keybindingType: IJSONSchema = {
 			description: nls.localize('vscode.extension.contributes.keybindings.args', "Arguments to pass to the command to execute.")
 		},
 		key: {
-			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g Ctrl+O and Ctrl+L L for a chord).'),
+			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g. Ctrl+O and Ctrl+L L for a chord).'),
 			type: 'string'
 		},
 		mac: {
@@ -277,12 +276,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
+		super(contextKeyService, commandService, telemetryService, notificationService);
 
 		updateSchema();
 

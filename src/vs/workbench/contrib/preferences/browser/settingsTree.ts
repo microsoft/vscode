@@ -25,7 +25,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -250,7 +250,7 @@ export interface ISettingOverrideClickEvent {
 	targetKey: string;
 }
 
-export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsTreeElement, never, any> {
+export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
 
@@ -262,19 +262,19 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 	static readonly SETTING_KEY_ATTR = 'data-key';
 	static readonly SETTING_ID_ATTR = 'data-id';
 
-	private readonly _onDidClickOverrideElement = new Emitter<ISettingOverrideClickEvent>();
+	private readonly _onDidClickOverrideElement = this._register(new Emitter<ISettingOverrideClickEvent>());
 	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
 
-	protected readonly _onDidChangeSetting = new Emitter<ISettingChangeEvent>();
+	protected readonly _onDidChangeSetting = this._register(new Emitter<ISettingChangeEvent>());
 	readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
-	protected readonly _onDidOpenSettings = new Emitter<string>();
+	protected readonly _onDidOpenSettings = this._register(new Emitter<string>());
 	readonly onDidOpenSettings: Event<string> = this._onDidOpenSettings.event;
 
-	private readonly _onDidClickSettingLink = new Emitter<ISettingLinkClickEvent>();
+	private readonly _onDidClickSettingLink = this._register(new Emitter<ISettingLinkClickEvent>());
 	readonly onDidClickSettingLink: Event<ISettingLinkClickEvent> = this._onDidClickSettingLink.event;
 
-	private readonly _onDidFocusSetting = new Emitter<SettingsTreeSettingElement>();
+	private readonly _onDidFocusSetting = this._register(new Emitter<SettingsTreeSettingElement>());
 	readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
 
 	// Put common injections back here
@@ -288,6 +288,7 @@ export abstract class AbstractSettingRenderer implements ITreeRenderer<SettingsT
 		@IContextMenuService protected readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 	) {
+		super();
 	}
 
 	renderTemplate(container: HTMLElement): any {
@@ -940,11 +941,11 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
-		const toDispose: IDisposable[] = [];
+		const toDispose = new DisposableStore();
 		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
 		controlElement.appendChild(checkbox.domNode);
-		toDispose.push(checkbox);
-		toDispose.push(checkbox.onChange(() => {
+		toDispose.add(checkbox);
+		toDispose.add(checkbox.onChange(() => {
 			if (template.onChange) {
 				template.onChange(checkbox.checked);
 			}
@@ -952,7 +953,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 
 		// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
 		// Also have to ignore embedded links - too buried to stop propagation
-		toDispose.push(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
+		toDispose.add(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
 			const targetElement = <HTMLElement>e.target;
 			const targetId = descriptionElement.getAttribute('checkbox_label_target_id');
 
@@ -969,10 +970,10 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		checkbox.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
-		toDispose.push(toolbar);
+		toDispose.add(toolbar);
 
 		const template: ISettingBoolItemTemplate = {
-			toDispose,
+			toDispose: [toDispose],
 
 			containerElement: container,
 			categoryElement,
@@ -988,16 +989,16 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		this.addSettingElementFocusHandler(template);
 
 		// Prevent clicks from being handled by list
-		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+		toDispose.add(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
 
-		toDispose.push(DOM.addStandardDisposableListener(controlElement, 'keydown', (e: StandardKeyboardEvent) => {
+		toDispose.add(DOM.addStandardDisposableListener(controlElement, 'keydown', (e: StandardKeyboardEvent) => {
 			if (e.keyCode === KeyCode.Escape) {
 				e.browserEvent.stopPropagation();
 			}
 		}));
 
-		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
-		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
+		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
+		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
 
 		return template;
 	}

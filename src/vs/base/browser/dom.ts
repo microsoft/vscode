@@ -11,7 +11,7 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 
@@ -929,21 +929,20 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 	}
 }
 
-class FocusTracker implements IFocusTracker {
+class FocusTracker extends Disposable implements IFocusTracker {
 
-	private _onDidFocus = new Emitter<void>();
-	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private _onDidBlur = new Emitter<void>();
-	readonly onDidBlur: Event<void> = this._onDidBlur.event;
-
-	private disposables: IDisposable[] = [];
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
 	constructor(element: HTMLElement | Window) {
+		super();
 		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
 		let loosingFocus = false;
 
-		let onFocus = () => {
+		const onFocus = () => {
 			loosingFocus = false;
 			if (!hasFocus) {
 				hasFocus = true;
@@ -951,7 +950,7 @@ class FocusTracker implements IFocusTracker {
 			}
 		};
 
-		let onBlur = () => {
+		const onBlur = () => {
 			if (hasFocus) {
 				loosingFocus = true;
 				window.setTimeout(() => {
@@ -964,14 +963,8 @@ class FocusTracker implements IFocusTracker {
 			}
 		};
 
-		domEvent(element, EventType.FOCUS, true)(onFocus, null, this.disposables);
-		domEvent(element, EventType.BLUR, true)(onBlur, null, this.disposables);
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		this._onDidFocus.dispose();
-		this._onDidBlur.dispose();
+		this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
+		this._register(domEvent(element, EventType.BLUR, true)(onBlur));
 	}
 }
 

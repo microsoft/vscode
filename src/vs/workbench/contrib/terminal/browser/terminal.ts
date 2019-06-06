@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal as XTermTerminal } from 'vscode-xterm';
-import { ITerminalInstance, IWindowsShellHelper, ITerminalProcessManager, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Terminal as XTermTerminal } from 'xterm';
+import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 
@@ -15,7 +15,6 @@ export interface ITerminalInstanceService {
 
 	getXtermConstructor(): Promise<typeof XTermTerminal>;
 	createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper;
-	createTerminalProcessManager(id: number, configHelper: ITerminalConfigHelper): ITerminalProcessManager;
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess;
 	getDefaultShell(p: Platform): string;
 }

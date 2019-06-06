@@ -1461,15 +1461,21 @@ export interface IWebviewPanelOptions {
 	readonly retainContextWhenHidden?: boolean;
 }
 
-export interface ICodeLensSymbol {
+export interface CodeLens {
 	range: IRange;
 	id?: string;
 	command?: Command;
 }
+
+export interface CodeLensList {
+	lenses: CodeLens[];
+	dispose(): void;
+}
+
 export interface CodeLensProvider {
 	onDidChange?: Event<this>;
-	provideCodeLenses(model: model.ITextModel, token: CancellationToken): ProviderResult<ICodeLensSymbol[]>;
-	resolveCodeLens?(model: model.ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ProviderResult<ICodeLensSymbol>;
+	provideCodeLenses(model: model.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
+	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 }
 
 // --- feature registries ------

@@ -9,7 +9,7 @@ import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass, addDisposableListener } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -103,7 +103,9 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 
 	renderTemplate(container: HTMLElement): ISuggestionTemplateData {
 		const data = <ISuggestionTemplateData>Object.create(null);
-		data.disposables = [];
+		const disposables = new DisposableStore();
+		data.disposables = [disposables];
+
 		data.root = container;
 		addClass(data.root, 'show-file-icons');
 
@@ -114,7 +116,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		const main = append(text, $('.main'));
 
 		data.iconLabel = new IconLabel(main, { supportHighlights: true });
-		data.disposables.push(data.iconLabel);
+		disposables.add(data.iconLabel);
 
 		data.typeLabel = append(main, $('span.type-label'));
 
@@ -142,9 +144,9 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 
 		configureFont();
 
-		Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+		disposables.add(Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo || e.contribInfo)
-			.on(configureFont, null, data.disposables);
+			.on(configureFont, null));
 
 		return data;
 	}
@@ -226,7 +228,7 @@ const enum State {
 	Details
 }
 
-class SuggestionDetails {
+class SuggestionDetails extends Disposable {
 
 	private el: HTMLElement;
 	private close: HTMLElement;
@@ -236,8 +238,7 @@ class SuggestionDetails {
 	private type: HTMLElement;
 	private docs: HTMLElement;
 	private ariaLabel: string | null;
-	private disposables: IDisposable[];
-	private renderDisposeable: IDisposable;
+	private readonly renderDisposeable = this._register(new DisposableStore());
 	private borderWidth: number = 1;
 
 	constructor(
@@ -247,16 +248,16 @@ class SuggestionDetails {
 		private readonly markdownRenderer: MarkdownRenderer,
 		private readonly triggerKeybindingLabel: string
 	) {
-		this.disposables = [];
+		super();
 
 		this.el = append(container, $('.details'));
-		this.disposables.push(toDisposable(() => container.removeChild(this.el)));
+		this._register(toDisposable(() => container.removeChild(this.el)));
 
 		this.body = $('.body');
 
 		this.scrollbar = new DomScrollableElement(this.body, {});
 		append(this.el, this.scrollbar.getDomNode());
-		this.disposables.push(this.scrollbar);
+		this._register(this.scrollbar);
 
 		this.header = append(this.body, $('.header'));
 		this.close = append(this.header, $('span.close'));
@@ -268,11 +269,11 @@ class SuggestionDetails {
 
 		this.configureFont();
 
-		Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+		this._register(Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo)
-			.on(this.configureFont, this, this.disposables);
+			.on(this.configureFont, this));
 
-		markdownRenderer.onDidRenderCodeBlock(() => this.scrollbar.scanDomNode(), this, this.disposables);
+		this._register(markdownRenderer.onDidRenderCodeBlock(() => this.scrollbar.scanDomNode(), this));
 	}
 
 	get element() {
@@ -280,7 +281,7 @@ class SuggestionDetails {
 	}
 
 	render(item: CompletionItem): void {
-		this.renderDisposeable = dispose(this.renderDisposeable);
+		this.renderDisposeable.clear();
 
 		if (!item || !canExpandCompletionItem(item)) {
 			this.type.textContent = '';
@@ -297,7 +298,7 @@ class SuggestionDetails {
 			addClass(this.docs, 'markdown-docs');
 			this.docs.innerHTML = '';
 			const renderedContents = this.markdownRenderer.render(item.completion.documentation);
-			this.renderDisposeable = renderedContents;
+			this.renderDisposeable.add(renderedContents);
 			this.docs.appendChild(renderedContents.element);
 		}
 
@@ -376,11 +377,6 @@ class SuggestionDetails {
 		this.type.style.fontFamily = fontFamily;
 		this.close.style.height = lineHeightPx;
 		this.close.style.width = lineHeightPx;
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		this.renderDisposeable = dispose(this.renderDisposeable);
 	}
 }
 

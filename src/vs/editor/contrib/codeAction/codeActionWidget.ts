@@ -13,26 +13,35 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class CodeActionContextMenu {
+export class CodeActionContextMenu extends Disposable {
 
 	private _visible: boolean;
 
-	private readonly _onDidExecuteCodeAction = new Emitter<void>();
+	private readonly _onDidExecuteCodeAction = this._register(new Emitter<void>());
 	public readonly onDidExecuteCodeAction: Event<void> = this._onDidExecuteCodeAction.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _contextMenuService: IContextMenuService,
 		private readonly _onApplyCodeAction: (action: CodeAction) => Promise<any>
-	) { }
+	) {
+		super();
+	}
 
-	async show(actionsToShow: Promise<CodeActionSet>, at?: { x: number; y: number } | Position): Promise<void> {
+	public async show(actionsToShow: Promise<CodeActionSet>, at?: { x: number; y: number } | Position): Promise<void> {
 		const codeActions = await actionsToShow;
+		if (!codeActions.actions.length) {
+			this._visible = false;
+			return;
+		}
 		if (!this._editor.getDomNode()) {
 			// cancel when editor went off-dom
+			this._visible = false;
 			return Promise.reject(canceled());
 		}
+
 		this._visible = true;
 		const actions = codeActions.actions.map(action => this.codeActionToAction(action));
 		this._contextMenuService.showContextMenu({

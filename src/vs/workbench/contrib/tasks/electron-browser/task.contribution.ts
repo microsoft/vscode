@@ -29,7 +29,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { MenuRegistry, MenuId, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
@@ -108,102 +108,35 @@ namespace ConfigureTaskAction {
 
 export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
 	private runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
-	private problemsStatusItem: IStatusbarEntryAccessor;
-
 	private activeTasksCount: number = 0;
 
 	constructor(
 		@ITaskService private readonly taskService: ITaskService,
-		@IMarkerService private readonly markerService: IMarkerService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
-
-		this.problemsStatusItem = this._register(this.statusbarService.addEntry(this.getProblemsItem(), StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-
 		this.registerListeners();
 	}
 
-	private getProblemsItem(): IStatusbarEntry {
-		const problems = this.markerService.getStatistics();
-
-		return {
-			text: this.getProblemsText(problems),
-			tooltip: this.getProblemsTooltip(problems),
-			command: 'workbench.action.tasks.toggleProblems'
-		};
-	}
-
-	private getProblemsTooltip(stats: MarkerStatistics): string {
-		const errorTitle = (n: number) => nls.localize('totalErrors', "{0} Errors", n);
-		const warningTitle = (n: number) => nls.localize('totalWarnings', "{0} Warnings", n);
-		const infoTitle = (n: number) => nls.localize('totalInfos', "{0} Infos", n);
-
-		const titles: string[] = [];
-
-		if (stats.errors > 0) {
-			titles.push(errorTitle(stats.errors));
-		}
-
-		if (stats.warnings > 0) {
-			titles.push(warningTitle(stats.warnings));
-		}
-
-		if (stats.infos > 0) {
-			titles.push(infoTitle(stats.infos));
-		}
-
-		if (titles.length === 0) {
-			return nls.localize('noProblems', "No Problems");
-		}
-
-		return titles.join(', ');
-	}
-
-	private getProblemsText(stats: MarkerStatistics): string {
-		const problemsText: string[] = [];
-
-		// Errors
-		problemsText.push('$(error) ' + this.packNumber(stats.errors));
-
-		// Warnings
-		problemsText.push('$(warning) ' + this.packNumber(stats.warnings));
-
-		// Info (only if any)
-		if (stats.infos > 0) {
-			problemsText.push('$(info) ' + this.packNumber(stats.infos));
-		}
-
-		// Building (only if any running tasks)
-		if (this.activeTasksCount > 0) {
-			problemsText.push(nls.localize('building', 'Building...'));
-		}
-
-		return problemsText.join(' ');
-	}
-
-	private packNumber(n: number): string {
-		const manyProblems = nls.localize('manyProblems', "10K+");
-
-		return n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
-	}
-
 	private registerListeners(): void {
-		this.markerService.onMarkerChanged(() => this.updateProblemsStatus());
-
+		let promise: Promise<void> | undefined = undefined;
+		let resolver: (value?: void | Thenable<void>) => void;
 		this.taskService.onDidStateChange(event => {
 			if (event.kind === TaskEventKind.Changed) {
 				this.updateRunningTasksStatus();
 			}
 
 			if (!this.ignoreEventForUpdateRunningTasksCount(event)) {
-				let needsUpdate = false;
-
 				switch (event.kind) {
 					case TaskEventKind.Active:
 						this.activeTasksCount++;
 						if (this.activeTasksCount === 1) {
-							needsUpdate = true;
+							if (!promise) {
+								promise = new Promise<void>((resolve) => {
+									resolver = resolve;
+								});
+							}
 						}
 						break;
 					case TaskEventKind.Inactive:
@@ -212,21 +145,30 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 						if (this.activeTasksCount > 0) {
 							this.activeTasksCount--;
 							if (this.activeTasksCount === 0) {
-								needsUpdate = true;
+								if (promise && resolver!) {
+									resolver!();
+								}
 							}
 						}
 						break;
 					case TaskEventKind.Terminated:
 						if (this.activeTasksCount !== 0) {
 							this.activeTasksCount = 0;
-							needsUpdate = true;
+							if (promise && resolver!) {
+								resolver!();
+							}
 						}
 						break;
 				}
+			}
 
-				if (needsUpdate) {
-					this.updateProblemsStatus();
-				}
+			if (promise && (event.kind === TaskEventKind.Active) && (this.activeTasksCount === 1)) {
+				this.progressService.withProgress({ location: ProgressLocation.Window }, progress => {
+					progress.report({ message: nls.localize('building', 'Building...') });
+					return promise!;
+				}).then(() => {
+					promise = undefined;
+				});
 			}
 		});
 	}
@@ -251,10 +193,6 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 				this.runningTasksStatusItem.update(itemProps);
 			}
 		}
-	}
-
-	private updateProblemsStatus(): void {
-		this.problemsStatusItem.update(this.getProblemsItem());
 	}
 
 	private ignoreEventForUpdateRunningTasksCount(event: TaskEvent): boolean {
@@ -1297,7 +1235,7 @@ class TaskService extends Disposable implements ITaskService {
 				this.terminalService, this.outputService, this.panelService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
 				this.contextService, this.environmentService,
-				TaskService.OutputChannelId,
+				TaskService.OutputChannelId, this.fileService,
 				(workspaceFolder: IWorkspaceFolder) => {
 					if (!workspaceFolder) {
 						return undefined;

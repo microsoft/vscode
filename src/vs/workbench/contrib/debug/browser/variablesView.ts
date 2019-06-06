@@ -88,7 +88,7 @@ export class VariablesView extends ViewletPanel {
 		this.toolbar.setActions([collapseAction])();
 		this.tree.updateChildren();
 
-		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
+		this._register(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 				return;
@@ -99,16 +99,16 @@ export class VariablesView extends ViewletPanel {
 			const timeout = sf.explicit ? 0 : undefined;
 			this.onFocusStackFrameScheduler.schedule(timeout);
 		}));
-		this.disposables.push(variableSetEmitter.event(() => this.tree.updateChildren()));
-		this.disposables.push(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
-		this.disposables.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(variableSetEmitter.event(() => this.tree.updateChildren()));
+		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
-		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onFocusStackFrameScheduler.schedule();
 			}
 		}));
-		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(e => {
+		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			if (e instanceof Variable) {
 				this.tree.rerender(e);
 			}

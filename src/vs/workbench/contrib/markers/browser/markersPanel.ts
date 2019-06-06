@@ -40,7 +40,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { domEvent } from 'vs/base/browser/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
@@ -84,13 +83,12 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private filter: Filter;
 
-	private _onDidFilter = new Emitter<void>();
+	private _onDidFilter = this._register(new Emitter<void>());
 	readonly onDidFilter: Event<void> = this._onDidFilter.event;
 	private cachedFilterStats: { total: number; filtered: number; } | undefined = undefined;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
 	readonly markersViewModel: MarkersViewModel;
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -110,7 +108,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.panelState = this.getMemento(StorageScope.WORKSPACE);
 		this.markersViewModel = instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']);
-		this.markersViewModel.onDidChange(this.onDidChangeViewState, this, this.disposables);
+		this._register(this.markersViewModel.onDidChange(this.onDidChangeViewState, this));
 		this.setCurrentActiveEditor();
 	}
 
@@ -734,6 +732,5 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		super.dispose();
 		this.tree.dispose();
 		this.markersViewModel.dispose();
-		this.disposables = dispose(this.disposables);
 	}
 }

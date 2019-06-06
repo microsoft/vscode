@@ -17,22 +17,24 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { OpenLogsFolderAction, SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { dirname } from 'vs/base/common/resources';
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
-		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-		outputChannelRegistry.registerChannel({ id: Constants.mainLogChannelId, label: nls.localize('mainLog', "Main"), file: URI.file(join(environmentService.logsPath, `main.log`)), log: true });
-		outputChannelRegistry.registerChannel({ id: Constants.sharedLogChannelId, label: nls.localize('sharedLog', "Shared"), file: URI.file(join(environmentService.logsPath, `sharedprocess.log`)), log: true });
-		outputChannelRegistry.registerChannel({ id: Constants.rendererLogChannelId, label: nls.localize('rendererLog', "Window"), file: URI.file(join(environmentService.logsPath, `renderer${environmentService.configuration.windowId}.log`)), log: true });
+		this.registerLogChannel(Constants.mainLogChannelId, nls.localize('mainLog', "Main"), URI.file(join(environmentService.logsPath, `main.log`)));
+		this.registerLogChannel(Constants.sharedLogChannelId, nls.localize('sharedLog', "Shared"), URI.file(join(environmentService.logsPath, `sharedprocess.log`)));
+		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), URI.file(join(environmentService.logsPath, `renderer${environmentService.configuration.windowId}.log`)));
 
 		const registerTelemetryChannel = (level: LogLevel) => {
-			if (level === LogLevel.Trace && !outputChannelRegistry.getChannel(Constants.telemetryLogChannelId)) {
-				outputChannelRegistry.registerChannel({ id: Constants.telemetryLogChannelId, label: nls.localize('telemetryLog', "Telemetry"), file: URI.file(join(environmentService.logsPath, `telemetry.log`)), log: true });
+			if (level === LogLevel.Trace && !Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels).getChannel(Constants.telemetryLogChannelId)) {
+				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry"), URI.file(join(environmentService.logsPath, `telemetry.log`)));
 			}
 		};
 		registerTelemetryChannel(logService.getLevel());
@@ -43,6 +45,25 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLogsFolderAction, OpenLogsFolderAction.ID, OpenLogsFolderAction.LABEL), 'Developer: Open Log Folder', devCategory);
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.LABEL), 'Developer: Set Log Level', devCategory);
 	}
+
+	private async registerLogChannel(id: string, label: string, file: URI): Promise<void> {
+		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+		const exists = await this.fileService.exists(file);
+		if (exists) {
+			outputChannelRegistry.registerChannel({ id, label, file, log: true });
+			return;
+		}
+
+		const watcher = this.fileService.watch(dirname(file));
+		const disposable = this.fileService.onFileChanges(e => {
+			if (e.contains(file, FileChangeType.ADDED)) {
+				watcher.dispose();
+				disposable.dispose();
+				outputChannelRegistry.registerChannel({ id, label, file, log: true });
+			}
+		});
+	}
+
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Restored);

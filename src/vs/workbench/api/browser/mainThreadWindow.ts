@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -13,10 +13,9 @@ import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
-export class MainThreadWindow implements MainThreadWindowShape {
+export class MainThreadWindow extends Disposable implements MainThreadWindowShape {
 
 	private readonly proxy: ExtHostWindowShape;
-	private disposables: IDisposable[] = [];
 	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
 
 	constructor(
@@ -26,14 +25,15 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
+		super();
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
-		Event.latch(windowService.onDidChangeFocus)
-			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
+		this._register(Event.latch(windowService.onDidChangeFocus)
+			(this.proxy.$onDidChangeWindowFocus, this.proxy));
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		super.dispose();
 
 		for (const tunnel of this._tunnels.values()) {
 			tunnel.then(tunnel => tunnel.dispose());

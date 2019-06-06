@@ -47,6 +47,10 @@ export class Application {
 		return this.options.logger;
 	}
 
+	get remote(): boolean {
+		return !!this.options.remote;
+	}
+
 	private _workspacePathOrFolder: string;
 	get workspacePathOrFolder(): string {
 		return this._workspacePathOrFolder;
@@ -135,8 +139,12 @@ export class Application {
 		await this.code.waitForWindowIds(ids => ids.length > 0);
 		await this.code.waitForElement('.monaco-workbench');
 
+		if (this.remote) {
+			await this.code.waitForElement('.monaco-workbench .statusbar-item.statusbar-entry a[title="Editing on TestResolver"]');
+		}
+
 		// wait a bit, since focus might be stolen off widgets
-		// as soon as they open (eg quick open)
+		// as soon as they open (e.g. quick open)
 		await new Promise(c => setTimeout(c, 1000));
 	}
 }

@@ -137,31 +137,19 @@ declare module 'vscode' {
 
 	// #region Joh - code insets
 
-	/**
-	 */
-	export class CodeInset {
-		range: Range;
-		height?: number;
-		constructor(range: Range, height?: number);
+	export interface WebviewEditorInset {
+		readonly editor: TextEditor;
+		readonly range: Range;
+		readonly webview: Webview;
+		readonly onDidDispose: Event<void>;
+		dispose(): void;
 	}
 
-	export interface CodeInsetProvider {
-		onDidChangeCodeInsets?: Event<void>;
-		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
-		resolveCodeInset(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
-	}
-
-	export namespace languages {
-
-		/**
-		 * Register a code inset provider.
-		 *
-		 */
-		export function registerCodeInsetProvider(selector: DocumentSelector, provider: CodeInsetProvider): Disposable;
+	export namespace window {
+		export function createWebviewTextEditorInset(editor: TextEditor, range: Range, options?: WebviewOptions): WebviewEditorInset;
 	}
 
 	//#endregion
-
 
 	//#region Joh - read/write in chunks
 

@@ -36,7 +36,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',
 	command: {
 		id: ToggleMinimapAction.ID,
-		title: nls.localize({ key: 'miToggleMinimap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Minimap"),
+		title: nls.localize({ key: 'miShowMinimap', comment: ['&& denotes a mnemonic'] }, "Show &&Minimap"),
 		toggled: ContextKeyExpr.equals('config.editor.minimap.enabled', true)
 	},
 	order: 2
