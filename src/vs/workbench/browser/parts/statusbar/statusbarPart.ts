@@ -487,17 +487,18 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private appendOneStatusbarEntry(itemContainer: HTMLElement, alignment: StatusbarAlignment, priority: number): void {
 		const entries = this.viewModel.getEntries(alignment);
 
-		// Some massaging due to display: float is needed
 		if (alignment === StatusbarAlignment.RIGHT) {
-			entries.reverse();
-			priority *= -1;
+			entries.reverse(); // reversing due to display: float
 		}
 
 		// find an entry that has lower priority than the new one
 		// and then insert the item before that one
 		let appended = false;
 		for (const entry of entries) {
-			if (entry.priority < priority) {
+			if (
+				alignment === StatusbarAlignment.LEFT && entry.priority < priority ||
+				alignment === StatusbarAlignment.RIGHT && entry.priority > priority
+			) {
 				this.element.insertBefore(itemContainer, entry.container);
 				appended = true;
 				break;
