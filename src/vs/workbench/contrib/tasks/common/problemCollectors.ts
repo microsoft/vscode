@@ -46,7 +46,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	private modelListeners: IDisposable[];
 	private tail: Promise<void>;
 
-	// [owner] -> AppyToKind
+	// [owner] -> ApplyToKind
 	private applyToByOwner: Map<string, ApplyToKind>;
 	// [owner] -> [resource] -> URI
 	private resourcesToClean: Map<string, Map<string, URI>>;
@@ -287,9 +287,9 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	protected reportMarkers(): void {
 		this.markers.forEach((markersPerOwner, owner) => {
-			let develieredMarkersPerOwner = this.getDeliveredMarkersPerOwner(owner);
+			let deliveredMarkersPerOwner = this.getDeliveredMarkersPerOwner(owner);
 			markersPerOwner.forEach((markers, resource) => {
-				this.deliverMarkersPerOwnerAndResourceResolved(owner, resource, markers, develieredMarkersPerOwner);
+				this.deliverMarkersPerOwnerAndResourceResolved(owner, resource, markers, deliveredMarkersPerOwner);
 			});
 		});
 	}
