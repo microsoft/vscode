@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { timeout, Delayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event as EventOf, Emitter } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -338,6 +338,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private extensionsBox: HTMLElement;
 	private primaryActions: IAction[];
 	private secondaryActions: IAction[] | null;
+	private disposables: IDisposable[] = [];
 	private searchViewletState: object;
 
 	constructor(
@@ -372,14 +373,14 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
 		this.defaultRecommendedExtensionsContextKey = DefaultRecommendedExtensionsContext.bindTo(contextKeyService);
 		this.defaultRecommendedExtensionsContextKey.set(!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey));
-		this._register(this.viewletService.onDidViewletOpen(this.onViewletOpen, this));
+		this.disposables.push(this.viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE);
 
 		this.extensionManagementService.getInstalled(ExtensionType.User).then(result => {
 			this.hasInstalledExtensionsContextKey.set(result.length > 0);
 		});
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
+		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
 				this.secondaryActions = null;
 				this.updateTitleArea();
@@ -387,7 +388,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			if (e.affectedKeys.indexOf(ShowRecommendationsOnlyOnDemandKey) > -1) {
 				this.defaultRecommendedExtensionsContextKey.set(!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey));
 			}
-		}, this));
+		}, this, this.disposables);
 	}
 
 	create(parent: HTMLElement): void {
@@ -414,18 +415,18 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			this.triggerSearch();
 		}
 
-		this._register(attachSuggestEnabledInputBoxStyler(this.searchBox, this.themeService));
+		this.disposables.push(attachSuggestEnabledInputBoxStyler(this.searchBox, this.themeService));
 
-		this._register(this.searchBox);
+		this.disposables.push(this.searchBox);
 
 		const _searchChange = new Emitter<string>();
 		this.onSearchChange = _searchChange.event;
-		this._register(this.searchBox.onInputDidChange(() => {
+		this.searchBox.onInputDidChange(() => {
 			this.triggerSearch();
 			_searchChange.fire(this.searchBox.getValue());
-		}, this));
+		}, this, this.disposables);
 
-		this._register(this.searchBox.onShouldFocusResults(() => this.focusListView(), this));
+		this.searchBox.onShouldFocusResults(() => this.focusListView(), this, this.disposables);
 
 		this._register(this.onDidChangeVisibility(visible => {
 			if (visible) {
@@ -612,19 +613,24 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		this.notificationService.error(err);
 	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		super.dispose();
+	}
 }
 
-export class StatusUpdater extends Disposable implements IWorkbenchContribution {
+export class StatusUpdater implements IWorkbenchContribution {
 
-	private badgeHandle?: IDisposable;
+	private disposables: IDisposable[];
+	private badgeHandle: IDisposable;
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
 	) {
-		super();
-		this._register(extensionsWorkbenchService.onChange(this.onServiceChange, this));
+		extensionsWorkbenchService.onChange(this.onServiceChange, this, this.disposables);
 	}
 
 	private onServiceChange(): void {
@@ -644,12 +650,14 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 	}
 
 	dispose(): void {
-		super.dispose();
+		this.disposables = dispose(this.disposables);
 		dispose(this.badgeHandle);
 	}
 }
 
 export class MaliciousExtensionChecker implements IWorkbenchContribution {
+
+	private disposables: IDisposable[];
 
 	constructor(
 		@IExtensionManagementService private readonly extensionsManagementService: IExtensionManagementService,
@@ -694,5 +702,9 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 				}
 			}).then(() => undefined);
 		}, err => this.logService.error(err));
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }

@@ -98,7 +98,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			this.profilingStatusBarIndicatorLabelUpdater = toDisposable(() => clearInterval(handle));
 
 			if (!this.profilingStatusBarIndicator) {
-				this.profilingStatusBarIndicator = this._statusbarService.addEntry(indicator, StatusbarAlignment.RIGHT);
+				this.profilingStatusBarIndicator = this._statusbarService.addEntry(indicator, 'status.profiler', nls.localize('status.profiler', "Extension Profiler"), StatusbarAlignment.RIGHT);
 			} else {
 				this.profilingStatusBarIndicator.update(indicator);
 			}

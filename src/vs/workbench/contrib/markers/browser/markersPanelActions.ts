@@ -18,7 +18,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IMarkersWorkbenchService } from 'vs/workbench/contrib/markers/browser/markers';
-import { toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { BaseActionViewItem, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
@@ -296,6 +296,8 @@ export class QuickFixAction extends Action {
 	private static readonly CLASS: string = 'markers-panel-action-quickfix';
 	private static readonly AUTO_FIX_CLASS: string = QuickFixAction.CLASS + ' autofixable';
 
+	private disposables: IDisposable[] = [];
+
 	private readonly _onShowQuickFixes: Emitter<void> = new Emitter<void>();
 	readonly onShowQuickFixes: Event<void> = this._onShowQuickFixes.event;
 
@@ -321,6 +323,11 @@ export class QuickFixAction extends Action {
 	run(): Promise<void> {
 		this._onShowQuickFixes.fire();
 		return Promise.resolve();
+	}
+
+	dispose(): void {
+		dispose(this.disposables);
+		super.dispose();
 	}
 }
 

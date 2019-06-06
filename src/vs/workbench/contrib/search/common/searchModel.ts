@@ -8,7 +8,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap, TernarySearchTree, values } from 'vs/base/common/map';
 import * as objects from 'vs/base/common/objects';
 import { lcut } from 'vs/base/common/strings';
@@ -1044,11 +1044,12 @@ export class RangeHighlightDecorations implements IDisposable {
 
 	private _decorationId: string | null = null;
 	private _model: ITextModel | null = null;
-	private readonly _modelDisposables = new DisposableStore();
+	private _modelDisposables: IDisposable[] = [];
 
 	constructor(
 		@IModelService private readonly _modelService: IModelService
-	) { }
+	) {
+	}
 
 	removeHighlightRange() {
 		if (this._model && this._decorationId) {
@@ -1080,12 +1081,12 @@ export class RangeHighlightDecorations implements IDisposable {
 		if (this._model !== model) {
 			this.disposeModelListeners();
 			this._model = model;
-			this._modelDisposables.add(this._model.onDidChangeDecorations((e) => {
+			this._modelDisposables.push(this._model.onDidChangeDecorations((e) => {
 				this.disposeModelListeners();
 				this.removeHighlightRange();
 				this._model = null;
 			}));
-			this._modelDisposables.add(this._model.onWillDispose(() => {
+			this._modelDisposables.push(this._model.onWillDispose(() => {
 				this.disposeModelListeners();
 				this.removeHighlightRange();
 				this._model = null;
@@ -1094,7 +1095,8 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	private disposeModelListeners() {
-		this._modelDisposables.clear();
+		this._modelDisposables.forEach(disposable => disposable.dispose());
+		this._modelDisposables = [];
 	}
 
 	dispose() {
@@ -1103,7 +1105,6 @@ export class RangeHighlightDecorations implements IDisposable {
 			this.disposeModelListeners();
 			this._model = null;
 		}
-		this._modelDisposables.dispose();
 	}
 
 	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({

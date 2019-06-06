@@ -188,7 +188,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			};
 
 			if (!this.runningTasksStatusItem) {
-				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, StatusbarAlignment.LEFT, 50 /* Medium Priority */);
+				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, 'status.runningTasks', nls.localize('status.runningTasks', "Running Tasks"), StatusbarAlignment.LEFT, 50 /* Medium Priority */);
 			} else {
 				this.runningTasksStatusItem.update(itemProps);
 			}

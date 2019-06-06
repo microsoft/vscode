@@ -147,7 +147,6 @@ function ensureDirs(dirPath) {
 	}
 }
 
-
 /* Downloads the node executable used for the remote server to ./build/node-remote */
 gulp.task(task.define('node-remote', () => {
 	const VERSION = getNodeVersion();

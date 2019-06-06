@@ -45,16 +45,15 @@ type LoadedScriptsItem = BaseTreeItem;
 class BaseTreeItem {
 
 	private _showedMoreThanOne: boolean;
-	private _children: { [key: string]: BaseTreeItem; };
+	private _children = new Map<string, BaseTreeItem>();
 	private _source: Source;
 
 	constructor(private _parent: BaseTreeItem | undefined, private _label: string) {
-		this._children = {};
 		this._showedMoreThanOne = false;
 	}
 
 	isLeaf(): boolean {
-		return Object.keys(this._children).length === 0;
+		return this._children.size === 0;
 	}
 
 	getSession(): IDebugSession | undefined {
@@ -66,12 +65,12 @@ class BaseTreeItem {
 
 	setSource(session: IDebugSession, source: Source): void {
 		this._source = source;
-		this._children = {};
+		this._children.clear();
 		if (source.raw && source.raw.sources) {
 			for (const src of source.raw.sources) {
 				if (src.name && src.path) {
 					const s = new BaseTreeItem(this, src.name);
-					this._children[src.path] = s;
+					this._children.set(src.path, s);
 					const ss = session.getSource(src);
 					s.setSource(session, ss);
 				}
@@ -80,26 +79,26 @@ class BaseTreeItem {
 	}
 
 	createIfNeeded<T extends BaseTreeItem>(key: string, factory: (parent: BaseTreeItem, label: string) => T): T {
-		let child = <T>this._children[key];
+		let child = <T>this._children.get(key);
 		if (!child) {
 			child = factory(this, key);
-			this._children[key] = child;
+			this._children.set(key, child);
 		}
 		return child;
 	}
 
-	getChild(key: string): BaseTreeItem {
-		return this._children[key];
+	getChild(key: string): BaseTreeItem | undefined {
+		return this._children.get(key);
 	}
 
 	remove(key: string): void {
-		delete this._children[key];
+		this._children.delete(key);
 	}
 
 	removeFromParent(): void {
 		if (this._parent) {
 			this._parent.remove(this._label);
-			if (Object.keys(this._parent._children).length === 0) {
+			if (this._parent._children.size === 0) {
 				this._parent.removeFromParent();
 			}
 		}
@@ -142,7 +141,7 @@ class BaseTreeItem {
 		if (child) {
 			return child.hasChildren();
 		}
-		return Object.keys(this._children).length > 0;
+		return this._children.size > 0;
 	}
 
 	// skips intermediate single-child nodes
@@ -151,7 +150,10 @@ class BaseTreeItem {
 		if (child) {
 			return child.getChildren();
 		}
-		const array = Object.keys(this._children).map(key => this._children[key]);
+		const array: BaseTreeItem[] = [];
+		for (let child of this._children.values()) {
+			array.push(child);
+		}
 		return Promise.resolve(array.sort((a, b) => this.compare(a, b)));
 	}
 
@@ -199,12 +201,11 @@ class BaseTreeItem {
 
 	private oneChild(): BaseTreeItem | undefined {
 		if (SMART && !this._source && !this._showedMoreThanOne && !(this instanceof RootFolderTreeItem) && !(this instanceof SessionTreeItem)) {
-			const keys = Object.keys(this._children);
-			if (keys.length === 1) {
-				return this._children[keys[0]];
+			if (this._children.size === 1) {
+				return this._children.values().next().value;
 			}
 			// if a node had more than one child once, it will never be skipped again
-			if (keys.length > 1) {
+			if (this._children.size > 1) {
 				this._showedMoreThanOne = true;
 			}
 		}
@@ -243,7 +244,7 @@ class SessionTreeItem extends BaseTreeItem {
 
 	private _session: IDebugSession;
 	private _initialized: boolean;
-	private _map: Map<string, BaseTreeItem>;
+	private _map = new Map<string, BaseTreeItem>();
 	private _labelService: ILabelService;
 
 	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
@@ -251,7 +252,6 @@ class SessionTreeItem extends BaseTreeItem {
 		this._labelService = labelService;
 		this._initialized = false;
 		this._session = session;
-		this._map = new Map();
 	}
 
 	getSession(): IDebugSession {

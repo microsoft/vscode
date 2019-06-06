@@ -60,8 +60,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected toolBar: ToolBar;
 
-	private mapCompositeToCompositeContainer: { [compositeId: string]: HTMLElement; };
-	private mapActionsBindingToComposite: { [compositeId: string]: () => void; };
+	private mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
+	private mapActionsBindingToComposite = new Map<string, () => void>();
 	private activeComposite: Composite | null;
 	private lastActiveCompositeId: string;
 	private instantiatedCompositeItems: Map<string, CompositeItem>;
@@ -91,8 +91,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	) {
 		super(id, options, themeService, storageService, layoutService);
 
-		this.mapCompositeToCompositeContainer = {};
-		this.mapActionsBindingToComposite = {};
 		this.activeComposite = null;
 		this.instantiatedCompositeItems = new Map<string, CompositeItem>();
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
@@ -206,7 +204,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.lastActiveCompositeId = this.activeComposite.getId();
 
 		// Composites created for the first time
-		let compositeContainer = this.mapCompositeToCompositeContainer[composite.getId()];
+		let compositeContainer = this.mapCompositeToCompositeContainer.get(composite.getId());
 		if (!compositeContainer) {
 
 			// Build Container off-DOM
@@ -218,7 +216,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			composite.updateStyles();
 
 			// Remember composite container
-			this.mapCompositeToCompositeContainer[composite.getId()] = compositeContainer;
+			this.mapCompositeToCompositeContainer.set(composite.getId(), compositeContainer);
 		}
 
 		// Fill Content and Actions
@@ -244,10 +242,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		// Handle Composite Actions
-		let actionsBinding = this.mapActionsBindingToComposite[composite.getId()];
+		let actionsBinding = this.mapActionsBindingToComposite.get(composite.getId());
 		if (!actionsBinding) {
 			actionsBinding = this.collectCompositeActions(composite);
-			this.mapActionsBindingToComposite[composite.getId()] = actionsBinding;
+			this.mapActionsBindingToComposite.set(composite.getId(), actionsBinding);
 		}
 		actionsBinding();
 
@@ -300,13 +298,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Actions
 			const actionsBinding = this.collectCompositeActions(this.activeComposite);
-			this.mapActionsBindingToComposite[this.activeComposite.getId()] = actionsBinding;
+			this.mapActionsBindingToComposite.set(this.activeComposite.getId(), actionsBinding);
 			actionsBinding();
 		}
 
 		// Otherwise invalidate actions binding for next time when the composite becomes visible
 		else {
-			delete this.mapActionsBindingToComposite[compositeId];
+			this.mapActionsBindingToComposite.delete(compositeId);
 		}
 	}
 
@@ -360,14 +358,16 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const composite = this.activeComposite;
 		this.activeComposite = null;
 
-		const compositeContainer = this.mapCompositeToCompositeContainer[composite.getId()];
+		const compositeContainer = this.mapCompositeToCompositeContainer.get(composite.getId());
 
 		// Indicate to Composite
 		composite.setVisible(false);
 
 		// Take Container Off-DOM and hide
-		compositeContainer.remove();
-		hide(compositeContainer);
+		if (compositeContainer) {
+			compositeContainer.remove();
+			hide(compositeContainer);
+		}
 
 		// Clear any running Progress
 		this.progressBar.stop().hide();
@@ -490,8 +490,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			return false; // do not remove active composite
 		}
 
-		delete this.mapCompositeToCompositeContainer[compositeId];
-		delete this.mapActionsBindingToComposite[compositeId];
+		this.mapCompositeToCompositeContainer.delete(compositeId);
+		this.mapActionsBindingToComposite.delete(compositeId);
 		const compositeItem = this.instantiatedCompositeItems.get(compositeId);
 		if (compositeItem) {
 			compositeItem.composite.dispose();
@@ -503,8 +503,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	dispose(): void {
-		this.mapCompositeToCompositeContainer = null!; // StrictNullOverride: nulling out ok in dispose
-		this.mapActionsBindingToComposite = null!; // StrictNullOverride: nulling out ok in dispose
+		this.mapCompositeToCompositeContainer.clear();
+		this.mapActionsBindingToComposite.clear();
 
 		this.instantiatedCompositeItems.forEach(compositeItem => {
 			compositeItem.composite.dispose();

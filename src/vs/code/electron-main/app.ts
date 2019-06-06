@@ -62,7 +62,7 @@ import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { homedir } from 'os';
-import { join, sep, dirname } from 'vs/base/common/path';
+import { join, sep } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
@@ -79,14 +79,11 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { statSync, utimes } from 'fs';
-import { promisify } from 'util';
+import { statSync } from 'fs';
 
 export class CodeApplication extends Disposable {
 
 	private static readonly MACHINE_ID_KEY = 'telemetry.machineId';
-
-	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh7';
 
 	private windowsMainService: IWindowsMainService | undefined;
 
@@ -637,30 +634,6 @@ export class CodeApplication extends Disposable {
 
 		// Remote Authorities
 		this.handleRemoteAuthorities();
-
-		// Helps application icon refresh after an update with new icon is installed (macOS)
-		// TODO@Ben remove after a couple of releases
-		if (isMacintosh) {
-			if (!this.stateService.getItem(CodeApplication.APP_ICON_REFRESH_KEY)) {
-				this.stateService.setItem(CodeApplication.APP_ICON_REFRESH_KEY, true);
-
-				// 'exe' => /Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron
-				const appPath = dirname(dirname(dirname(app.getPath('exe'))));
-				const infoPlistPath = join(appPath, 'Contents', 'Info.plist');
-				this.touch(appPath);
-				this.touch(infoPlistPath);
-			}
-		}
-	}
-
-	private async touch(path: string): Promise<void> {
-		const now = Date.now() / 1000; // the value should be a Unix timestamp in seconds
-
-		try {
-			await promisify(utimes)(path, now, now);
-		} catch (error) {
-			// ignore
-		}
 	}
 
 	private handleRemoteAuthorities(): void {
