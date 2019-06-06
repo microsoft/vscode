@@ -105,8 +105,8 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 			extHostProcess.stdout.on('data', (data: Buffer) => processOutput(data.toString()));
 			extHostProcess.stderr.on('data', (data: Buffer) => processOutput(data.toString()));
-			extHostProcess.on('error', (error: Error) => processError(`remoteExtensionHostAgent failed with error:\n${error.message}`));
-			extHostProcess.on('close', (code: number) => processError(`remoteExtensionHostAgent closed unexpectedly.\nError code: ${code}`));
+			extHostProcess.on('error', (error: Error) => processError(`server failed with error:\n${error.message}`));
+			extHostProcess.on('close', (code: number) => processError(`server closed unexpectedly.\nError code: ${code}`));
 		});
 	}
 
