@@ -6,10 +6,9 @@
 import * as nls from 'vs/nls';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Terminal as XTermTerminal } from 'xterm';
-import { ITerminalInstance, IWindowsShellHelper, ITerminalConfigHelper, ITerminalProcessManager, IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalInstance, IWindowsShellHelper, IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
@@ -42,10 +41,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 
 	public createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper {
 		return new WindowsShellHelper(shellProcessId, instance, xterm);
-	}
-
-	public createTerminalProcessManager(id: number, configHelper: ITerminalConfigHelper): ITerminalProcessManager {
-		return this._instantiationService.createInstance(TerminalProcessManager, id, configHelper);
 	}
 
 	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {

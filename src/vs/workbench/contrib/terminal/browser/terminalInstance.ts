@@ -36,6 +36,7 @@ import { Terminal as XTermTerminal, IBuffer } from 'xterm';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
+import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -903,7 +904,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	protected _createProcess(): void {
-		this._processManager = this._terminalInstanceService.createTerminalProcessManager(this._id, this._configHelper);
+		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(data => this._onData.fire(data));
