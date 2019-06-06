@@ -7,7 +7,7 @@ const opn = require('opn');
 const cp = require('child_process');
 const path = require('path');
 
-const proc = cp.execFile(path.join(__dirname, process.platform === 'win32' ? 'remoteExtensionAgent.bat' : 'remoteExtensionAgent.sh'));
+const proc = cp.execFile(path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh'));
 
 let launched = false;
 proc.stdout.on("data", data => {

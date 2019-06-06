@@ -3,7 +3,7 @@ setlocal
 
 title VSCode Remote Agent
 
-pushd %~dp0\..
+pushd %~dp0\..\..\..
 
 :: Configuration
 set NODE_ENV=development
@@ -16,7 +16,7 @@ node build\lib\builtInExtensions.js
 node .\node_modules\gulp\bin\gulp.js node-remote
 
 :: Launch Agent
-.build\node-remote\node.exe out\remoteExtensionHostAgent.js %*
+.build\node-remote\node.exe out\vs\server\main.js %*
 
 popd
 
