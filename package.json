@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.36.0",
-  "distro": "415f5eedf507e8dba41c4207885dd6e63e7c4215",
+  "distro": "918cede47c2206e6eb3962671059151bd299874b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -25,7 +25,7 @@
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
-    "web": "node resource/server/bin-dev/code-web.js",
+    "web": "node resources/server/bin-dev/code-web.js",
     "install-server": "git checkout distro/distro -- src/vs/server resources/server && git reset HEAD src/vs/server resources/server"
   },
   "dependencies": {
