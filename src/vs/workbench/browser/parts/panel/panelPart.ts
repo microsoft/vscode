@@ -261,6 +261,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	hideActivePanel(): void {
+		// First check if panel is visible and hide if so
+		if (this.layoutService.isVisible(Parts.PANEL_PART)) {
+			this.layoutService.setPanelHidden(true);
+		}
+
 		this.hideActiveComposite();
 	}
 
