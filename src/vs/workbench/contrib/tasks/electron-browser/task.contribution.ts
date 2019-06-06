@@ -182,7 +182,8 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 		} else {
 			const itemProps: IStatusbarEntry = {
-				category: { id: 'status.runningTasks', label: nls.localize('status.runningTasks', "Running Tasks") },
+				id: 'status.runningTasks',
+				name: nls.localize('status.runningTasks', "Running Tasks"),
 				text: `$(tools) ${tasks.length}`,
 				tooltip: nls.localize('runningTasks', "Show Running Tasks"),
 				command: 'workbench.action.tasks.showTasks',

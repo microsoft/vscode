@@ -65,7 +65,8 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 
 	private get entry(): IStatusbarEntry {
 		return {
-			category: { id: 'status.debug', label: nls.localize('status.debug', "Debug Configuration") },
+			id: 'status.debug',
+			name: nls.localize('status.debug', "Debug Configuration"),
 			text: this.getText(),
 			tooltip: nls.localize('selectAndStartDebug', "Select and start debug configuration"),
 			command: 'workbench.action.debug.selectandstart'

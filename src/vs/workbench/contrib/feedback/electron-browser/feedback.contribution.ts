@@ -13,7 +13,8 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 // Register Statusbar item
 Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(new StatusbarItemDescriptor(
 	FeedbackStatusbarItem,
-	{ id: 'status.feedback', label: localize('status.feedback', "Send Feedback") },
+	'status.feedback',
+	localize('status.feedback', "Send Feedback"),
 	StatusbarAlignment.RIGHT,
 	-100 /* towards the end of the right hand side */
 ));

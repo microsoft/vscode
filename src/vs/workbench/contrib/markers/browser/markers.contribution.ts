@@ -286,7 +286,8 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	private getMarkersItem(): IStatusbarEntry {
 		const markersStatistics = this.markerService.getStatistics();
 		return {
-			category: { id: 'status.problems', label: localize('status.problems', "Problems") },
+			id: 'status.problems',
+			name: localize('status.problems', "Problems"),
 			text: this.getMarkersText(markersStatistics),
 			tooltip: this.getMarkersTooltip(markersStatistics),
 			command: 'workbench.actions.view.toggleProblems'

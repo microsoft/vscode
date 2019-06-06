@@ -84,7 +84,8 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 		if (visible) {
 			const indicator: IStatusbarEntry = {
-				category: { id: 'status.profiler', label: nls.localize('status.profiler', "Extension Profiler") },
+				id: 'status.profiler',
+				name: nls.localize('status.profiler', "Extension Profiler"),
 				text: nls.localize('profilingExtensionHost', "$(sync~spin) Profiling Extension Host"),
 				tooltip: nls.localize('selectAndStartDebug', "Click to stop profiling."),
 				command: 'workbench.action.extensionHostProfilder.stop'

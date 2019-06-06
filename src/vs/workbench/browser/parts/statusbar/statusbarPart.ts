@@ -15,7 +15,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarRegistry, Extensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarEntryCategory } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector, ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -44,22 +44,23 @@ interface IPendingStatusbarEntry {
 }
 
 interface IStatusbarViewModelItem {
-	category: IStatusbarEntryCategory;
+	id: string;
+	name: string;
 	alignment: StatusbarAlignment;
 	priority: number;
 }
 
 class StatusbarViewModel extends Disposable {
 
-	private static readonly HIDDEN_CATEGORIES_KEY = 'workbench.statusbar.hidden';
+	private static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
 
 	private readonly _items: IStatusbarViewModelItem[] = [];
 	get items(): IStatusbarViewModelItem[] { return this._items; }
 
-	private readonly _onDidCategoryVisibilityChange: Emitter<IStatusbarEntryCategory> = this._register(new Emitter());
-	get onDidCategoryVisibilityChange(): Event<IStatusbarEntryCategory> { return this._onDidCategoryVisibilityChange.event; }
+	private readonly _onDidVisibilityChange: Emitter<string> = this._register(new Emitter());
+	get onDidVisibilityChange(): Event<string> { return this._onDidVisibilityChange.event; }
 
-	private hiddenCategories: Set<string>;
+	private hidden: Set<string>;
 
 	constructor(private storageService: IStorageService) {
 		super();
@@ -69,18 +70,18 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	private restoreState(): void {
-		const hiddenCategoriesRaw = this.storageService.get(StatusbarViewModel.HIDDEN_CATEGORIES_KEY, StorageScope.GLOBAL);
-		if (hiddenCategoriesRaw) {
+		const hiddenRaw = this.storageService.get(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
+		if (hiddenRaw) {
 			try {
-				const hiddenCategoriesArray: string[] = JSON.parse(hiddenCategoriesRaw);
-				this.hiddenCategories = new Set(hiddenCategoriesArray);
+				const hiddenArray: string[] = JSON.parse(hiddenRaw);
+				this.hidden = new Set(hiddenArray);
 			} catch (error) {
 				// ignore parsing errors
 			}
 		}
 
-		if (!this.hiddenCategories) {
-			this.hiddenCategories = new Set<string>();
+		if (!this.hidden) {
+			this.hidden = new Set<string>();
 		}
 	}
 
@@ -89,38 +90,41 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	private onDidStorageChange(event: IWorkspaceStorageChangeEvent): void {
-		if (event.key === StatusbarViewModel.HIDDEN_CATEGORIES_KEY && event.scope === StorageScope.GLOBAL) {
+		if (event.key === StatusbarViewModel.HIDDEN_ENTRIES_KEY && event.scope === StorageScope.GLOBAL) {
 
-			// Keep current hidden categories
-			const currentHiddenCategories = this.hiddenCategories;
+			// Keep current hidden entries
+			const currentlyHidden = new Set(this.hidden);
 
-			// Load latest state of hidden categories
+			// Load latest state of hidden entries
+			this.hidden.clear();
 			this.restoreState();
 
-			const changedCategories = new Set<string>();
+			const changed = new Set<string>();
 
-			// Check for each category that is now visible
-			currentHiddenCategories.forEach(category => {
-				if (!this.hiddenCategories.has(category)) {
-					changedCategories.add(category);
+			// Check for each entry that is now visible
+			currentlyHidden.forEach(entry => {
+				if (!this.hidden.has(entry)) {
+					changed.add(entry);
 				}
 			});
 
-			// Check for each category that is now hidden
-			this.hiddenCategories.forEach(category => {
-				if (!currentHiddenCategories.has(category)) {
-					changedCategories.add(category);
+			// Check for each entry that is now hidden
+			this.hidden.forEach(entry => {
+				if (!currentlyHidden.has(entry)) {
+					changed.add(entry);
 				}
 			});
 
-			// Notify listeners that visibility for categories that changed
-			this._items.forEach(item => {
-				if (changedCategories.has(item.category.id)) {
-					this._onDidCategoryVisibilityChange.fire(item.category);
+			// Notify listeners that visibility for entries have changed
+			if (changed.size > 0) {
+				this._items.forEach(item => {
+					if (changed.has(item.id)) {
+						this._onDidVisibilityChange.fire(item.id);
 
-					changedCategories.delete(item.category.id);
-				}
-			});
+						changed.delete(item.id);
+					}
+				});
+			}
 		}
 	}
 
@@ -136,35 +140,35 @@ class StatusbarViewModel extends Disposable {
 		}
 	}
 
-	isHidden(category: IStatusbarEntryCategory): boolean {
-		return this.hiddenCategories.has(category.id);
+	isHidden(id: string): boolean {
+		return this.hidden.has(id);
 	}
 
-	hide(category: IStatusbarEntryCategory): void {
-		if (!this.hiddenCategories.has(category.id)) {
-			this.hiddenCategories.add(category.id);
+	hide(id: string): void {
+		if (!this.hidden.has(id)) {
+			this.hidden.add(id);
 
-			this._onDidCategoryVisibilityChange.fire(category);
+			this._onDidVisibilityChange.fire(id);
 
 			this.saveState();
 		}
 	}
 
-	show(category: IStatusbarEntryCategory): void {
-		if (this.hiddenCategories.has(category.id)) {
-			this.hiddenCategories.delete(category.id);
+	show(id: string): void {
+		if (this.hidden.has(id)) {
+			this.hidden.delete(id);
 
-			this._onDidCategoryVisibilityChange.fire(category);
+			this._onDidVisibilityChange.fire(id);
 
 			this.saveState();
 		}
 	}
 
 	private saveState(): void {
-		if (this.hiddenCategories.size > 0) {
-			this.storageService.store(StatusbarViewModel.HIDDEN_CATEGORIES_KEY, JSON.stringify(values(this.hiddenCategories)), StorageScope.GLOBAL);
+		if (this.hidden.size > 0) {
+			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(values(this.hidden)), StorageScope.GLOBAL);
 		} else {
-			this.storageService.remove(StatusbarViewModel.HIDDEN_CATEGORIES_KEY, StorageScope.GLOBAL);
+			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
 		}
 	}
 
@@ -187,33 +191,33 @@ class StatusbarViewModel extends Disposable {
 	}
 }
 
-class ToggleStatusCategoryVisibilityAction extends Action {
+class ToggleStatusbarEntryVisibilityAction extends Action {
 
-	constructor(private category: IStatusbarEntryCategory, private model: StatusbarViewModel) {
-		super(category.id, category.label, undefined, true);
+	constructor(id: string, label: string, private model: StatusbarViewModel) {
+		super(id, label, undefined, true);
 
-		this.checked = !model.isHidden(category);
+		this.checked = !model.isHidden(id);
 	}
 
 	run(): Promise<any> {
-		if (this.model.isHidden(this.category)) {
-			this.model.show(this.category);
+		if (this.model.isHidden(this.id)) {
+			this.model.show(this.id);
 		} else {
-			this.model.hide(this.category);
+			this.model.hide(this.id);
 		}
 
 		return Promise.resolve(true);
 	}
 }
 
-class HideStatusCategoryAction extends Action {
+class HideStatusbarEntryAction extends Action {
 
-	constructor(private category: IStatusbarEntryCategory, private model: StatusbarViewModel) {
-		super(category.id, nls.localize('hide', "Hide"), undefined, true);
+	constructor(id: string, private model: StatusbarViewModel) {
+		super(id, nls.localize('hide', "Hide"), undefined, true);
 	}
 
 	run(): Promise<any> {
-		this.model.hide(this.category);
+		this.model.hide(this.id);
 
 		return Promise.resolve(true);
 	}
@@ -225,7 +229,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private static readonly PRIORITY_PROP = 'statusbar-item-priority';
 	private static readonly ALIGNMENT_PROP = 'statusbar-item-alignment';
-	private static readonly CATEGORY_PROP = 'statusbar-item-category';
+	private static readonly IDENTIFIER_PROP = 'statusbar-item-identifier';
 
 	//#region IView
 
@@ -259,13 +263,13 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private registerListeners(): void {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
-		this._register(this.viewModel.onDidCategoryVisibilityChange(category => this.onDidCategoryVisibilityChange(category)));
+		this._register(this.viewModel.onDidVisibilityChange(id => this.onDidVisibilityChange(id)));
 	}
 
-	private onDidCategoryVisibilityChange(category: IStatusbarEntryCategory): void {
-		const isHidden = this.viewModel.isHidden(category);
+	private onDidVisibilityChange(id: string): void {
+		const isHidden = this.viewModel.isHidden(id);
 
-		const items = this.getEntries(category);
+		const items = this.getEntries(id);
 		items.forEach(item => {
 			if (isHidden) {
 				hide(item);
@@ -315,11 +319,11 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private doAddEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
 
 		// Add to view model
-		const viewModelItem: IStatusbarViewModelItem = { category: entry.category, alignment, priority };
+		const viewModelItem: IStatusbarViewModelItem = { id: entry.id, name: entry.name, alignment, priority };
 		this.viewModel.add(viewModelItem);
 
 		// Render entry in status bar
-		const itemContainer = this.doCreateStatusItem(entry.category, alignment, priority, ...coalesce(['statusbar-entry', entry.showBeak ? 'has-beak' : undefined]));
+		const itemContainer = this.doCreateStatusItem(entry.id, entry.name, alignment, priority, ...coalesce(['statusbar-entry', entry.showBeak ? 'has-beak' : undefined]));
 		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry);
 
 		// Insert according to priority
@@ -363,7 +367,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		};
 	}
 
-	private getEntries(scope: StatusbarAlignment | IStatusbarEntryCategory): HTMLElement[] {
+	private getEntries(scope: StatusbarAlignment | string): HTMLElement[] {
 		const entries: HTMLElement[] = [];
 
 		const container = this.element;
@@ -378,9 +382,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 				}
 			}
 
-			// By category
+			// By identifier
 			else {
-				if (childElement.getAttribute(StatusbarPart.CATEGORY_PROP) === scope.id) {
+				if (childElement.getAttribute(StatusbarPart.IDENTIFIER_PROP) === scope) {
 					entries.push(childElement);
 				}
 			}
@@ -425,15 +429,15 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		});
 
 		// Fill in initial items that were contributed from the registry
-		for (const { category, alignment, priority, syncDescriptor } of descriptors) {
+		for (const { id, name, alignment, priority, syncDescriptor } of descriptors) {
 
 			// Add to view model
-			const viewModelItem: IStatusbarViewModelItem = { category, alignment, priority };
+			const viewModelItem: IStatusbarViewModelItem = { id, name, alignment, priority };
 			this.viewModel.add(viewModelItem);
 
 			// Render
 			const item = this.instantiationService.createInstance(syncDescriptor);
-			const itemContainer = this.doCreateStatusItem(category, alignment, priority);
+			const itemContainer = this.doCreateStatusItem(id, name, alignment, priority);
 
 			this._register(item.render(itemContainer));
 			this.element.appendChild(itemContainer);
@@ -473,24 +477,27 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const actions: Action[] = [];
 
 		// Figure out if mouse is over an entry
-		let categoryUnderMouse: IStatusbarEntryCategory | undefined = undefined;
+		let statusEntryUnderMouse: string | undefined = undefined;
 		for (let element: HTMLElement | null = event.target; element; element = element.parentElement) {
-			if (element.hasAttribute(StatusbarPart.CATEGORY_PROP)) {
-				categoryUnderMouse = { id: element.getAttribute(StatusbarPart.CATEGORY_PROP)!, label: element.title };
+			if (element.hasAttribute(StatusbarPart.IDENTIFIER_PROP)) {
+				statusEntryUnderMouse = element.getAttribute(StatusbarPart.IDENTIFIER_PROP)!;
 				break;
 			}
 		}
 
-		if (categoryUnderMouse) {
-			actions.push(new HideStatusCategoryAction(categoryUnderMouse, this.viewModel));
+		if (statusEntryUnderMouse) {
+			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse, this.viewModel));
 			actions.push(new Separator());
 		}
 
-		// Show an entry per known status item category
-		const handledCategories = new Set<string>();
+		// Show an entry per known status item
+		// Note: even though entries have an identifier, there can be multiple entries
+		// having the same identifier (e.g. from extensions). So we make sure to only
+		// show a single entry per identifier we handled.
+		const handledEntries = new Set<string>();
 		this.viewModel.items.forEach(item => {
-			if (!handledCategories.has(item.category.id)) {
-				actions.push(new ToggleStatusCategoryVisibilityAction(item.category, this.viewModel));
+			if (!handledEntries.has(item.id)) {
+				actions.push(new ToggleStatusbarEntryVisibilityAction(item.id, item.name, this.viewModel));
 			}
 		});
 
@@ -525,9 +532,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
 	}
 
-	private doCreateStatusItem(category: IStatusbarEntryCategory, alignment: StatusbarAlignment, priority: number = 0, ...extraClasses: string[]): HTMLElement {
+	private doCreateStatusItem(id: string, name: string, alignment: StatusbarAlignment, priority: number = 0, ...extraClasses: string[]): HTMLElement {
 		const itemContainer = document.createElement('div');
-		itemContainer.title = category.label;
+		itemContainer.title = name;
 
 		addClass(itemContainer, 'statusbar-item');
 		if (extraClasses) {
@@ -542,9 +549,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		itemContainer.setAttribute(StatusbarPart.PRIORITY_PROP, String(priority));
 		itemContainer.setAttribute(StatusbarPart.ALIGNMENT_PROP, String(alignment));
-		itemContainer.setAttribute(StatusbarPart.CATEGORY_PROP, category.id);
+		itemContainer.setAttribute(StatusbarPart.IDENTIFIER_PROP, id);
 
-		if (this.viewModel.isHidden(category)) {
+		if (this.viewModel.isHidden(id)) {
 			hide(itemContainer);
 		}
 

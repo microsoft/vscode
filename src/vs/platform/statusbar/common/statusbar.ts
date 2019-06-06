@@ -15,20 +15,20 @@ export const enum StatusbarAlignment {
 	RIGHT
 }
 
-export interface IStatusbarEntryCategory {
-	id: string;
-	label: string;
-}
-
 /**
  * A declarative way of describing a status bar entry
  */
 export interface IStatusbarEntry {
 
 	/**
-	 * The category of the entry is needed to allow users to hide entries via settings.
+	 * The identifier of the entry is needed to allow users to hide entries via settings.
 	 */
-	readonly category: IStatusbarEntryCategory;
+	readonly id: string;
+
+	/**
+	 * A human readable name the entry is about.
+	 */
+	readonly name: string;
 
 	/**
 	 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:

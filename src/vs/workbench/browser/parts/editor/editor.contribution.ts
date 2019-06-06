@@ -223,7 +223,8 @@ registerEditorContribution(OpenWorkspaceButtonContribution);
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(
 	EditorStatus,
-	{ id: 'status.editor', label: nls.localize('status.editor', "Editor Status") },
+	'status.editor',
+	nls.localize('status.editor', "Editor Status"),
 	StatusbarAlignment.RIGHT,
 	100 /* towards the left of the right hand side */
 ));
@@ -231,7 +232,8 @@ statusBar.registerStatusbarItem(new StatusbarItemDescriptor(
 // Register Zoom Status
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(
 	ZoomStatusbarItem,
-	{ id: 'status.imageZoom', label: nls.localize('status.imageZoom', "Image Zoom") },
+	'status.imageZoom',
+	nls.localize('status.imageZoom', "Image Zoom"),
 	StatusbarAlignment.RIGHT,
 	101 /* to the left of editor status (100) */)
 );

@@ -5,7 +5,7 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { StatusbarAlignment, IStatusbarEntryCategory } from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
@@ -15,17 +15,20 @@ export interface IStatusbarItem {
 
 export class StatusbarItemDescriptor {
 	readonly syncDescriptor: SyncDescriptor0<IStatusbarItem>;
-	readonly category: IStatusbarEntryCategory;
+	readonly id: string;
+	readonly name: string;
 	readonly alignment: StatusbarAlignment;
 	readonly priority: number;
 
 	constructor(
 		ctor: IConstructorSignature0<IStatusbarItem>,
-		category: IStatusbarEntryCategory,
+		id: string,
+		name: string,
 		alignment?: StatusbarAlignment,
 		priority?: number
 	) {
-		this.category = category;
+		this.id = id;
+		this.name = name;
 		this.syncDescriptor = createSyncDescriptor(ctor);
 		this.alignment = alignment || StatusbarAlignment.LEFT;
 		this.priority = priority || 0;
