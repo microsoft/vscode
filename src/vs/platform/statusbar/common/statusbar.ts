@@ -73,6 +73,9 @@ export interface IStatusbarService {
 	 *
 	 * @param id  identifier of the entry is needed to allow users to hide entries via settings
 	 * @param name human readable name the entry is about
+	 * @param alignment either LEFT or RIGHT
+	 * @param priority items get arranged from highest priority to lowest priority from left to right
+	 * in their respective alignment slot
 	 */
 	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
 

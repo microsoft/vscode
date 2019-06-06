@@ -6,7 +6,7 @@
 import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -33,7 +33,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Event, Emitter } from 'vs/base/common/event';
 import { values } from 'vs/base/common/map';
 
 interface IPendingStatusbarEntry {
@@ -50,6 +49,7 @@ interface IStatusbarViewModelItem {
 	name: string;
 	alignment: StatusbarAlignment;
 	priority: number;
+	container: HTMLElement;
 }
 
 class StatusbarViewModel extends Disposable {
@@ -58,9 +58,6 @@ class StatusbarViewModel extends Disposable {
 
 	private readonly _items: IStatusbarViewModelItem[] = [];
 	get items(): IStatusbarViewModelItem[] { return this._items; }
-
-	private readonly _onDidVisibilityChange: Emitter<string> = this._register(new Emitter());
-	get onDidVisibilityChange(): Event<string> { return this._onDidVisibilityChange.event; }
 
 	private hidden: Set<string>;
 
@@ -104,24 +101,24 @@ class StatusbarViewModel extends Disposable {
 			const changed = new Set<string>();
 
 			// Check for each entry that is now visible
-			currentlyHidden.forEach(entry => {
-				if (!this.hidden.has(entry)) {
-					changed.add(entry);
+			currentlyHidden.forEach(id => {
+				if (!this.hidden.has(id)) {
+					changed.add(id);
 				}
 			});
 
 			// Check for each entry that is now hidden
-			this.hidden.forEach(entry => {
-				if (!currentlyHidden.has(entry)) {
-					changed.add(entry);
+			this.hidden.forEach(id => {
+				if (!currentlyHidden.has(id)) {
+					changed.add(id);
 				}
 			});
 
-			// Notify listeners that visibility for entries have changed
+			// Update visibility for entries have changed
 			if (changed.size > 0) {
 				this._items.forEach(item => {
 					if (changed.has(item.id)) {
-						this._onDidVisibilityChange.fire(item.id);
+						this.updateVisibility(item.id);
 
 						changed.delete(item.id);
 					}
@@ -130,12 +127,18 @@ class StatusbarViewModel extends Disposable {
 		}
 	}
 
-	add(item: IStatusbarViewModelItem): void {
-		this._items.push(item);
+	add(item: IStatusbarViewModelItem): IDisposable {
+		this._items.push(item); // intentionally not using a map here since multiple items can have the same ID!
+
+		// Update visibility directly
+		this.updateVisibility(item);
+
 		this.sort();
+
+		return toDisposable(() => this.remove(item));
 	}
 
-	remove(item: IStatusbarViewModelItem): void {
+	private remove(item: IStatusbarViewModelItem): void {
 		const index = this._items.indexOf(item);
 		if (index >= 0) {
 			this._items.splice(index, 1);
@@ -150,7 +153,7 @@ class StatusbarViewModel extends Disposable {
 		if (!this.hidden.has(id)) {
 			this.hidden.add(id);
 
-			this._onDidVisibilityChange.fire(id);
+			this.updateVisibility(id);
 
 			this.saveState();
 		}
@@ -160,9 +163,53 @@ class StatusbarViewModel extends Disposable {
 		if (this.hidden.has(id)) {
 			this.hidden.delete(id);
 
-			this._onDidVisibilityChange.fire(id);
+			this.updateVisibility(id);
 
 			this.saveState();
+		}
+	}
+
+	findItem(container: HTMLElement): IStatusbarViewModelItem | undefined {
+		for (const item of this._items) {
+			if (item.container === container) {
+				return item;
+			}
+		}
+
+		return undefined;
+	}
+
+	getItems(alignment: StatusbarAlignment): IStatusbarViewModelItem[] {
+		return this._items.filter(item => item.alignment === alignment);
+	}
+
+	private updateVisibility(id: string): void;
+	private updateVisibility(item: IStatusbarViewModelItem): void;
+	private updateVisibility(arg1: string | IStatusbarViewModelItem): void {
+
+		// By identifier
+		if (typeof arg1 === 'string') {
+			const id = arg1;
+
+			for (const item of this._items) {
+				if (item.id !== id) {
+					continue;
+				}
+
+				this.updateVisibility(item);
+			}
+		}
+
+		// By item
+		else {
+			const item = arg1;
+			const isHidden = this.isHidden(item.id);
+
+			if (isHidden) {
+				hide(item.container);
+			} else {
+				show(item.container);
+			}
 		}
 	}
 
@@ -177,7 +224,7 @@ class StatusbarViewModel extends Disposable {
 	private sort(): void {
 		this._items.sort((itemA, itemB) => {
 			if (itemA.alignment === itemB.alignment) {
-				return itemB.priority - itemA.priority;
+				return itemB.priority - itemA.priority; // higher priority towards the left
 			}
 
 			if (itemA.alignment === StatusbarAlignment.LEFT) {
@@ -229,10 +276,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	_serviceBrand: ServiceIdentifier<IStatusbarService>;
 
-	private static readonly PRIORITY_PROP = 'statusbar-item-priority';
-	private static readonly ALIGNMENT_PROP = 'statusbar-item-alignment';
-	private static readonly IDENTIFIER_PROP = 'statusbar-item-identifier';
-
 	//#region IView
 
 	readonly minimumWidth: number = 0;
@@ -265,20 +308,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private registerListeners(): void {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
-		this._register(this.viewModel.onDidVisibilityChange(id => this.onDidVisibilityChange(id)));
-	}
-
-	private onDidVisibilityChange(id: string): void {
-		const isHidden = this.viewModel.isHidden(id);
-
-		const items = this.getEntries(id);
-		items.forEach(item => {
-			if (isHidden) {
-				hide(item);
-			} else {
-				show(item);
-			}
-		});
 	}
 
 	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number = 0): IStatusbarEntryAccessor {
@@ -320,33 +349,16 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private doAddEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
 
-		// Add to view model
-		const viewModelItem: IStatusbarViewModelItem = { id, name, alignment, priority };
-		this.viewModel.add(viewModelItem);
-
-		// Render entry in status bar
+		// Create item
 		const itemContainer = this.doCreateStatusItem(id, name, alignment, priority, ...coalesce(['statusbar-entry', entry.showBeak ? 'has-beak' : undefined]));
 		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry);
 
-		// Insert according to priority
-		const container = this.element;
-		const neighbours = this.getEntries(alignment);
-		let inserted = false;
-		for (const neighbour of neighbours) {
-			const nPriority = Number(neighbour.getAttribute(StatusbarPart.PRIORITY_PROP));
-			if (
-				alignment === StatusbarAlignment.LEFT && nPriority < priority ||
-				alignment === StatusbarAlignment.RIGHT && nPriority > priority
-			) {
-				container.insertBefore(itemContainer, neighbour);
-				inserted = true;
-				break;
-			}
-		}
+		// Append to parent
+		this.appendOneStatusbarEntry(itemContainer, alignment, priority);
 
-		if (!inserted) {
-			container.appendChild(itemContainer);
-		}
+		// Add to view model
+		const viewModelItem: IStatusbarViewModelItem = { id, name, alignment, priority, container: itemContainer };
+		const viewModelItemDispose = this.viewModel.add(viewModelItem);
 
 		return {
 			update: entry => {
@@ -362,37 +374,11 @@ export class StatusbarPart extends Part implements IStatusbarService {
 				item.update(entry);
 			},
 			dispose: () => {
-				this.viewModel.remove(viewModelItem);
+				dispose(viewModelItemDispose);
 				itemContainer.remove();
 				dispose(item);
 			}
 		};
-	}
-
-	private getEntries(scope: StatusbarAlignment | string): HTMLElement[] {
-		const entries: HTMLElement[] = [];
-
-		const container = this.element;
-		const children = container.children;
-		for (let i = 0; i < children.length; i++) {
-			const childElement = <HTMLElement>children.item(i);
-
-			// By alignment
-			if (typeof scope === 'number') {
-				if (Number(childElement.getAttribute(StatusbarPart.ALIGNMENT_PROP)) === scope) {
-					entries.push(childElement);
-				}
-			}
-
-			// By identifier
-			else {
-				if (childElement.getAttribute(StatusbarPart.IDENTIFIER_PROP) === scope) {
-					entries.push(childElement);
-				}
-			}
-		}
-
-		return entries;
 	}
 
 	updateEntryVisibility(id: string, visible: boolean): void {
@@ -410,48 +396,29 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
 
 		// Initial status bar entries
-		this.createInitialStatusEntries();
+		this.createInitialStatusbarEntries();
 
 		return this.element;
 	}
 
-	private createInitialStatusEntries(): void {
+	private createInitialStatusbarEntries(): void {
 		const registry = Registry.as<IStatusbarRegistry>(Extensions.Statusbar);
 
-		const descriptors = registry.items.slice().sort((itemA, itemB) => {
-			if (itemA.alignment === itemB.alignment) {
-				if (itemA.alignment === StatusbarAlignment.LEFT) {
-					return itemB.priority - itemA.priority;
-				}
+		// Create initial items that were contributed from the registry
+		for (const { id, name, alignment, priority, syncDescriptor } of registry.items) {
 
-				return itemA.priority - itemB.priority;
-			}
-
-			if (itemA.alignment === StatusbarAlignment.LEFT) {
-				return 1;
-			}
-
-			if (itemA.alignment === StatusbarAlignment.RIGHT) {
-				return -1;
-			}
-
-			return 0;
-		});
-
-		// Fill in initial items that were contributed from the registry
-		for (const { id, name, alignment, priority, syncDescriptor } of descriptors) {
-
-			// Add to view model
-			const viewModelItem: IStatusbarViewModelItem = { id, name, alignment, priority };
-			this.viewModel.add(viewModelItem);
-
-			// Render
+			// Create item
 			const item = this.instantiationService.createInstance(syncDescriptor);
 			const itemContainer = this.doCreateStatusItem(id, name, alignment, priority);
-
 			this._register(item.render(itemContainer));
-			this.element.appendChild(itemContainer);
+
+			// Add to view model
+			const viewModelItem: IStatusbarViewModelItem = { id, name, alignment, priority, container: itemContainer };
+			this.viewModel.add(viewModelItem);
 		}
+
+		// Add items in order
+		this.appendAllStatusbarEntries();
 
 		// Fill in pending entries if any
 		while (this.pendingEntries.length) {
@@ -460,6 +427,35 @@ export class StatusbarPart extends Part implements IStatusbarService {
 				pending.accessor = this.addEntry(pending.entry, pending.id, pending.name, pending.alignment, pending.priority);
 			}
 		}
+	}
+
+	private appendAllStatusbarEntries(): void {
+		[
+			...this.viewModel.getItems(StatusbarAlignment.LEFT),
+			...this.viewModel.getItems(StatusbarAlignment.RIGHT).reverse() // reversing due to display: float
+		].forEach(item => this.element.appendChild(item.container));
+	}
+
+	private appendOneStatusbarEntry(itemContainer: HTMLElement, alignment: StatusbarAlignment, priority: number): void {
+		const items = this.viewModel.getItems(alignment);
+
+		// Some massaging due to display: float is needed
+		if (alignment === StatusbarAlignment.RIGHT) {
+			items.reverse();
+			priority *= -1;
+		}
+
+		// find an item that has lower priority than the new one
+		// and then insert the item before that one
+		for (const item of items) {
+			if (item.priority < priority) {
+				this.element.insertBefore(itemContainer, item.container);
+				return;
+			}
+		}
+
+		// Fallback to just appending otherwise
+		this.element.appendChild(itemContainer);
 	}
 
 	private showContextMenu(e: MouseEvent): void {
@@ -487,16 +483,17 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const actions: Action[] = [];
 
 		// Figure out if mouse is over an entry
-		let statusEntryUnderMouse: string | undefined = undefined;
+		let statusEntryUnderMouse: IStatusbarViewModelItem | undefined = undefined;
 		for (let element: HTMLElement | null = event.target; element; element = element.parentElement) {
-			if (element.hasAttribute(StatusbarPart.IDENTIFIER_PROP)) {
-				statusEntryUnderMouse = element.getAttribute(StatusbarPart.IDENTIFIER_PROP)!;
+			const item = this.viewModel.findItem(element);
+			if (item) {
+				statusEntryUnderMouse = item;
 				break;
 			}
 		}
 
 		if (statusEntryUnderMouse) {
-			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse, this.viewModel));
+			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, this.viewModel));
 			actions.push(new Separator());
 		}
 
@@ -555,14 +552,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			addClass(itemContainer, 'right');
 		} else {
 			addClass(itemContainer, 'left');
-		}
-
-		itemContainer.setAttribute(StatusbarPart.PRIORITY_PROP, String(priority));
-		itemContainer.setAttribute(StatusbarPart.ALIGNMENT_PROP, String(alignment));
-		itemContainer.setAttribute(StatusbarPart.IDENTIFIER_PROP, id);
-
-		if (this.viewModel.isHidden(id)) {
-			hide(itemContainer);
 		}
 
 		return itemContainer;
