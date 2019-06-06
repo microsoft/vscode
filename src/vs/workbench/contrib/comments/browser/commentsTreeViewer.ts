@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IDataSource, IFilter, IRenderer as ITreeRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -62,7 +62,7 @@ interface ICommentThreadTemplateData {
 	icon: HTMLImageElement;
 	userName: HTMLSpanElement;
 	commentText: HTMLElement;
-	disposables: Disposable[];
+	disposables: IDisposable[];
 }
 
 export class CommentsModelRenderer implements ITreeRenderer {

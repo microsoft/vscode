@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
+import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as stream from 'stream';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ServerResponse } from '../typescriptService';
@@ -125,7 +126,13 @@ export class TypeScriptServerSpawner {
 		const childProcess = electron.fork(version.tsServerPath, args, this.getForkOptions());
 		this._logger.info('Started TSServer');
 
-		return new TypeScriptServer(childProcess, tsServerLogFile, cancellationPipeName, version, this._telemetryReporter, this._tracer);
+		return new TypeScriptServer(
+			new ChildServerProcess(childProcess),
+			tsServerLogFile,
+			new PipeRequestCanceller(cancellationPipeName, this._tracer),
+			version,
+			this._telemetryReporter,
+			this._tracer);
 	}
 
 	private getForkOptions() {
@@ -239,6 +246,63 @@ export class TypeScriptServerSpawner {
 	}
 }
 
+export interface OngoingRequestCanceller {
+	tryCancelOngoingRequest(seq: number): boolean;
+}
+
+export class PipeRequestCanceller implements OngoingRequestCanceller {
+	public constructor(
+		private readonly _cancellationPipeName: string | undefined,
+		private readonly _tracer: Tracer,
+	) { }
+
+	public tryCancelOngoingRequest(seq: number): boolean {
+		if (!this._cancellationPipeName) {
+			return false;
+		}
+		this._tracer.logTrace(`TypeScript Server: trying to cancel ongoing request with sequence number ${seq}`);
+		try {
+			fs.writeFileSync(this._cancellationPipeName + seq, '');
+		} catch {
+			// noop
+		}
+		return true;
+	}
+}
+
+export interface ServerProcess {
+	readonly stdout: stream.Readable;
+	write(serverRequest: Proto.Request): void;
+
+	on(name: 'exit', handler: (code: number | null) => void): void;
+	on(name: 'error', handler: (error: Error) => void): void;
+
+	kill(): void;
+}
+
+class ChildServerProcess implements ServerProcess {
+
+	public constructor(
+		private readonly _process: child_process.ChildProcess,
+	) { }
+
+	get stdout(): stream.Readable { return this._process.stdout!; }
+
+	write(serverRequest: Proto.Request): void {
+		this._process.stdin!.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
+	}
+
+	on(name: 'exit', handler: (code: number | null) => void): void;
+	on(name: 'error', handler: (error: Error) => void): void;
+	on(name: any, handler: any) {
+		this._process.on(name, handler);
+	}
+
+	kill(): void {
+		this._process.kill();
+	}
+}
+
 export class TypeScriptServer extends Disposable {
 	private readonly _reader: Reader<Proto.Response>;
 	private readonly _requestQueue = new RequestQueue();
@@ -246,18 +310,25 @@ export class TypeScriptServer extends Disposable {
 	private readonly _pendingResponses = new Set<number>();
 
 	constructor(
-		private readonly _childProcess: cp.ChildProcess,
+		private readonly _process: ServerProcess,
 		private readonly _tsServerLogFile: string | undefined,
-		private readonly _cancellationPipeName: string | undefined,
+		private readonly _requestCanceller: OngoingRequestCanceller,
 		private readonly _version: TypeScriptVersion,
 		private readonly _telemetryReporter: TelemetryReporter,
 		private readonly _tracer: Tracer,
 	) {
 		super();
-		this._reader = this._register(new Reader<Proto.Response>(this._childProcess.stdout!));
+		this._reader = this._register(new Reader<Proto.Response>(this._process.stdout!));
 		this._reader.onData(msg => this.dispatchMessage(msg));
-		this._childProcess.on('exit', code => this.handleExit(code));
-		this._childProcess.on('error', error => this.handleError(error));
+
+		this._process.on('exit', code => {
+			this._onExit.fire(code);
+			this._callbacks.destroy('server exited');
+		});
+		this._process.on('error', error => {
+			this._onError.fire(error);
+			this._callbacks.destroy('server errored');
+		});
 	}
 
 	private readonly _onEvent = this._register(new vscode.EventEmitter<Proto.Event>());
@@ -273,8 +344,8 @@ export class TypeScriptServer extends Disposable {
 
 	public get tsServerLogFile() { return this._tsServerLogFile; }
 
-	public write(serverRequest: Proto.Request) {
-		this._childProcess.stdin!.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
+	private write(serverRequest: Proto.Request) {
+		this._process.write(serverRequest);
 	}
 
 	public dispose() {
@@ -284,17 +355,7 @@ export class TypeScriptServer extends Disposable {
 	}
 
 	public kill() {
-		this._childProcess.kill();
-	}
-
-	private handleExit(error: any) {
-		this._onExit.fire(error);
-		this._callbacks.destroy('server exited');
-	}
-
-	private handleError(error: any) {
-		this._onError.fire(error);
-		this._callbacks.destroy('server errored');
+		this._process.kill();
 	}
 
 	private dispatchMessage(message: Proto.Message) {
@@ -334,13 +395,7 @@ export class TypeScriptServer extends Disposable {
 				return true;
 			}
 
-			if (this._cancellationPipeName) {
-				this._tracer.logTrace(`TypeScript Server: trying to cancel ongoing request with sequence number ${seq}`);
-				try {
-					fs.writeFileSync(this._cancellationPipeName + seq, '');
-				} catch {
-					// noop
-				}
+			if (this._requestCanceller.tryCancelOngoingRequest(seq)) {
 				return true;
 			}
 

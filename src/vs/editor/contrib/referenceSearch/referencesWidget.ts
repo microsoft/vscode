@@ -230,7 +230,10 @@ export class ReferenceWidget extends PeekViewWidget {
 	dispose(): void {
 		this.setModel(undefined);
 		this._callOnDispose = dispose(this._callOnDispose);
-		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._previewModelReference);
+		dispose(this._preview);
+		dispose(this._previewNotAvailableMessage);
+		dispose(this._tree);
+		dispose(this._previewModelReference);
 		this._splitView.dispose();
 		super.dispose();
 	}

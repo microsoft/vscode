@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
@@ -114,7 +114,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 		this.badgeContainer = append(container, $('.count-badge-wrapper'));
 		this.badge = new CountBadge(this.badgeContainer);
-		this.disposables.push(attachBadgeStyler(this.badge, this.themeService));
+		this._register(attachBadgeStyler(this.badge, this.themeService));
 	}
 
 	renderBody(container: HTMLElement): void {
@@ -131,20 +131,20 @@ export class ExtensionsListView extends ViewletPanel {
 			setRowLineHeight: false,
 			horizontalScrolling: false
 		}) as WorkbenchPagedList<IExtension>;
-		this.list.onContextMenu(e => this.onContextMenu(e), this, this.disposables);
-		this.list.onFocusChange(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this, this.disposables);
-		this.disposables.push(this.list);
-		this.disposables.push(extensionsViewState);
+		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
+		this._register(this.list.onFocusChange(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this));
+		this._register(this.list);
+		this._register(extensionsViewState);
 
-		Event.chain(this.list.onOpen)
+		this._register(Event.chain(this.list.onOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e)
-			.on(this.openExtension, this, this.disposables);
+			.on(this.openExtension, this));
 
-		Event.chain(this.list.onPin)
+		this._register(Event.chain(this.list.onPin)
 			.map(e => e.elements[0])
 			.filter(e => !!e)
-			.on(this.pin, this, this.disposables);
+			.on(this.pin, this));
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -766,7 +766,6 @@ export class ExtensionsListView extends ViewletPanel {
 			this.queryRequest.request.cancel();
 			this.queryRequest = null;
 		}
-		this.disposables = dispose(this.disposables);
 		this.list = null;
 	}
 
@@ -852,7 +851,7 @@ export class ServerExtensionsView extends ExtensionsListView {
 	) {
 		options.server = server;
 		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, editorService, tipsService, telemetryService, configurationService, contextService, experimentService, workbenchThemeService, extensionManagementServerService, productService);
-		this.disposables.push(onDidChangeTitle(title => this.updateTitle(title)));
+		this._register(onDidChangeTitle(title => this.updateTitle(title)));
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
@@ -904,7 +903,7 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this.disposables.push(this.tipsService.onRecommendationChange(() => {
+		this._register(this.tipsService.onRecommendationChange(() => {
 			this.show('');
 		}));
 	}
@@ -929,7 +928,7 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this.disposables.push(this.tipsService.onRecommendationChange(() => {
+		this._register(this.tipsService.onRecommendationChange(() => {
 			this.show('');
 		}));
 	}
@@ -946,9 +945,9 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this.disposables.push(this.tipsService.onRecommendationChange(() => this.update()));
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.setRecommendationsToInstall()));
-		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.update()));
+		this._register(this.tipsService.onRecommendationChange(() => this.update()));
+		this._register(this.extensionsWorkbenchService.onChange(() => this.setRecommendationsToInstall()));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.update()));
 	}
 
 	renderHeader(container: HTMLElement): void {
@@ -957,21 +956,19 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		const listActionBar = $('.list-actionbar-container');
 		container.insertBefore(listActionBar, this.badgeContainer);
 
-		const actionbar = new ActionBar(listActionBar, {
+		const actionbar = this._register(new ActionBar(listActionBar, {
 			animated: false
-		});
+		}));
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
-		this.installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, InstallWorkspaceRecommendedExtensionsAction.LABEL, []);
-		const configureWorkspaceFolderAction = this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL);
+		this.installAllAction = this._register(this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, InstallWorkspaceRecommendedExtensionsAction.LABEL, []));
+		const configureWorkspaceFolderAction = this._register(this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL));
 
 		this.installAllAction.class = 'octicon octicon-cloud-download';
 		configureWorkspaceFolderAction.class = 'octicon octicon-pencil';
 
 		actionbar.push([this.installAllAction], { icon: true, label: false });
 		actionbar.push([configureWorkspaceFolderAction], { icon: true, label: false });
-
-		this.disposables.push(...[this.installAllAction, configureWorkspaceFolderAction, actionbar]);
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {

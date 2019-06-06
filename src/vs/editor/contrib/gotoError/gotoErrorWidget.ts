@@ -6,7 +6,7 @@
 import 'vs/css!./media/gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -166,7 +166,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	private _container: HTMLElement;
 	private _icon: HTMLElement;
 	private _message: MessageWidget;
-	private _callOnDispose: IDisposable[] = [];
+	private readonly _callOnDispose = new DisposableStore();
 	private _severity: MarkerSeverity;
 	private _backgroundColor?: Color;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
@@ -184,7 +184,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._backgroundColor = Color.white;
 
 		this._applyTheme(_themeService.getTheme());
-		this._callOnDispose.push(_themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._callOnDispose.add(_themeService.onThemeChange(this._applyTheme.bind(this)));
 
 		this.create();
 	}
@@ -215,7 +215,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	}
 
 	dispose(): void {
-		this._callOnDispose = dispose(this._callOnDispose);
+		this._callOnDispose.dispose();
 		super.dispose();
 	}
 

@@ -99,29 +99,29 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 		}));
 
-		const prevBtn = new SimpleButton({
+		const prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
 			className: 'previous',
 			onTrigger: () => {
 				this.find(true);
 			}
-		});
+		}));
 
-		const nextBtn = new SimpleButton({
+		const nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
 			className: 'next',
 			onTrigger: () => {
 				this.find(false);
 			}
-		});
+		}));
 
-		const closeBtn = new SimpleButton({
+		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
 			className: 'close-fw',
 			onTrigger: () => {
 				this.hide();
 			}
-		});
+		}));
 
 		this._innerDomNode = document.createElement('div');
 		this._innerDomNode.classList.add('simple-find-part');

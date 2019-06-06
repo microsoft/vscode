@@ -13,7 +13,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -72,6 +72,7 @@ export class MenubarControl extends Disposable {
 	private container: HTMLElement;
 	private recentlyOpened: IRecentlyOpened;
 	private alwaysOnMnemonics: boolean;
+	private isNative: boolean;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
@@ -98,6 +99,8 @@ export class MenubarControl extends Disposable {
 
 		super();
 
+		this.isNative = !isWeb && (isMacintosh || this.currentTitlebarStyleSetting !== 'custom');
+
 		this.menus = {
 			'File': this._register(this.menuService.createMenu(MenuId.MenubarFileMenu, this.contextKeyService)),
 			'Edit': this._register(this.menuService.createMenu(MenuId.MenubarEditMenu, this.contextKeyService)),
@@ -109,7 +112,7 @@ export class MenubarControl extends Disposable {
 			'Help': this._register(this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService))
 		};
 
-		if (isMacintosh) {
+		if (isMacintosh && this.isNative) {
 			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
 		}
 
@@ -118,7 +121,7 @@ export class MenubarControl extends Disposable {
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
-		if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
+		if (this.isNative) {
 			for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
 				const menu = this.menus[topLevelMenuName];
 				if (menu) {
@@ -130,12 +133,10 @@ export class MenubarControl extends Disposable {
 		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
 
-			if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
+			if (this.isNative) {
 				this.doUpdateMenubar(true);
 			}
 		});
-
-		this.notifyExistingLinuxUser();
 
 		this.notifyUserOfCustomMenubarAccessibility();
 
@@ -187,38 +188,8 @@ export class MenubarControl extends Disposable {
 		});
 	}
 
-	// TODO@sbatten remove after feb19
-	private notifyExistingLinuxUser(): void {
-		if (!isLinux) {
-			return;
-		}
-
-		const isNewUser = !this.storageService.get('telemetry.lastSessionDate', StorageScope.GLOBAL);
-		const hasBeenNotified = this.storageService.getBoolean('menubar/linuxTitlebarRevertNotified', StorageScope.GLOBAL, false);
-		const titleBarConfiguration = this.configurationService.inspect('window.titleBarStyle');
-		const customShown = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
-
-		if (!hasBeenNotified) {
-			this.storageService.store('menubar/linuxTitlebarRevertNotified', true, StorageScope.GLOBAL);
-		}
-
-		if (isNewUser || hasBeenNotified || (titleBarConfiguration && titleBarConfiguration.user) || customShown) {
-			return;
-		}
-
-		const message = nls.localize('menubar.linuxTitlebarRevertNotification', "We have updated the default title bar on Linux to use the native setting. If you prefer, you can go back to the custom setting. More information is available in our [online documentation](https://go.microsoft.com/fwlink/?linkid=2074137).");
-		this.notificationService.prompt(Severity.Info, message, [
-			{
-				label: nls.localize('goToSetting', "Open Settings"),
-				run: () => {
-					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
-				}
-			}
-		]);
-	}
-
 	private notifyUserOfCustomMenubarAccessibility(): void {
-		if (isMacintosh) {
+		if (isWeb || isMacintosh) {
 			return;
 		}
 
@@ -258,7 +229,7 @@ export class MenubarControl extends Disposable {
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateMenubar()));
 
 		// These listeners only apply when the custom menubar is being used
-		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
+		if (!this.isNative) {
 			// Listen for window focus changes
 			this._register(this.windowService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
 
@@ -274,7 +245,7 @@ export class MenubarControl extends Disposable {
 	}
 
 	private doUpdateMenubar(firstTime: boolean): void {
-		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
+		if (!this.isNative) {
 			this.setupCustomMenubar(firstTime);
 		} else {
 			// Send menus to main process to be rendered by Electron
@@ -418,7 +389,7 @@ export class MenubarControl extends Disposable {
 				break;
 
 			case 'workbench.action.showAboutDialog':
-				if (!isMacintosh) {
+				if (!isMacintosh && !isWeb) {
 					const updateAction = this.getUpdateAction();
 					if (updateAction) {
 						updateAction.label = mnemonicMenuLabel(updateAction.label);
@@ -598,7 +569,7 @@ export class MenubarControl extends Disposable {
 
 	private getAdditionalKeybindings(): { [id: string]: IMenubarKeybinding } {
 		const keybindings = {};
-		if (isMacintosh) {
+		if (isMacintosh && this.isNative) {
 			keybindings['workbench.action.quit'] = (this.getMenubarKeybinding('workbench.action.quit'));
 		}
 
@@ -659,7 +630,7 @@ export class MenubarControl extends Disposable {
 		// Build the menubar
 		if (this.container) {
 
-			if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
+			if (!this.isNative) {
 				this.doUpdateMenubar(true);
 			}
 		}

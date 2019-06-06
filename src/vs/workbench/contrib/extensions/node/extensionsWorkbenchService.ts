@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
@@ -479,7 +479,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly remoteExtensions: Extensions | null;
 	private syncDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
-	private disposables: IDisposable[] = [];
 
 	private readonly _onChange: Emitter<IExtension | undefined> = new Emitter<IExtension | undefined>();
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
@@ -519,7 +518,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		urlService.registerHandler(this);
 
-		this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
 				if (this.isAutoUpdateEnabled()) {
 					this.checkForUpdates();
@@ -530,7 +529,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					this.checkForUpdates();
 				}
 			}
-		}, this, this.disposables);
+		}, this));
 
 		this.queryLocal().then(() => {
 			this.resetIgnoreAutoUpdateExtensions();
@@ -1080,7 +1079,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	dispose(): void {
+		super.dispose();
 		this.syncDelayer.cancel();
-		this.disposables = dispose(this.disposables);
 	}
 }

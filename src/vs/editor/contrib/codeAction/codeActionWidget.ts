@@ -13,19 +13,22 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class CodeActionContextMenu {
+export class CodeActionContextMenu extends Disposable {
 
 	private _visible: boolean;
 
-	private readonly _onDidExecuteCodeAction = new Emitter<void>();
+	private readonly _onDidExecuteCodeAction = this._register(new Emitter<void>());
 	public readonly onDidExecuteCodeAction: Event<void> = this._onDidExecuteCodeAction.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _contextMenuService: IContextMenuService,
 		private readonly _onApplyCodeAction: (action: CodeAction) => Promise<any>
-	) { }
+	) {
+		super();
+	}
 
 	public async show(actionsToShow: Promise<CodeActionSet>, at?: { x: number; y: number } | Position): Promise<void> {
 		const codeActions = await actionsToShow;

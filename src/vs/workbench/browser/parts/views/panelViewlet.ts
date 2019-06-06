@@ -46,16 +46,16 @@ export abstract class ViewletPanel extends Panel implements IView {
 
 	private static AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
 
-	private _onDidFocus = new Emitter<void>();
+	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private _onDidBlur = new Emitter<void>();
+	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
-	private _onDidChangeBodyVisibility = new Emitter<boolean>();
+	private _onDidChangeBodyVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
 
-	protected _onDidChangeTitleArea = new Emitter<void>();
+	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
 	private _isVisible: boolean = false;
@@ -78,8 +78,6 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.id = options.id;
 		this.title = options.title;
 		this.actionRunner = options.actionRunner;
-
-		this.disposables.push(this._onDidFocus, this._onDidBlur, this._onDidChangeBodyVisibility, this._onDidChangeTitleArea);
 	}
 
 	setVisible(visible: boolean): void {
@@ -113,9 +111,9 @@ export abstract class ViewletPanel extends Panel implements IView {
 		super.render();
 
 		const focusTracker = trackFocus(this.element);
-		this.disposables.push(focusTracker);
-		this.disposables.push(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
-		this.disposables.push(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
+		this._register(focusTracker);
+		this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -132,11 +130,11 @@ export abstract class ViewletPanel extends Panel implements IView {
 			actionRunner: this.actionRunner
 		});
 
-		this.disposables.push(this.toolbar);
+		this._register(this.toolbar);
 		this.setActions();
 
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewletPanel.AlwaysShowActionsConfig));
-		onDidRelevantConfigurationChange(this.updateActionsVisibility, this, this.disposables);
+		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
 		this.updateActionsVisibility();
 	}
 

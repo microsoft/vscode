@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -27,29 +27,28 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-class MarkerModel {
+class MarkerModel extends Disposable {
 
 	private readonly _editor: ICodeEditor;
 	private _markers: IMarker[];
 	private _nextIdx: number;
-	private _toUnbind: IDisposable[];
 	private _ignoreSelectionChange: boolean;
 	private readonly _onCurrentMarkerChanged: Emitter<IMarker | undefined>;
 	private readonly _onMarkerSetChanged: Emitter<MarkerModel>;
 
 	constructor(editor: ICodeEditor, markers: IMarker[]) {
+		super();
 		this._editor = editor;
 		this._markers = [];
 		this._nextIdx = -1;
-		this._toUnbind = [];
 		this._ignoreSelectionChange = false;
 		this._onCurrentMarkerChanged = new Emitter<IMarker>();
 		this._onMarkerSetChanged = new Emitter<MarkerModel>();
 		this.setMarkers(markers);
 
 		// listen on editor
-		this._toUnbind.push(this._editor.onDidDispose(() => this.dispose()));
-		this._toUnbind.push(this._editor.onDidChangeCursorPosition(() => {
+		this._register(this._editor.onDidDispose(() => this.dispose()));
+		this._register(this._editor.onDidChangeCursorPosition(() => {
 			if (this._ignoreSelectionChange) {
 				return;
 			}
@@ -187,10 +186,6 @@ class MarkerModel {
 
 	public indexOf(marker: IMarker): number {
 		return 1 + this._markers.indexOf(marker);
-	}
-
-	public dispose(): void {
-		this._toUnbind = dispose(this._toUnbind);
 	}
 }
 

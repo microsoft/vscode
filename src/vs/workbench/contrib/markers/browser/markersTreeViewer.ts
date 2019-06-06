@@ -140,10 +140,9 @@ interface RelatedInformationFilterData {
 
 export type FilterData = ResourceMarkersFilterData | MarkerFilterData | RelatedInformationFilterData;
 
-export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, ResourceMarkersFilterData, IResourceMarkersTemplateData> {
+export class ResourceMarkersRenderer extends Disposable implements ITreeRenderer<ResourceMarkers, ResourceMarkersFilterData, IResourceMarkersTemplateData> {
 
 	private renderedNodes = new Map<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, IResourceMarkersTemplateData>();
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		private labels: ResourceLabels,
@@ -151,7 +150,8 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
-		onDidChangeRenderNodeCount(this.onDidChangeRenderNodeCount, this, this.disposables);
+		super();
+		this._register(onDidChangeRenderNodeCount(this.onDidChangeRenderNodeCount, this));
 	}
 
 	templateId = TemplateId.ResourceMarkers;
@@ -204,10 +204,6 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 
 	private updateCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, templateData: IResourceMarkersTemplateData): void {
 		templateData.count.setCount(node.children.reduce((r, n) => r + (n.visible ? 1 : 0), 0));
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }
 

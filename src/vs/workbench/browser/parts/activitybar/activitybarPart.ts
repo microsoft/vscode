@@ -209,7 +209,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : null;
+		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : '';
 		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
 		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
 		container.style.borderRightColor = isPositionLeft ? borderColor : null;

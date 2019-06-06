@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { disposed } from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -25,14 +25,13 @@ import { EditorViewColumn, editorGroupToViewColumn, viewColumnToEditorGroup } fr
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
-export class MainThreadTextEditors implements MainThreadTextEditorsShape {
+export class MainThreadTextEditors extends Disposable implements MainThreadTextEditorsShape {
 
 	private static INSTANCE_COUNT: number = 0;
 
 	private readonly _instanceId: string;
 	private readonly _proxy: ExtHostEditorsShape;
 	private readonly _documentsAndEditors: MainThreadDocumentsAndEditors;
-	private _toDispose: IDisposable[];
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
 	private _editorPositionData: ITextEditorPositionData | null;
 	private _registeredDecorationTypes: { [decorationType: string]: boolean; };
@@ -45,29 +44,29 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
 	) {
+		super();
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
-		this._toDispose = [];
 		this._textEditorsListenersMap = Object.create(null);
 		this._editorPositionData = null;
 
-		this._toDispose.push(documentsAndEditors.onTextEditorAdd(editors => editors.forEach(this._onTextEditorAdd, this)));
-		this._toDispose.push(documentsAndEditors.onTextEditorRemove(editors => editors.forEach(this._onTextEditorRemove, this)));
+		this._register(documentsAndEditors.onTextEditorAdd(editors => editors.forEach(this._onTextEditorAdd, this)));
+		this._register(documentsAndEditors.onTextEditorRemove(editors => editors.forEach(this._onTextEditorRemove, this)));
 
-		this._toDispose.push(this._editorService.onDidVisibleEditorsChange(() => this._updateActiveAndVisibleTextEditors()));
-		this._toDispose.push(this._editorGroupService.onDidRemoveGroup(() => this._updateActiveAndVisibleTextEditors()));
-		this._toDispose.push(this._editorGroupService.onDidMoveGroup(() => this._updateActiveAndVisibleTextEditors()));
+		this._register(this._editorService.onDidVisibleEditorsChange(() => this._updateActiveAndVisibleTextEditors()));
+		this._register(this._editorGroupService.onDidRemoveGroup(() => this._updateActiveAndVisibleTextEditors()));
+		this._register(this._editorGroupService.onDidMoveGroup(() => this._updateActiveAndVisibleTextEditors()));
 
 		this._registeredDecorationTypes = Object.create(null);
 	}
 
 	public dispose(): void {
+		super.dispose();
 		Object.keys(this._textEditorsListenersMap).forEach((editorId) => {
 			dispose(this._textEditorsListenersMap[editorId]);
 		});
 		this._textEditorsListenersMap = Object.create(null);
-		this._toDispose = dispose(this._toDispose);
 		for (let decorationType in this._registeredDecorationTypes) {
 			this._codeEditorService.removeDecorationType(decorationType);
 		}

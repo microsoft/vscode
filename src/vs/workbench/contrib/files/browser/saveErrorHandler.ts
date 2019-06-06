@@ -175,7 +175,7 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 		// Show message and keep function to hide in case the file gets saved/reverted
 		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
-		Event.once(handle.onDidClose)(() => dispose(...actions.primary!, ...actions.secondary!));
+		Event.once(handle.onDidClose)(() => { dispose(actions.primary!), dispose(actions.secondary!); });
 		this.messages.set(model.getResource(), handle);
 	}
 
@@ -258,7 +258,7 @@ class ResolveSaveConflictAction extends Action {
 			actions.secondary!.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
 
 			const handle = this.notificationService.notify({ severity: Severity.Info, message: conflictEditorHelp, actions });
-			Event.once(handle.onDidClose)(() => dispose(...actions.primary!, ...actions.secondary!));
+			Event.once(handle.onDidClose)(() => { dispose(actions.primary!); dispose(actions.secondary!); });
 			pendingResolveSaveConflictMessages.push(handle);
 		}
 

@@ -39,6 +39,7 @@ import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
 import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { once } from 'vs/base/common/functional';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 const enum WindowError {
 	UNRESPONSIVE = 1,
@@ -154,7 +155,7 @@ interface IWorkspacePathToOpen {
 	label?: string;
 }
 
-export class WindowsManager implements IWindowsMainService {
+export class WindowsManager extends Disposable implements IWindowsMainService {
 
 	_serviceBrand: any;
 
@@ -168,16 +169,16 @@ export class WindowsManager implements IWindowsMainService {
 	private readonly dialogs: Dialogs;
 	private readonly workspacesManager: WorkspacesManager;
 
-	private _onWindowReady = new Emitter<ICodeWindow>();
+	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
 	readonly onWindowReady: CommonEvent<ICodeWindow> = this._onWindowReady.event;
 
-	private _onWindowClose = new Emitter<number>();
+	private readonly _onWindowClose = this._register(new Emitter<number>());
 	readonly onWindowClose: CommonEvent<number> = this._onWindowClose.event;
 
-	private _onWindowLoad = new Emitter<number>();
+	private readonly _onWindowLoad = this._register(new Emitter<number>());
 	readonly onWindowLoad: CommonEvent<number> = this._onWindowLoad.event;
 
-	private _onWindowsCountChanged = new Emitter<IWindowsCountChangedEvent>();
+	private readonly _onWindowsCountChanged = this._register(new Emitter<IWindowsCountChangedEvent>());
 	readonly onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
 
 	constructor(
@@ -194,6 +195,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
+		super();
 		const windowsStateStoreData = this.stateService.getItem<WindowsStateStorageData>(WindowsManager.windowsStateStorageKey);
 
 		this.windowsState = restoreWindowsState(windowsStateStoreData);

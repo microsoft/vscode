@@ -64,7 +64,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		this._editor = editor;
 		this._model = new CodeActionModel(this._editor, markerService, contextKeyService, progressService);
-		this._codeActionContextMenu = new CodeActionContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action));
+		this._codeActionContextMenu = this._register(new CodeActionContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action)));
 		this._lightBulbWidget = this._register(new LightBulbWidget(editor));
 
 		this._updateLightBulbTitle();
