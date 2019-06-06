@@ -196,6 +196,14 @@ body[data-exploration^="icon-exploration"] .markers-panel-action-filter > .marke
 	ACTIVITY BAR
 ********************/
 
+body[data-exploration^="icon-exploration"] .monaco-workbench .activitybar > .content .monaco-action-bar .badge .badge-content {
+	font-size: 9px;
+	font-weight: 600;
+	height: 16px;
+	line-height: 16px;
+	padding: 0 4px;
+}
+
 body[data-exploration^="icon-exploration"] .monaco-workbench .activitybar .monaco-action-bar .action-label {
 	-webkit-mask-size: 24px !important;
 }
