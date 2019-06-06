@@ -147,18 +147,16 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			}
 		});
 
-		this._process.onProcessIdReady(pid => {
-			this.shellProcessId = pid;
-			return this._process!.getInitialCwd().then(cwd => {
-				this._initialCwd = cwd;
-				this._onProcessReady.fire();
+		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
+			this.shellProcessId = e.pid;
+			this._initialCwd = e.cwd;
+			this._onProcessReady.fire();
 
-				// Send any queued data that's waiting
-				if (this._preLaunchInputQueue.length > 0 && this._process) {
-					this._process.input(this._preLaunchInputQueue.join(''));
-					this._preLaunchInputQueue.length = 0;
-				}
-			});
+			// Send any queued data that's waiting
+			if (this._preLaunchInputQueue.length > 0 && this._process) {
+				this._process.input(this._preLaunchInputQueue.join(''));
+				this._preLaunchInputQueue.length = 0;
+			}
 		});
 
 		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));

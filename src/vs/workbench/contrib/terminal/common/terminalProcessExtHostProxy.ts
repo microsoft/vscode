@@ -19,8 +19,8 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
 	private readonly _onProcessExit = new Emitter<number>();
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
-	private readonly _onProcessIdReady = new Emitter<number>();
-	public get onProcessIdReady(): Event<number> { return this._onProcessIdReady.event; }
+	private readonly _onProcessReady = new Emitter<{ pid: number, cwd: string }>();
+	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = new Emitter<string>();
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 
@@ -77,7 +77,7 @@ export class TerminalProcessExtHostProxy implements ITerminalChildProcess, ITerm
 	}
 
 	public emitPid(pid: number): void {
-		this._onProcessIdReady.fire(pid);
+		this._onProcessReady.fire({ pid, cwd: '' });
 	}
 
 	public emitExit(exitCode: number): void {
