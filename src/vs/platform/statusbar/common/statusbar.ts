@@ -75,6 +75,11 @@ export interface IStatusbarService {
 	 * @param name human readable name the entry is about
 	 */
 	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
+
+	/**
+	 * Allows to update an entry's visibilty with the provided ID.
+	 */
+	updateEntryVisibility(id: string, visible: boolean): void;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

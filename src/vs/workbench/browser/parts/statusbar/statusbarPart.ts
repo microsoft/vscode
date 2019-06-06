@@ -395,6 +395,14 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return entries;
 	}
 
+	updateEntryVisibility(id: string, visible: boolean): void {
+		if (visible) {
+			this.viewModel.show(id);
+		} else {
+			this.viewModel.hide(id);
+		}
+	}
+
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
