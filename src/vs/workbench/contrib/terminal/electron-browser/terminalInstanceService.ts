@@ -5,6 +5,7 @@
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Terminal as XTermTerminal } from 'xterm';
+import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { ITerminalInstance, IWindowsShellHelper, IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -13,6 +14,7 @@ import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProc
 import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
 
 let Terminal: typeof XTermTerminal;
+let WebLinksAddon: typeof XTermWebLinksAddon;
 
 /**
  * A service used by TerminalInstance (and components owned by it) that allows it to break its
@@ -32,6 +34,13 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			Terminal = (await import('xterm')).Terminal;
 		}
 		return Terminal;
+	}
+
+	public async getXtermWebLinksConstructor(): Promise<typeof XTermWebLinksAddon> {
+		if (!WebLinksAddon) {
+			WebLinksAddon = (await import('xterm-addon-web-links')).WebLinksAddon;
+		}
+		return WebLinksAddon;
 	}
 
 	public createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper {
