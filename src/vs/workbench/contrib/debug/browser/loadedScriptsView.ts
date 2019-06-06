@@ -150,7 +150,7 @@ class BaseTreeItem {
 		if (child) {
 			return child.getChildren();
 		}
-		const array = [];
+		const array: BaseTreeItem[] = [];
 		for (let child of this._children.values()) {
 			array.push(child);
 		}
