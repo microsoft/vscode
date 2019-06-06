@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IDisposable, IReference, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -64,7 +64,7 @@ export class BoundModelReferenceCollection {
 	}
 }
 
-export class MainThreadDocuments extends Disposable implements MainThreadDocumentsShape {
+export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private readonly _modelService: IModelService;
 	private readonly _textModelResolverService: ITextModelService;
@@ -73,6 +73,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	private readonly _untitledEditorService: IUntitledEditorService;
 	private readonly _environmentService: IWorkbenchEnvironmentService;
 
+	private _toDispose: IDisposable[];
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private readonly _proxy: ExtHostDocumentsShape;
 	private readonly _modelIsSynced: { [modelId: string]: boolean; };
@@ -89,7 +90,6 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super();
 		this._modelService = modelService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
@@ -100,22 +100,23 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
 		this._modelIsSynced = {};
 
-		this._register(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
-		this._register(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
-		this._register(this._modelReferenceCollection);
-		this._register(modelService.onModelModeChanged(this._onModelModeChanged, this));
+		this._toDispose = [];
+		this._toDispose.push(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
+		this._toDispose.push(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
+		this._toDispose.push(this._modelReferenceCollection);
+		this._toDispose.push(modelService.onModelModeChanged(this._onModelModeChanged, this));
 
-		this._register(textFileService.models.onModelSaved(e => {
+		this._toDispose.push(textFileService.models.onModelSaved(e => {
 			if (this._shouldHandleFileEvent(e)) {
 				this._proxy.$acceptModelSaved(e.resource);
 			}
 		}));
-		this._register(textFileService.models.onModelReverted(e => {
+		this._toDispose.push(textFileService.models.onModelReverted(e => {
 			if (this._shouldHandleFileEvent(e)) {
 				this._proxy.$acceptDirtyStateChanged(e.resource, false);
 			}
 		}));
-		this._register(textFileService.models.onModelDirty(e => {
+		this._toDispose.push(textFileService.models.onModelDirty(e => {
 			if (this._shouldHandleFileEvent(e)) {
 				this._proxy.$acceptDirtyStateChanged(e.resource, true);
 			}
@@ -129,7 +130,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 			this._modelToDisposeMap[modelUrl].dispose();
 		});
 		this._modelToDisposeMap = Object.create(null);
-		super.dispose();
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	private _shouldHandleFileEvent(e: TextFileModelChangeEvent): boolean {

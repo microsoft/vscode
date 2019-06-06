@@ -6,7 +6,7 @@
 import 'vs/css!./quickInput';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
-import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
@@ -211,7 +211,7 @@ class ListElementDelegate implements IListVirtualDelegate<ListElement> {
 	}
 }
 
-export class QuickInputList extends Disposable {
+export class QuickInputList {
 
 	readonly id: string;
 	private container: HTMLElement;
@@ -235,14 +235,14 @@ export class QuickInputList extends Disposable {
 	private _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
-	private readonly elementDisposables = this._register(new DisposableStore());
+	private elementDisposables: IDisposable[] = [];
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		private parent: HTMLElement,
 		id: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super();
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
@@ -254,8 +254,8 @@ export class QuickInputList extends Disposable {
 			horizontalScrolling: false
 		} as IListOptions<ListElement>) as WorkbenchList<ListElement>;
 		this.list.getHTMLElement().id = id;
-		this._register(this.list);
-		this._register(this.list.onKeyDown(e => {
+		this.disposables.push(this.list);
+		this.disposables.push(this.list.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Space:
@@ -282,13 +282,13 @@ export class QuickInputList extends Disposable {
 					break;
 			}
 		}));
-		this._register(this.list.onMouseDown(e => {
+		this.disposables.push(this.list.onMouseDown(e => {
 			if (e.browserEvent.button !== 2) {
 				// Works around / fixes #64350.
 				e.browserEvent.preventDefault();
 			}
 		}));
-		this._register(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
+		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space' on checkbox.
 				this._onLeave.fire();
 			}
@@ -360,7 +360,7 @@ export class QuickInputList extends Disposable {
 	}
 
 	setElements(inputElements: Array<IQuickPickItem | IQuickPickSeparator>): void {
-		this.elementDisposables.clear();
+		this.elementDisposables = dispose(this.elementDisposables);
 		const fireButtonTriggered = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event);
 		this.inputElements = inputElements;
 		this.elements = inputElements.reduce((result, item, index) => {
@@ -379,10 +379,7 @@ export class QuickInputList extends Disposable {
 			}
 			return result;
 		}, [] as ListElement[]);
-
-		for (const element of this.elements) {
-			this.elementDisposables.add(element.onChecked(() => this.fireCheckedEvents()));
-		}
+		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 
 		this.elementsToIndexes = this.elements.reduce((map, element, index) => {
 			map.set(element.item, index);
@@ -557,6 +554,11 @@ export class QuickInputList extends Disposable {
 
 	isDisplayed() {
 		return this.container.style.display !== 'none';
+	}
+
+	dispose() {
+		this.elementDisposables = dispose(this.elementDisposables);
+		this.disposables = dispose(this.disposables);
 	}
 
 	private fireCheckedEvents() {

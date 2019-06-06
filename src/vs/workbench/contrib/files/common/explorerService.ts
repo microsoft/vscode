@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExplorerService, IEditableData, IFilesConfiguration, SortOrder, SortOrderConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
@@ -26,7 +26,7 @@ function getFileEventsExcludes(configurationService: IConfigurationService, root
 	return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 }
 
-export class ExplorerService extends Disposable implements IExplorerService {
+export class ExplorerService implements IExplorerService {
 	_serviceBrand: any;
 
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
@@ -36,6 +36,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
 	private _onDidChangeEditable = new Emitter<ExplorerItem>();
 	private _onDidSelectResource = new Emitter<{ resource?: URI, reveal?: boolean }>();
 	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
+	private disposables: IDisposable[] = [];
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
@@ -49,7 +50,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
 		@IClipboardService private clipboardService: IClipboardService,
 		@IEditorService private editorService: IEditorService
 	) {
-		super();
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
 	}
 
@@ -88,18 +88,18 @@ export class ExplorerService extends Disposable implements IExplorerService {
 			(root?: URI) => getFileEventsExcludes(this.configurationService, root),
 			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
 		);
-		this._register(fileEventsFilter);
+		this.disposables.push(fileEventsFilter);
 
 		return fileEventsFilter;
 	}
 
 	@memoize get model(): ExplorerModel {
 		const model = new ExplorerModel(this.contextService);
-		this._register(model);
-		this._register(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
-		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+		this.disposables.push(model);
+		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
+		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
+		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
 			if (e.added && this.fileSystemProviderSchemes.has(e.scheme)) {
 				// A file system provider got re-registered, we should update all file stats since they might change (got read-only)
 				this._onDidChangeItem.fire({ recursive: true });
@@ -107,7 +107,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
 				this.fileSystemProviderSchemes.add(e.scheme);
 			}
 		}));
-		this._register(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
+		this.disposables.push(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
 
 		return model;
 	}
@@ -376,5 +376,9 @@ export class ExplorerService extends Disposable implements IExplorerService {
 				this.refresh();
 			}
 		}
+	}
+
+	dispose(): void {
+		dispose(this.disposables);
 	}
 }

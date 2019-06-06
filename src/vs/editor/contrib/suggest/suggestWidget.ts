@@ -9,7 +9,7 @@ import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass, addDisposableListener } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -228,7 +228,7 @@ const enum State {
 	Details
 }
 
-class SuggestionDetails extends Disposable {
+class SuggestionDetails {
 
 	private el: HTMLElement;
 	private close: HTMLElement;
@@ -238,7 +238,8 @@ class SuggestionDetails extends Disposable {
 	private type: HTMLElement;
 	private docs: HTMLElement;
 	private ariaLabel: string | null;
-	private readonly renderDisposeable = this._register(new DisposableStore());
+	private disposables: IDisposable[];
+	private renderDisposeable: IDisposable;
 	private borderWidth: number = 1;
 
 	constructor(
@@ -248,16 +249,16 @@ class SuggestionDetails extends Disposable {
 		private readonly markdownRenderer: MarkdownRenderer,
 		private readonly triggerKeybindingLabel: string
 	) {
-		super();
+		this.disposables = [];
 
 		this.el = append(container, $('.details'));
-		this._register(toDisposable(() => container.removeChild(this.el)));
+		this.disposables.push(toDisposable(() => container.removeChild(this.el)));
 
 		this.body = $('.body');
 
 		this.scrollbar = new DomScrollableElement(this.body, {});
 		append(this.el, this.scrollbar.getDomNode());
-		this._register(this.scrollbar);
+		this.disposables.push(this.scrollbar);
 
 		this.header = append(this.body, $('.header'));
 		this.close = append(this.header, $('span.close'));
@@ -269,11 +270,11 @@ class SuggestionDetails extends Disposable {
 
 		this.configureFont();
 
-		this._register(Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+		Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo)
-			.on(this.configureFont, this));
+			.on(this.configureFont, this, this.disposables);
 
-		this._register(markdownRenderer.onDidRenderCodeBlock(() => this.scrollbar.scanDomNode(), this));
+		markdownRenderer.onDidRenderCodeBlock(() => this.scrollbar.scanDomNode(), this, this.disposables);
 	}
 
 	get element() {
@@ -281,7 +282,7 @@ class SuggestionDetails extends Disposable {
 	}
 
 	render(item: CompletionItem): void {
-		this.renderDisposeable.clear();
+		this.renderDisposeable = dispose(this.renderDisposeable);
 
 		if (!item || !canExpandCompletionItem(item)) {
 			this.type.textContent = '';
@@ -298,7 +299,7 @@ class SuggestionDetails extends Disposable {
 			addClass(this.docs, 'markdown-docs');
 			this.docs.innerHTML = '';
 			const renderedContents = this.markdownRenderer.render(item.completion.documentation);
-			this.renderDisposeable.add(renderedContents);
+			this.renderDisposeable = renderedContents;
 			this.docs.appendChild(renderedContents.element);
 		}
 
@@ -377,6 +378,11 @@ class SuggestionDetails extends Disposable {
 		this.type.style.fontFamily = fontFamily;
 		this.close.style.height = lineHeightPx;
 		this.close.style.width = lineHeightPx;
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		this.renderDisposeable = dispose(this.renderDisposeable);
 	}
 }
 

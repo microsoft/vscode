@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as os from 'os';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import product from 'vs/platform/product/node/product';
@@ -24,9 +24,11 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export class WindowsService extends Disposable implements IWindowsService, IURLHandler {
+export class WindowsService implements IWindowsService, IURLHandler, IDisposable {
 
 	_serviceBrand: any;
+
+	private disposables: IDisposable[] = [];
 
 	private _activeWindowId: number | undefined;
 
@@ -50,12 +52,11 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		@IHistoryMainService private readonly historyService: IHistoryMainService,
 		@ILogService private readonly logService: ILogService
 	) {
-		super();
 		urlService.registerHandler(this);
 
 		// remember last active window id
-		this._register(Event.latch(Event.any(this.onWindowOpen, this.onWindowFocus))
-			(id => this._activeWindowId = id, null));
+		Event.latch(Event.any(this.onWindowOpen, this.onWindowFocus))
+			(id => this._activeWindowId = id, null, this.disposables);
 	}
 
 	async pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
@@ -458,5 +459,9 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		}
 
 		return undefined;
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { Event } from 'vs/base/common/event';
 import { BrowserWindow, app } from 'electron';
@@ -22,18 +22,18 @@ type Credentials = {
 	password: string;
 };
 
-export class ProxyAuthHandler extends Disposable {
+export class ProxyAuthHandler {
 
 	_serviceBrand: any;
 
 	private retryCount = 0;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
 	) {
-		super();
 		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
-		this._register(onLogin(this.onLogin, this));
+		onLogin(this.onLogin, this, this.disposables);
 	}
 
 	private onLogin({ event, authInfo, cb }: LoginEvent): void {
@@ -84,5 +84,9 @@ export class ProxyAuthHandler extends Disposable {
 			win.removeListener('close', onWindowClose);
 			win.close();
 		});
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
