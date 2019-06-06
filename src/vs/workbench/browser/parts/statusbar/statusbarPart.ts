@@ -34,7 +34,6 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { values } from 'vs/base/common/map';
-import { Event, Emitter } from 'vs/base/common/event';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -59,12 +58,6 @@ class StatusbarViewModel extends Disposable {
 
 	private readonly _entries: IStatusbarViewModelEntry[] = [];
 	get entries(): IStatusbarViewModelEntry[] { return this._entries; }
-
-	private readonly _onDidEntryVisibilityChange: Emitter<string> = this._register(new Emitter());
-	get onDidEntryVisibilityChange(): Event<string> { return this._onDidEntryVisibilityChange.event; }
-
-	private readonly _onDidEntriesChange: Emitter<void> = this._register(new Emitter());
-	get onDidEntriesChange(): Event<void> { return this._onDidEntriesChange.event; }
 
 	private hidden: Set<string>;
 
@@ -143,8 +136,8 @@ class StatusbarViewModel extends Disposable {
 		// Sort according to priority
 		this.sort();
 
-		// Events
-		this._onDidEntriesChange.fire();
+		// Mark first/last visible entry
+		this.markFirstLastVisibleEntry();
 
 		return toDisposable(() => this.remove(entry));
 	}
@@ -154,8 +147,8 @@ class StatusbarViewModel extends Disposable {
 		if (index >= 0) {
 			this._entries.splice(index, 1);
 
-			// Events
-			this._onDidEntriesChange.fire();
+			// Mark first/last visible entry
+			this.markFirstLastVisibleEntry();
 		}
 	}
 
@@ -226,8 +219,8 @@ class StatusbarViewModel extends Disposable {
 				show(entry.container);
 			}
 
-			// Events
-			this._onDidEntryVisibilityChange.fire(entry.id);
+			// Mark first/last visible entry
+			this.markFirstLastVisibleEntry();
 		}
 	}
 
@@ -255,6 +248,41 @@ class StatusbarViewModel extends Disposable {
 
 			return 0;
 		});
+	}
+
+	private markFirstLastVisibleEntry(): void {
+		this.doMarkFirstLastVisibleStatusbarItem(this.getEntries(StatusbarAlignment.LEFT));
+		this.doMarkFirstLastVisibleStatusbarItem(this.getEntries(StatusbarAlignment.RIGHT));
+	}
+
+	private doMarkFirstLastVisibleStatusbarItem(entries: IStatusbarViewModelEntry[]): void {
+		let firstVisibleItem: IStatusbarViewModelEntry | undefined;
+		let lastVisibleItem: IStatusbarViewModelEntry | undefined;
+
+		for (const entry of entries) {
+
+			// Clear previous first
+			removeClasses(entry.container, 'first-visible-item', 'last-visible-item');
+
+			const isVisible = !this.isHidden(entry.id);
+			if (isVisible) {
+				if (!firstVisibleItem) {
+					firstVisibleItem = entry;
+				}
+
+				lastVisibleItem = entry;
+			}
+		}
+
+		// Mark: first visible item
+		if (firstVisibleItem) {
+			addClass(firstVisibleItem.container, 'first-visible-item');
+		}
+
+		// Mark: last visible item
+		if (lastVisibleItem) {
+			addClass(lastVisibleItem.container, 'last-visible-item');
+		}
 	}
 }
 
@@ -326,8 +354,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private registerListeners(): void {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
-		this._register(this.viewModel.onDidEntryVisibilityChange(() => this.markFirstLastVisibleStatusbarItem()));
-		this._register(this.viewModel.onDidEntriesChange(() => this.markFirstLastVisibleStatusbarItem()));
 	}
 
 	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number = 0): IStatusbarEntryAccessor {
@@ -481,41 +507,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// Fallback to just appending otherwise
 		if (!appended) {
 			this.element.appendChild(itemContainer);
-		}
-	}
-
-	private markFirstLastVisibleStatusbarItem(): void {
-		this.doMarkFirstLastVisibleStatusbarItem(this.viewModel.getEntries(StatusbarAlignment.LEFT));
-		this.doMarkFirstLastVisibleStatusbarItem(this.viewModel.getEntries(StatusbarAlignment.RIGHT));
-	}
-
-	private doMarkFirstLastVisibleStatusbarItem(entries: IStatusbarViewModelEntry[]): void {
-		let firstVisibleItem: IStatusbarViewModelEntry | undefined;
-		let lastVisibleItem: IStatusbarViewModelEntry | undefined;
-
-		for (const entry of entries) {
-
-			// Clear previous first
-			removeClasses(entry.container, 'first-visible-item', 'last-visible-item');
-
-			const isVisible = !this.viewModel.isHidden(entry.id);
-			if (isVisible) {
-				if (!firstVisibleItem) {
-					firstVisibleItem = entry;
-				}
-
-				lastVisibleItem = entry;
-			}
-		}
-
-		// Mark: first visible item
-		if (firstVisibleItem) {
-			addClass(firstVisibleItem.container, 'first-visible-item');
-		}
-
-		// Mark: last visible item
-		if (lastVisibleItem) {
-			addClass(lastVisibleItem.container, 'last-visible-item');
 		}
 	}
 
