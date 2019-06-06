@@ -538,7 +538,6 @@ gulp.task('vscode-translations-import', function () {
 // Sourcemaps
 
 gulp.task('upload-vscode-sourcemaps', () => {
-	// only publish client maps (out-vscode-min), not server (out-vscode-reh-min)
 	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' })
 		.pipe(es.mapSync(f => {
 			f.path = `${f.base}/core/${f.relative}`;
