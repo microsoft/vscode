@@ -277,7 +277,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
 		super();
-		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), StatusbarAlignment.LEFT, 50 /* Medium Priority */));
+		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', localize('status.problems', "Problems"), StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 		this.markerService.onMarkerChanged(() => this.markersStatusItem.update(this.getMarkersItem()));
 	}
 

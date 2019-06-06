@@ -18,10 +18,9 @@ import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inp
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-
-export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IFeedback {
 	feedback: string;
@@ -67,6 +66,7 @@ export class FeedbackDropdown extends Dropdown {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(container, {
@@ -91,6 +91,10 @@ export class FeedbackDropdown extends Dropdown {
 
 		dom.addClass(this.element, 'send-feedback');
 		this.element.title = nls.localize('sendFeedback', "Tweet Feedback");
+
+		if (!this.configurationService.getValue('workbench.statusBar.feedback.visible')) {
+			this.statusbarService.updateEntryVisibility('status.feedback', false);
+		}
 	}
 
 	protected getAnchor(): HTMLElement | IAnchor {
@@ -404,7 +408,7 @@ export class FeedbackDropdown extends Dropdown {
 		}
 
 		if (this.hideButton && !this.hideButton.checked) {
-			this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false);
+			this.statusbarService.updateEntryVisibility('status.feedback', false);
 		}
 
 		super.hide();

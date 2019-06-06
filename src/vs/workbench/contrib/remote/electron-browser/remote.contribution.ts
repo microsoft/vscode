@@ -143,7 +143,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		if (this.windowIndicatorEntry) {
 			this.windowIndicatorEntry.update(properties);
 		} else {
-			this.windowIndicatorEntry = this.statusbarService.addEntry(properties, StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
+			this.windowIndicatorEntry = this.statusbarService.addEntry(properties, 'status.host', nls.localize('status.host', "Remote Host"), StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
 		}
 	}
 

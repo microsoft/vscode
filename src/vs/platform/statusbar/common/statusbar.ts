@@ -11,7 +11,8 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
 export const enum StatusbarAlignment {
-	LEFT, RIGHT
+	LEFT,
+	RIGHT
 }
 
 /**
@@ -69,8 +70,16 @@ export interface IStatusbarService {
 	/**
 	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
 	 * to update or remove the statusbar entry.
+	 *
+	 * @param id  identifier of the entry is needed to allow users to hide entries via settings
+	 * @param name human readable name the entry is about
 	 */
-	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
+	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
+
+	/**
+	 * Allows to update an entry's visibilty with the provided ID.
+	 */
+	updateEntryVisibility(id: string, visible: boolean): void;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {
