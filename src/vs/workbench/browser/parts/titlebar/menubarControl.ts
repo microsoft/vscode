@@ -114,6 +114,7 @@ export class MenubarControl extends Disposable {
 
 		if (isMacintosh && this.isNative) {
 			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
+			this.topLevelTitles['Preferences'] = nls.localize('mPreferences', "Preferences");
 		}
 
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doUpdateMenubar(false), 200));
