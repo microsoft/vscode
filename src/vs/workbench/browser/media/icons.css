@@ -100,7 +100,12 @@ body[data-exploration^="icon-exploration"] .monaco-editor .find-widget .collapse
 body[data-exploration^="icon-exploration"] .monaco-editor .find-widget .monaco-checkbox .label::before,
 body[data-exploration^="icon-exploration"] .monaco-workbench .quick-open-sidebyside-vertical,
 body[data-exploration^="icon-exploration"] .monaco-tree-action.collapse-all,
-body[data-exploration^="icon-exploration"] .monaco-editor div[class*="debug-"],
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-breakpoint,
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-focused-stack-frame,
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-top-stack-frame,
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-breakpoint-hint,
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-breakpoint-conditional,
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-breakpoint-log,
 body[data-exploration^="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-title .severity-icon,
 body[data-exploration^="icon-exploration"] .monaco-editor .margin-view-overlays .folding,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-action.save-all,
@@ -483,10 +488,16 @@ body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .acti
 }
 
 body[data-exploration="icon-exploration"] .debug-breakpoint,
+body[data-exploration="icon-exploration"] .debug-breakpoint-hint,
 body[data-exploration="icon-exploration"] .debug-breakpoint.icon,
 body[data-exploration="icon-exploration"] .monaco-editor .debug-breakpoint-column::before {
 	-webkit-mask-image: url("images/debug/breakpoint-alt1.svg");
+	opacity: 1 !important;
 	background: var(--redLight) !important;
+}
+
+body[data-exploration="icon-exploration"] .debug-breakpoint-hint:not(.debug-breakpoint) {
+	opacity: .5 !important;
 }
 
 body[data-exploration="icon-exploration"] .debug-breakpoint-disabled.icon {
@@ -504,6 +515,7 @@ body[data-exploration="icon-exploration"] .monaco-editor .debug-top-stack-frame-
 body[data-exploration="icon-exploration"] .monaco-editor .debug-top-stack-frame {
 	-webkit-mask-image: url("images/debug/current-arrow-alt1.svg");
 	background: var(--yellow) !important;
+	opacity: 1 !important;
 }
 
 body[data-exploration="icon-exploration"] .monaco-editor .debug-top-stack-frame.debug-breakpoint,
@@ -512,6 +524,7 @@ body[data-exploration="icon-exploration"] .monaco-editor .debug-top-stack-frame.
 body[data-exploration="icon-exploration"] .monaco-editor .debug-breakpoint-column.debug-breakpoint-column.debug-top-stack-frame-column::before {
 	-webkit-mask-image: url("images/debug/current-and-breakpoint-alt1.svg");
 	background: var(--yellow) !important;
+	opacity: 1 !important;
 }
 
 body[data-exploration="icon-exploration"] .monaco-editor .debug-focused-stack-frame.debug-breakpoint,
@@ -550,6 +563,7 @@ body[data-exploration="icon-exploration"] .monaco-editor .debug-breakpoint-colum
 body[data-exploration="icon-exploration"] .monaco-editor .debug-focused-stack-frame {
 	-webkit-mask-image: url("images/debug/stackframe-arrow-alt1.svg");
 	background: var(--green) !important;
+	opacity: 1 !important;
 }
 
 body[data-exploration="icon-exploration"] .debug-function-breakpoint,
