@@ -29,7 +29,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
@@ -261,10 +260,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 
 CommandsRegistry.registerCommand('workbench.actions.view.toggleProblems', accessor => {
 	const panelService = accessor.get(IPanelService);
-	const layoutService = accessor.get(IWorkbenchLayoutService);
 	const panel = accessor.get(IPanelService).getActivePanel();
 	if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
-		layoutService.setPanelHidden(true);
+		panelService.hideActivePanel();
 	} else {
 		panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 	}
