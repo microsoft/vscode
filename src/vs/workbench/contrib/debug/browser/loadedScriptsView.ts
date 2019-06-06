@@ -244,7 +244,7 @@ class SessionTreeItem extends BaseTreeItem {
 
 	private _session: IDebugSession;
 	private _initialized: boolean;
-	private _map: Map<string, BaseTreeItem>;
+	private _map = new Map<string, BaseTreeItem>();
 	private _labelService: ILabelService;
 
 	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
@@ -252,7 +252,6 @@ class SessionTreeItem extends BaseTreeItem {
 		this._labelService = labelService;
 		this._initialized = false;
 		this._session = session;
-		this._map = new Map();
 	}
 
 	getSession(): IDebugSession {

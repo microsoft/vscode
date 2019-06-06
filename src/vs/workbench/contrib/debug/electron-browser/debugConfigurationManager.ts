@@ -52,7 +52,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private _onDidSelectConfigurationName = new Emitter<void>();
 	private configProviders: IDebugConfigurationProvider[];
 	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
-	private debugAdapterFactories: Map<string, IDebugAdapterFactory>;
+	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();
 	private terminalLauncher: ITerminalLauncher;
 	private debugConfigurationTypeContext: IContextKey<string>;
 
@@ -78,7 +78,6 @@ export class ConfigurationManager implements IConfigurationManager {
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const previousSelectedLaunch = this.launches.filter(l => l.uri.toString() === previousSelectedRoot).pop();
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
-		this.debugAdapterFactories = new Map();
 		if (previousSelectedLaunch) {
 			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
 		}

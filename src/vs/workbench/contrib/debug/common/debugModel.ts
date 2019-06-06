@@ -90,7 +90,7 @@ export class RawObjectReplElement implements IExpression {
 
 export class ExpressionContainer implements IExpressionContainer {
 
-	public static allValues: Map<string, string> = new Map<string, string>();
+	public static allValues = new Map<string, string>();
 	// Use chunks to support variable paging #9537
 	private static readonly BASE_CHUNK_SIZE = 100;
 
