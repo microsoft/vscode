@@ -347,11 +347,11 @@ export class ReferenceWidget extends PeekViewWidget {
 			}
 		}, Sizing.Distribute);
 
-		this._splitView.onDidSashChange(() => {
+		this._disposables.add(this._splitView.onDidSashChange(() => {
 			if (this._dim.width) {
 				this.layoutData.ratio = this._splitView.getViewSize(0) / this._dim.width;
 			}
-		}, undefined, this._disposables);
+		}, undefined));
 
 		// listen on selection and focus
 		let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
