@@ -284,6 +284,9 @@ export class MainThreadCommentController {
 	private readonly _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
 	public activeCommentThread?: MainThreadCommentThread;
 
+	get features(): CommentProviderFeatures {
+		return this._features;
+	}
 
 	constructor(
 		private readonly _proxy: ExtHostCommentsShape,
