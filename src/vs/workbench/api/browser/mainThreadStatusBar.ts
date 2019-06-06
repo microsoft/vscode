@@ -7,9 +7,7 @@ import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, 
 import { MainThreadStatusBarShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { dispose } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
@@ -26,8 +24,8 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this.entries.clear();
 	}
 
-	$setEntry(id: number, extension: IExtensionDescription, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void {
-		const entry: IStatusbarEntry = { text, tooltip, command, color, extensionId: extension.identifier };
+	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void {
+		const entry: IStatusbarEntry = { text, tooltip, command, color };
 
 		// Reset existing entry if alignment or priority changed
 		let existingEntry = this.entries.get(id);
@@ -39,10 +37,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 		// Create new entry if not existing
 		if (!existingEntry) {
-			const entryId = extension.identifier.value;
-			const entryName = localize('extensionLabel', "{0} (Extension)", extension.displayName || extension.name);
-
-			this.entries.set(id, { accessor: this.statusbarService.addEntry(entry, entryId, entryName, alignment, priority), alignment, priority });
+			this.entries.set(id, { accessor: this.statusbarService.addEntry(entry, statusId, statusName, alignment, priority), alignment, priority });
 		}
 
 		// Otherwise update
