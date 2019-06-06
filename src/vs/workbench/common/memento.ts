@@ -6,6 +6,8 @@
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { isEmptyObject } from 'vs/base/common/types';
 
+export type MementoObject = { [key: string]: any };
+
 export class Memento {
 
 	private static readonly globalMementos = new Map<string, ScopedMemento>();
@@ -19,7 +21,7 @@ export class Memento {
 		this.id = Memento.COMMON_PREFIX + id;
 	}
 
-	getMemento(scope: StorageScope): object {
+	getMemento(scope: StorageScope): MementoObject {
 
 		// Scope by Workspace
 		if (scope === StorageScope.WORKSPACE) {
@@ -59,17 +61,17 @@ export class Memento {
 }
 
 class ScopedMemento {
-	private readonly mementoObj: object;
+	private readonly mementoObj: MementoObject;
 
 	constructor(private id: string, private scope: StorageScope, private storageService: IStorageService) {
 		this.mementoObj = this.load();
 	}
 
-	getMemento(): object {
+	getMemento(): MementoObject {
 		return this.mementoObj;
 	}
 
-	private load(): object {
+	private load(): MementoObject {
 		const memento = this.storageService.get(this.id, this.scope);
 		if (memento) {
 			return JSON.parse(memento);

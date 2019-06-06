@@ -44,6 +44,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { MementoObject } from 'vs/workbench/common/memento';
 
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
@@ -79,7 +80,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
 	private ariaLabelElement: HTMLElement;
-	private panelState: object;
+	private readonly panelState: MementoObject;
 	private panelFoucusContextKey: IContextKey<boolean>;
 
 	private filter: Filter;
