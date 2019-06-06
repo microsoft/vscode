@@ -433,14 +433,17 @@ export function didUseCachedData(): boolean {
 	}
 	// There are loader events that signal if cached data was missing, rejected,
 	// or used. The former two mean no cached data.
+	let cachedDataFound = 0;
 	for (const event of require.getStats()) {
 		switch (event.type) {
 			case LoaderEventType.CachedDataRejected:
-			case LoaderEventType.CachedDataMissed:
 				return false;
+			case LoaderEventType.CachedDataFound:
+				cachedDataFound += 1;
+				break;
 		}
 	}
-	return true;
+	return cachedDataFound > 0;
 }
 
 //#endregion

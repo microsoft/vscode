@@ -116,6 +116,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				this._addRawPerfMarks(md);
 				md.blank();
 				this._addLoaderStats(md, stats);
+				md.blank();
+				this._addCachedDataStats(md);
 
 				this._model.setValue(md.value);
 			}
@@ -208,21 +210,54 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		md.value += '```\n';
 	}
 
-	private _addLoaderStats(md: MarkdownBuilder, stats?: LoaderStats): void {
-		if (stats) {
-			md.heading(2, 'Loader Stats');
-			md.heading(3, 'Load AMD-module');
-			md.table(['Module', 'Duration'], stats.amdLoad);
-			md.blank();
-			md.heading(3, 'Load commonjs-module');
-			md.table(['Module', 'Duration'], stats.nodeRequire);
-			md.blank();
-			md.heading(3, 'Invoke AMD-module factory');
-			md.table(['Module', 'Duration'], stats.amdInvoke);
-			md.blank();
-			md.heading(3, 'Invoke commonjs-module');
-			md.table(['Module', 'Duration'], stats.nodeEval);
+	private _addLoaderStats(md: MarkdownBuilder, stats: LoaderStats): void {
+		md.heading(2, 'Loader Stats');
+		md.heading(3, 'Load AMD-module');
+		md.table(['Module', 'Duration'], stats.amdLoad);
+		md.blank();
+		md.heading(3, 'Load commonjs-module');
+		md.table(['Module', 'Duration'], stats.nodeRequire);
+		md.blank();
+		md.heading(3, 'Invoke AMD-module factory');
+		md.table(['Module', 'Duration'], stats.amdInvoke);
+		md.blank();
+		md.heading(3, 'Invoke commonjs-module');
+		md.table(['Module', 'Duration'], stats.nodeEval);
+	}
+
+	private _addCachedDataStats(md: MarkdownBuilder): void {
+
+		const map = new Map<LoaderEventType, string[]>();
+		map.set(LoaderEventType.CachedDataCreated, []);
+		map.set(LoaderEventType.CachedDataFound, []);
+		map.set(LoaderEventType.CachedDataMissed, []);
+		map.set(LoaderEventType.CachedDataRejected, []);
+		for (const stat of require.getStats()) {
+			if (map.has(stat.type)) {
+				map.get(stat.type)!.push(stat.detail);
+			}
 		}
+
+		const printLists = (arr?: string[]) => {
+			if (arr) {
+				arr.sort();
+				for (const e of arr) {
+					md.li(`${e}`);
+				}
+				md.blank();
+			}
+		};
+
+		md.heading(2, 'Node Cached Data Stats');
+		md.blank();
+		md.heading(3, 'cached data used');
+		printLists(map.get(LoaderEventType.CachedDataFound));
+		md.heading(3, 'cached data missed');
+		printLists(map.get(LoaderEventType.CachedDataMissed));
+		md.heading(3, 'cached data rejected');
+		printLists(map.get(LoaderEventType.CachedDataRejected));
+		md.heading(3, 'cached data created (lazy, might need refreshes)');
+		printLists(map.get(LoaderEventType.CachedDataCreated));
 	}
 }
 
