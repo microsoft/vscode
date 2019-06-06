@@ -20,7 +20,6 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IFeedback {
 	feedback: string;
@@ -66,8 +65,7 @@ export class FeedbackDropdown extends Dropdown {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
@@ -91,10 +89,6 @@ export class FeedbackDropdown extends Dropdown {
 
 		dom.addClass(this.element, 'send-feedback');
 		this.element.title = nls.localize('sendFeedback', "Tweet Feedback");
-
-		if (!this.configurationService.getValue('workbench.statusBar.feedback.visible')) {
-			this.statusbarService.updateEntryVisibility('status.feedback', false);
-		}
 	}
 
 	protected getAnchor(): HTMLElement | IAnchor {

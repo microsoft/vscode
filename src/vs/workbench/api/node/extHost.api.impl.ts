@@ -466,7 +466,10 @@ export function createApiFactory(
 				return extHostDialogs.showSaveDialog(options);
 			},
 			createStatusBarItem(position?: vscode.StatusBarAlignment, priority?: number): vscode.StatusBarItem {
-				return extHostStatusBar.createStatusBarEntry(extension, <number>position, priority);
+				const id = extension.identifier.value;
+				const name = nls.localize('extensionLabel', "{0} (Extension)", extension.displayName || extension.name);
+
+				return extHostStatusBar.createStatusBarEntry(id, name, <number>position, priority);
 			},
 			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);

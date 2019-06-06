@@ -6,7 +6,6 @@
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -53,11 +52,6 @@ export interface IStatusbarEntry {
 	readonly arguments?: any[];
 
 	/**
-	 * An optional extension ID if this entry is provided from an extension.
-	 */
-	readonly extensionId?: ExtensionIdentifier;
-
-	/**
 	 * Wether to show a beak above the status bar entry.
 	 */
 	readonly showBeak?: boolean;
@@ -73,6 +67,9 @@ export interface IStatusbarService {
 	 *
 	 * @param id  identifier of the entry is needed to allow users to hide entries via settings
 	 * @param name human readable name the entry is about
+	 * @param alignment either LEFT or RIGHT
+	 * @param priority items get arranged from highest priority to lowest priority from left to right
+	 * in their respective alignment slot
 	 */
 	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
 
