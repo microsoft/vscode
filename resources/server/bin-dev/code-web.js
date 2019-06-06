@@ -7,7 +7,7 @@ const opn = require('opn');
 const cp = require('child_process');
 const path = require('path');
 
-const proc = cp.execFile(path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh'));
+const proc = cp.execFile(path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh'),  process.argv);
 
 let launched = false;
 proc.stdout.on("data", data => {
@@ -16,9 +16,9 @@ proc.stdout.on("data", data => {
 
 		setTimeout(() => {
 			const url = 'http://127.0.0.1:8000';
-			console.log(`Open ${url} in your browser`);
+			console.log(`Opening ${url} in your browser...`);
 
-			opn(url);
+			opn(url).catch(() => { console.log(`Failed to open in your browser. Please do so manually.`) });
 		}, 100);
 	}
 });
