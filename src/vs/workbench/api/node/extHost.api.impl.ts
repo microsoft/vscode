@@ -466,7 +466,7 @@ export function createApiFactory(
 				return extHostDialogs.showSaveDialog(options);
 			},
 			createStatusBarItem(position?: vscode.StatusBarAlignment, priority?: number): vscode.StatusBarItem {
-				return extHostStatusBar.createStatusBarEntry(extension.identifier, <number>position, priority);
+				return extHostStatusBar.createStatusBarEntry(extension, <number>position, priority);
 			},
 			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);

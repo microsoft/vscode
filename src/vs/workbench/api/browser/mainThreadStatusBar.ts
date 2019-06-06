@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { MainThreadStatusBarShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { dispose } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
@@ -25,8 +26,18 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this.entries.clear();
 	}
 
-	$setEntry(id: number, extensionId: ExtensionIdentifier, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void {
-		const entry = { text, tooltip, command, color, extensionId };
+	$setEntry(id: number, extension: IExtensionDescription, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void {
+		const entry: IStatusbarEntry = {
+			category: {
+				id: extension.identifier.value,
+				label: localize('extensionLabel', "{0} (Extension)", extension.displayName || extension.name)
+			},
+			text,
+			tooltip,
+			command,
+			color,
+			extensionId: extension.identifier
+		};
 
 		// Reset existing entry if alignment or priority changed
 		let existingEntry = this.entries.get(id);
