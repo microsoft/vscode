@@ -8,8 +8,8 @@ import { isEmptyObject } from 'vs/base/common/types';
 
 export class Memento {
 
-	private static globalMementos: { [id: string]: ScopedMemento } = Object.create(null);
-	private static workspaceMementos: { [id: string]: ScopedMemento } = Object.create(null);
+	private static readonly globalMementos = new Map<string, ScopedMemento>();
+	private static readonly workspaceMementos = new Map<string, ScopedMemento>();
 
 	private static readonly COMMON_PREFIX = 'memento/';
 
@@ -23,20 +23,20 @@ export class Memento {
 
 		// Scope by Workspace
 		if (scope === StorageScope.WORKSPACE) {
-			let workspaceMemento = Memento.workspaceMementos[this.id];
+			let workspaceMemento = Memento.workspaceMementos.get(this.id);
 			if (!workspaceMemento) {
 				workspaceMemento = new ScopedMemento(this.id, scope, this.storageService);
-				Memento.workspaceMementos[this.id] = workspaceMemento;
+				Memento.workspaceMementos.set(this.id, workspaceMemento);
 			}
 
 			return workspaceMemento.getMemento();
 		}
 
 		// Scope Global
-		let globalMemento = Memento.globalMementos[this.id];
+		let globalMemento = Memento.globalMementos.get(this.id);
 		if (!globalMemento) {
 			globalMemento = new ScopedMemento(this.id, scope, this.storageService);
-			Memento.globalMementos[this.id] = globalMemento;
+			Memento.globalMementos.set(this.id, globalMemento);
 		}
 
 		return globalMemento.getMemento();
@@ -45,13 +45,13 @@ export class Memento {
 	saveMemento(): void {
 
 		// Workspace
-		const workspaceMemento = Memento.workspaceMementos[this.id];
+		const workspaceMemento = Memento.workspaceMementos.get(this.id);
 		if (workspaceMemento) {
 			workspaceMemento.save();
 		}
 
 		// Global
-		const globalMemento = Memento.globalMementos[this.id];
+		const globalMemento = Memento.globalMementos.get(this.id);
 		if (globalMemento) {
 			globalMemento.save();
 		}
