@@ -190,13 +190,11 @@ export class StatusBarController implements IWorkbenchContribution {
 		const disposables = new DisposableStore();
 		for (const c of commands) {
 			disposables.add(this.statusbarService.addEntry({
-				id: 'status.scm',
-				name: localize('status.scm', "Source Control"),
 				text: c.title,
 				tooltip: `${label} - ${c.tooltip}`,
 				command: c.id,
 				arguments: c.arguments
-			}, MainThreadStatusBarAlignment.LEFT, 10000));
+			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 
 		this.statusBarDisposable = disposables;

@@ -27,15 +27,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 	}
 
 	$setEntry(id: number, extension: IExtensionDescription, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void {
-		const entry: IStatusbarEntry = {
-			id: extension.identifier.value,
-			name: localize('extensionLabel', "{0} (Extension)", extension.displayName || extension.name),
-			text,
-			tooltip,
-			command,
-			color,
-			extensionId: extension.identifier
-		};
+		const entry: IStatusbarEntry = { text, tooltip, command, color, extensionId: extension.identifier };
 
 		// Reset existing entry if alignment or priority changed
 		let existingEntry = this.entries.get(id);
@@ -47,7 +39,10 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 		// Create new entry if not existing
 		if (!existingEntry) {
-			this.entries.set(id, { accessor: this.statusbarService.addEntry(entry, alignment, priority), alignment, priority });
+			const entryId = extension.identifier.value;
+			const entryName = localize('extensionLabel', "{0} (Extension)", extension.displayName || extension.name);
+
+			this.entries.set(id, { accessor: this.statusbarService.addEntry(entry, entryId, entryName, alignment, priority), alignment, priority });
 		}
 
 		// Otherwise update

@@ -58,8 +58,6 @@ export class NotificationsStatus extends Disposable {
 
 	private updateNotificationsCenterStatusItem(): void {
 		const statusProperties: IStatusbarEntry = {
-			id: 'status.notifications',
-			name: localize('status.notifications', "Notifictions"),
 			text: this.currentNotifications.size === 0 ? '$(bell)' : `$(bell) ${this.currentNotifications.size}`,
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
 			tooltip: this.getTooltip(),
@@ -67,7 +65,7 @@ export class NotificationsStatus extends Disposable {
 		};
 
 		if (!this.notificationsCenterStatusItem) {
-			this.notificationsCenterStatusItem = this.statusbarService.addEntry(statusProperties, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
+			this.notificationsCenterStatusItem = this.statusbarService.addEntry(statusProperties, 'status.notifications', localize('status.notifications', "Notifictions"), StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
 		} else {
 			this.notificationsCenterStatusItem.update(statusProperties);
 		}
@@ -139,11 +137,13 @@ export class NotificationsStatus extends Disposable {
 		// Create new
 		let statusMessageEntry: IStatusbarEntryAccessor;
 		let showHandle: any = setTimeout(() => {
-			statusMessageEntry = this.statusbarService.addEntry({
-				id: 'status.message',
-				name: localize('status.message', "Status Message"),
-				text: message
-			}, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
+			statusMessageEntry = this.statusbarService.addEntry(
+				{ text: message },
+				'status.message',
+				localize('status.message', "Status Message"),
+				StatusbarAlignment.LEFT,
+				-Number.MAX_VALUE /* far right on left hand side */
+			);
 			showHandle = null;
 		}, showAfter);
 

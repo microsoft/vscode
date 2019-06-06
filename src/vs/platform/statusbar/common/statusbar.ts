@@ -21,16 +21,6 @@ export const enum StatusbarAlignment {
 export interface IStatusbarEntry {
 
 	/**
-	 * The identifier of the entry is needed to allow users to hide entries via settings.
-	 */
-	readonly id: string;
-
-	/**
-	 * A human readable name the entry is about.
-	 */
-	readonly name: string;
-
-	/**
 	 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
 	 *
 	 * `My text ${icon name} contains icons like ${icon name} this one.`
@@ -80,8 +70,11 @@ export interface IStatusbarService {
 	/**
 	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
 	 * to update or remove the statusbar entry.
+	 *
+	 * @param id  identifier of the entry is needed to allow users to hide entries via settings
+	 * @param name human readable name the entry is about
 	 */
-	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
+	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

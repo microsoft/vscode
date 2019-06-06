@@ -84,8 +84,6 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 		if (visible) {
 			const indicator: IStatusbarEntry = {
-				id: 'status.profiler',
-				name: nls.localize('status.profiler', "Extension Profiler"),
 				text: nls.localize('profilingExtensionHost', "$(sync~spin) Profiling Extension Host"),
 				tooltip: nls.localize('selectAndStartDebug', "Click to stop profiling."),
 				command: 'workbench.action.extensionHostProfilder.stop'
@@ -100,7 +98,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			this.profilingStatusBarIndicatorLabelUpdater = toDisposable(() => clearInterval(handle));
 
 			if (!this.profilingStatusBarIndicator) {
-				this.profilingStatusBarIndicator = this._statusbarService.addEntry(indicator, StatusbarAlignment.RIGHT);
+				this.profilingStatusBarIndicator = this._statusbarService.addEntry(indicator, 'status.profiler', nls.localize('status.profiler', "Extension Profiler"), StatusbarAlignment.RIGHT);
 			} else {
 				this.profilingStatusBarIndicator.update(indicator);
 			}

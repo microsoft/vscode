@@ -23,17 +23,21 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 		@IConfigurationService readonly configurationService: IConfigurationService
 	) {
 
+		const addStatusBarEntry = () => {
+			this.entryAccessor = this.statusBarService.addEntry(this.entry, 'status.debug', nls.localize('status.debug', "Debug Configuration"), StatusbarAlignment.LEFT, 30 /* Low Priority */);
+		};
+
 		const setShowInStatusBar = () => {
 			this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
 			if (this.showInStatusBar === 'always' && !this.entryAccessor) {
-				this.entryAccessor = this.statusBarService.addEntry(this.entry, StatusbarAlignment.LEFT, 30 /* Low Priority */);
+				addStatusBarEntry();
 			}
 		};
 		setShowInStatusBar();
 
 		this.toDispose.push(this.debugService.onDidChangeState(state => {
 			if (state !== State.Inactive && this.showInStatusBar === 'onFirstSessionStart' && !this.entryAccessor) {
-				this.entryAccessor = this.statusBarService.addEntry(this.entry, StatusbarAlignment.LEFT, 30 /* Low Priority */);
+				addStatusBarEntry();
 			}
 		}));
 		this.toDispose.push(configurationService.onDidChangeConfiguration(e => {
@@ -65,8 +69,6 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 
 	private get entry(): IStatusbarEntry {
 		return {
-			id: 'status.debug',
-			name: nls.localize('status.debug', "Debug Configuration"),
 			text: this.getText(),
 			tooltip: nls.localize('selectAndStartDebug', "Select and start debug configuration"),
 			command: 'workbench.action.debug.selectandstart'

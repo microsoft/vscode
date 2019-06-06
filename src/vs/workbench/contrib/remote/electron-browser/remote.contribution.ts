@@ -138,14 +138,12 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 
 	private renderWindowIndicator(text: string, tooltip?: string, command?: string): void {
 		const properties: IStatusbarEntry = {
-			id: 'status.host',
-			name: nls.localize('status.host', "Remote Host"),
 			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND), color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND), text, tooltip, command
 		};
 		if (this.windowIndicatorEntry) {
 			this.windowIndicatorEntry.update(properties);
 		} else {
-			this.windowIndicatorEntry = this.statusbarService.addEntry(properties, StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
+			this.windowIndicatorEntry = this.statusbarService.addEntry(properties, 'status.host', nls.localize('status.host', "Remote Host"), StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
 		}
 	}
 

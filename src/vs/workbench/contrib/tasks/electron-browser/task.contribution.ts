@@ -182,15 +182,13 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 		} else {
 			const itemProps: IStatusbarEntry = {
-				id: 'status.runningTasks',
-				name: nls.localize('status.runningTasks', "Running Tasks"),
 				text: `$(tools) ${tasks.length}`,
 				tooltip: nls.localize('runningTasks', "Show Running Tasks"),
 				command: 'workbench.action.tasks.showTasks',
 			};
 
 			if (!this.runningTasksStatusItem) {
-				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, StatusbarAlignment.LEFT, 50 /* Medium Priority */);
+				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, 'status.runningTasks', nls.localize('status.runningTasks', "Running Tasks"), StatusbarAlignment.LEFT, 50 /* Medium Priority */);
 			} else {
 				this.runningTasksStatusItem.update(itemProps);
 			}

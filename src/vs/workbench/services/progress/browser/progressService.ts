@@ -129,11 +129,9 @@ export class ProgressService implements IProgressService {
 			}
 
 			this._globalStatusEntry = this._statusbarService.addEntry({
-				id: 'status.progress',
-				name: localize('status.progress', "Progress Message"),
 				text: `$(sync~spin) ${text}`,
 				tooltip: title
-			}, StatusbarAlignment.LEFT);
+			}, 'status.progress', localize('status.progress', "Progress Message"), StatusbarAlignment.LEFT);
 		}
 	}
 

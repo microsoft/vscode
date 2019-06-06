@@ -37,6 +37,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { values } from 'vs/base/common/map';
 
 interface IPendingStatusbarEntry {
+	id: string;
+	name: string;
 	entry: IStatusbarEntry;
 	alignment: StatusbarAlignment;
 	priority: number;
@@ -279,20 +281,20 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		});
 	}
 
-	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IStatusbarEntryAccessor {
+	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number = 0): IStatusbarEntryAccessor {
 
 		// As long as we have not been created into a container yet, record all entries
 		// that are pending so that they can get created at a later point
 		if (!this.element) {
-			return this.doAddPendingEntry(entry, alignment, priority);
+			return this.doAddPendingEntry(entry, id, name, alignment, priority);
 		}
 
 		// Otherwise add to view
-		return this.doAddEntry(entry, alignment, priority);
+		return this.doAddEntry(entry, id, name, alignment, priority);
 	}
 
-	private doAddPendingEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
-		const pendingEntry: IPendingStatusbarEntry = { entry, alignment, priority };
+	private doAddPendingEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
+		const pendingEntry: IPendingStatusbarEntry = { entry, id, name, alignment, priority };
 		this.pendingEntries.push(pendingEntry);
 
 		const accessor: IStatusbarEntryAccessor = {
@@ -316,14 +318,14 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return accessor;
 	}
 
-	private doAddEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
+	private doAddEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
 
 		// Add to view model
-		const viewModelItem: IStatusbarViewModelItem = { id: entry.id, name: entry.name, alignment, priority };
+		const viewModelItem: IStatusbarViewModelItem = { id, name, alignment, priority };
 		this.viewModel.add(viewModelItem);
 
 		// Render entry in status bar
-		const itemContainer = this.doCreateStatusItem(entry.id, entry.name, alignment, priority, ...coalesce(['statusbar-entry', entry.showBeak ? 'has-beak' : undefined]));
+		const itemContainer = this.doCreateStatusItem(id, name, alignment, priority, ...coalesce(['statusbar-entry', entry.showBeak ? 'has-beak' : undefined]));
 		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry);
 
 		// Insert according to priority
@@ -445,9 +447,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Fill in pending entries if any
 		while (this.pendingEntries.length) {
-			const entry = this.pendingEntries.shift();
-			if (entry) {
-				entry.accessor = this.addEntry(entry.entry, entry.alignment, entry.priority);
+			const pending = this.pendingEntries.shift();
+			if (pending) {
+				pending.accessor = this.addEntry(pending.entry, pending.id, pending.name, pending.alignment, pending.priority);
 			}
 		}
 	}
