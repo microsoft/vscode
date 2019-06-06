@@ -57,13 +57,17 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 			// and [sass-loader's](https://github.com/webpack-contrib/sass-loader#imports)
 			// convention, if an import path starts with ~ then use node module resolution
 			// *unless* it starts with "~/" as this refers to the user's home directory.
-			if (ref[0] === '~' && ref[1] !== '/' && startsWith(base, 'file://')) {
-				const moduleName = getModuleNameFromPath(ref.substring(1));
-				const modulePath = resolvePathToModule(moduleName, base);
-				if (modulePath) {
-					const pathWithinModule = ref.substring(moduleName.length + 2);
-					return url.resolve(modulePath, pathWithinModule);
+			if (ref[0] === '~' && ref[1] !== '/') {
+				ref = ref.substring(1);
+				if (startsWith(base, 'file://')) {
+					const moduleName = getModuleNameFromPath(ref);
+					const modulePath = resolvePathToModule(moduleName, base);
+					if (modulePath) {
+						const pathWithinModule = ref.substring(moduleName.length + 1);
+						return url.resolve(modulePath, pathWithinModule);
+					}
 				}
+
 			}
 			return url.resolve(base, ref);
 		},
