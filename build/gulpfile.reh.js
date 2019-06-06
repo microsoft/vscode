@@ -57,15 +57,17 @@ const vscodeResources = [
 	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/paths.js',
-	'out-build/remoteExtensionHostAgent.js',
-	'out-build/remoteCli.js',
+
+	// main entry points
+	'out-build/vs/server/cli.js',
+	'out-build/vs/server/main.js',
 
 	// Watcher
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
 
 	// Uri transformer
-	'out-build/vs/agent/uriTransformer.js',
+	'out-build/vs/server/uriTransformer.js',
 
 	// Workbench
 	// 'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
@@ -89,15 +91,15 @@ const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
 		src: 'out-build',
 		entryPoints: _.flatten([
 			{
-				name: 'vs/agent/remoteExtensionHostAgent',
+				name: 'vs/server/remoteExtensionHostAgent',
 				exclude: ['vs/css', 'vs/nls']
 			},
 			{
-				name: 'vs/agent/remoteCli',
+				name: 'vs/server/remoteCli',
 				exclude: ['vs/css', 'vs/nls']
 			},
 			{
-				name: 'vs/agent/remoteExtensionHostProcess',
+				name: 'vs/server/remoteExtensionHostProcess',
 				exclude: ['vs/css', 'vs/nls']
 			},
 			{
@@ -146,7 +148,7 @@ function ensureDirs(dirPath) {
 }
 
 
-/* Downloads the node executable used for the remote agent to ./build/node-remote */
+/* Downloads the node executable used for the remote server to ./build/node-remote */
 gulp.task(task.define('node-remote', () => {
 	const VERSION = getNodeVersion();
 	const nodePath = path.join('.build', 'node-remote');

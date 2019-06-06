@@ -5,7 +5,7 @@
 import { Event } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { createRemoteURITransformer } from 'vs/agent/remoteUriTransformer';
+import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import * as nls from 'vs/nls';
 import * as path from 'path';
@@ -20,7 +20,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { transformOutgoingURIs } from 'vs/base/common/uriIpc';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/agent/remoteLanguagePacks';
+import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/server/remoteLanguagePacks';
 import { ContextKeyExpr, ContextKeyDefinedExpr, ContextKeyNotExpr, ContextKeyEqualsExpr, ContextKeyNotEqualsExpr, ContextKeyRegexExpr, IContextKeyExprMapper } from 'vs/platform/contextkey/common/contextkey';
 import { listProcesses } from 'vs/base/node/ps';
 import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/node/diagnosticsService';

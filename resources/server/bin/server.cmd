@@ -17,6 +17,6 @@ goto loop1
 
 :after_loop
 
-"%~dp0node" %INSPECT% "%~dp0out\remoteExtensionHostAgent.js" %RESTVAR%
+"%~dp0node" %INSPECT% "%~dp0out\vs\server\main.js" %RESTVAR%
 
 endlocal

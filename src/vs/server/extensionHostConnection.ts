@@ -4,8 +4,8 @@
 
 import * as cp from 'child_process';
 import * as net from 'net';
-import { getNLSConfiguration } from 'vs/agent/remoteLanguagePacks';
-import { uriTransformerPath } from 'vs/agent/remoteUriTransformer';
+import { getNLSConfiguration } from 'vs/server/remoteLanguagePacks';
+import { uriTransformerPath } from 'vs/server/remoteUriTransformer';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { join, delimiter } from 'vs/base/common/path';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -115,7 +115,7 @@ export class ExtensionHostConnection {
 					...processEnv,
 					...userShellEnv,
 					...{
-						AMD_ENTRYPOINT: 'vs/agent/remoteExtensionHostProcess',
+						AMD_ENTRYPOINT: 'vs/server/remoteExtensionHostProcess',
 						PIPE_LOGGING: 'true',
 						VERBOSE_LOGGING: 'true',
 						VSCODE_EXTHOST_WILL_SEND_SOCKET: 'true',

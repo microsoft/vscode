@@ -45,7 +45,7 @@
 	"gitBranch.base": "origin/master",
 	"gitBranch.diffGroups": [
 		{
-			"name": "🚧🛑Sourcemap (should skip vs/agent)",
+			"name": "🚧🛑Sourcemap (should skip vs/server)",
 			"files": [
 				"build/azure-pipelines/darwin/build.sh",
 			]
@@ -70,9 +70,7 @@
 				"resources/server/**",
 				"scripts/remoteExtensionAgent.bat",
 				"scripts/remoteExtensionAgent.sh",
-				"src/remoteCli.js",
-				"src/remoteExtensionHostAgent.js",
-				"src/vs/agent/**",
+				"src/vs/server/**",
 			]
 		},
 		{

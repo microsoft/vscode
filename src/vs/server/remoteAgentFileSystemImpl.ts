@@ -9,7 +9,7 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { FileDeleteOptions, FileOverwriteOptions, FileType, IFileChange, IStat, IWatchOptions, FileOpenOptions } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createRemoteURITransformer } from 'vs/agent/remoteUriTransformer';
+import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
 import { VSBuffer } from 'vs/base/common/buffer';

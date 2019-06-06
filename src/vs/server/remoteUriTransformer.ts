@@ -5,7 +5,7 @@
 import { URITransformer, IURITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-export const uriTransformerPath = getPathFromAmdModule(require, 'vs/agent/uriTransformer.js');
+export const uriTransformerPath = getPathFromAmdModule(require, 'vs/server/uriTransformer.js');
 
 export function createRemoteURITransformer(remoteAuthority: string): IURITransformer {
 	const rawURITransformerFactory = <any>require.__$__nodeRequire(uriTransformerPath);

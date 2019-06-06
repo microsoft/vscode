@@ -8,9 +8,9 @@ import * as minimist from 'minimist';
 import * as fs from 'fs';
 import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { RemoteExtensionManagementCli } from 'vs/agent/remoteExtensionManagement';
+import { RemoteExtensionManagementCli } from 'vs/server/remoteExtensionManagement';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { RemoteExtensionHostAgentServer } from 'vs/agent/remoteExtensionHostAgentServer';
+import { RemoteExtensionHostAgentServer } from 'vs/server/remoteExtensionHostAgentServer';
 
 const args = minimist(process.argv.slice(2), {
 	string: [

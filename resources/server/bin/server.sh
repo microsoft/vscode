@@ -9,4 +9,4 @@ esac
 
 ROOT="$(dirname "$0")"
 
-"$ROOT/node" ${INSPECT:-} "$ROOT/out/remoteExtensionHostAgent.js" "$@"
+"$ROOT/node" ${INSPECT:-} "$ROOT/out/vs/server/main.js" "$@"
