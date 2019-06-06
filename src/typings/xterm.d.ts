@@ -950,7 +950,7 @@ declare module 'xterm' {
 		 *
 		 * @param x The character index to get.
 		 */
-		getCell(x: number): IBufferCell;
+		getCell(x: number): IBufferCell | undefined;
 
 		/**
 		 * Gets the line as a string. Note that this is gets only the string for the line, not taking
@@ -979,6 +979,7 @@ declare module 'xterm' {
 		readonly width: number;
 	}
 }
+
 
 
 
