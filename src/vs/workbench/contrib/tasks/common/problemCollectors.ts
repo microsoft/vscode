@@ -31,10 +31,10 @@ namespace ProblemCollectorEvent {
 }
 
 export interface IProblemMatcher {
-	processLine(line: string): Promise<void>;
+	processLine(line: string): void;
 }
 
-export class AbstractProblemCollector implements IDisposable {
+export abstract class AbstractProblemCollector implements IDisposable {
 
 	private matchers: INumberDictionary<ILineMatcher[]>;
 	private activeMatcher: ILineMatcher | null;
@@ -44,6 +44,7 @@ export class AbstractProblemCollector implements IDisposable {
 	private bufferLength: number;
 	private openModels: IStringDictionary<boolean>;
 	private modelListeners: IDisposable[];
+	private tail: Promise<void>;
 
 	// [owner] -> AppyToKind
 	private applyToByOwner: Map<string, ApplyToKind>;
@@ -103,6 +104,19 @@ export class AbstractProblemCollector implements IDisposable {
 	public get onDidStateChange(): Event<ProblemCollectorEvent> {
 		return this._onDidStateChange.event;
 	}
+
+	public processLine(line: string) {
+		if (this.tail) {
+			const oldTail = this.tail;
+			this.tail = oldTail.then(() => {
+				return this.processLineInternal(line);
+			});
+		} else {
+			this.tail = this.processLineInternal(line);
+		}
+	}
+
+	protected abstract async processLineInternal(line: string): Promise<void>;
 
 	public dispose() {
 		this.modelListeners.forEach(disposable => disposable.dispose());
@@ -344,7 +358,7 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 		});
 	}
 
-	public async processLine(line: string): Promise<void> {
+	protected async processLineInternal(line: string): Promise<void> {
 		let markerMatch = this.tryFindMarker(line);
 		if (!markerMatch) {
 			return;
@@ -416,7 +430,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		}
 	}
 
-	public async processLine(line: string): Promise<void> {
+	protected async processLineInternal(line: string): Promise<void> {
 		if (await this.tryBegin(line) || this.tryFinish(line)) {
 			return;
 		}

@@ -559,14 +559,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
-					return watchingProblemMatcher.processLine(line).then(() => {
-						if (!delayer) {
-							delayer = new Async.Delayer(3000);
-						}
-						delayer.trigger(() => {
-							watchingProblemMatcher.forceDelivery();
-							delayer = undefined;
-						});
+					watchingProblemMatcher.processLine(line);
+					if (!delayer) {
+						delayer = new Async.Delayer(3000);
+					}
+					delayer.trigger(() => {
+						watchingProblemMatcher.forceDelivery();
+						delayer = undefined;
 					});
 				});
 				const onExit = terminal.onExit((exitCode) => {
@@ -639,7 +638,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
-					return startStopProblemMatcher.processLine(line);
+					startStopProblemMatcher.processLine(line);
 				});
 				const onExit = terminal.onExit((exitCode) => {
 					onData.dispose();

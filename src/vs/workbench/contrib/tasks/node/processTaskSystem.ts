@@ -258,16 +258,15 @@ export class ProcessTaskSystem implements ITaskSystem {
 			const onProgress = (progress: LineData) => {
 				let line = Strings.removeAnsiEscapeCodes(progress.line);
 				this.appendOutput(line + '\n');
-				return watchingProblemMatcher.processLine(line).then(() => {
-					if (delayer === null) {
-						delayer = new Async.Delayer(3000);
-					}
-					delayer.trigger(() => {
-						watchingProblemMatcher.forceDelivery();
-						return null;
-					}).then(() => {
-						delayer = null;
-					});
+				watchingProblemMatcher.processLine(line);
+				if (delayer === null) {
+					delayer = new Async.Delayer(3000);
+				}
+				delayer.trigger(() => {
+					watchingProblemMatcher.forceDelivery();
+					return null;
+				}).then(() => {
+					delayer = null;
 				});
 			};
 			const startPromise = this.childProcess.start(onProgress);
@@ -323,7 +322,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 			const onProgress = (progress: LineData) => {
 				let line = Strings.removeAnsiEscapeCodes(progress.line);
 				this.appendOutput(line + '\n');
-				return startStopProblemMatcher.processLine(line);
+				startStopProblemMatcher.processLine(line);
 			};
 			const startPromise = this.childProcess.start(onProgress);
 			this.childProcess.pid.then(pid => {
