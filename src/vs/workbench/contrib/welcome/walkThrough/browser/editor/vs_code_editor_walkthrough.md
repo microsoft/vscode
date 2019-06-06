@@ -84,7 +84,7 @@ function Book(title, author) {
 }
 ```
 
-> **JSDoc Tip:** The example above also showcased another way to get IntelliSense hints by using `JSDoc` comments.  You can try this out by invoking the `Book` function and seeing the enhanced context in the IntelliSense menu for the function as well as parameters.
+> **JSDoc Tip:** The example above also showcased another way to get IntelliSense hints by using `JSDoc` comments.  You can try this out by adding a new reference of the `Book` function and seeing the enhanced context in the IntelliSense menu for the function as well as parameters.
 
 
 ### Refactoring via Extraction
