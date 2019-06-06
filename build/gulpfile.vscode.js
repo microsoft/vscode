@@ -544,8 +544,8 @@ gulp.task('upload-vscode-sourcemaps', () => {
 			return f;
 		}));
 
-	const extensionsOut = gulp.src('extensions/**/out/**/*.map', { base: '.' });
-	const extensionsDist = gulp.src('extensions/**/dist/**/*.map', { base: '.' });
+	const extensionsOut = gulp.src(['extensions/**/out/**/*.map', '!extensions/**/node_modules/**'], { base: '.' });
+	const extensionsDist = gulp.src(['extensions/**/dist/**/*.map', '!extensions/**/node_modules/**'], { base: '.' });
 
 	return es.merge(vs, extensionsOut, extensionsDist)
 		.pipe(es.through(function (data) {
