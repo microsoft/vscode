@@ -5,6 +5,7 @@
   "author": {
     "name": "Microsoft Corporation"
   },
+  "license": "MIT",
   "main": "./out/main",
   "private": true,
   "scripts": {

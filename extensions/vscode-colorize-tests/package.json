@@ -3,6 +3,7 @@
 	"description": "Colorize tests for VS Code",
 	"version": "0.0.1",
 	"publisher": "vscode",
+	"license": "MIT",
 	"private": true,
 	"engines": {
 		"vscode": "*"
