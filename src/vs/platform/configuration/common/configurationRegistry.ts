@@ -471,7 +471,7 @@ export function validateProperty(property: string): string | null {
 }
 
 export function getScopes(): { [key: string]: ConfigurationScope } {
-	const scopes: { [key: string]: ConfigurationScope } = {};
+	const scopes = {};
 	const configurationProperties = configurationRegistry.getConfigurationProperties();
 	for (const key of Object.keys(configurationProperties)) {
 		scopes[key] = configurationProperties[key].scope;
