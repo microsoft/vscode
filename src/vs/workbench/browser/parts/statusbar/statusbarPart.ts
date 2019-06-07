@@ -335,6 +335,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private readonly viewModel: StatusbarViewModel;
 
+	private leftItemsContainer: HTMLElement;
+	private rightItemsContainer: HTMLElement;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -436,6 +439,16 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
+		// Left items container
+		this.leftItemsContainer = document.createElement('div');
+		addClasses(this.leftItemsContainer, 'left-items', 'items-container');
+		this.element.appendChild(this.leftItemsContainer);
+
+		// Right items container
+		this.rightItemsContainer = document.createElement('div');
+		addClasses(this.rightItemsContainer, 'right-items', 'items-container');
+		this.element.appendChild(this.rightItemsContainer);
+
 		// Context menu support
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
 
@@ -461,7 +474,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			this.viewModel.add(viewModelEntry);
 		}
 
-		// Add items in order
+		// Add items in order according to alignment
 		this.appendAllStatusbarEntries();
 
 		// Fill in pending entries if any
@@ -478,16 +491,22 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// Append in order of priority
 		[
 			...this.viewModel.getEntries(StatusbarAlignment.LEFT),
-			...this.viewModel.getEntries(StatusbarAlignment.RIGHT).reverse() // reversing due to display: float
-		].forEach(entry => this.element.appendChild(entry.container));
+			...this.viewModel.getEntries(StatusbarAlignment.RIGHT).reverse() // reversing due to flex: row-reverse
+		].forEach(entry => {
+			const target = entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer;
+
+			target.appendChild(entry.container);
+		});
 	}
 
 	private appendOneStatusbarEntry(itemContainer: HTMLElement, alignment: StatusbarAlignment, priority: number): void {
 		const entries = this.viewModel.getEntries(alignment);
 
 		if (alignment === StatusbarAlignment.RIGHT) {
-			entries.reverse(); // reversing due to display: float
+			entries.reverse(); // reversing due to flex: row-reverse
 		}
+
+		const target = alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer;
 
 		// find an entry that has lower priority than the new one
 		// and then insert the item before that one
@@ -495,9 +514,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		for (const entry of entries) {
 			if (
 				alignment === StatusbarAlignment.LEFT && entry.priority < priority ||
-				alignment === StatusbarAlignment.RIGHT && entry.priority > priority
+				alignment === StatusbarAlignment.RIGHT && entry.priority > priority // reversing due to flex: row-reverse
 			) {
-				this.element.insertBefore(itemContainer, entry.container);
+				target.insertBefore(itemContainer, entry.container);
 				appended = true;
 				break;
 			}
@@ -505,7 +524,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Fallback to just appending otherwise
 		if (!appended) {
-			this.element.appendChild(itemContainer);
+			target.appendChild(itemContainer);
 		}
 	}
 
@@ -588,7 +607,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			this.styleElement = createStyleSheet(container);
 		}
 
-		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
+		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
 	}
 
 	private doCreateStatusItem(id: string, name: string, alignment: StatusbarAlignment, priority: number = 0, ...extraClasses: string[]): HTMLElement {
@@ -724,27 +743,27 @@ class StatusbarEntryItem extends Disposable {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
 	if (statusBarItemHoverBackground) {
-		collector.addRule(`.monaco-workbench .part.statusbar > .statusbar-item a:hover { background-color: ${statusBarItemHoverBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover { background-color: ${statusBarItemHoverBackground}; }`);
 	}
 
 	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 	if (statusBarItemActiveBackground) {
-		collector.addRule(`.monaco-workbench .part.statusbar > .statusbar-item a:active { background-color: ${statusBarItemActiveBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active { background-color: ${statusBarItemActiveBackground}; }`);
 	}
 
 	const statusBarProminentItemForeground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
 	if (statusBarProminentItemForeground) {
-		collector.addRule(`.monaco-workbench .part.statusbar > .statusbar-item .status-bar-info { color: ${statusBarProminentItemForeground}; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item .status-bar-info { color: ${statusBarProminentItemForeground}; }`);
 	}
 
 	const statusBarProminentItemBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
 	if (statusBarProminentItemBackground) {
-		collector.addRule(`.monaco-workbench .part.statusbar > .statusbar-item .status-bar-info { background-color: ${statusBarProminentItemBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item .status-bar-info { background-color: ${statusBarProminentItemBackground}; }`);
 	}
 
 	const statusBarProminentItemHoverBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND);
 	if (statusBarProminentItemHoverBackground) {
-		collector.addRule(`.monaco-workbench .part.statusbar > .statusbar-item a.status-bar-info:hover { background-color: ${statusBarProminentItemHoverBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a.status-bar-info:hover { background-color: ${statusBarProminentItemHoverBackground}; }`);
 	}
 });
 
