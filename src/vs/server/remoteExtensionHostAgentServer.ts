@@ -97,10 +97,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
 					const _data = await util.promisify(fs.readFile)(filePath);
 					const appRoot = path.join(URI.parse(require.toUrl('vs')).fsPath, '../../');
-					const folder = (this._environmentService.args['folder'] || os.userInfo().homedir);
+					const folder = this._environmentService.args['folder'];
+					const workspace = this._environmentService.args['workspace'];
 					const data = _data.toString()
 						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
-						.replace('{{USER_HOME_DIR}}', escapeRegExpCharacters(folder))
+						.replace('{{SETTINGS}}', this._environmentService.appSettingsPath)
+						.replace('{{FOLDER}}', folder ? escapeRegExpCharacters(folder) : '')
+						.replace('{{WORKSPACE}}', workspace ? escapeRegExpCharacters(workspace) : '')
 						.replace('{{SERVER_APP_ROOT}}', appRoot.replace(/^[Cc]:/, '').replace(/\\/g, '/'));
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
