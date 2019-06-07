@@ -84,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
 				outputChannel.appendLine(`Using node at ${nodePath}`);
 
 				const env = getNewEnv();
-				extHostProcess = cp.spawn(nodePath, [path.join('out', 'remoteExtensionHostAgent'), '--port=0'], { cwd: vscodePath, env });
+				extHostProcess = cp.spawn(nodePath, [path.join('out', 'vs', 'server', 'main'), '--port=0'], { cwd: vscodePath, env });
 			} else {
 				const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
 				outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
