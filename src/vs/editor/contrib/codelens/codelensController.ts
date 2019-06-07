@@ -5,7 +5,7 @@
 
 import { CancelablePromise, RunOnceScheduler, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -25,8 +25,8 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 	private _isEnabled: boolean;
 
-	private _globalToDispose: IDisposable[] = [];
-	private _localToDispose: IDisposable[] = [];
+	private readonly _globalToDispose = new DisposableStore();
+	private readonly _localToDispose = new DisposableStore();
 	private _lenses: CodeLensWidget[] = [];
 	private _currentFindCodeLensSymbolsPromise: CancelablePromise<CodeLensModel> | undefined;
 	private _currentCodeLensModel: CodeLensModel | undefined;
@@ -42,23 +42,22 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	) {
 		this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 
-
-		this._globalToDispose.push(this._editor.onDidChangeModel(() => this._onModelChange()));
-		this._globalToDispose.push(this._editor.onDidChangeModelLanguage(() => this._onModelChange()));
-		this._globalToDispose.push(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
+		this._globalToDispose.add(this._editor.onDidChangeModel(() => this._onModelChange()));
+		this._globalToDispose.add(this._editor.onDidChangeModelLanguage(() => this._onModelChange()));
+		this._globalToDispose.add(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 			if (prevIsEnabled !== this._isEnabled) {
 				this._onModelChange();
 			}
 		}));
-		this._globalToDispose.push(CodeLensProviderRegistry.onDidChange(this._onModelChange, this));
+		this._globalToDispose.add(CodeLensProviderRegistry.onDidChange(this._onModelChange, this));
 		this._onModelChange();
 	}
 
 	dispose(): void {
 		this._localDispose();
-		this._globalToDispose = dispose(this._globalToDispose);
+		this._globalToDispose.dispose();
 	}
 
 	private _localDispose(): void {
@@ -71,7 +70,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			this._currentResolveCodeLensSymbolsPromise.cancel();
 			this._currentResolveCodeLensSymbolsPromise = undefined;
 		}
-		this._localToDispose = dispose(this._localToDispose);
+		this._localToDispose.clear();
 		dispose(this._currentCodeLensModel);
 	}
 
@@ -101,7 +100,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			// no provider -> return but check with
 			// cached lenses. they expire after 30 seconds
 			if (cachedLenses) {
-				this._localToDispose.push(disposableTimeout(() => {
+				this._localToDispose.add(disposableTimeout(() => {
 					const cachedLensesNow = this._codeLensCache.get(model);
 					if (cachedLenses === cachedLensesNow) {
 						this._codeLensCache.delete(model);
@@ -115,7 +114,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		for (const provider of CodeLensProviderRegistry.all(model)) {
 			if (typeof provider.onDidChange === 'function') {
 				let registration = provider.onDidChange(() => scheduler.schedule());
-				this._localToDispose.push(registration);
+				this._localToDispose.add(registration);
 			}
 		}
 
@@ -146,9 +145,9 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				}
 			}, onUnexpectedError);
 		}, 250);
-		this._localToDispose.push(scheduler);
-		this._localToDispose.push(this._detectVisibleLenses);
-		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
+		this._localToDispose.add(scheduler);
+		this._localToDispose.add(this._detectVisibleLenses);
+		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
 			this._editor.changeDecorations((changeAccessor) => {
 				this._editor.changeViewZones((viewAccessor) => {
 					let toDispose: CodeLensWidget[] = [];
@@ -180,15 +179,15 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			// Ask for all references again
 			scheduler.schedule();
 		}));
-		this._localToDispose.push(this._editor.onDidScrollChange(e => {
+		this._localToDispose.add(this._editor.onDidScrollChange(e => {
 			if (e.scrollTopChanged && this._lenses.length > 0) {
 				this._detectVisibleLenses.schedule();
 			}
 		}));
-		this._localToDispose.push(this._editor.onDidLayoutChange(e => {
+		this._localToDispose.add(this._editor.onDidLayoutChange(e => {
 			this._detectVisibleLenses.schedule();
 		}));
-		this._localToDispose.push(toDisposable(() => {
+		this._localToDispose.add(toDisposable(() => {
 			if (this._editor.getModel()) {
 				const scrollState = StableEditorScrollState.capture(this._editor);
 				this._editor.changeDecorations((changeAccessor) => {
@@ -202,14 +201,14 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				this._disposeAllLenses(undefined, undefined);
 			}
 		}));
-		this._localToDispose.push(this._editor.onDidChangeConfiguration(e => {
+		this._localToDispose.add(this._editor.onDidChangeConfiguration(e => {
 			if (e.fontInfo) {
 				for (const lens of this._lenses) {
 					lens.updateHeight();
 				}
 			}
 		}));
-		this._localToDispose.push(this._editor.onMouseUp(e => {
+		this._localToDispose.add(this._editor.onMouseUp(e => {
 			if (e.target.type === editorBrowser.MouseTargetType.CONTENT_WIDGET && e.target.element && e.target.element.tagName === 'A') {
 				for (const lens of this._lenses) {
 					let command = lens.getCommand(e.target.element as HTMLLinkElement);
