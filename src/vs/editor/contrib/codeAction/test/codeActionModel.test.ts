@@ -9,19 +9,24 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/modes';
 import { CodeActionOracle, CodeActionsState } from 'vs/editor/contrib/codeAction/codeActionModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 
 const testProvider = {
-	provideCodeActions() {
-		return [{ id: 'test-command', title: 'test', arguments: [] }];
+	provideCodeActions(): modes.CodeActionList {
+		return {
+			actions: [
+				{ title: 'test', command: { id: 'test-command', title: 'test', arguments: [] } }
+			],
+			dispose() { /* noop*/ }
+		};
 	}
 };
 suite('CodeAction', () => {
 
-	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
+	const languageIdentifier = new modes.LanguageIdentifier('foo-lang', 3);
 	let uri = URI.parse('untitled:path');
 	let model: TextModel;
 	let markerService: MarkerService;
@@ -44,7 +49,7 @@ suite('CodeAction', () => {
 	});
 
 	test('Orcale -> marker added', done => {
-		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
 		disposables.add(reg);
 
 		const oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {
@@ -70,7 +75,7 @@ suite('CodeAction', () => {
 	});
 
 	test('Orcale -> position changed', () => {
-		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
 		disposables.add(reg);
 
 		markerService.changeOne('fake', uri, [{
@@ -100,9 +105,9 @@ suite('CodeAction', () => {
 	});
 
 	test('Lightbulb is in the wrong place, #29933', async function () {
-		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-			provideCodeActions(_doc, _range) {
-				return [];
+		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, {
+			provideCodeActions(_doc, _range): modes.CodeActionList {
+				return { actions: [], dispose() { /* noop*/ } };
 			}
 		});
 		disposables.add(reg);
@@ -138,7 +143,7 @@ suite('CodeAction', () => {
 	});
 
 	test('Orcale -> should only auto trigger once for cursor and marker update right after each other', done => {
-		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
 		disposables.add(reg);
 
 		let triggerCount = 0;

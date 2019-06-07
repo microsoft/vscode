@@ -5,7 +5,7 @@
 
 import { CancelablePromise } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -47,6 +47,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	private readonly _model: CodeActionModel;
 	private readonly _codeActionContextMenu: CodeActionContextMenu;
 	private readonly _lightBulbWidget: LightBulbWidget;
+	private _currentCodeActions: CodeActionSet | undefined;
 
 	private _activeRequest: CancelablePromise<CodeActionSet> | undefined;
 
@@ -63,7 +64,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		super();
 
 		this._editor = editor;
-		this._model = new CodeActionModel(this._editor, markerService, contextKeyService, progressService);
+		this._model = this._register(new CodeActionModel(this._editor, markerService, contextKeyService, progressService));
 		this._codeActionContextMenu = this._register(new CodeActionContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action)));
 		this._lightBulbWidget = this._register(new LightBulbWidget(editor));
 
@@ -75,9 +76,9 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
 	}
 
-	public dispose(): void {
+	dipose() {
 		super.dispose();
-		this._model.dispose();
+		dispose(this._currentCodeActions);
 	}
 
 	private _onDidChangeCodeActionsState(newState: CodeActionsState.State): void {
@@ -88,6 +89,11 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		if (newState.type === CodeActionsState.Type.Triggered) {
 			this._activeRequest = newState.actions;
+
+			newState.actions.then(actions => {
+				dispose(this._currentCodeActions);
+				this._currentCodeActions = actions;
+			});
 
 			if (newState.trigger.filter && newState.trigger.filter.kind) {
 				// Triggered for specific scope
@@ -115,6 +121,8 @@ export class QuickFixController extends Disposable implements IEditorContributio
 				}
 			}
 		} else {
+			dispose(this._currentCodeActions);
+			this._currentCodeActions = undefined;
 			this._lightBulbWidget.hide();
 		}
 	}

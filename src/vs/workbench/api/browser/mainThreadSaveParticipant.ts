@@ -305,6 +305,8 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 				await this.applyCodeActions(actionsToRun.actions);
 			} catch {
 				// Failure to apply a code action should not block other on save actions
+			} finally {
+				actionsToRun.dispose();
 			}
 		}
 	}
