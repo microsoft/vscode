@@ -194,8 +194,11 @@ import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 // import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
 // Preferences
-// import 'vs/workbench/contrib/preferences/electron-browser/preferences.contribution';
+import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
+import { IPreferencesSearchService } from 'vs/workbench/contrib/preferences/common/preferences';
+import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/browser/preferencesSearch';
+registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
 
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
