@@ -36,12 +36,8 @@ declare module 'vscode' {
 
 	//#region Joh - call hierarchy
 
-	export enum CallHierarchyDirection {
-		CallsFrom = 1,
-		CallsTo = 2,
-	}
-
 	export class CallHierarchyItem {
+
 		kind: SymbolKind;
 		name: string;
 		detail?: string;
@@ -52,33 +48,28 @@ declare module 'vscode' {
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
 
+	export class CallHierarchyEdge {
+		/** The source range of the reference. The range is a sub range of the 'from' symbol range */
+		range: Range;
+
+		/** The symbol that contains the reference */
+		from: CallHierarchyItem;
+
+		/** The symbol that is referenced */
+		to: CallHierarchyItem;
+	}
+
+	export enum CallHierarchyDirection {
+		CallsFrom = 1,
+		CallsTo = 2,
+	}
+
 	export interface CallHierarchyItemProvider {
-
 		/**
-		 * Given a document and position compute a call hierarchy item. This is justed as
-		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
+		 * Evaluates the symbols(s) defined (or referenced) at given position, and
+		 * returns all incoming or outgoing calls to the symbol(s).
 		 */
-		provideCallHierarchyItem(
-			document: TextDocument,
-			postion: Position,
-			token: CancellationToken
-		): ProviderResult<CallHierarchyItem>;
-
-		/**
-		 * Resolve a call hierarchy item, e.g. compute all calls from or to a function.
-		 * The result is an array of item/location-tuples. The location in the returned tuples
-		 * is always relative to the "caller" with the caller either being the provided item or
-		 * the returned item.
-		 *
-		 * @param item A call hierarchy item previously returned from `provideCallHierarchyItem` or `resolveCallHierarchyItem`
-		 * @param direction Resolve calls from a function or calls to a function
-		 * @param token A cancellation token
-		 */
-		resolveCallHierarchyItem(
-			item: CallHierarchyItem,
-			direction: CallHierarchyDirection,
-			token: CancellationToken
-		): ProviderResult<[CallHierarchyItem, Location[]][]>;
+		provideCallHierarchyItem(document: TextDocument, postion: Position | Range, direction: CallHierarchyDirection, token: CancellationToken): ProviderResult<CallHierarchyEdge[]>;
 	}
 
 	export namespace languages {

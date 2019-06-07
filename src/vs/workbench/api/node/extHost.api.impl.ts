@@ -861,7 +861,8 @@ export function createApiFactory(
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed
 			CallHierarchyDirection: extHostTypes.CallHierarchyDirection,
-			CallHierarchyItem: extHostTypes.CallHierarchyItem
+			CallHierarchyEdge: extHostTypes.CallHierarchyItem,
+			CallHierarchyItem: extHostTypes.CallHierarchySymbol
 		};
 	};
 }

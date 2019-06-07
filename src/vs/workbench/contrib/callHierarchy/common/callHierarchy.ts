@@ -5,7 +5,7 @@
 
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { SymbolKind, ProviderResult, Location } from 'vs/editor/common/modes';
+import { SymbolKind, ProviderResult } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
@@ -17,7 +17,6 @@ export const enum CallHierarchyDirection {
 }
 
 export interface CallHierarchyItem {
-	_id: number;
 	kind: SymbolKind;
 	name: string;
 	detail?: string;
@@ -26,19 +25,13 @@ export interface CallHierarchyItem {
 	selectionRange: IRange;
 }
 
+export interface CallHierarchyEdge {
+	from: CallHierarchyItem;
+	to: CallHierarchyItem;
+}
+
 export interface CallHierarchyProvider {
-
-	provideCallHierarchyItem(
-		document: ITextModel,
-		postion: IPosition,
-		token: CancellationToken
-	): ProviderResult<CallHierarchyItem>;
-
-	resolveCallHierarchyItem(
-		item: CallHierarchyItem,
-		direction: CallHierarchyDirection,
-		token: CancellationToken
-	): ProviderResult<[CallHierarchyItem, Location[]][]>;
+	provideCallHierarchyItem(document: ITextModel, postion: IPosition | IRange, direction: CallHierarchyDirection, token: CancellationToken): ProviderResult<CallHierarchyEdge[]>;
 }
 
 export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();

@@ -969,7 +969,7 @@ class SelectionRangeAdapter {
 class CallHierarchyAdapter {
 
 	// todo@joh keep object (heap service, lifecycle)
-	private readonly _cache = new LRUCache<number, vscode.CallHierarchyItem>(1000, 0.8);
+	private readonly _cache = new LRUCache<number, vscode.CallHierarchyEdge>(1000, 0.8);
 	private _idPool = 0;
 
 	constructor(
@@ -1006,7 +1006,7 @@ class CallHierarchyAdapter {
 		});
 	}
 
-	private _fromItem(item: vscode.CallHierarchyItem, _id: number = this._idPool++): callHierarchy.CallHierarchyItem {
+	private _fromItem(item: vscode.CallHierarchyEdge, _id: number = this._idPool++): callHierarchy.CallHierarchyItem {
 		const res = <callHierarchy.CallHierarchyItem>{
 			_id,
 			name: item.name,
