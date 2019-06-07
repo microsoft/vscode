@@ -18,8 +18,6 @@ out-vscode-min/
 out-vscode-reh/
 out-vscode-reh-min/
 out-vscode-reh-pkg/
-src/vs/server/
-resources/server/
 src/vs/server
 resources/server
 build/node_modules
