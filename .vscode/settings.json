@@ -51,26 +51,13 @@
 			]
 		},
 		{
-			"name": "🚧🛑Testing (needs URL passed in)",
-			"files": [
-				"extensions/vscode-test-resolver/**",
-				"scripts/test-integration.bat",
-				"scripts/test-integration.sh",
-				"scripts/test-remote-integration.bat",
-				"scripts/test-remote-integration.sh",
-				"test/smoke/src/vscode/code.ts",
-				"test/smoke/README.md",
-			]
-		},
-		{
 			"name": "⛔🛑 [DO NOT MERGE] Server implementation, resources & scripts",
 			"files": [
+				".gitignore",
 				"build/gulpfile.reh.js",
 				"remote/LICENSE",
 				"resources/server/**",
-				"scripts/remoteExtensionAgent.bat",
-				"scripts/remoteExtensionAgent.sh",
-				"src/vs/server/**",
+				"src/vs/server/**"
 			]
 		},
 		{

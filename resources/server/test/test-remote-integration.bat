@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-pushd %~dp0\..
+pushd %~dp0\..\..\..
 
 IF "%1" == "" (
 	set AUTHORITY=vscode-remote://test+test/

@@ -3,10 +3,10 @@ set -ex
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
+	ROOT=$(dirname $(dirname $(dirname $(dirname $(realpath "$0")))))
 	VSCODEUSERDATADIR=`mktemp -d -t 'myuserdatadir'`
 else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
+	ROOT=$(dirname $(dirname $(dirname $(dirname $(readlink -f $0)))))
 	VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
 fi
 
