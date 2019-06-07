@@ -109,6 +109,7 @@ body[data-exploration^="icon-exploration"] .monaco-editor .debug-breakpoint-log,
 body[data-exploration^="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-title .severity-icon,
 body[data-exploration^="icon-exploration"] .monaco-editor .margin-view-overlays .folding,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-action.save-all,
+body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="_workbench.openUserSettingsEditor"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
 body[data-exploration^="icon-exploration"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"],
 body[data-exploration^="icon-exploration"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.refresh"],
@@ -383,6 +384,7 @@ body[data-exploration="icon-exploration"] .scm-viewlet .monaco-list-row > .resou
 	-webkit-mask-image: url("images/git/clean-alt1.svg");
 }
 /* Open File */
+body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="_workbench.openUserSettingsEditor"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openFile"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="git.openFile"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindings"],
