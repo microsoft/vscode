@@ -65,7 +65,7 @@ export class NotificationsStatus extends Disposable {
 		};
 
 		if (!this.notificationsCenterStatusItem) {
-			this.notificationsCenterStatusItem = this.statusbarService.addEntry(statusProperties, 'status.notifications', localize('status.notifications', "Notifictions"), StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
+			this.notificationsCenterStatusItem = this.statusbarService.addEntry(statusProperties, 'status.notifications', localize('status.notifications', "Notifications"), StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
 		} else {
 			this.notificationsCenterStatusItem.update(statusProperties);
 		}

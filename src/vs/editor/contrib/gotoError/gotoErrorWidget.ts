@@ -252,7 +252,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		container.appendChild(this._container);
 
 		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related));
-		this._disposables.push(this._message);
+		this._disposables.add(this._message);
 	}
 
 	show(where: Position, heightInLines: number): void {

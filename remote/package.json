@@ -15,7 +15,7 @@
     "node-pty": "0.8.1",
     "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
-    "spdlog": "0.8.1",
+    "spdlog": "^0.9.0",
     "vscode-chokidar": "1.6.5",
     "vscode-nsfw": "1.1.1",
     "vscode-proxy-agent": "0.4.0",

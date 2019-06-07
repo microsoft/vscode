@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { Platform, OperatingSystem } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import * as strings from 'vs/base/common/strings';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 class TestTerminalLinkHandler extends TerminalLinkHandler {
 	public get localLinkRegex(): RegExp {
@@ -28,6 +29,30 @@ class TestXterm {
 	public registerLinkMatcher() { }
 }
 
+class MockTerminalInstanceService implements ITerminalInstanceService {
+	_serviceBrand: any;
+	getXtermConstructor(): Promise<any> {
+		throw new Error('Method not implemented.');
+	}
+	async getXtermWebLinksConstructor(): Promise<any> {
+		return (await import('xterm-addon-web-links')).WebLinksAddon;
+	}
+	getXtermSearchConstructor(): Promise<any> {
+		throw new Error('Method not implemented.');
+	}
+	createWindowsShellHelper(): any {
+		throw new Error('Method not implemented.');
+	}
+	createTerminalProcess(): any {
+		throw new Error('Method not implemented.');
+	}
+	getDefaultShell(p: Platform): string {
+		throw new Error('Method not implemented.');
+	}
+
+
+}
+
 interface LinkFormatInfo {
 	urlFormat: string;
 	line?: string;
@@ -40,7 +65,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, {
 				os: OperatingSystem.Windows,
 				userHome: ''
-			} as any, null!, null!, null!, null!, null!);
+			} as any, null!, null!, null!, null!, new MockTerminalInstanceService(), null!);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -115,7 +140,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, {
 				os: OperatingSystem.Linux,
 				userHome: ''
-			} as any, null!, null!, null!, null!, null!);
+			} as any, null!, null!, null!, null!, new MockTerminalInstanceService(), null!);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -182,7 +207,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, {
 				os: OperatingSystem.Windows,
 				userHome: 'C:\\Users\\Me'
-			} as any, null!, null!, null!, null!, null!);
+			} as any, null!, null!, null!, null!, new MockTerminalInstanceService(), null!);
 			linkHandler.processCwd = 'C:\\base';
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base\\src\\file1');
@@ -195,7 +220,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, {
 				os: OperatingSystem.Windows,
 				userHome: 'C:\\Users\\M e'
-			} as any, null!, null!, null!, null!, null!);
+			} as any, null!, null!, null!, null!, new MockTerminalInstanceService(), null!);
 			linkHandler.processCwd = 'C:\\base dir';
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base dir\\src\\file1');
@@ -209,7 +234,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, {
 				os: OperatingSystem.Linux,
 				userHome: '/home/me'
-			} as any, null!, null!, null!, null!, null!);
+			} as any, null!, null!, null!, null!, new MockTerminalInstanceService(), null!);
 			linkHandler.processCwd = '/base';
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), '/base/src/file1');
@@ -222,7 +247,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, {
 				os: OperatingSystem.Linux,
 				userHome: '/home/me'
-			} as any, null!, null!, null!, null!, null!);
+			} as any, null!, null!, null!, null!, new MockTerminalInstanceService(), null!);
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), null);
 			assert.equal(linkHandler.preprocessPath('src/file2'), null);
@@ -236,7 +261,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, {
 			os: OperatingSystem.Linux,
 			userHome: ''
-		} as any, null!, null!, null!, null!, null!);
+		} as any, null!, null!, null!, null!, new MockTerminalInstanceService(), null!);
 
 		function assertAreGoodMatches(matches: RegExpMatchArray | null) {
 			if (matches) {

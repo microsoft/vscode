@@ -920,10 +920,17 @@ binaryextensions@~1.0.0:
   resolved "https://registry.yarnpkg.com/binaryextensions/-/binaryextensions-1.0.1.tgz#1e637488b35b58bda5f4774bf96a5212a8c90755"
   integrity sha1-HmN0iLNbWL2l9HdL+WpSEqjJB1U=
 
-bindings@^1.2.1, bindings@^1.3.0:
+bindings@^1.2.1:
   version "1.3.0"
   resolved "https://registry.yarnpkg.com/bindings/-/bindings-1.3.0.tgz#b346f6ecf6a95f5a815c5839fc7cdb22502f1ed7"
   integrity sha512-DpLh5EzMR2kzvX1KIlVC0VkC3iZtHKTgdtZ0a3pglBZdaQFjt5S9g9xd1lE+YvXyfd6mtCeRnrUfOLYiTMlNSw==
+
+bindings@^1.5.0:
+  version "1.5.0"
+  resolved "https://registry.yarnpkg.com/bindings/-/bindings-1.5.0.tgz#10353c9e945334bc0511a6d90b38fbc7c9c504df"
+  integrity sha512-p2q/t/mhvuOj/UeLlV6566GD/guowlr0hHxClI0W9m7MWYkL1F0hLo+0Aexs9HSPCtR1SXQ0TD3MMKrXZajbiQ==
+  dependencies:
+    file-uri-to-path "1.0.0"
 
 bl@^1.0.0:
   version "1.2.2"
@@ -3192,6 +3199,11 @@ file-entry-cache@^2.0.0:
   dependencies:
     flat-cache "^1.2.1"
     object-assign "^4.0.1"
+
+file-uri-to-path@1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/file-uri-to-path/-/file-uri-to-path-1.0.0.tgz#553a7b8446ff6f684359c445f1e37a05dacc33dd"
+  integrity sha512-0Zt+s3L7Vf1biwWZ29aARiVYLx7iMGnEUl9x33fbB/j3jR81u/O2LbqK+Bm1CDSNDKVtJ/YjwY7TUd5SkeLQLw==
 
 filename-regex@^2.0.0:
   version "2.0.0"
@@ -5968,7 +5980,7 @@ mute-stream@0.0.7, mute-stream@~0.0.4:
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.7.tgz#3075ce93bc21b8fab43e1bc4da7e8115ed1e7bab"
   integrity sha1-MHXOk7whuPq0PhvE2n6BFe0ee6s=
 
-nan@2.8.0, nan@^2.8.0:
+nan@2.8.0:
   version "2.8.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.8.0.tgz#ed715f3fe9de02b57a5e6252d90a96675e1f085a"
   integrity sha1-7XFfP+neArV6XmJS2QqWZ14fCFo=
@@ -5983,7 +5995,7 @@ nan@^2.12.1:
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.12.1.tgz#7b1aa193e9aa86057e3c7bbd0ac448e770925552"
   integrity sha512-JY7V6lRkStKcKTvHO5NVSQRv+RV+FIL5pvDoLiAtSL9pKlC5x9PKQcZDsq7m4FO4d57mkhC6Z+QhAh3Jdk5JFw==
 
-nan@^2.13.2:
+nan@^2.13.2, nan@^2.14.0:
   version "2.14.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
@@ -6111,10 +6123,10 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.9.0-beta16:
-  version "0.9.0-beta16"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta16.tgz#f11521e73bb4a26df23c40a05f4ca1be93340864"
-  integrity sha512-5onsCFXGTPcOZFAKh+E+aYalMomMAGqCnz/ibxCEL3xP73VAHRD6L+EadxRXFGbAG9o/EQzT0Wso+xLqhxXtgQ==
+node-pty@0.9.0-beta17:
+  version "0.9.0-beta17"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta17.tgz#9b490df86a8124dea595e9fbedeaaf4b2eedbbcb"
+  integrity sha512-E94XwIs3JxLKAboquHY9Kytbbj/T/tJtRpQoAUdfPE7UXRta/NV+xdmRNhZkeU9jCji+plm656GbYFievgNPkQ==
   dependencies:
     nan "^2.13.2"
 
@@ -8310,14 +8322,14 @@ sparkles@^1.0.0:
   resolved "https://registry.yarnpkg.com/sparkles/-/sparkles-1.0.0.tgz#1acbbfb592436d10bbe8f785b7cc6f82815012c3"
   integrity sha1-Gsu/tZJDbRC76PeFt8xvgoFQEsM=
 
-spdlog@0.8.1:
-  version "0.8.1"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.8.1.tgz#dfb3f3422ab3efe32be79e4769b95440ed72699f"
-  integrity sha512-W0s8IOXpn86md+8PJ4mJeB/22thykzH5YaNc3Rgnql4x4/zFIhvNiEx6/a1arnqvmJF0HtRO0Ehlswg0WcwTLQ==
+spdlog@^0.9.0:
+  version "0.9.0"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.9.0.tgz#c85dd9d0b9cd385f6f3f5b92dc9d2e1691092b5c"
+  integrity sha512-AeLWPCYjGi4w5DfpXFKb9pCdgMe4gFBMroGfgwXiNfzwmcNYGoFQkIuD1MChZBR1Iwrx0nGhsTSHFslt/qfTAQ==
   dependencies:
-    bindings "^1.3.0"
+    bindings "^1.5.0"
     mkdirp "^0.5.1"
-    nan "^2.8.0"
+    nan "^2.14.0"
 
 spdx-correct@~1.0.0:
   version "1.0.2"
@@ -9902,10 +9914,10 @@ xterm-addon-web-links@0.1.0-beta9:
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.1.0-beta9.tgz#8d30e41f54887ba668974d736488518322bea2c5"
   integrity sha512-2UbhFqYMNGY2Eg6jrn+j2jpK2gGRqluiF5I++lSDYbKrxtfj7+WJZYhBzb0EeE7gbzDfcGZqsoueM/q+fAWB8Q==
 
-xterm@3.15.0-beta14:
-  version "3.15.0-beta14"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta14.tgz#75afb888be23a31db26cf14131513cd85d0dd550"
-  integrity sha512-faqJWrweQ2zyD2iQGV6XOq/Evl6iob7vRPQlF2VauBnVg0Nwbuh+/2suD2Oc5BKHyq8dsftpooOsIbIPfiVdnQ==
+xterm@3.15.0-beta23:
+  version "3.15.0-beta23"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta23.tgz#a10b47bf3ebf30df253f7a7dac60c97f74e171f0"
+  integrity sha512-bMesTUsJP5M2Jhxe6u2FXuzQ3+R997eN8E6ike+0rbijnGLy2Sz+kZbNZQlBjCYO3jEEscRvaBsfiDcNQQVefA==
 
 y18n@^3.2.1:
   version "3.2.1"

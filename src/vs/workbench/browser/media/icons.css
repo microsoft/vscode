@@ -100,6 +100,13 @@ body[data-exploration^="icon-exploration"] .monaco-editor .find-widget .collapse
 body[data-exploration^="icon-exploration"] .monaco-editor .find-widget .monaco-checkbox .label::before,
 body[data-exploration^="icon-exploration"] .monaco-workbench .quick-open-sidebyside-vertical,
 body[data-exploration^="icon-exploration"] .monaco-tree-action.collapse-all,
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-breakpoint,
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-focused-stack-frame,
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-top-stack-frame,
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-breakpoint-hint,
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-breakpoint-conditional,
+body[data-exploration^="icon-exploration"] .monaco-editor .debug-breakpoint-log,
+body[data-exploration^="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-title .severity-icon,
 body[data-exploration^="icon-exploration"] .monaco-editor .margin-view-overlays .folding,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-action.save-all,
 body[data-exploration^="icon-exploration"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"],
@@ -116,11 +123,14 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .con
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label.file-icon[title^="Preview"]::before,
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="markdown.showPreviewToSide"],
 body[data-exploration^="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label,
-body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.nextChange"],
+body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
+body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.compareEditor.nextChange"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openFile"],
+body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="git.openFile"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindings"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="toggle.diff.ignoreTrimWhitespace"],
+body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="toggle.diff.ignoreTrimWhitespace"],
 body[data-exploration^="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-actions .action-label.icon[data-title="peekview.close"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.splitEditor"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="git.openChange"],
@@ -195,6 +205,14 @@ body[data-exploration^="icon-exploration"] .markers-panel-action-filter > .marke
 /********************
 	ACTIVITY BAR
 ********************/
+
+body[data-exploration^="icon-exploration"] .monaco-workbench .activitybar > .content .monaco-action-bar .badge .badge-content {
+	font-size: 9px;
+	font-weight: 600;
+	height: 16px;
+	line-height: 16px;
+	padding: 0 4px;
+}
 
 body[data-exploration^="icon-exploration"] .monaco-workbench .activitybar .monaco-action-bar .action-label {
 	-webkit-mask-size: 24px !important;
@@ -365,24 +383,28 @@ body[data-exploration="icon-exploration"] .scm-viewlet .monaco-list-row > .resou
 }
 /* Open File */
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openFile"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="git.openFile"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.openGlobalKeybindings"],
 body[data-exploration="icon-exploration"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.openFile2"] {
 	-webkit-mask-image: url("images/git/gotofile-alt1.svg");
 }
 /* Chevrons */
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.nextChange"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.compareEditor.nextChange"],
 body[data-exploration="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.marker.next"],
 body[data-exploration="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.dirtydiff.next"] {
 	-webkit-mask-image: url("images/git/next-alt1.svg");
 }
 
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
 body[data-exploration="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.marker.prev"],
 body[data-exploration="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-actions > .monaco-action-bar .action-label[data-title="editor.action.dirtydiff.previous"] {
 	-webkit-mask-image: url("images/git/previous-alt1.svg");
 }
 
-body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="toggle.diff.ignoreTrimWhitespace"]{
+body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="toggle.diff.ignoreTrimWhitespace"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="toggle.diff.ignoreTrimWhitespace"]{
 	-webkit-mask-image: url("images/git/whitespace-alt1.svg");
 }
 
@@ -392,6 +414,7 @@ body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .cont
 ****************/
 
 body[data-exploration="icon-exploration"] .monaco-workbench .debug-action.start,
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.continue"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .start-debug-action-item .icon {
 	-webkit-mask-image: url("images/debug/start-alt1.svg");
 	background: var(--green) !important;
@@ -424,52 +447,67 @@ body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .drag
 }
 
 body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.stepOver"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.stepOver"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.stepBack"],
 body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.stepBack"] {
 	-webkit-mask-image: url("images/debug/step-over-alt1.svg");
 	background: var(--blue) !important;
 }
 
-body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.stepInto"] {
+body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.stepInto"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.stepInto"] {
 	-webkit-mask-image: url("images/debug/step-into-alt1.svg");
 	background: var(--blue) !important;
 }
 
-body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.stepOut"] {
+body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.stepOut"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.stepOut"] {
 	-webkit-mask-image: url("images/debug/step-out-alt1.svg");
 	background: var(--blue) !important;
 }
 
 body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.continue"],
-body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.rever"] {
+body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.rever"].
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.continue"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.rever"] {
 	-webkit-mask-image: url("images/debug/continue-alt1.svg");
 	background: var(--blue) !important;
 }
 
-body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.restart"] {
+body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.restart"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.restart"] {
 	-webkit-mask-image: url("images/debug/restart-alt1.svg");
 	background: var(--green) !important;
 }
 
-body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.pause"] {
+body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.pause"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.pause"] {
 	-webkit-mask-image: url("images/debug/pause-alt1.svg");
 	background: var(--green) !important;
 }
 
-body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.stop"] {
+body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.stop"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.stop"] {
 	-webkit-mask-image: url("images/debug/stop-alt1.svg");
 	background: var(--red) !important;
 }
 
-body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.disconnect"] {
+body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.disconnect"],
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.disconnect"] {
 	-webkit-mask-image: url("images/debug/disconnect-alt1.svg");
 	background: var(--red) !important;
 }
 
 body[data-exploration="icon-exploration"] .debug-breakpoint,
+body[data-exploration="icon-exploration"] .debug-breakpoint-hint,
 body[data-exploration="icon-exploration"] .debug-breakpoint.icon,
 body[data-exploration="icon-exploration"] .monaco-editor .debug-breakpoint-column::before {
 	-webkit-mask-image: url("images/debug/breakpoint-alt1.svg");
 	background: var(--redLight) !important;
+}
+
+body[data-exploration="icon-exploration"] .debug-breakpoint-hint:not(.debug-breakpoint):not(.debug-breakpoint-conditional):not(.debug-top-stack-frame):not(.debug-focused-stack-frame):not(.debug-breakpoint-log) {
+	opacity: .5 !important;
 }
 
 body[data-exploration="icon-exploration"] .debug-breakpoint-disabled.icon {
@@ -959,21 +997,22 @@ body[data-exploration="icon-exploration"] .markers-panel .monaco-tl-contents .ac
 ****************/
 
 body[data-exploration="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info,
-body[data-exploration="icon-exploration"] .markers-panel .marker-icon.info {
+body[data-exploration="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-title .severity-icon.severity-info,
+body[data-exploration="icon-exploration"] .markers-panel .marker-icon.severity-info {
 	-webkit-mask-image: url("images/notifications/info-alt1.svg");
 	background: var(--blue);
 }
 
 body[data-exploration="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning,
-body[data-exploration="icon-exploration"] .markers-panel .marker-icon.warning,
-body[data-exploration="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-title .icon.warning {
+body[data-exploration="icon-exploration"] .markers-panel .marker-icon.severity-warning,
+body[data-exploration="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-title .severity-icon.severity-warning {
 	-webkit-mask-image: url("images/notifications/warning-alt1.svg");
 	background: var(--yellow);
 }
 
 body[data-exploration="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error,
-body[data-exploration="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-title .icon.error,
-body[data-exploration="icon-exploration"] .markers-panel .marker-icon.error {
+body[data-exploration="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-title .severity-icon.severity-error,
+body[data-exploration="icon-exploration"] .markers-panel .marker-icon.severity-error {
 	-webkit-mask-image: url("images/notifications/error-alt1.svg");
 	background: var(--redLight);
 }
