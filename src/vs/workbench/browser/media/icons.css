@@ -853,6 +853,11 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .con
 	background: transparent;
 }
 
+body[data-exploration^="icon-exploration"] .monaco-quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon::before {
+	left: 0;
+	top: -3px;
+}
+
 body[data-exploration^="icon-exploration"] .monaco-workbench .breadcrumbs-control .symbol-icon::before,
 body[data-exploration^="icon-exploration"] .monaco-workbench .monaco-breadcrumb-item .symbol-icon {
 	top: -2px;
