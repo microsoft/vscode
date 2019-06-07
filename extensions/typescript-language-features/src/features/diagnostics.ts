@@ -77,7 +77,7 @@ class FileDiagnostics {
 		return this.get(DiagnosticKind.Suggestion).filter(x => {
 			if (!enableSuggestions) {
 				// Still show unused
-				return x.tags && x.tags.indexOf(vscode.DiagnosticTag.Unnecessary) !== -1;
+				return x.tags && x.tags.includes(vscode.DiagnosticTag.Unnecessary);
 			}
 			return true;
 		});
