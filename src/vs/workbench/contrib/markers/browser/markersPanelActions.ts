@@ -30,6 +30,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Event, Emitter } from 'vs/base/common/event';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -127,7 +129,9 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	constructor(
 		readonly action: MarkersFilterAction,
 		private filterController: IMarkerFilterController,
+		@IActivityService private readonly activityService: IActivityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -137,6 +141,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.focusContextKey = Constants.MarkerPanelFilterFocusContextKey.bindTo(contextKeyService);
 		this.delayedFilterUpdate = new Delayer<void>(200);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('problems.countFilteredProblems')) {
+				this.updatePanelBadge();
+			}
+		}));
 	}
 
 	render(container: HTMLElement): void {
@@ -244,6 +253,20 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		DOM.toggleClass(this.filterBadge, 'hidden', total === filtered || filtered === 0);
 		this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
 		this.adjustInputBox();
+		this.updatePanelBadge();
+	}
+
+	private updatePanelBadge(): void {
+		const { total, filtered } = this.filterController.getFilterStats();
+		const message = localize('totalProblems', 'Total {0} Problems', total);
+		let countFilteredProblems = this.configurationService.getValue<boolean>('problems.countFilteredProblems');
+		this.activityService.showActivity(
+			Constants.MARKERS_PANEL_ID,
+			new NumberBadge(
+				(typeof countFilteredProblems === 'boolean' && countFilteredProblems) ? filtered : total,
+				() => message
+			)
+		);
 	}
 
 	private adjustInputBox(): void {

@@ -85,6 +85,19 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	}
 });
 
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	'id': 'problems',
+	'order': 101,
+	'title': Messages.PROBLEMS_PANEL_CONFIGURATION_TITLE,
+	'type': 'object',
+	'properties': {
+		'problems.countFilteredProblems': {
+			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_COUNT_FILTERED_BADGE,
+			'type': 'boolean',
+			'default': false
+		}
+	}
+});
 
 // markers panel
 Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
