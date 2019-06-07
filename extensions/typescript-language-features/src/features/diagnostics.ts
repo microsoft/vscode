@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { ResourceMap } from '../utils/resourceMap';
 import { DiagnosticLanguage } from '../utils/languageDescription';
 import * as arrays from '../utils/arrays';
+import { Disposable } from '../utils/dispose';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
 	if (a === b) {
@@ -140,7 +141,7 @@ class DiagnosticSettings {
 	}
 }
 
-export class DiagnosticsManager {
+export class DiagnosticsManager extends Disposable {
 	private readonly _diagnostics = new ResourceMap<FileDiagnostics>();
 	private readonly _settings = new DiagnosticSettings();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
@@ -151,11 +152,12 @@ export class DiagnosticsManager {
 	constructor(
 		owner: string
 	) {
-		this._currentDiagnostics = vscode.languages.createDiagnosticCollection(owner);
+		super();
+		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
 	}
 
 	public dispose() {
-		this._currentDiagnostics.dispose();
+		super.dispose();
 
 		for (const value of this._pendingUpdates.values) {
 			clearTimeout(value);
