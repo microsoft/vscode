@@ -114,7 +114,7 @@ export class ToolBar extends Disposable {
 		this.actionBar.setAriaLabel(label);
 	}
 
-	setActions(primaryActions: IAction[], secondaryActions?: IAction[]): () => void {
+	setActions(primaryActions: ReadonlyArray<IAction>, secondaryActions?: ReadonlyArray<IAction>): () => void {
 		return () => {
 			let primaryActionsToSet = primaryActions ? primaryActions.slice(0) : [];
 
@@ -169,7 +169,7 @@ class ToggleMenuAction extends Action {
 
 	static readonly ID = 'toolbar.toggle.more';
 
-	private _menuActions: IAction[];
+	private _menuActions: ReadonlyArray<IAction>;
 	private toggleDropdownMenu: () => void;
 
 	constructor(toggleDropdownMenu: () => void, title?: string) {
@@ -185,11 +185,11 @@ class ToggleMenuAction extends Action {
 		return Promise.resolve(true);
 	}
 
-	get menuActions() {
+	get menuActions(): ReadonlyArray<IAction> {
 		return this._menuActions;
 	}
 
-	set menuActions(actions: IAction[]) {
+	set menuActions(actions: ReadonlyArray<IAction>) {
 		this._menuActions = actions;
 	}
 }
