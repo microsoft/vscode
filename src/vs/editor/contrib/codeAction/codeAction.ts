@@ -15,9 +15,14 @@ import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTr
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './codeActionTrigger';
 import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
-export class CodeActionSet extends Disposable {
+export interface CodeActionSet extends IDisposable {
+	readonly actions: readonly CodeAction[];
+	readonly hasAutoFix: boolean;
+}
+
+class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 	private static codeActionsComparator(a: CodeAction, b: CodeAction): number {
 		if (isNonEmptyArray(a.diagnostics)) {
@@ -38,7 +43,7 @@ export class CodeActionSet extends Disposable {
 	public constructor(actions: readonly CodeAction[], disposables: DisposableStore) {
 		super();
 		this._register(disposables);
-		this.actions = mergeSort([...actions], CodeActionSet.codeActionsComparator);
+		this.actions = mergeSort(Array.from(actions), ManagedCodeActionSet.codeActionsComparator);
 	}
 
 	public get hasAutoFix() {
@@ -89,7 +94,7 @@ export function getCodeActions(
 
 	return Promise.all(promises)
 		.then(flatten)
-		.then(actions => new CodeActionSet(actions, disposables))
+		.then(actions => new ManagedCodeActionSet(actions, disposables))
 		.finally(() => {
 			listener.dispose();
 			cts.dispose();
