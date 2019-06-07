@@ -18,7 +18,7 @@ proc.stdout.on("data", data => {
 			const url = 'http://127.0.0.1:8000';
 			console.log(`Opening ${url} in your browser...`);
 
-			opn(url).catch(() => { console.log(`Failed to open in your browser. Please do so manually.`) });
+			opn(url).catch(() => { console.log(`Failed to open in your browser. Please do so manually.`); });
 		}, 100);
 	}
 });

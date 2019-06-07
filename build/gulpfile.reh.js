@@ -28,7 +28,6 @@ const File = require('vinyl');
 const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
-// const buildfile = require('../src/buildfile');
 
 const REPO_ROOT = path.dirname(__dirname);
 const commit = util.getVersion(REPO_ROOT);
@@ -69,18 +68,53 @@ const vscodeResources = [
 	// Uri transformer
 	'out-build/vs/server/uriTransformer.js',
 
-	// Workbench
-	// 'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
-	// 'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
-	// 'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
-	// 'out-build/vs/code/browser/workbench/**',
-	// 'out-build/vs/**/markdown.css',
-
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',
 
 	'!**/test/**'
 ];
+
+const entryPoints = [
+	{
+		name: 'vs/server/remoteExtensionHostAgent',
+		exclude: ['vs/css', 'vs/nls']
+	},
+	{
+		name: 'vs/server/remoteCli',
+		exclude: ['vs/css', 'vs/nls']
+	},
+	{
+		name: 'vs/server/remoteExtensionHostProcess',
+		exclude: ['vs/css', 'vs/nls']
+	},
+	{
+		name: 'vs/workbench/services/files/node/watcher/unix/watcherApp',
+		exclude: ['vs/css', 'vs/nls']
+	},
+	{
+		name: 'vs/workbench/services/files/node/watcher/nsfw/watcherApp',
+		exclude: ['vs/css', 'vs/nls']
+	}
+];
+
+// VSCode Web Support (behind a build flag)
+if (process.env.VSCODE_WEB) {
+	vscodeResources.push(...[
+		'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
+		'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
+		'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
+		'out-build/vs/code/browser/workbench/**',
+		'out-build/vs/**/markdown.css',
+	]);
+
+	const buildfile = require('../src/buildfile');
+
+	entryPoints.push(...[
+		buildfile.entrypoint('vs/workbench/workbench.web.main'),
+		buildfile.base,
+		buildfile.workbenchWeb
+	]);
+}
 
 const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
 	task.parallel(
@@ -89,33 +123,7 @@ const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
 	),
 	common.optimizeTask({
 		src: 'out-build',
-		entryPoints: _.flatten([
-			{
-				name: 'vs/server/remoteExtensionHostAgent',
-				exclude: ['vs/css', 'vs/nls']
-			},
-			{
-				name: 'vs/server/remoteCli',
-				exclude: ['vs/css', 'vs/nls']
-			},
-			{
-				name: 'vs/server/remoteExtensionHostProcess',
-				exclude: ['vs/css', 'vs/nls']
-			},
-			{
-				name: 'vs/workbench/services/files/node/watcher/unix/watcherApp',
-				exclude: ['vs/css', 'vs/nls']
-			},
-			{
-				name: 'vs/workbench/services/files/node/watcher/nsfw/watcherApp',
-				exclude: ['vs/css', 'vs/nls']
-			},
-
-			// // Workbench
-			// buildfile.entrypoint('vs/workbench/workbench.nodeless.main'),
-			// buildfile.base,
-			// buildfile.workbenchNodeless
-		]),
+		entryPoints: _.flatten(entryPoints),
 		otherSources: [],
 		resources: vscodeResources,
 		loaderConfig: common.loaderConfig(nodeModules),
