@@ -849,7 +849,8 @@ body[data-exploration="icon-exploration"] .monaco-editor .suggest-widget .monaco
 ****************/
 
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item::before {
-	width: 16px !important;
+	-webkit-mask-image: none;
+	background: transparent;
 }
 
 body[data-exploration^="icon-exploration"] .monaco-workbench .breadcrumbs-control .symbol-icon::before,
