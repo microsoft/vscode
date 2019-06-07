@@ -11,7 +11,7 @@ const proc = cp.execFile(path.join(__dirname, process.platform === 'win32' ? 'se
 
 let launched = false;
 proc.stdout.on("data", data => {
-	if (!launched && data.toString().indexOf('Extension host agent listening on 8000')) {
+	if (!launched && data.toString().indexOf('Extension host agent listening on 8000') >= 0) {
 		launched = true;
 
 		setTimeout(() => {
