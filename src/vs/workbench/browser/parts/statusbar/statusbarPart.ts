@@ -199,11 +199,9 @@ class StatusbarViewModel extends Disposable {
 			const id = arg1;
 
 			for (const entry of this._entries) {
-				if (entry.id !== id) {
-					continue;
+				if (entry.id === id) {
+					this.updateVisibility(entry);
 				}
-
-				this.updateVisibility(entry);
 			}
 		}
 
@@ -558,6 +556,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.viewModel.entries.forEach(entry => {
 			if (!handledEntries.has(entry.id)) {
 				actions.push(new ToggleStatusbarEntryVisibilityAction(entry.id, entry.name, this.viewModel));
+				handledEntries.add(entry.id);
 			}
 		});
 
