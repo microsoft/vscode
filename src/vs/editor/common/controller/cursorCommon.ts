@@ -102,6 +102,7 @@ export class CursorConfiguration {
 			|| e.emptySelectionClipboard
 			|| e.multiCursorMergeOverlapping
 			|| e.autoClosingBrackets
+			|| e.autoClosingComments
 			|| e.autoClosingQuotes
 			|| e.autoSurround
 			|| e.useTabStops
@@ -131,6 +132,7 @@ export class CursorConfiguration {
 		this.copyWithSyntaxHighlighting = c.copyWithSyntaxHighlighting;
 		this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
 		this.autoClosingBrackets = c.autoClosingBrackets;
+		this.autoClosingComments = c.autoClosingComments;
 		this.autoClosingQuotes = c.autoClosingQuotes;
 		this.autoSurround = c.autoSurround;
 		this.autoIndent = c.autoIndent;

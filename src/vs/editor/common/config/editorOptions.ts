@@ -535,6 +535,11 @@ export interface IEditorOptions {
 	 */
 	autoClosingBrackets?: EditorAutoClosingStrategy;
 	/**
+	 * Options for auto closing comments.
+	 * Defaults to language defined behavior.
+	 */
+	autoClosingComments?: EditorAutoClosingStrategy;
+	/**
 	 * Options for auto closing quotes.
 	 * Defaults to language defined behavior.
 	 */
@@ -1066,6 +1071,7 @@ export interface IValidatedEditorOptions {
 	readonly wordWrapBreakAfterCharacters: string;
 	readonly wordWrapBreakObtrusiveCharacters: string;
 	readonly autoClosingBrackets: EditorAutoClosingStrategy;
+	readonly autoClosingComments: EditorAutoClosingStrategy;
 	readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	readonly autoSurround: EditorAutoSurroundStrategy;
 	readonly autoIndent: boolean;
@@ -1104,6 +1110,7 @@ export class InternalEditorOptions {
 	// ---- cursor options
 	readonly wordSeparators: string;
 	readonly autoClosingBrackets: EditorAutoClosingStrategy;
+	readonly autoClosingComments: EditorAutoClosingStrategy;
 	readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	readonly autoSurround: EditorAutoSurroundStrategy;
 	readonly autoIndent: boolean;
@@ -1134,6 +1141,7 @@ export class InternalEditorOptions {
 		multiCursorMergeOverlapping: boolean;
 		wordSeparators: string;
 		autoClosingBrackets: EditorAutoClosingStrategy;
+		autoClosingComments: EditorAutoClosingStrategy;
 		autoClosingQuotes: EditorAutoClosingStrategy;
 		autoSurround: EditorAutoSurroundStrategy;
 		autoIndent: boolean;
@@ -1159,6 +1167,7 @@ export class InternalEditorOptions {
 		this.multiCursorMergeOverlapping = source.multiCursorMergeOverlapping;
 		this.wordSeparators = source.wordSeparators;
 		this.autoClosingBrackets = source.autoClosingBrackets;
+		this.autoClosingComments = source.autoClosingComments;
 		this.autoClosingQuotes = source.autoClosingQuotes;
 		this.autoSurround = source.autoSurround;
 		this.autoIndent = source.autoIndent;
@@ -1190,6 +1199,7 @@ export class InternalEditorOptions {
 			&& this.multiCursorMergeOverlapping === other.multiCursorMergeOverlapping
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
+			&& this.autoClosingComments === other.autoClosingComments
 			&& this.autoClosingQuotes === other.autoClosingQuotes
 			&& this.autoSurround === other.autoSurround
 			&& this.autoIndent === other.autoIndent
@@ -1222,6 +1232,7 @@ export class InternalEditorOptions {
 			multiCursorMergeOverlapping: (this.multiCursorMergeOverlapping !== newOpts.multiCursorMergeOverlapping),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
+			autoClosingComments: (this.autoClosingComments !== newOpts.autoClosingComments),
 			autoClosingQuotes: (this.autoClosingQuotes !== newOpts.autoClosingQuotes),
 			autoSurround: (this.autoSurround !== newOpts.autoSurround),
 			autoIndent: (this.autoIndent !== newOpts.autoIndent),
@@ -1626,6 +1637,7 @@ export interface IConfigurationChangedEvent {
 	readonly multiCursorMergeOverlapping: boolean;
 	readonly wordSeparators: boolean;
 	readonly autoClosingBrackets: boolean;
+	readonly autoClosingComments: boolean;
 	readonly autoClosingQuotes: boolean;
 	readonly autoSurround: boolean;
 	readonly autoIndent: boolean;
@@ -1808,15 +1820,18 @@ export class EditorOptionsValidator {
 		const multiCursorModifier = _stringSet<'altKey' | 'metaKey' | 'ctrlKey'>(configuredMulticursorModifier, defaults.multiCursorModifier, ['altKey', 'metaKey', 'ctrlKey']);
 
 		let autoClosingBrackets: EditorAutoClosingStrategy;
+		let autoClosingComments: EditorAutoClosingStrategy;
 		let autoClosingQuotes: EditorAutoClosingStrategy;
 		let autoSurround: EditorAutoSurroundStrategy;
 		if (typeof opts.autoClosingBrackets === 'boolean' && opts.autoClosingBrackets === false) {
 			// backwards compatibility: disable all on boolean false
 			autoClosingBrackets = 'never';
+			autoClosingComments = 'never';
 			autoClosingQuotes = 'never';
 			autoSurround = 'never';
 		} else {
 			autoClosingBrackets = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingBrackets, defaults.autoClosingBrackets, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
+			autoClosingComments = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingComments, defaults.autoClosingComments, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
 			autoClosingQuotes = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingQuotes, defaults.autoClosingQuotes, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
 			autoSurround = _stringSet<EditorAutoSurroundStrategy>(opts.autoSurround, defaults.autoSurround, ['languageDefined', 'brackets', 'quotes', 'never']);
 		}
@@ -1838,6 +1853,7 @@ export class EditorOptionsValidator {
 			wordWrapBreakAfterCharacters: _string(opts.wordWrapBreakAfterCharacters, defaults.wordWrapBreakAfterCharacters),
 			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
 			autoClosingBrackets,
+			autoClosingComments,
 			autoClosingQuotes,
 			autoSurround,
 			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
@@ -2153,6 +2169,7 @@ export class InternalEditorOptionsFactory {
 			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
 			autoClosingBrackets: opts.autoClosingBrackets,
+			autoClosingComments: opts.autoClosingComments,
 			autoClosingQuotes: opts.autoClosingQuotes,
 			autoSurround: opts.autoSurround,
 			autoIndent: opts.autoIndent,
@@ -2380,6 +2397,7 @@ export class InternalEditorOptionsFactory {
 			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
+			autoClosingComments: opts.autoClosingComments,
 			autoClosingQuotes: opts.autoClosingQuotes,
 			autoSurround: opts.autoSurround,
 			autoIndent: opts.autoIndent,
@@ -2617,6 +2635,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordWrapBreakAfterCharacters: ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
 	wordWrapBreakObtrusiveCharacters: '.',
 	autoClosingBrackets: 'languageDefined',
+	autoClosingComments: 'languageDefined',
 	autoClosingQuotes: 'languageDefined',
 	autoSurround: 'languageDefined',
 	autoIndent: true,
