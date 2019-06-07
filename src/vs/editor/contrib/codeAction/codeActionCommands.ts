@@ -23,7 +23,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILocalProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionModel, SUPPORTED_CODE_ACTIONS, CodeActionsState } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
-import { CodeActionContextMenu } from './codeActionWidget';
+import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -45,7 +45,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 	private readonly _editor: ICodeEditor;
 	private readonly _model: CodeActionModel;
-	private readonly _codeActionContextMenu: CodeActionContextMenu;
+	private readonly _codeActionWidget: CodeActionWidget;
 	private readonly _lightBulbWidget: LightBulbWidget;
 	private _currentCodeActions: CodeActionSet | undefined;
 
@@ -65,12 +65,12 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		this._editor = editor;
 		this._model = this._register(new CodeActionModel(this._editor, markerService, contextKeyService, progressService));
-		this._codeActionContextMenu = this._register(new CodeActionContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action)));
+		this._codeActionWidget = this._register(new CodeActionWidget(editor, contextMenuService, action => this._onApplyCodeAction(action)));
 		this._lightBulbWidget = this._register(new LightBulbWidget(editor));
 
 		this._updateLightBulbTitle();
 
-		this._register(this._codeActionContextMenu.onDidExecuteCodeAction(_ => this._model.trigger({ type: 'auto', filter: {} })));
+		this._register(this._codeActionWidget.onDidExecuteCodeAction(_ => this._model.trigger({ type: 'auto', filter: {} })));
 		this._register(this._lightBulbWidget.onClick(this._handleLightBulbSelect, this));
 		this._register(this._model.onDidChangeState(e => this._onDidChangeCodeActionsState(e)));
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
@@ -105,17 +105,17 @@ export class QuickFixController extends Disposable implements IEditorContributio
 							return;
 						}
 					}
-					this._codeActionContextMenu.show(newState.actions, newState.position);
+					this._codeActionWidget.show(newState.actions, newState.position);
 
 				}).catch(onUnexpectedError);
 			} else if (newState.trigger.type === 'manual') {
-				this._codeActionContextMenu.show(newState.actions, newState.position);
+				this._codeActionWidget.show(newState.actions, newState.position);
 			} else {
 				// auto magically triggered
 				// * update an existing list of code actions
 				// * manage light bulb
-				if (this._codeActionContextMenu.isVisible) {
-					this._codeActionContextMenu.show(newState.actions, newState.position);
+				if (this._codeActionWidget.isVisible) {
+					this._codeActionWidget.show(newState.actions, newState.position);
 				} else {
 					this._lightBulbWidget.tryShow(newState);
 				}
@@ -132,7 +132,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	}
 
 	private _handleLightBulbSelect(e: { x: number, y: number, state: CodeActionsState.Triggered }): void {
-		this._codeActionContextMenu.show(e.state.actions, e);
+		this._codeActionWidget.show(e.state.actions, e);
 	}
 
 	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): Promise<CodeActionSet | undefined> {

@@ -15,7 +15,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { Disposable } from 'vs/base/common/lifecycle';
 
-export class CodeActionContextMenu extends Disposable {
+export class CodeActionWidget extends Disposable {
 
 	private _visible: boolean;
 
@@ -65,7 +65,7 @@ export class CodeActionContextMenu extends Disposable {
 		const title = action.title;
 		return new Action(id, title, undefined, true, () =>
 			this._onApplyCodeAction(action)
-				.finally(() => this._onDidExecuteCodeAction.fire(undefined)));
+				.finally(() => this._onDidExecuteCodeAction.fire()));
 	}
 
 	get isVisible(): boolean {
