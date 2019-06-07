@@ -43,7 +43,7 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 	public constructor(actions: readonly CodeAction[], disposables: DisposableStore) {
 		super();
 		this._register(disposables);
-		this.actions = mergeSort(Array.from(actions), ManagedCodeActionSet.codeActionsComparator);
+		this.actions = mergeSort([...actions], ManagedCodeActionSet.codeActionsComparator);
 	}
 
 	public get hasAutoFix() {
