@@ -93,6 +93,11 @@ interface LanguageDiagnosticSettings {
 	readonly enableSuggestions: boolean;
 }
 
+function areLanguageDiagnosticSettingsEqual(currentSettings: LanguageDiagnosticSettings, newSettings: LanguageDiagnosticSettings): boolean {
+	return currentSettings.validate === newSettings.validate
+		&& currentSettings.enableSuggestions && currentSettings.enableSuggestions;
+}
+
 class DiagnosticSettings {
 	private static readonly defaultSettings: LanguageDiagnosticSettings = {
 		validate: true,
@@ -131,8 +136,7 @@ class DiagnosticSettings {
 		const currentSettings = this.get(language);
 		const newSettings = f(currentSettings);
 		this._languageSettings.set(language, newSettings);
-		return currentSettings.validate === newSettings.validate
-			&& currentSettings.enableSuggestions && currentSettings.enableSuggestions;
+		return areLanguageDiagnosticSettingsEqual(currentSettings, newSettings);
 	}
 }
 
