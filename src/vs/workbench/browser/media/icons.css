@@ -467,7 +467,7 @@ body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .ti
 }
 
 body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.continue"],
-body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.rever"].
+body[data-exploration="icon-exploration"] .monaco-workbench .debug-toolbar .action-label[data-title="workbench.action.debug.rever"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.continue"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="workbench.action.debug.rever"] {
 	-webkit-mask-image: url("images/debug/continue-alt1.svg");
