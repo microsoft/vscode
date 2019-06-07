@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ResourceMap } from '../utils/resourceMap';
-import { DiagnosticLanguage, allDiagnosticLanguages } from '../utils/languageDescription';
+import { DiagnosticLanguage } from '../utils/languageDescription';
 import * as arrays from '../utils/arrays';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
@@ -100,12 +100,6 @@ class DiagnosticSettings {
 	};
 
 	private readonly _languageSettings = new Map<DiagnosticLanguage, LanguageDiagnosticSettings>();
-
-	constructor() {
-		for (const language of allDiagnosticLanguages) {
-			this._languageSettings.set(language, DiagnosticSettings.defaultSettings);
-		}
-	}
 
 	public getValidate(language: DiagnosticLanguage): boolean {
 		return this.get(language).validate;
