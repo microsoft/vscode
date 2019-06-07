@@ -5,7 +5,7 @@
 
 import { IWebviewService, Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 
-export class WebviewService implements IWebviewService {
+export class NullWebviewService implements IWebviewService {
 
 	_serviceBrand: any;
 

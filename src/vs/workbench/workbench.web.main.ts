@@ -245,7 +245,7 @@ import 'vs/workbench/contrib/url/common/url.contribution';
 
 // Webview
 // import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
-registerSingleton(IWebviewService, WebviewService, true); // <- FAKE service
+registerSingleton(IWebviewService, NullWebviewService, true);
 registerSingleton(IWebviewEditorService, WebviewEditorService, true);
 
 // Extensions Management
@@ -321,7 +321,7 @@ import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
 // Outline
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
 import { IWebviewService } from 'vs/workbench/contrib/webview/common/webview';
-import { WebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
+import { NullWebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
 import { IWebviewEditorService, WebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 
 // Experiments
