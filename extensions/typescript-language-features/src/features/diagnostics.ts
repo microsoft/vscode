@@ -34,7 +34,7 @@ export const enum DiagnosticKind {
 }
 
 class FileDiagnostics {
-	private readonly _diagnostics = new Map<DiagnosticKind, vscode.Diagnostic[]>();
+	private readonly _diagnostics = new Map<DiagnosticKind, ReadonlyArray<vscode.Diagnostic>>();
 
 	constructor(
 		public readonly file: vscode.Uri,
@@ -44,7 +44,7 @@ class FileDiagnostics {
 	public updateDiagnostics(
 		language: DiagnosticLanguage,
 		kind: DiagnosticKind,
-		diagnostics: vscode.Diagnostic[]
+		diagnostics: ReadonlyArray<vscode.Diagnostic>
 	): boolean {
 		if (language !== this.language) {
 			this._diagnostics.clear();
@@ -84,7 +84,7 @@ class FileDiagnostics {
 		});
 	}
 
-	private get(kind: DiagnosticKind): vscode.Diagnostic[] {
+	private get(kind: DiagnosticKind): ReadonlyArray<vscode.Diagnostic> {
 		return this._diagnostics.get(kind) || [];
 	}
 }
@@ -188,7 +188,7 @@ export class DiagnosticsManager extends Disposable {
 		file: vscode.Uri,
 		language: DiagnosticLanguage,
 		kind: DiagnosticKind,
-		diagnostics: vscode.Diagnostic[]
+		diagnostics: ReadonlyArray<vscode.Diagnostic>
 	): void {
 		let didUpdate = false;
 		const entry = this._diagnostics.get(file);
