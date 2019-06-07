@@ -65,12 +65,19 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		this._editor = editor;
 		this._model = this._register(new CodeActionModel(this._editor, markerService, contextKeyService, progressService));
-		this._codeActionWidget = this._register(new CodeActionWidget(editor, contextMenuService, action => this._onApplyCodeAction(action)));
+		this._codeActionWidget = new CodeActionWidget(editor, contextMenuService, {
+			onSelectCodeAction: async (action) => {
+				try {
+					await this._onApplyCodeAction(action);
+				} finally {
+					this._model.trigger({ type: 'auto', filter: {} });
+				}
+			}
+		});
 		this._lightBulbWidget = this._register(new LightBulbWidget(editor));
 
 		this._updateLightBulbTitle();
 
-		this._register(this._codeActionWidget.onDidExecuteCodeAction(_ => this._model.trigger({ type: 'auto', filter: {} })));
 		this._register(this._lightBulbWidget.onClick(this._handleLightBulbSelect, this));
 		this._register(this._model.onDidChangeState(e => this._onDidChangeCodeActionsState(e)));
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
