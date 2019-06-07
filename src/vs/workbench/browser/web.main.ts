@@ -85,7 +85,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// Environment
-		const environmentService = new SimpleWorkbenchEnvironmentService();
+		const environmentService = this.createEnvironmentService();
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
@@ -126,6 +126,21 @@ class CodeRendererMain extends Disposable {
 		]);
 
 		return { serviceCollection, logService };
+	}
+
+	private createEnvironmentService(): IWorkbenchEnvironmentService {
+		const environmentService = new SimpleWorkbenchEnvironmentService();
+		environmentService.appRoot = '/web/';
+		environmentService.args = { _: [] };
+		environmentService.appSettingsHome = '/web/settings';
+		environmentService.appSettingsPath = this.configuration.settingsUri.path;
+		environmentService.appKeybindingsPath = '/web/settings/keybindings.json';
+		environmentService.logsPath = '/web/logs';
+		environmentService.debugExtensionHost = {
+			port: null,
+			break: false
+		};
+		return environmentService;
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {

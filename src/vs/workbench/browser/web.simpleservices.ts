@@ -199,17 +199,17 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	untitledWorkspacesHome: URI;
 	extensionTestsLocationURI?: URI;
 	_serviceBrand: any;
-	args = { _: [] };
+	args: any;
 	execPath: string;
 	cliPath: string;
-	appRoot: string = '/web/';
+	appRoot: string;
 	userHome: string;
 	userDataPath: string;
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string = '/web/settings';
-	appSettingsPath: string = '/web/settings/settings.json';
-	appKeybindingsPath: string = '/web/settings/keybindings.json';
+	appSettingsHome: string;
+	appSettingsPath: string;
+	appKeybindingsPath: string;
 	machineSettingsHome: string;
 	machineSettingsPath: string;
 	settingsSearchBuildId?: number;
@@ -225,17 +225,14 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	extensionsPath: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsPath?: string;
-	debugExtensionHost: IExtensionHostDebugParams = {
-		port: null,
-		break: false
-	};
+	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch: IDebugParams;
 	logExtensionHostCommunication: boolean;
 	isBuilt: boolean;
 	wait: boolean;
 	status: boolean;
 	log?: string;
-	logsPath: string = '/web/logs';
+	logsPath: string;
 	verbose: boolean;
 	skipGettingStarted: boolean;
 	skipReleaseNotes: boolean;
