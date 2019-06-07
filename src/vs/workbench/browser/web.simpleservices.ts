@@ -9,7 +9,7 @@ import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 // tslint:disable-next-line: import-patterns no-standalone-editor
@@ -30,7 +30,6 @@ import { ILogService, LogLevel, ConsoleLogService } from 'vs/platform/log/common
 import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IProductService } from 'vs/platform/product/common/product';
-import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { ISearchService, ITextQueryProps, ISearchProgressItem, ISearchComplete, IFileQueryProps, SearchProviderType, ISearchResultProvider, ITextQuery, IFileMatch, QueryType, FileMatch, pathIncludedInQuery } from 'vs/workbench/services/search/common/search';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -43,15 +42,13 @@ import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/com
 import { IUpdateService, State } from 'vs/platform/update/common/update';
 import { IWindowConfiguration, IPath, IPathsToWaitFor, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, isSingleFolderWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { ExportData } from 'vs/base/common/performance';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { IWorkspaceContextService, Workspace, toWorkspaceFolder, IWorkspaceFolder, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IConfigurationService, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, isConfigurationOverrides, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -73,14 +70,6 @@ import { ICommentService, IResourceCommentThreadEvent, IWorkspaceCommentThreadsE
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { CommentingRanges } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
-import { Configuration, DefaultConfigurationModel, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-
-export const workspaceResource = URI.file((<any>self).USER_HOME_DIR || '/').with({
-	scheme: Schemas.vscodeRemote,
-	authority: document.location.host
-});
 
 //#region Backup File
 
@@ -179,101 +168,6 @@ registerSingleton(IClipboardService, SimpleClipboardService, true);
 
 //#endregion
 
-//#region Configuration
-
-export class SimpleConfigurationService extends Disposable implements IConfigurationService {
-
-	_serviceBrand: any;
-
-	private _configuration: Configuration;
-
-	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
-	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
-
-	constructor() {
-		super();
-
-		// Initialize
-		const defaults = new DefaultConfigurationModel();
-		this._configuration = new Configuration(defaults, new ConfigurationModel());
-
-		// Listeners
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDidDefaultConfigurationChange(configurationProperties)));
-	}
-
-	get configuration(): Configuration {
-		return this._configuration;
-	}
-
-	getConfigurationData(): IConfigurationData {
-		return this.configuration.toData();
-	}
-
-	getValue<T>(): T;
-	getValue<T>(section: string): T;
-	getValue<T>(overrides: IConfigurationOverrides): T;
-	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
-	getValue(arg1?: any, arg2?: any): any {
-		const section = typeof arg1 === 'string' ? arg1 : undefined;
-		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
-		return this.configuration.getValue(section, overrides, undefined);
-	}
-
-	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides): Promise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
-		return Promise.reject(new Error('not supported'));
-	}
-
-	inspect<T>(key: string): {
-		default: T,
-		user: T,
-		workspace?: T,
-		workspaceFolder?: T
-		value: T
-	} {
-		return this.configuration.inspect<T>(key, {}, undefined);
-	}
-
-	keys(): {
-		default: string[];
-		user: string[];
-		workspace: string[];
-		workspaceFolder: string[];
-	} {
-		return this.configuration.keys(undefined);
-	}
-
-	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	private onDidDefaultConfigurationChange(keys: string[]): void {
-		this._configuration.updateDefaultConfiguration(new DefaultConfigurationModel());
-		this.trigger(keys, ConfigurationTarget.DEFAULT);
-	}
-
-	private trigger(keys: string[], source: ConfigurationTarget): void {
-		this._onDidChangeConfiguration.fire(new ConfigurationChangeEvent().change(keys).telemetryData(source, this.getTargetConfiguration(source)));
-	}
-
-	private getTargetConfiguration(target: ConfigurationTarget): any {
-		switch (target) {
-			case ConfigurationTarget.DEFAULT:
-				return this._configuration.defaults.contents;
-			case ConfigurationTarget.USER:
-				return this._configuration.localUserConfiguration.contents;
-		}
-		return {};
-	}
-}
-
-registerSingleton(IConfigurationService, SimpleConfigurationService);
-
-//#endregion
-
 //#region Dialog
 
 // export class SimpleDialogService extends StandaloneEditorDialogService { }
@@ -305,17 +199,17 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	untitledWorkspacesHome: URI;
 	extensionTestsLocationURI?: URI;
 	_serviceBrand: any;
-	args = { _: [] };
+	args: any;
 	execPath: string;
 	cliPath: string;
-	appRoot: string = '/web/';
+	appRoot: string;
 	userHome: string;
 	userDataPath: string;
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string = '/web/settings';
-	appSettingsPath: string = '/web/settings/settings.json';
-	appKeybindingsPath: string = '/web/settings/keybindings.json';
+	appSettingsHome: string;
+	appSettingsPath: string;
+	appKeybindingsPath: string;
 	machineSettingsHome: string;
 	machineSettingsPath: string;
 	settingsSearchBuildId?: number;
@@ -331,17 +225,14 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	extensionsPath: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsPath?: string;
-	debugExtensionHost: IExtensionHostDebugParams = {
-		port: null,
-		break: false
-	};
+	debugExtensionHost: IExtensionHostDebugParams;
 	debugSearch: IDebugParams;
 	logExtensionHostCommunication: boolean;
 	isBuilt: boolean;
 	wait: boolean;
 	status: boolean;
 	log?: string;
-	logsPath: string = '/web/logs';
+	logsPath: string;
 	verbose: boolean;
 	skipGettingStarted: boolean;
 	skipReleaseNotes: boolean;
@@ -1639,66 +1530,6 @@ export class SimpleWorkspaceEditingService implements IWorkspaceEditingService {
 }
 
 registerSingleton(IWorkspaceEditingService, SimpleWorkspaceEditingService, true);
-
-//#endregion
-
-//#region Workspace
-
-export class SimpleWorkspaceService implements IWorkspaceContextService {
-	_serviceBrand: any;
-
-	private workspace: Workspace;
-
-	readonly onDidChangeWorkspaceName = Event.None;
-	readonly onDidChangeWorkspaceFolders = Event.None;
-	readonly onDidChangeWorkbenchState = Event.None;
-
-	constructor() {
-		this.workspace = new Workspace(workspaceResource.toString(), [toWorkspaceFolder(workspaceResource)]);
-	}
-
-	getFolders(): IWorkspaceFolder[] {
-		return this.workspace ? this.workspace.folders : [];
-	}
-
-	getWorkbenchState(): WorkbenchState {
-		if (this.workspace.configuration) {
-			return WorkbenchState.WORKSPACE;
-		}
-
-		if (this.workspace.folders.length) {
-			return WorkbenchState.FOLDER;
-		}
-
-		return WorkbenchState.EMPTY;
-	}
-
-	getCompleteWorkspace(): Promise<IWorkspace> {
-		return Promise.resolve(this.getWorkspace());
-	}
-
-	getWorkspace(): IWorkspace {
-		return this.workspace;
-	}
-
-	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
-		return this.workspace.getFolder(resource);
-	}
-
-	isInsideWorkspace(resource: URI): boolean {
-		if (resource && this.workspace) {
-			return isEqualOrParent(resource, this.workspace.folders[0].uri);
-		}
-
-		return false;
-	}
-
-	isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
-		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && isEqual(this.workspace.folders[0].uri, workspaceIdentifier);
-	}
-}
-
-registerSingleton(IWorkspaceContextService, SimpleWorkspaceService);
 
 //#endregion
 

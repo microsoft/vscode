@@ -137,7 +137,7 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .con
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
-	background-image: none !important;
+	background-image: none;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
 	-webkit-mask-position: center;
@@ -739,6 +739,9 @@ body[data-exploration="icon-exploration"] .monaco-editor .suggest-widget .monaco
 	background-color: var(--blue);
 }
 
+body[data-exploration="icon-exploration"] .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon::before {
+	background-image: none !important;
+}
 body[data-exploration="icon-exploration"] .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.method::before,
 body[data-exploration="icon-exploration"] .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.function::before,
 body[data-exploration="icon-exploration"] .monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon.constructor::before {

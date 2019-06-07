@@ -962,10 +962,10 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed: toRemove });
 	}
 
-	updateBreakpoints(data: { [id: string]: IBreakpointUpdateData }): void {
+	updateBreakpoints(data: Map<string, IBreakpointUpdateData>): void {
 		const updated: IBreakpoint[] = [];
 		this.breakpoints.forEach(bp => {
-			const bpData = data[bp.getId()];
+			const bpData = data.get(bp.getId());
 			if (bpData) {
 				bp.update(bpData);
 				updated.push(bp);
@@ -975,15 +975,15 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ changed: updated });
 	}
 
-	setBreakpointSessionData(sessionId: string, data: { [id: string]: DebugProtocol.Breakpoint }): void {
+	setBreakpointSessionData(sessionId: string, data: Map<string, DebugProtocol.Breakpoint>): void {
 		this.breakpoints.forEach(bp => {
-			const bpData = data[bp.getId()];
+			const bpData = data.get(bp.getId());
 			if (bpData) {
 				bp.setSessionData(sessionId, bpData);
 			}
 		});
 		this.functionBreakpoints.forEach(fbp => {
-			const fbpData = data[fbp.getId()];
+			const fbpData = data.get(fbp.getId());
 			if (fbpData) {
 				fbp.setSessionData(sessionId, fbpData);
 			}

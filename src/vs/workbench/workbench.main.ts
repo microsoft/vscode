@@ -162,6 +162,7 @@ registerSingleton(IMenubarService, MenubarService);
 registerSingleton(IURLService, RelayURLService);
 registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
+registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 
 //#endregion
 
@@ -326,5 +327,7 @@ import 'vs/workbench/contrib/experiments/electron-browser/experiments.contributi
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 
 //#endregion

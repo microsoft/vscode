@@ -8,7 +8,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, IReference, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import 'vs/css!./media/referencesWidget';
@@ -47,17 +47,17 @@ class DecorationsManager implements IDisposable {
 
 	private _decorations = new Map<string, OneReference>();
 	private _decorationIgnoreSet = new Set<string>();
-	private _callOnDispose: IDisposable[] = [];
-	private _callOnModelChange: IDisposable[] = [];
+	private _callOnDispose = new DisposableStore();
+	private _callOnModelChange = new DisposableStore();
 
 	constructor(private _editor: ICodeEditor, private _model: ReferencesModel) {
-		this._callOnDispose.push(this._editor.onDidChangeModel(() => this._onModelChanged()));
+		this._callOnDispose.add(this._editor.onDidChangeModel(() => this._onModelChanged()));
 		this._onModelChanged();
 	}
 
 	public dispose(): void {
-		this._callOnModelChange = dispose(this._callOnModelChange);
-		this._callOnDispose = dispose(this._callOnDispose);
+		this._callOnModelChange.dispose();
+		this._callOnDispose.dispose();
 		this.removeDecorations();
 	}
 
@@ -78,7 +78,7 @@ class DecorationsManager implements IDisposable {
 		if (!this._editor.hasModel()) {
 			return;
 		}
-		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
+		this._callOnModelChange.add(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
 
 		const newDecorations: IModelDeltaDecoration[] = [];
 		const newDecorationsActualIndex: number[] = [];
@@ -194,8 +194,8 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _model: ReferencesModel | undefined;
 	private _decorationsManager: DecorationsManager;
 
-	private _disposeOnNewModel: IDisposable[] = [];
-	private _callOnDispose: IDisposable[] = [];
+	private _disposeOnNewModel = new DisposableStore();
+	private _callOnDispose = new DisposableStore();
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
 	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
@@ -222,14 +222,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
 		this._applyTheme(themeService.getTheme());
-		this._callOnDispose.push(themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._callOnDispose.add(themeService.onThemeChange(this._applyTheme.bind(this)));
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this.create();
 	}
 
 	dispose(): void {
 		this.setModel(undefined);
-		this._callOnDispose = dispose(this._callOnDispose);
+		this._callOnDispose.dispose();
 		dispose(this._preview);
 		dispose(this._previewNotAvailableMessage);
 		dispose(this._tree);
@@ -446,13 +446,13 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		dom.hide(this._messageContainer);
 		this._decorationsManager = new DecorationsManager(this._preview, this._model);
-		this._disposeOnNewModel.push(this._decorationsManager);
+		this._disposeOnNewModel.add(this._decorationsManager);
 
 		// listen on model changes
-		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.rerender(reference)));
+		this._disposeOnNewModel.add(this._model.onDidChangeReferenceRange(reference => this._tree.rerender(reference)));
 
 		// listen on editor
-		this._disposeOnNewModel.push(this._preview.onMouseDown(e => {
+		this._disposeOnNewModel.add(this._preview.onMouseDown(e => {
 			const { event, target } = e;
 			if (event.detail !== 2) {
 				return;
