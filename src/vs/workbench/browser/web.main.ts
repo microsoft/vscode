@@ -29,6 +29,7 @@ import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/w
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { ConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
+import { WebResources } from 'vs/workbench/browser/web.resources';
 
 interface IWindowConfiguration {
 	settingsUri: URI;
@@ -60,6 +61,9 @@ class CodeRendererMain extends Disposable {
 
 		// Layout
 		this._register(addDisposableListener(window, EventType.RESIZE, () => this.workbench.layout()));
+
+		// Resource Loading
+		this._register(new WebResources(<IFileService>services.serviceCollection.get(IFileService)));
 
 		// Workbench Lifecycle
 		this._register(this.workbench.onShutdown(() => this.dispose()));
