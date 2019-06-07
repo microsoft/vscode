@@ -105,35 +105,35 @@ export class CodeActionOracle extends Disposable {
 		return selection ? selection : undefined;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Promise<CodeActionSet | undefined> {
+	private async _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Promise<CodeActionSet | undefined> {
 		if (!selection) {
 			// cancel
 			this._signalChange(CodeActionsState.Empty);
-			return Promise.resolve(undefined);
-		} else {
-			const model = this._editor.getModel();
-			if (!model) {
-				// cancel
-				this._signalChange(CodeActionsState.Empty);
-				return Promise.resolve(undefined);
-			}
-
-			const markerRange = this._getRangeOfMarker(selection);
-			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
-			const actions = createCancelablePromise(token => getCodeActions(model, selection, trigger, token));
-
-			if (this._progressService && trigger.type === 'manual') {
-				this._progressService.showWhile(actions, 250);
-			}
-
-			this._signalChange(new CodeActionsState.Triggered(
-				trigger,
-				selection,
-				position,
-				actions
-			));
-			return actions;
+			return undefined;
 		}
+
+		const model = this._editor.getModel();
+		if (!model) {
+			// cancel
+			this._signalChange(CodeActionsState.Empty);
+			return undefined;
+		}
+
+		const markerRange = this._getRangeOfMarker(selection);
+		const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
+		const actions = createCancelablePromise(token => getCodeActions(model, selection, trigger, token));
+
+		if (this._progressService && trigger.type === 'manual') {
+			this._progressService.showWhile(actions, 250);
+		}
+
+		this._signalChange(new CodeActionsState.Triggered(
+			trigger,
+			selection,
+			position,
+			actions
+		));
+		return actions;
 	}
 }
 
