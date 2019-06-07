@@ -36,9 +36,8 @@
 		],
 			// @ts-ignore
 			function () {
-
 				// @ts-ignore
-				require('vs/workbench/browser/web.main').main().then(undefined, console.error);
+				require('vs/workbench/browser/web.main').main(self['WINDOW_CONFIGURATION']).then(undefined, console.error);
 			});
 	});
 })();
