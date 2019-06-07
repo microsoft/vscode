@@ -462,11 +462,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return compositeItem ? compositeItem.localProgressService : null;
 	}
 
-	protected getActions(): IAction[] {
+	protected getActions(): ReadonlyArray<IAction> {
 		return [];
 	}
 
-	protected getSecondaryActions(): IAction[] {
+	protected getSecondaryActions(): ReadonlyArray<IAction> {
 		return [];
 	}
 
