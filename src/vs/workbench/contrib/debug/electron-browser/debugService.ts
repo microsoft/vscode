@@ -854,7 +854,7 @@ export class DebugService implements IDebugService {
 		return this.sendBreakpoints(uri).then(() => breakpoints);
 	}
 
-	updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }, sendOnResourceSaved: boolean): void {
+	updateBreakpoints(uri: uri, data: Map<string, DebugProtocol.Breakpoint>, sendOnResourceSaved: boolean): void {
 		this.model.updateBreakpoints(data);
 		if (sendOnResourceSaved) {
 			this.breakpointsToSendOnResourceSaved.add(uri.toString());
