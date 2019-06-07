@@ -106,7 +106,6 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _getWindowsBuildNumber(): number;
 	protected abstract _showBackgroundTerminal(instance: ITerminalInstance): void;
 
-	public abstract refreshActiveTab(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract getDefaultShell(platform: Platform): string;
@@ -206,6 +205,11 @@ export abstract class TerminalService implements ITerminalService {
 		if (wasActiveTab) {
 			this._onActiveTabChanged.fire();
 		}
+	}
+
+	public refreshActiveTab(): void {
+		// Fire active instances changed
+		this._onActiveTabChanged.fire();
 	}
 
 	public getActiveTab(): ITerminalTab | null {
