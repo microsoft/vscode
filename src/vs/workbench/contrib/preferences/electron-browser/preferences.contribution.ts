@@ -405,7 +405,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor-inverse.svg`))
 				}
 			},
-			when: ResourceContextKey.Resource.isEqualTo(URI.file(environmentService.appSettingsPath).toString()),
+			when: ResourceContextKey.Resource.isEqualTo(environmentService.settingsResource.toString()),
 			group: 'navigation',
 			order: 1
 		});

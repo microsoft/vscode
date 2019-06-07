@@ -528,7 +528,7 @@ export class ConfigurationEditingService {
 
 	private getConfigurationFileResource(target: EditableConfigurationTarget, config: IConfigurationValue, relativePath: string, resource: URI | null | undefined): URI | null {
 		if (target === EditableConfigurationTarget.USER_LOCAL) {
-			return URI.file(this.environmentService.appSettingsPath);
+			return this.environmentService.settingsResource;
 		}
 		if (target === EditableConfigurationTarget.USER_REMOTE) {
 			return this.remoteSettingsResource;
