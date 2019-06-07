@@ -9,6 +9,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IAction } from 'vs/base/common/actions';
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -61,19 +62,14 @@ export class NotificationService extends Disposable implements INotificationServ
 		let handle: INotificationHandle;
 
 		// Convert choices into primary/secondary actions
-		const actions: INotificationActions = { primary: [], secondary: [] };
+		const primaryActions: IAction[] = [];
+		const secondaryActions: IAction[] = [];
 		choices.forEach((choice, index) => {
 			const action = new ChoiceAction(`workbench.dialog.choice.${index}`, choice);
 			if (!choice.isSecondary) {
-				if (!actions.primary) {
-					actions.primary = [];
-				}
-				actions.primary.push(action);
+				primaryActions.push(action);
 			} else {
-				if (!actions.secondary) {
-					actions.secondary = [];
-				}
-				actions.secondary.push(action);
+				secondaryActions.push(action);
 			}
 
 			// React to action being clicked
@@ -90,6 +86,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		});
 
 		// Show notification with actions
+		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
 		handle = this.notify({ severity, message, actions, sticky: options && options.sticky, silent: options && options.silent });
 
 		Event.once(handle.onDidClose)(() => {

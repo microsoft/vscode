@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename } from 'vs/base/common/resources';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, IResolvedTextFileEditorModel, IWriteTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
@@ -106,7 +106,8 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 		const resource = model.getResource();
 
 		let message: string;
-		const actions: INotificationActions = { primary: [], secondary: [] };
+		const primaryActions: IAction[] = [];
+		const secondaryActions: IAction[] = [];
 
 		// Dirty write prevention
 		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
@@ -119,15 +120,15 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 				message = conflictEditorHelp;
 
-				actions.primary!.push(this.instantiationService.createInstance(ResolveConflictLearnMoreAction));
-				actions.secondary!.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
+				primaryActions.push(this.instantiationService.createInstance(ResolveConflictLearnMoreAction));
+				secondaryActions.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
 			}
 
 			// Otherwise show the message that will lead the user into the save conflict editor.
 			else {
 				message = nls.localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Please compare your version with the file contents.", basename(resource));
 
-				actions.primary!.push(this.instantiationService.createInstance(ResolveSaveConflictAction, model));
+				primaryActions.push(this.instantiationService.createInstance(ResolveSaveConflictAction, model));
 			}
 		}
 
@@ -140,24 +141,24 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 
 			// Save Elevated
 			if (canHandlePermissionOrReadonlyErrors && (isPermissionDenied || triedToMakeWriteable)) {
-				actions.primary!.push(this.instantiationService.createInstance(SaveElevatedAction, model, triedToMakeWriteable));
+				primaryActions.push(this.instantiationService.createInstance(SaveElevatedAction, model, triedToMakeWriteable));
 			}
 
 			// Overwrite
 			else if (canHandlePermissionOrReadonlyErrors && isReadonly) {
-				actions.primary!.push(this.instantiationService.createInstance(OverwriteReadonlyAction, model));
+				primaryActions.push(this.instantiationService.createInstance(OverwriteReadonlyAction, model));
 			}
 
 			// Retry
 			else {
-				actions.primary!.push(this.instantiationService.createInstance(ExecuteCommandAction, SAVE_FILE_COMMAND_ID, nls.localize('retry', "Retry")));
+				primaryActions.push(this.instantiationService.createInstance(ExecuteCommandAction, SAVE_FILE_COMMAND_ID, nls.localize('retry', "Retry")));
 			}
 
 			// Save As
-			actions.primary!.push(this.instantiationService.createInstance(ExecuteCommandAction, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL));
+			primaryActions.push(this.instantiationService.createInstance(ExecuteCommandAction, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL));
 
 			// Discard
-			actions.primary!.push(this.instantiationService.createInstance(ExecuteCommandAction, REVERT_FILE_COMMAND_ID, nls.localize('discard', "Discard")));
+			primaryActions.push(this.instantiationService.createInstance(ExecuteCommandAction, REVERT_FILE_COMMAND_ID, nls.localize('discard', "Discard")));
 
 			// Message
 			if (canHandlePermissionOrReadonlyErrors && isReadonly) {
@@ -174,8 +175,9 @@ export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, I
 		}
 
 		// Show message and keep function to hide in case the file gets saved/reverted
+		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
 		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
-		Event.once(handle.onDidClose)(() => { dispose(actions.primary!), dispose(actions.secondary!); });
+		Event.once(handle.onDidClose)(() => { dispose(primaryActions), dispose(secondaryActions); });
 		this.messages.set(model.getResource(), handle);
 	}
 
@@ -253,12 +255,16 @@ class ResolveSaveConflictAction extends Action {
 			}
 
 			// Show additional help how to resolve the save conflict
-			const actions: INotificationActions = { primary: [], secondary: [] };
-			actions.primary!.push(this.instantiationService.createInstance(ResolveConflictLearnMoreAction));
-			actions.secondary!.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
+			const primaryActions: IAction[] = [
+				this.instantiationService.createInstance(ResolveConflictLearnMoreAction)
+			];
+			const secondaryActions: IAction[] = [
+				this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction)
+			];
 
+			const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
 			const handle = this.notificationService.notify({ severity: Severity.Info, message: conflictEditorHelp, actions });
-			Event.once(handle.onDidClose)(() => { dispose(actions.primary!); dispose(actions.secondary!); });
+			Event.once(handle.onDidClose)(() => { dispose(primaryActions); dispose(secondaryActions); });
 			pendingResolveSaveConflictMessages.push(handle);
 		}
 
