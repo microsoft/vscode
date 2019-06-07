@@ -1041,7 +1041,7 @@ export class QuickOpenActionTermContributor extends ActionBarContributor {
 		super();
 	}
 
-	public getActions(context: any): IAction[] {
+	public getActions(context: any): ReadonlyArray<IAction> {
 		const actions: Action[] = [];
 		if (context.element instanceof TerminalEntry) {
 			actions.push(this.instantiationService.createInstance(RenameTerminalQuickOpenAction, RenameTerminalQuickOpenAction.ID, RenameTerminalQuickOpenAction.LABEL, context.element));

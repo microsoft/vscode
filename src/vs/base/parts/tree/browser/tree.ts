@@ -576,7 +576,7 @@ export interface IActionProvider {
 	hasActions(tree: ITree | null, element: any): boolean;
 
 	/**
-	 * Returns a promise of an array with the actions of the element that should show up in place right to the element in the tree.
+	 * Returns an array with the actions of the element that should show up in place right to the element in the tree.
 	 */
-	getActions(tree: ITree | null, element: any): IAction[] | null;
+	getActions(tree: ITree | null, element: any): ReadonlyArray<IAction> | null;
 }

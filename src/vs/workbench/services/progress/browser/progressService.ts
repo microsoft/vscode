@@ -143,8 +143,8 @@ export class ProgressService implements IProgressService {
 				return undefined; // we need a message at least
 			}
 
-			const primaryActions = options.primaryActions || [];
-			const secondaryActions = options.secondaryActions || [];
+			const primaryActions = options.primaryActions ? Array.from(options.primaryActions) : [];
+			const secondaryActions = options.secondaryActions ? Array.from(options.secondaryActions) : [];
 			if (options.cancellable) {
 				const cancelAction = new class extends Action {
 					constructor() {
