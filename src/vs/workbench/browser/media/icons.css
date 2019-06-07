@@ -1064,6 +1064,7 @@ body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-hea
 body[data-exploration="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-exploration="icon-exploration"] .monaco-tl-twistie.collapsible:not(.loading) {
 	-webkit-mask-image: url("images/tree/expand-alt1.svg");
+	background-image: url("images/tree/expand-alt1.svg");
 }
 
 body[data-exploration="icon-exploration"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
@@ -1072,6 +1073,8 @@ body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-hea
 body[data-exploration="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-exploration="icon-exploration"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	-webkit-mask-image: url("images/tree/collapse-alt1.svg");
+	background-image: url("images/tree/collapse-alt1.svg");
+
 }
 
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.closeActiveEditor"],

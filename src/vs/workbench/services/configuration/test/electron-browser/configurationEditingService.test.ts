@@ -47,7 +47,7 @@ class SettingsTestEnvironmentService extends EnvironmentService {
 		super(args, _execPath);
 	}
 
-	get appSettingsPath(): string { return this.customAppSettingsHome; }
+	get settingsResource(): URI { return URI.file(this.customAppSettingsHome); }
 }
 
 suite('ConfigurationEditingService', () => {
@@ -105,7 +105,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), remoteAgentService);
+		const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, configurationCache: new ConfigurationCache(environmentService) }, new ConfigurationFileService(), remoteAgentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);

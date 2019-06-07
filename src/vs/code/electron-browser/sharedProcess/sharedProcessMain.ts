@@ -98,7 +98,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	disposables.push(logService);
 	logService.info('main', JSON.stringify(configuration));
 
-	const configurationService = new ConfigurationService(environmentService.appSettingsPath);
+	const configurationService = new ConfigurationService(environmentService.settingsResource.path);
 	disposables.push(configurationService);
 	await configurationService.initialize();
 

@@ -524,9 +524,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		switch (configurationTarget) {
 			case ConfigurationTarget.USER:
 			case ConfigurationTarget.USER_LOCAL:
-				return URI.file(this.environmentService.appSettingsPath);
+				return this.environmentService.settingsResource;
 			case ConfigurationTarget.USER_REMOTE:
-				return URI.file(this.environmentService.appSettingsPath);
+				return this.environmentService.settingsResource;
 			case ConfigurationTarget.WORKSPACE:
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					return null;

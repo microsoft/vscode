@@ -303,7 +303,7 @@ class CodeRendererMain extends Disposable {
 		const configurationFileService = new ConfigurationFileService();
 		configurationFileService.fileService = fileService;
 
-		const workspaceService = new WorkspaceService({ userSettingsResource: URI.file(environmentService.appSettingsPath), remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
+		const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache(environmentService) }, configurationFileService, remoteAgentService);
 
 		try {
 			await workspaceService.initialize(payload);
