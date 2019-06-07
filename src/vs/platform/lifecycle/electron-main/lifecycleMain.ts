@@ -135,7 +135,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 
-	private windowToCloseRequest: { [windowId: string]: boolean } = Object.create(null);
+	private windowToCloseRequest: Set<number> = new Set();
 	private oneTimeListenerTokenGenerator = 0;
 	private windowCounter = 0;
 
@@ -317,8 +317,8 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
-			if (this.windowToCloseRequest[windowId]) {
-				delete this.windowToCloseRequest[windowId];
+			if (this.windowToCloseRequest.has(windowId)) {
+				this.windowToCloseRequest.delete(windowId);
 
 				return;
 			}
@@ -329,11 +329,11 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			e.preventDefault();
 			this.unload(window, UnloadReason.CLOSE).then(veto => {
 				if (veto) {
-					delete this.windowToCloseRequest[windowId];
+					this.windowToCloseRequest.delete(windowId);
 					return;
 				}
 
-				this.windowToCloseRequest[windowId] = true;
+				this.windowToCloseRequest.add(windowId);
 
 				// Fire onBeforeWindowClose before actually closing
 				this.logService.trace(`Lifecycle#onBeforeWindowClose.fire() - window ID ${windowId}`);

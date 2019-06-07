@@ -149,22 +149,23 @@ export interface IReference<T> extends IDisposable {
 
 export abstract class ReferenceCollection<T> {
 
-	private references: { [key: string]: { readonly object: T; counter: number; } } = Object.create(null);
+	private references: Map<string, { readonly object: T; counter: number; }> = new Map();
 
 	constructor() { }
 
 	acquire(key: string): IReference<T> {
-		let reference = this.references[key];
+		let reference = this.references.get(key);
 
 		if (!reference) {
-			reference = this.references[key] = { counter: 0, object: this.createReferencedObject(key) };
+			reference = { counter: 0, object: this.createReferencedObject(key) };
+			this.references.set(key, reference);
 		}
 
 		const { object } = reference;
 		const dispose = once(() => {
-			if (--reference.counter === 0) {
-				this.destroyReferencedObject(key, reference.object);
-				delete this.references[key];
+			if (--reference!.counter === 0) {
+				this.destroyReferencedObject(key, reference!.object);
+				this.references.delete(key);
 			}
 		});
 

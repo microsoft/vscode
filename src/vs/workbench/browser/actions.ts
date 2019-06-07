@@ -155,7 +155,7 @@ export interface IActionBarRegistry {
 
 class ActionBarRegistry implements IActionBarRegistry {
 	private readonly actionBarContributorConstructors: { scope: string; ctor: IConstructorSignature0<ActionBarContributor>; }[] = [];
-	private readonly actionBarContributorInstances: { [scope: string]: ActionBarContributor[] } = Object.create(null);
+	private readonly actionBarContributorInstances: Map<string, ActionBarContributor[]> = new Map();
 	private instantiationService: IInstantiationService;
 
 	start(accessor: ServicesAccessor): void {
@@ -169,15 +169,16 @@ class ActionBarRegistry implements IActionBarRegistry {
 
 	private createActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void {
 		const instance = this.instantiationService.createInstance(ctor);
-		let target = this.actionBarContributorInstances[scope];
+		let target = this.actionBarContributorInstances.get(scope);
 		if (!target) {
-			target = this.actionBarContributorInstances[scope] = [];
+			target = [];
+			this.actionBarContributorInstances.set(scope, target);
 		}
 		target.push(instance);
 	}
 
 	private getContributors(scope: string): ActionBarContributor[] {
-		return this.actionBarContributorInstances[scope] || [];
+		return this.actionBarContributorInstances.get(scope) || [];
 	}
 
 	registerActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void {

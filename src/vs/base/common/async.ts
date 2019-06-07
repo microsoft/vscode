@@ -415,11 +415,11 @@ export class Limiter<T> {
 		this._onFinished = new Emitter<void>();
 	}
 
-	public get onFinished(): Event<void> {
+	get onFinished(): Event<void> {
 		return this._onFinished.event;
 	}
 
-	public get size(): number {
+	get size(): number {
 		return this._size;
 		// return this.runningPromises + this.outstandingPromises.length;
 	}
@@ -455,7 +455,7 @@ export class Limiter<T> {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._onFinished.dispose();
 	}
 }
@@ -475,25 +475,21 @@ export class Queue<T> extends Limiter<T> {
  * by disposing them once the queue is empty.
  */
 export class ResourceQueue {
-	private queues: { [path: string]: Queue<void> };
+	private queues: Map<string, Queue<void>> = new Map();
 
-	constructor() {
-		this.queues = Object.create(null);
-	}
-
-	public queueFor(resource: URI): Queue<void> {
+	queueFor(resource: URI): Queue<void> {
 		const key = resource.toString();
-		if (!this.queues[key]) {
+		if (!this.queues.has(key)) {
 			const queue = new Queue<void>();
 			queue.onFinished(() => {
 				queue.dispose();
-				delete this.queues[key];
+				this.queues.delete(key);
 			});
 
-			this.queues[key] = queue;
+			this.queues.set(key, queue);
 		}
 
-		return this.queues[key];
+		return this.queues.get(key)!;
 	}
 }
 
