@@ -29,14 +29,15 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { localize } from 'vs/nls';
 import { IAddedViewDescriptorRef, IViewDescriptorRef, PersistentContributableViewsModel } from 'vs/workbench/browser/parts/views/views';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { MementoObject } from 'vs/workbench/common/memento';
 
 export interface IViewletViewOptions extends IViewletPanelOptions {
-	viewletState: object;
+	viewletState: MementoObject;
 }
 
 export abstract class ViewContainerViewlet extends PanelViewlet implements IViewsViewlet {
 
-	private readonly viewletState: object;
+	private readonly viewletState: MementoObject;
 	private didLayout = false;
 	private dimension: DOM.Dimension;
 	private areExtensionsReady: boolean = false;
