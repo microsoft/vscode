@@ -16,7 +16,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Event, Emitter } from 'vs/base/common/event';
-import { asArray } from 'vs/base/common/arrays';
 
 export interface IActionViewItem {
 	actionRunner: IActionRunner;
@@ -596,8 +595,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return this.domNode;
 	}
 
-	push(arg: IAction | IAction[], options: IActionOptions = {}): void {
-		const actions: IAction[] = asArray(arg);
+	push(arg: IAction | ReadonlyArray<IAction>, options: IActionOptions = {}): void {
+		const actions: ReadonlyArray<IAction> = Array.isArray(arg) ? arg : [arg];
 
 		let index = types.isNumber(options.index) ? options.index : null;
 

@@ -78,7 +78,7 @@ export class Menu extends ActionBar {
 
 	private readonly _onScroll: Emitter<void>;
 
-	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
+	constructor(container: HTMLElement, actions: ReadonlyArray<IAction>, options: IMenuOptions = {}) {
 		addClass(container, 'monaco-menu-container');
 		container.setAttribute('role', 'presentation');
 		const menuElement = document.createElement('div');
