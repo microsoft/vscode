@@ -145,8 +145,7 @@ class CodeLensAdapter {
 	resolveCodeLens(symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined> {
 
 		const lens = symbol.cacheId && this._cache.get(...symbol.cacheId);
-		const disposables = symbol.cacheId && this._disposables.get(symbol.cacheId[0]);
-		if (!lens || !disposables) {
+		if (!lens) {
 			return Promise.resolve(undefined);
 		}
 
@@ -158,6 +157,16 @@ class CodeLensAdapter {
 		}
 
 		return resolve.then(newLens => {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			const disposables = symbol.cacheId && this._disposables.get(symbol.cacheId[0]);
+			if (!disposables) {
+				// We've already been disposed of
+				return undefined;
+			}
+
 			newLens = newLens || lens;
 			symbol.command = this._commands.toInternal2(newLens.command || CodeLensAdapter._badCmd, disposables);
 			return symbol;
