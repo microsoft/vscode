@@ -26,6 +26,7 @@ import { exists } from 'vs/base/node/pfs';
 export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
+	private static readonly MAX_MACOS_DOCK_RECENT_FOLDERS = 5;
 
 	// Exclude some very common files from the dock/taskbar
 	private static readonly COMMON_FILES_FILTER = [
@@ -161,12 +162,13 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 
 		// Fill in workspaces
-		for (let i = mru.workspaces.length - 1; i >= 0; i--) {
+		for (let i = mru.workspaces.length - 1, entries = 0; i >= 0 && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FOLDERS; i--) {
 			const loc = location(mru.workspaces[i]);
 			if (loc.scheme === Schemas.file) {
 				const workspacePath = originalFSPath(loc);
 				if (await exists(workspacePath)) {
 					app.addRecentDocument(workspacePath);
+					entries++;
 				}
 			}
 		}
