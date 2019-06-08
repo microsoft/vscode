@@ -28,7 +28,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { ILogService, LogLevel, ConsoleLogService } from 'vs/platform/log/common/log';
 import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IProductService } from 'vs/platform/product/common/product';
 import { ISearchService, ITextQueryProps, ISearchProgressItem, ISearchComplete, IFileQueryProps, SearchProviderType, ISearchResultProvider, ITextQuery, IFileMatch, QueryType, FileMatch, pathIncludedInQuery } from 'vs/workbench/services/search/common/search';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -768,21 +767,6 @@ registerSingleton(ILifecycleService, SimpleLifecycleService);
 //#region Log
 
 export class SimpleLogService extends ConsoleLogService { }
-
-//#endregion
-
-//#region Menu Bar
-
-export class SimpleMenubarService implements IMenubarService {
-
-	_serviceBrand: any;
-
-	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-}
-
-registerSingleton(IMenubarService, SimpleMenubarService);
 
 //#endregion
 
