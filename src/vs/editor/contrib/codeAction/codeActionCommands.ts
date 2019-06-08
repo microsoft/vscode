@@ -133,7 +133,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		return QuickFixController.ID;
 	}
 
-	public triggerForCurrentSelection(
+	public manualTriggerAtCurrentPosition(
 		notAvailableMessage: string,
 		filter?: CodeActionFilter,
 		autoApply?: CodeActionAutoApply
@@ -194,7 +194,7 @@ function triggerCodeActionsForEditorSelection(
 	if (editor.hasModel()) {
 		const controller = QuickFixController.get(editor);
 		if (controller) {
-			controller.triggerForCurrentSelection(notAvailableMessage, filter, autoApply);
+			controller.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply);
 		}
 	}
 }
