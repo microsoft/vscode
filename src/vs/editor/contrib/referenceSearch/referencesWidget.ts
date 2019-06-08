@@ -47,8 +47,8 @@ class DecorationsManager implements IDisposable {
 
 	private _decorations = new Map<string, OneReference>();
 	private _decorationIgnoreSet = new Set<string>();
-	private _callOnDispose = new DisposableStore();
-	private _callOnModelChange = new DisposableStore();
+	private readonly _callOnDispose = new DisposableStore();
+	private readonly _callOnModelChange = new DisposableStore();
 
 	constructor(private _editor: ICodeEditor, private _model: ReferencesModel) {
 		this._callOnDispose.add(this._editor.onDidChangeModel(() => this._onModelChanged()));
@@ -62,7 +62,7 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _onModelChanged(): void {
-		this._callOnModelChange = dispose(this._callOnModelChange);
+		this._callOnModelChange.clear();
 		const model = this._editor.getModel();
 		if (model) {
 			for (const ref of this._model.groups) {
