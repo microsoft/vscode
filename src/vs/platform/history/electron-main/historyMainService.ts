@@ -162,16 +162,20 @@ export class HistoryMainService implements IHistoryMainService {
 		}
 
 		// Fill in workspaces
-		for (let i = mru.workspaces.length - 1, entries = 0; i >= 0 && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FOLDERS; i--) {
+		let workspaces = [];
+		for (let i = mru.workspaces.length - 1; i >= 0; i--) {
 			const loc = location(mru.workspaces[i]);
 			if (loc.scheme === Schemas.file) {
 				const workspacePath = originalFSPath(loc);
 				if (await exists(workspacePath)) {
-					app.addRecentDocument(workspacePath);
-					entries++;
+					workspaces.push(workspacePath);
 				}
 			}
 		}
+
+		workspaces.slice(-HistoryMainService.MAX_MACOS_DOCK_RECENT_FOLDERS).forEach(workspace => {
+			app.addRecentDocument(workspace);
+		});
 	}
 
 	clearRecentlyOpened(): void {
