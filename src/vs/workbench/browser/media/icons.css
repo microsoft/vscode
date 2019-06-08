@@ -358,6 +358,10 @@ body[data-exploration="icon-exploration"] .search-view .search-widget .toggle-re
 	Git
 ****************/
 
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.init"] {
+	-webkit-mask-image: url("images/git/initialze.svg");
+}
+
 body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"],
 body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"] {
 	-webkit-mask-image: url("images/git/check-alt1.svg");
