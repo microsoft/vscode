@@ -147,25 +147,29 @@ export class HistoryMainService implements IHistoryMainService {
 
 		const mru = this.getRecentlyOpened();
 
-		// Fill in workspaces
-		for (let i = 0, entries = 0; i < mru.workspaces.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FOLDERS; i++) {
-			const loc = location(mru.workspaces[i]);
-			if (loc.scheme === Schemas.file) {
-				const workspacePath = originalFSPath(loc);
-				if (await exists(workspacePath)) {
-					app.addRecentDocument(workspacePath);
-					entries++;
-				}
-			}
-		}
+		// macOS only shows last n items of recent document list if it has more than the config
+		// of System Preferences/General/Recent items. To match VSCode Recent workspace/file list,
+		// add files first, then workspaces, and add in reverse order.
 
 		// Fill in files
-		for (let i = 0, entries = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i++) {
+		for (let i = mru.files.length - 1, entries = 0; i >= 0 && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i--) {
 			const loc = location(mru.files[i]);
 			if (loc.scheme === Schemas.file && HistoryMainService.COMMON_FILES_FILTER.indexOf(basename(loc)) === -1) {
 				const filePath = originalFSPath(loc);
 				if (await exists(filePath)) {
 					app.addRecentDocument(filePath);
+					entries++;
+				}
+			}
+		}
+
+		// Fill in workspaces
+		for (let i = mru.workspaces.length - 1, entries = 0; i >= 0 && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FOLDERS; i--) {
+			const loc = location(mru.workspaces[i]);
+			if (loc.scheme === Schemas.file) {
+				const workspacePath = originalFSPath(loc);
+				if (await exists(workspacePath)) {
+					app.addRecentDocument(workspacePath);
 					entries++;
 				}
 			}
