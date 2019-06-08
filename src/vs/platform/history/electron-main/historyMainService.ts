@@ -26,8 +26,6 @@ import { exists } from 'vs/base/node/pfs';
 export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
-	private static readonly MAX_MACOS_DOCK_RECENT_FOLDERS = 10;
-	private static readonly MAX_MACOS_DOCK_RECENT_FILES = 5;
 
 	// Exclude some very common files from the dock/taskbar
 	private static readonly COMMON_FILES_FILTER = [
@@ -152,25 +150,23 @@ export class HistoryMainService implements IHistoryMainService {
 		// add files first, then workspaces, and add in reverse order.
 
 		// Fill in files
-		for (let i = mru.files.length - 1, entries = 0; i >= 0 && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i--) {
+		for (let i = mru.files.length - 1; i >= 0; i--) {
 			const loc = location(mru.files[i]);
 			if (loc.scheme === Schemas.file && HistoryMainService.COMMON_FILES_FILTER.indexOf(basename(loc)) === -1) {
 				const filePath = originalFSPath(loc);
 				if (await exists(filePath)) {
 					app.addRecentDocument(filePath);
-					entries++;
 				}
 			}
 		}
 
 		// Fill in workspaces
-		for (let i = mru.workspaces.length - 1, entries = 0; i >= 0 && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FOLDERS; i--) {
+		for (let i = mru.workspaces.length - 1; i >= 0; i--) {
 			const loc = location(mru.workspaces[i]);
 			if (loc.scheme === Schemas.file) {
 				const workspacePath = originalFSPath(loc);
 				if (await exists(workspacePath)) {
 					app.addRecentDocument(workspacePath);
-					entries++;
 				}
 			}
 		}
