@@ -313,6 +313,11 @@ export interface ConfigurationProperties {
 	dependsOn?: string | TaskIdentifier | Array<string | TaskIdentifier>;
 
 	/**
+	 * The order the dependsOn tasks should be executed in.
+	 */
+	dependsOrder?: string;
+
+	/**
 	 * Controls the behavior of the used terminal
 	 */
 	presentation?: PresentationOptionsConfig;
@@ -1214,6 +1219,18 @@ namespace TaskDependency {
 	}
 }
 
+namespace DependsOrder {
+	export function from(order: string | undefined): Tasks.DependsOrder {
+		switch (order) {
+			case Tasks.DependsOrder.sequence:
+				return Tasks.DependsOrder.sequence;
+			case Tasks.DependsOrder.parallel:
+			default:
+				return Tasks.DependsOrder.parallel;
+		}
+	}
+}
+
 namespace ConfigurationProperties {
 
 	const properties: MetaData<Tasks.ConfigurationProperties, any>[] = [
@@ -1269,6 +1286,7 @@ namespace ConfigurationProperties {
 				result.dependsOn = dependsOnValue ? [dependsOnValue] : undefined;
 			}
 		}
+		result.dependsOrder = DependsOrder.from(external.dependsOrder);
 		if (includeCommandOptions && (external.presentation !== undefined || (external as LegacyCommandProperties).terminal !== undefined)) {
 			result.presentation = CommandConfiguration.PresentationOptions.from(external, context);
 		}
@@ -1389,7 +1407,6 @@ namespace ConfiguringTask {
 }
 
 namespace CustomTask {
-
 	export function from(this: void, external: CustomTask, context: ParseContext, index: number): Tasks.CustomTask | undefined {
 		if (!external) {
 			return undefined;

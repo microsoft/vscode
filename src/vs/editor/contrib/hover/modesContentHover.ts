@@ -187,6 +187,10 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	}
 }
 
+interface ActionSet extends IDisposable {
+	readonly actions: Action[];
+}
+
 export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
@@ -535,10 +539,11 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const codeActionsPromise = this.getCodeActions(markerHover.marker);
 				disposables.add(toDisposable(() => codeActionsPromise.cancel()));
 				const actions = await codeActionsPromise;
+				disposables.add(actions);
 				const elementPosition = dom.getDomNodePagePosition(target);
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => ({ x: elementPosition.left + 6, y: elementPosition.top + elementPosition.height + 6 }),
-					getActions: () => actions
+					getActions: () => actions.actions
 				});
 			}
 		}));
@@ -557,20 +562,33 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		return hoverElement;
 	}
 
-	private getCodeActions(marker: IMarker): CancelablePromise<Action[]> {
+	private getCodeActions(marker: IMarker): CancelablePromise<ActionSet> {
 		return createCancelablePromise(async cancellationToken => {
 			const codeActions = await getCodeActions(this._editor.getModel()!, new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
 			if (codeActions.actions.length) {
-				return codeActions.actions.map(codeAction => new Action(
-					codeAction.command ? codeAction.command.id : codeAction.title,
-					codeAction.title,
-					undefined,
-					true,
-					() => applyCodeAction(codeAction, this._bulkEditService, this._commandService)));
+				const disposables = new DisposableStore();
+				const actions: Action[] = [];
+				for (const codeAction of codeActions.actions) {
+					disposables.add(disposables);
+					actions.push(new Action(
+						codeAction.command ? codeAction.command.id : codeAction.title,
+						codeAction.title,
+						undefined,
+						true,
+						() => applyCodeAction(codeAction, this._bulkEditService, this._commandService)));
+				}
+				return {
+					actions: actions,
+					dispose: () => disposables.dispose()
+				};
 			}
-			return [
-				new Action('', nls.localize('editor.action.quickFix.noneMessage', "No code actions available"))
-			];
+
+			return {
+				actions: [
+					new Action('', nls.localize('editor.action.quickFix.noneMessage', "No code actions available"))
+				],
+				dispose() { }
+			};
 		});
 	}
 

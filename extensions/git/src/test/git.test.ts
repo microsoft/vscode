@@ -172,6 +172,17 @@ suite('git', () => {
 				{ name: 'deps/spdlog4', path: 'deps/spdlog4', url: 'https://github.com/gabime/spdlog4.git' }
 			]);
 		});
+
+		test('whitespace #74844', () => {
+			const sample = `[submodule "deps/spdlog"]
+	path = deps/spdlog
+	url  = https://github.com/gabime/spdlog.git
+`;
+
+			assert.deepEqual(parseGitmodules(sample), [
+				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' }
+			]);
+		});
 	});
 
 	suite('parseGitCommit', () => {

@@ -18,10 +18,8 @@ import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inp
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-
-export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 
 export interface IFeedback {
 	feedback: string;
@@ -67,7 +65,7 @@ export class FeedbackDropdown extends Dropdown {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
@@ -404,7 +402,7 @@ export class FeedbackDropdown extends Dropdown {
 		}
 
 		if (this.hideButton && !this.hideButton.checked) {
-			this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false);
+			this.statusbarService.updateEntryVisibility('status.feedback', false);
 		}
 
 		super.hide();

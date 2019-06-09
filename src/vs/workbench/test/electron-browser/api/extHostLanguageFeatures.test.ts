@@ -194,7 +194,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
+		assert.equal(value.lenses.length, 1);
 	});
 
 	test('CodeLens, do not resolve a resolved lens', async () => {
@@ -212,8 +212,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		const data = value[0];
+		assert.equal(value.lenses.length, 1);
+		const [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
 		assert.equal(symbol!.command!.id, 'id');
 		assert.equal(symbol!.command!.title, 'Title');
@@ -229,8 +229,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		let data = value[0];
+		assert.equal(value.lenses.length, 1);
+		let [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
 		assert.equal(symbol!.command!.id, 'missing');
 		assert.equal(symbol!.command!.title, '!!MISSING: command!!');

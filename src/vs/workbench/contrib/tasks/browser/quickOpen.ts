@@ -214,7 +214,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 		return !!task;
 	}
 
-	public getActions(context: any): IAction[] {
+	public getActions(context: any): ReadonlyArray<IAction> {
 		let actions: Action[] = [];
 		let task = this.getTask(context);
 		if (task && ContributedTask.is(task) || CustomTask.is(task)) {

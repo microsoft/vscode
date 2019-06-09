@@ -100,11 +100,6 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 		return getDefaultShell(p);
 	}
 
-	public refreshActiveTab(): void {
-		// Fire active instances changed
-		this._onActiveTabChanged.fire();
-	}
-
 	public selectDefaultWindowsShell(): Promise<string | undefined> {
 		return this._detectWindowsShells().then(shells => {
 			const options: IPickOptions<IQuickPickItem> = {

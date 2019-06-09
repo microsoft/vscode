@@ -184,7 +184,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true });
 
-		themeService.onThemeChange(this._applyTheme, this, this._disposables);
+		this._disposables.add(themeService.onThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getTheme());
 
 		this.contextKeyService = contextKeyService.createScoped();
@@ -199,7 +199,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		}
 		this.setTitle(this.title);
 
-		model.onDidChange(this.renderTitle, this, this._disposables);
+		this._disposables.add(model.onDidChange(this.renderTitle, this));
 	}
 
 	showChange(index: number): void {
@@ -253,8 +253,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'show-previous-change chevron-up');
 		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'show-next-change chevron-down');
 
-		this._disposables.push(previous);
-		this._disposables.push(next);
+		this._disposables.add(previous);
+		this._disposables.add(next);
 		this._actionbarWidget.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];

@@ -110,20 +110,6 @@
 	box-sizing: border-box;
 }
 
-/* Debug status */
-.monaco-workbench .part.statusbar > .statusbar-item > .debug-statusbar-item > a {
-	padding: 0 5px 0 5px;
-}
-
-.monaco-workbench .part.statusbar > .statusbar-item > .debug-statusbar-item span.octicon {
-	text-align: center;
-	font-size: 14px;
-}
-
-.monaco-workbench .part.statusbar .debug-statusbar-item.hidden {
-	display: none;
-}
-
 .monaco-workbench .debug-view-content .monaco-list-row .monaco-tl-contents {
 	overflow: hidden;
 	text-overflow: ellipsis;

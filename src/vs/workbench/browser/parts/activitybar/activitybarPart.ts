@@ -61,11 +61,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	//#endregion
 
 	private globalActionBar: ActionBar;
-	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; } = Object.create(null);
+	private globalActivityIdToActions: Map<string, GlobalActivityAction> = new Map();
 
 	private cachedViewlets: ICachedViewlet[] = [];
+
 	private compositeBar: CompositeBar;
-	private compositeActions: { [compositeId: string]: { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
+	private compositeActions: Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
+
 	private readonly viewletDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
 	constructor(
@@ -169,7 +171,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			throw illegalArgument('badge');
 		}
 
-		const action = this.globalActivityIdToActions[globalActivityId];
+		const action = this.globalActivityIdToActions.get(globalActivityId);
 		if (!action) {
 			throw illegalArgument('globalActivityId');
 		}
@@ -181,14 +183,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
+
 		const content = document.createElement('div');
 		addClass(content, 'content');
 		parent.appendChild(content);
 
-		// Top Actionbar with action items for each viewlet action
+		// Viewlets action bar
 		this.compositeBar.create(content);
 
-		// Top Actionbar with action items for each viewlet action
+		// Global action bar
 		const globalActivities = document.createElement('div');
 		addClass(globalActivities, 'global-activity');
 		content.appendChild(globalActivities);
@@ -208,7 +211,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : null;
+		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : '';
 		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
 		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
 		container.style.borderRightColor = isPositionLeft ? borderColor : null;
@@ -243,13 +246,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}));
 
 		actions.forEach(a => {
-			this.globalActivityIdToActions[a.id] = a;
+			this.globalActivityIdToActions.set(a.id, a);
 			this.globalActionBar.push(a);
 		});
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } {
-		let compositeActions = this.compositeActions[compositeId];
+		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			const viewlet = this.viewletService.getViewlet(compositeId);
 			if (viewlet) {
@@ -265,7 +268,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				};
 			}
 
-			this.compositeActions[compositeId] = compositeActions;
+			this.compositeActions.set(compositeId, compositeActions);
 		}
 
 		return compositeActions;
@@ -341,11 +344,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private hideComposite(compositeId: string): void {
 		this.compositeBar.hideComposite(compositeId);
-		const compositeActions = this.compositeActions[compositeId];
+		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();
 			compositeActions.pinnedAction.dispose();
-			delete this.compositeActions[compositeId];
+			this.compositeActions.delete(compositeId);
 		}
 	}
 

@@ -30,7 +30,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 
 export const ALL_COMMANDS_PREFIX = '>';
@@ -377,12 +377,14 @@ class ActionCommandEntry extends BaseCommandEntry {
 
 const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 
-export class CommandsHandler extends QuickOpenHandler {
+export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 
 	static readonly ID = 'workbench.picker.commands';
 
 	private commandHistoryEnabled: boolean;
-	private commandsHistory: CommandsHistory;
+	private readonly commandsHistory: CommandsHistory;
+
+	private readonly disposables = new DisposableStore();
 
 	private waitedForExtensionsRegistered: boolean;
 
@@ -396,7 +398,7 @@ export class CommandsHandler extends QuickOpenHandler {
 	) {
 		super();
 
-		this.commandsHistory = this.instantiationService.createInstance(CommandsHistory);
+		this.commandsHistory = this.disposables.add(this.instantiationService.createInstance(CommandsHistory));
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.waitedForExtensionsRegistered = true);
 
@@ -587,6 +589,10 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
+	}
+
+	dispose() {
+		this.disposables.dispose();
 	}
 }
 

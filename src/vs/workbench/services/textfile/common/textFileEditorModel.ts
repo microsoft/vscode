@@ -783,7 +783,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for global settings file
-		if (isEqual(this.resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
+		if (isEqual(this.resource, this.environmentService.settingsResource, !isLinux)) {
 			return 'global-settings';
 		}
 

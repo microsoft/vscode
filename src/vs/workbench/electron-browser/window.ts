@@ -28,7 +28,7 @@ import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { fillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
@@ -61,7 +61,7 @@ export class ElectronWindow extends Disposable {
 
 	private touchBarMenu?: IMenu;
 	private touchBarUpdater: RunOnceScheduler;
-	private touchBarDisposables: IDisposable[];
+	private readonly touchBarDisposables = this._register(new DisposableStore());
 	private lastInstalledTouchedBar: ICommandAction[][];
 
 	private previousConfiguredZoomLevel: number;
@@ -94,8 +94,6 @@ export class ElectronWindow extends Disposable {
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super();
-
-		this.touchBarDisposables = [];
 
 		this.pendingFoldersToAdd = [];
 		this.addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
@@ -352,20 +350,20 @@ export class ElectronWindow extends Disposable {
 		}
 
 		// Dispose old
-		this.touchBarDisposables = dispose(this.touchBarDisposables);
+		this.touchBarDisposables.clear();
 		this.touchBarMenu = undefined;
 
 		// Create new (delayed)
 		this.touchBarUpdater = new RunOnceScheduler(() => this.doUpdateTouchbarMenu(), 300);
-		this.touchBarDisposables.push(this.touchBarUpdater);
+		this.touchBarDisposables.add(this.touchBarUpdater);
 		this.touchBarUpdater.schedule();
 	}
 
 	private doUpdateTouchbarMenu(): void {
 		if (!this.touchBarMenu) {
 			this.touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
-			this.touchBarDisposables.push(this.touchBarMenu);
-			this.touchBarDisposables.push(this.touchBarMenu.onDidChange(() => this.touchBarUpdater.schedule()));
+			this.touchBarDisposables.add(this.touchBarMenu);
+			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => this.touchBarUpdater.schedule()));
 		}
 
 		const actions: Array<MenuItemAction | Separator> = [];
@@ -532,11 +530,5 @@ export class ElectronWindow extends Disposable {
 
 		// Otherwise open all
 		return this.editorService.openEditors(resources);
-	}
-
-	dispose(): void {
-		this.touchBarDisposables = dispose(this.touchBarDisposables);
-
-		super.dispose();
 	}
 }

@@ -712,7 +712,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 					paths[i] = resolver.resolve(ws, paths[i]);
 				}
 			}
-			result.process = win32.findExecutable(
+			result.process = await win32.findExecutable(
 				resolver.resolve(ws, toResolve.process.name),
 				toResolve.process.cwd !== undefined ? resolver.resolve(ws, toResolve.process.cwd) : undefined,
 				paths

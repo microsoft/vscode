@@ -287,9 +287,9 @@ export class DebugSession implements IDebugSession {
 			sourceModified
 		}).then(response => {
 			if (response && response.body) {
-				const data: { [id: string]: DebugProtocol.Breakpoint } = Object.create(null);
+				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < breakpointsToSend.length; i++) {
-					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
+					data.set(breakpointsToSend[i].getId(), response.body.breakpoints[i]);
 				}
 
 				this.model.setBreakpointSessionData(this.getId(), data);
@@ -302,9 +302,9 @@ export class DebugSession implements IDebugSession {
 			if (this.raw.readyForBreakpoints) {
 				return this.raw.setFunctionBreakpoints({ breakpoints: fbpts }).then(response => {
 					if (response && response.body) {
-						const data: { [id: string]: DebugProtocol.Breakpoint } = Object.create(null);
+						const data = new Map<string, DebugProtocol.Breakpoint>();
 						for (let i = 0; i < fbpts.length; i++) {
-							data[fbpts[i].getId()] = response.body.breakpoints[i];
+							data.set(fbpts[i].getId(), response.body.breakpoints[i]);
 						}
 						this.model.setBreakpointSessionData(this.getId(), data);
 					}
@@ -753,7 +753,8 @@ export class DebugSession implements IDebugSession {
 					lineNumber: event.body.breakpoint.line,
 				}], false);
 				if (bps.length === 1) {
-					this.model.setBreakpointSessionData(this.getId(), { [bps[0].getId()]: event.body.breakpoint });
+					const data = new Map<string, DebugProtocol.Breakpoint>([[bps[0].getId(), event.body.breakpoint]]);
+					this.model.setBreakpointSessionData(this.getId(), data);
 				}
 			}
 
@@ -771,10 +772,12 @@ export class DebugSession implements IDebugSession {
 					if (!breakpoint.column) {
 						event.body.breakpoint.column = undefined;
 					}
-					this.model.setBreakpointSessionData(this.getId(), { [breakpoint.getId()]: event.body.breakpoint });
+					const data = new Map<string, DebugProtocol.Breakpoint>([[breakpoint.getId(), event.body.breakpoint]]);
+					this.model.setBreakpointSessionData(this.getId(), data);
 				}
 				if (functionBreakpoint) {
-					this.model.setBreakpointSessionData(this.getId(), { [functionBreakpoint.getId()]: event.body.breakpoint });
+					const data = new Map<string, DebugProtocol.Breakpoint>([[functionBreakpoint.getId(), event.body.breakpoint]]);
+					this.model.setBreakpointSessionData(this.getId(), data);
 				}
 			}
 		}));

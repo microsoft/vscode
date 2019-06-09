@@ -59,7 +59,7 @@ export interface IMenuStyles {
 }
 
 export class SubmenuAction extends Action {
-	constructor(label: string, public entries: Array<SubmenuAction | IAction>, cssClass?: string) {
+	constructor(label: string, public entries: ReadonlyArray<SubmenuAction | IAction>, cssClass?: string) {
 		super(!!cssClass ? cssClass : 'submenu', label, '', true);
 	}
 }
@@ -78,7 +78,7 @@ export class Menu extends ActionBar {
 
 	private readonly _onScroll: Emitter<void>;
 
-	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
+	constructor(container: HTMLElement, actions: ReadonlyArray<IAction>, options: IMenuOptions = {}) {
 		addClass(container, 'monaco-menu-container');
 		container.setAttribute('role', 'presentation');
 		const menuElement = document.createElement('div');
@@ -581,7 +581,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 	constructor(
 		action: IAction,
-		private submenuActions: IAction[],
+		private submenuActions: ReadonlyArray<IAction>,
 		private parentData: ISubMenuData,
 		private submenuOptions?: IMenuOptions
 	) {

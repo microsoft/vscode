@@ -4,27 +4,14 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "atom/language-objective-c",
-					"repositoryUrl": "https://github.com/atom/language-objective-c",
-					"commitHash": "7fdf0c40ec1d592a902ed6a7cf5565bdf12e2ae8"
+					"name": "jeff-hykin/cpp-textmate-grammar",
+					"repositoryUrl": "https://github.com/jeff-hykin/cpp-textmate-grammar",
+					"commitHash": "efa8ce61762d0481a1b710fdbc12e284867cdc8f"
 				}
 			},
 			"license": "MIT",
-			"description": "The files syntaxes/objective-c.tmLanguage.json and syntaxes/objective-c++.tmLanguage.json were derived from the Atom package https://github.com/atom/language-objective-c which was originally converted from the TextMate bundle https://github.com/textmate/objective-c.tmbundle.",
-			"version": "0.15.0"
-		},
-		{
-			"component": {
-				"type": "git",
-				"git": {
-					"name": "atom/language-c",
-					"repositoryUrl": "https://github.com/atom/language-c",
-					"commitHash": "9c0c5f202741a5647025db8d5df5fefba47b036c"
-				}
-			},
-			"license": "MIT",
-			"version": "0.58.1",
-			"description": "The files syntaxes/c.json and syntaxes/c++.json were derived from the Atom package https://atom.io/packages/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+			"version": "1.11.0",
+			"description": "The files syntaxes/objective-c.tmLanguage.json and syntaxes/objective-c++.tmLanguage.json were derived from the language package https://github.com/jeff-hykin/cpp-textmate-grammar."
 		}
 	],
 	"version": 1

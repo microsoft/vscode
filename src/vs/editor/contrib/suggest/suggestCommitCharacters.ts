@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 
-export class CommitCharacterController extends Disposable {
+export class CommitCharacterController {
+
+	private _disposables: IDisposable[] = [];
 
 	private _active?: {
 		readonly acceptCharacters: CharacterSet;
@@ -17,13 +19,12 @@ export class CommitCharacterController extends Disposable {
 	};
 
 	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (selected: ISelectedSuggestion) => any) {
-		super();
 
-		this._register(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
-		this._register(widget.onDidFocus(this._onItem, this));
-		this._register(widget.onDidHide(this.reset, this));
+		this._disposables.push(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
+		this._disposables.push(widget.onDidFocus(this._onItem, this));
+		this._disposables.push(widget.onDidHide(this.reset, this));
 
-		this._register(editor.onWillType(text => {
+		this._disposables.push(editor.onWillType(text => {
 			if (this._active) {
 				const ch = text.charCodeAt(text.length - 1);
 				if (this._active.acceptCharacters.has(ch) && editor.getConfiguration().contribInfo.acceptSuggestionOnCommitCharacter) {
@@ -50,5 +51,9 @@ export class CommitCharacterController extends Disposable {
 
 	reset(): void {
 		this._active = undefined;
+	}
+
+	dispose() {
+		dispose(this._disposables);
 	}
 }

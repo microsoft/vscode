@@ -12,7 +12,8 @@ import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
 import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
-import { CancellationToken, Uri, workspace } from 'vscode';
+import { CancellationToken } from 'vscode';
+import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
 
@@ -557,7 +558,7 @@ export function parseGitmodules(raw: string): Submodule[] {
 			return;
 		}
 
-		const propertyMatch = /^\s*(\w+) = (.*)$/.exec(line);
+		const propertyMatch = /^\s*(\w+)\s+=\s+(.*)$/.exec(line);
 
 		if (!propertyMatch) {
 			return;
@@ -636,6 +637,7 @@ export interface CommitOptions {
 
 export interface PullOptions {
 	unshallow?: boolean;
+	tags?: boolean;
 }
 
 export enum ForcePushMode {
@@ -995,7 +997,7 @@ export class Repository {
 				break;
 			}
 
-			const originalUri = Uri.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(this.repositoryRoot, resourcePath));
+			const originalUri = URI.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(this.repositoryRoot, resourcePath));
 			let status: Status = Status.UNTRACKED;
 
 			// Copy or Rename status comes with a number, e.g. 'R100'. We don't need the number, so we use only first character of the status.
@@ -1023,7 +1025,7 @@ export class Repository {
 						break;
 					}
 
-					const uri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(this.repositoryRoot, newPath));
+					const uri = URI.file(path.isAbsolute(newPath) ? newPath : path.join(this.repositoryRoot, newPath));
 					result.push({
 						uri,
 						renameUri: uri,
@@ -1363,9 +1365,8 @@ export class Repository {
 
 	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
 		const args = ['pull'];
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
 
-		if (config.get<boolean>('pullTags')) {
+		if (options.tags) {
 			args.push('--tags');
 		}
 

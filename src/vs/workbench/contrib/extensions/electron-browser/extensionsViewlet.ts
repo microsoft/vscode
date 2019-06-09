@@ -58,6 +58,7 @@ import { RemoteAuthorityContext } from 'vs/workbench/browser/contextkeys';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { MementoObject } from 'vs/workbench/common/memento';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -339,7 +340,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private primaryActions: IAction[];
 	private secondaryActions: IAction[] | null;
 	private disposables: IDisposable[] = [];
-	private searchViewletState: object;
+	private readonly searchViewletState: MementoObject;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,

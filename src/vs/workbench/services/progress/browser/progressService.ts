@@ -131,7 +131,7 @@ export class ProgressService implements IProgressService {
 			this._globalStatusEntry = this._statusbarService.addEntry({
 				text: `$(sync~spin) ${text}`,
 				tooltip: title
-			}, StatusbarAlignment.LEFT);
+			}, 'status.progress', localize('status.progress', "Progress Message"), StatusbarAlignment.LEFT);
 		}
 	}
 
@@ -143,7 +143,8 @@ export class ProgressService implements IProgressService {
 				return undefined; // we need a message at least
 			}
 
-			const actions: INotificationActions = { primary: options.primaryActions || [], secondary: options.secondaryActions || [] };
+			const primaryActions = options.primaryActions ? Array.from(options.primaryActions) : [];
+			const secondaryActions = options.secondaryActions ? Array.from(options.secondaryActions) : [];
 			if (options.cancellable) {
 				const cancelAction = new class extends Action {
 					constructor() {
@@ -160,9 +161,10 @@ export class ProgressService implements IProgressService {
 				};
 				toDispose.add(cancelAction);
 
-				actions.primary!.push(cancelAction);
+				primaryActions.push(cancelAction);
 			}
 
+			const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
 			const handle = this._notificationService.notify({
 				severity: Severity.Info,
 				message,
