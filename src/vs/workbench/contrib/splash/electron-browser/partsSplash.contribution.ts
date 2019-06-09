@@ -24,6 +24,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import * as perf from 'vs/base/common/performance';
 
 class PartsSplash {
 
@@ -45,14 +46,20 @@ class PartsSplash {
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IConfigurationService configService: IConfigurationService,
 	) {
-		lifecycleService.when(LifecyclePhase.Restored).then(_ => this._removePartsSplash());
+		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
+			this._removePartsSplash();
+			perf.mark('didRemovePartsSplash');
+		});
 		Event.debounce(Event.any<any>(
 			onDidChangeFullscreen,
 			editorGroupsService.onDidLayout
 		), () => { }, 800)(this._savePartsSplash, this, this._disposables);
 
 		configService.onDidChangeConfiguration(e => {
-			this._didChangeTitleBarStyle = e.affectsConfiguration('window.titleBarStyle');
+			if (e.affectsConfiguration('window.titleBarStyle')) {
+				this._didChangeTitleBarStyle = true;
+				this._savePartsSplash();
+			}
 		}, this, this._disposables);
 	}
 

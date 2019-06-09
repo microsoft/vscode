@@ -7,7 +7,7 @@
 
 import 'vs/editor/editor.all';
 
-import 'vs/workbench/api/electron-browser/extensionHost.contribution';
+import 'vs/workbench/api/browser/extensionHost.contribution';
 
 import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
@@ -162,6 +162,7 @@ registerSingleton(IMenubarService, MenubarService);
 registerSingleton(IURLService, RelayURLService);
 registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
+registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 
 //#endregion
 
@@ -190,8 +191,11 @@ import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
 // Preferences
-import 'vs/workbench/contrib/preferences/electron-browser/preferences.contribution';
+import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
+import { IPreferencesSearchService } from 'vs/workbench/contrib/preferences/common/preferences';
+import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/electron-browser/preferencesSearch';
+registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
 
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
@@ -324,10 +328,9 @@ import 'vs/workbench/contrib/outline/browser/outline.contribution';
 // Experiments
 import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';
 
-// Code Insets
-import 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
-
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 
 //#endregion

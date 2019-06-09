@@ -14,9 +14,10 @@ import { ITerminalService, ITerminalProcessManager } from 'vs/workbench/contrib/
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILinkMatcherOptions } from 'vscode-xterm';
+import { ILinkMatcherOptions } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -81,6 +82,7 @@ export class TerminalLinkHandler {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		// Matches '--- a/src/file1', capturing 'src/file1' in group 1
@@ -135,14 +137,16 @@ export class TerminalLinkHandler {
 	}
 
 	public registerWebLinkHandler(): void {
-		const wrappedHandler = this._wrapLinkHandler(uri => {
-			this._handleHypertextLink(uri);
-		});
-		this._xterm.webLinksInit(wrappedHandler, {
-			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
-			tooltipCallback: this._tooltipCallback,
-			leaveCallback: this._leaveCallback,
-			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
+		this._terminalInstanceService.getXtermWebLinksConstructor().then((WebLinksAddon) => {
+			const wrappedHandler = this._wrapLinkHandler(uri => {
+				this._handleHypertextLink(uri);
+			});
+			this._xterm.loadAddon(new WebLinksAddon(wrappedHandler, {
+				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
+				tooltipCallback: this._tooltipCallback,
+				leaveCallback: this._leaveCallback,
+				willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
+			}));
 		});
 	}
 

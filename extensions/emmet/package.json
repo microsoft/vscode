@@ -3,7 +3,8 @@
     "displayName": "Emmet",
     "description": "%description%",
     "version": "1.0.0",
-    "publisher": "vscode",
+	"publisher": "vscode",
+	"license": "MIT",
     "engines": {
         "vscode": "^1.13.0"
     },
@@ -439,7 +440,7 @@
         "deps": "yarn add vscode-emmet-helper"
     },
     "devDependencies": {
-        "@types/node": "8.0.33",
+        "@types/node": "^10.14.8",
         "mocha-junit-reporter": "^1.17.0",
         "mocha-multi-reporters": "^1.1.7",
         "vscode": "1.0.1"

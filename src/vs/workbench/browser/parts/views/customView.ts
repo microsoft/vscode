@@ -60,9 +60,9 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
-		this.treeView.onDidChangeActions(() => this.updateActions(), this, this.disposables);
-		this.disposables.push(toDisposable(() => this.treeView.setVisibility(false)));
-		this.disposables.push(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
+		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
+		this._register(toDisposable(() => this.treeView.setVisibility(false)));
+		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this.updateTreeVisibility();
 	}
 
@@ -97,11 +97,6 @@ export class CustomTreeViewPanel extends ViewletPanel {
 
 	private updateTreeVisibility(): void {
 		this.treeView.setVisibility(this.isBodyVisible());
-	}
-
-	dispose(): void {
-		dispose(this.disposables);
-		super.dispose();
 	}
 }
 

@@ -68,7 +68,7 @@ export class EmptyView extends ViewletPanel {
 		this.button = new Button(messageContainer);
 		attachButtonStyler(this.button, this.themeService);
 
-		this.disposables.push(this.button.onDidClick(() => {
+		this._register(this.button.onDidClick(() => {
 			if (!this.actionRunner) {
 				return;
 			}
@@ -82,7 +82,7 @@ export class EmptyView extends ViewletPanel {
 			});
 		}));
 
-		this.disposables.push(new DragAndDropObserver(container, {
+		this._register(new DragAndDropObserver(container, {
 			onDrop: e => {
 				const color = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND);
 				container.style.backgroundColor = color ? color.toString() : '';

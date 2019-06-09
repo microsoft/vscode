@@ -58,7 +58,7 @@ function code() {
 function code-wsl()
 {
 	# in a wsl shell
-	local WIN_CODE_CLI_CMD=$(wslpath -w "$ROOT/scripts/code-cli.bat")
+	local WIN_CODE_CLI_CMD=$(wslpath -w "$ROOT/scripts/code-cli.bat" 2>/dev/null)
 	if ! [ -z "$WIN_CODE_CLI_CMD" ]; then
 		local WSL_EXT_ID="ms-vscode-remote.remote-wsl"
 		local WSL_EXT_WLOC=$(cmd.exe /c "$WIN_CODE_CLI_CMD" --locate-extension $WSL_EXT_ID)

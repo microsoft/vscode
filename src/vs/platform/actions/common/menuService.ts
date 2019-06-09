@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
@@ -30,7 +30,7 @@ type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 class Menu implements IMenu {
 
 	private readonly _onDidChange = new Emitter<IMenu | undefined>();
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _dispoables = new DisposableStore();
 
 	private _menuGroups: MenuItemGroup[];
 	private _contextKeys: Set<string>;
@@ -44,19 +44,24 @@ class Menu implements IMenu {
 
 		// rebuild this menu whenever the menu registry reports an
 		// event for this MenuId
-		Event.debounce(
+		this._dispoables.add(Event.debounce(
 			Event.filter(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
 			() => { },
 			50
-		)(this._build, this, this._disposables);
+		)(this._build, this));
 
 		// when context keys change we need to check if the menu also
 		// has changed
-		Event.debounce<IContextKeyChangeEvent, boolean>(
+		this._dispoables.add(Event.debounce<IContextKeyChangeEvent, boolean>(
 			this._contextKeyService.onDidChangeContext,
 			(last, event) => last || event.affectsSome(this._contextKeys),
 			50
-		)(e => e && this._onDidChange.fire(undefined), this, this._disposables);
+		)(e => e && this._onDidChange.fire(undefined), this));
+	}
+
+	dispose(): void {
+		this._dispoables.dispose();
+		this._onDidChange.dispose();
 	}
 
 	private _build(): void {
@@ -93,11 +98,6 @@ class Menu implements IMenu {
 			}
 		}
 		this._onDidChange.fire(this);
-	}
-
-	dispose() {
-		dispose(this._disposables);
-		this._onDidChange.dispose();
 	}
 
 	get onDidChange(): Event<IMenu | undefined> {

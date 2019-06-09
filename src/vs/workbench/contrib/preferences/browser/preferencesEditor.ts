@@ -84,7 +84,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	readonly minimumHeight = 260;
 
-	private _onDidCreateWidget = new Emitter<{ width: number; height: number; } | undefined>();
+	private _onDidCreateWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
 
 	constructor(
@@ -329,11 +329,6 @@ export class PreferencesEditor extends BaseEditor {
 			this.telemetryService.publicLog('defaultSettings.filter', data);
 			this._lastReportedFilter = filter;
 		}
-	}
-
-	dispose(): void {
-		this._onDidCreateWidget.dispose();
-		super.dispose();
 	}
 }
 
@@ -774,10 +769,10 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private settingsTargetsWidget: SettingsTargetsWidget;
 
-	private readonly _onFocus = new Emitter<void>();
+	private readonly _onFocus = this._register(new Emitter<void>());
 	readonly onFocus: Event<void> = this._onFocus.event;
 
-	private readonly _onDidSettingsTargetChange = new Emitter<SettingsTarget>();
+	private readonly _onDidSettingsTargetChange = this._register(new Emitter<SettingsTarget>());
 	readonly onDidSettingsTargetChange: Event<SettingsTarget> = this._onDidSettingsTargetChange.event;
 
 	private splitview: SplitView;

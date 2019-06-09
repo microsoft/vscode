@@ -21,6 +21,8 @@
 				"support.class",
 				"support.type",
 				"entity.name.type",
+				"entity.name.namespace",
+				"entity.name.scope-resolution",
 				"entity.name.class",
 				"storage.type.numeric.go",
 				"storage.type.byte.go",
@@ -67,11 +69,11 @@
 			}
 		},
 		{
-			"name": "Control flow keywords",
+			"name": "Control flow / Special keywords",
 			"scope": [
 				"keyword.control",
-				"keyword.operator.new.cpp",
-				"keyword.operator.delete.cpp",
+				"source.cpp keyword.operator.new",
+				"source.cpp keyword.operator.delete",
 				"keyword.other.using",
 				"keyword.other.operator"
 			],

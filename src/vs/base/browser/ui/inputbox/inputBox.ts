@@ -28,7 +28,7 @@ export interface IInputOptions extends IInputBoxStyles {
 	readonly type?: string;
 	readonly validationOptions?: IInputValidationOptions;
 	readonly flexibleHeight?: boolean;
-	readonly actions?: IAction[];
+	readonly actions?: ReadonlyArray<IAction>;
 }
 
 export interface IInputBoxStyles {

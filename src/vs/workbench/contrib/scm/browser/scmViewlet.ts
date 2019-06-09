@@ -241,23 +241,23 @@ export class MainPanel extends ViewletPanel {
 			horizontalScrolling: false
 		}) as WorkbenchList<ISCMRepository>;
 
-		renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null, this.disposables);
-		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
-		this.list.onFocusChange(this.onListFocusChange, this, this.disposables);
-		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
+		this._register(renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null));
+		this._register(this.list.onSelectionChange(this.onListSelectionChange, this));
+		this._register(this.list.onFocusChange(this.onListFocusChange, this));
+		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
-		this.viewModel.onDidChangeVisibleRepositories(this.updateListSelection, this, this.disposables);
+		this._register(this.viewModel.onDidChangeVisibleRepositories(this.updateListSelection, this));
 
-		this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.disposables);
+		this._register(this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null));
 		this.splice(0, 0, this.viewModel.repositories);
 
-		this.disposables.push(this.list);
+		this._register(this.list);
 
-		this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.providers.visible')) {
 				this.updateBodySize();
 			}
-		}, this.disposables);
+		}));
 
 		this.updateListSelection();
 	}
@@ -699,6 +699,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
+	private cachedScrollTop: number | undefined = undefined;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
@@ -727,8 +728,8 @@ export class RepositoryPanel extends ViewletPanel {
 		super(options, keybindingService, contextMenuService, configurationService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
-		this.disposables.push(this.menus);
-		this.menus.onDidChangeTitle(this._onDidChangeTitleArea.fire, this._onDidChangeTitleArea, this.disposables);
+		this._register(this.menus);
+		this._register(this.menus.onDidChangeTitle(this._onDidChangeTitleArea.fire, this._onDidChangeTitleArea));
 
 		this.contextKeyService = contextKeyService.createScoped(this.element);
 		this.contextKeyService.createKey('scmRepository', this.repository);
@@ -736,7 +737,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 	render(): void {
 		super.render();
-		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
+		this._register(this.menus.onDidChangeTitle(this.updateActions, this));
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
@@ -758,8 +759,8 @@ export class RepositoryPanel extends ViewletPanel {
 
 	protected renderBody(container: HTMLElement): void {
 		const focusTracker = trackFocus(container);
-		this.disposables.push(focusTracker.onDidFocus(() => this.repository.focus()));
-		this.disposables.push(focusTracker);
+		this._register(focusTracker.onDidFocus(() => this.repository.focus()));
+		this._register(focusTracker);
 
 		// Input
 		this.inputBoxContainer = append(container, $('.scm-editor'));
@@ -789,33 +790,33 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
 		this.inputBox.setEnabled(this.isBodyVisible());
-		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
-		this.disposables.push(this.inputBox);
+		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
+		this._register(this.inputBox);
 
-		this.inputBox.onDidChange(triggerValidation, null, this.disposables);
+		this._register(this.inputBox.onDidChange(triggerValidation, null));
 
 		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
 		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
-		Event.any<any>(onKeyUp, onMouseUp)(triggerValidation, null, this.disposables);
+		this._register(Event.any<any>(onKeyUp, onMouseUp)(triggerValidation, null));
 
 		this.inputBox.value = this.repository.input.value;
-		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
-		this.repository.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
+		this._register(this.inputBox.onDidChange(value => this.repository.input.value = value, null));
+		this._register(this.repository.input.onDidChange(value => this.inputBox.value = value, null));
 
 		updatePlaceholder();
-		this.repository.input.onDidChangePlaceholder(updatePlaceholder, null, this.disposables);
-		this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null, this.disposables);
+		this._register(this.repository.input.onDidChangePlaceholder(updatePlaceholder, null));
+		this._register(this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null));
 
-		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layoutBody()));
+		this._register(this.inputBox.onDidHeightChange(() => this.layoutBody()));
 
 		if (this.repository.provider.onDidChangeCommitTemplate) {
-			this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
+			this._register(this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this));
 		}
 
 		this.updateInputBox();
 
 		// Input box visibility
-		this.repository.input.onDidChangeVisibility(this.updateInputBoxVisibility, this, this.disposables);
+		this._register(this.repository.input.onDidChangeVisibility(this.updateInputBoxVisibility, this));
 		this.updateInputBoxVisibility();
 
 		// List
@@ -830,7 +831,7 @@ export class RepositoryPanel extends ViewletPanel {
 		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.disposables.push(this.listLabels);
+		this._register(this.listLabels);
 
 		const renderers = [
 			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
@@ -843,20 +844,20 @@ export class RepositoryPanel extends ViewletPanel {
 			horizontalScrolling: false
 		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
-		Event.chain(this.list.onDidOpen)
+		this._register(Event.chain(this.list.onDidOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
-			.on(this.open, this, this.disposables);
+			.on(this.open, this));
 
-		Event.chain(this.list.onPin)
+		this._register(Event.chain(this.list.onPin)
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
-			.on(this.pin, this, this.disposables);
+			.on(this.pin, this));
 
-		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
-		this.disposables.push(this.list);
+		this._register(this.list.onContextMenu(this.onListContextMenu, this));
+		this._register(this.list);
 
-		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
+		this._register(this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this));
 		this.onDidChangeVisibility(this.viewModel.isVisible());
 		this.onDidChangeBodyVisibility(visible => this.inputBox.setEnabled(visible));
 	}
@@ -866,6 +867,7 @@ export class RepositoryPanel extends ViewletPanel {
 			const listSplicer = new ResourceGroupSplicer(this.repository.provider.groups, this.list);
 			this.visibilityDisposables.push(listSplicer);
 		} else {
+			this.cachedScrollTop = this.list.scrollTop;
 			this.visibilityDisposables = dispose(this.visibilityDisposables);
 		}
 	}
@@ -893,6 +895,13 @@ export class RepositoryPanel extends ViewletPanel {
 
 			this.listContainer.style.height = `${height}px`;
 			this.list.layout(height, width);
+		}
+
+		if (this.cachedScrollTop !== undefined && this.list.scrollTop !== this.cachedScrollTop) {
+			this.list.scrollTop = Math.min(this.cachedScrollTop, this.list.scrollHeight);
+			// Applying the cached scroll position just once until the next leave.
+			// This, also, avoids the scrollbar to flicker when resizing the sidebar.
+			this.cachedScrollTop = undefined;
 		}
 	}
 

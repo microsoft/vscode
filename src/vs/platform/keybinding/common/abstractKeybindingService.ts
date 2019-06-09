@@ -15,7 +15,6 @@ import { IKeybindingEvent, IKeybindingService, IKeyboardEvent } from 'vs/platfor
 import { IResolveResult, KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface CurrentChord {
@@ -26,43 +25,30 @@ interface CurrentChord {
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
 	public _serviceBrand: any;
 
+	protected readonly _onDidUpdateKeybindings: Emitter<IKeybindingEvent> = this._register(new Emitter<IKeybindingEvent>());
+	get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
+		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
+	}
+
 	private _currentChord: CurrentChord | null;
 	private _currentChordChecker: IntervalTimer;
 	private _currentChordStatusMessage: IDisposable | null;
-	protected _onDidUpdateKeybindings: Emitter<IKeybindingEvent>;
-
-	private _contextKeyService: IContextKeyService;
-	private _statusService: IStatusbarService | undefined;
-	private _notificationService: INotificationService;
-	protected _commandService: ICommandService;
-	protected _telemetryService: ITelemetryService;
 
 	constructor(
-		contextKeyService: IContextKeyService,
-		commandService: ICommandService,
-		telemetryService: ITelemetryService,
-		notificationService: INotificationService,
-		statusService?: IStatusbarService
+		private _contextKeyService: IContextKeyService,
+		protected _commandService: ICommandService,
+		protected _telemetryService: ITelemetryService,
+		private _notificationService: INotificationService,
 	) {
 		super();
-		this._contextKeyService = contextKeyService;
-		this._commandService = commandService;
-		this._telemetryService = telemetryService;
-		this._statusService = statusService;
-		this._notificationService = notificationService;
 
 		this._currentChord = null;
 		this._currentChordChecker = new IntervalTimer();
 		this._currentChordStatusMessage = null;
-		this._onDidUpdateKeybindings = this._register(new Emitter<IKeybindingEvent>());
 	}
 
 	public dispose(): void {
 		super.dispose();
-	}
-
-	get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
-		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 
 	protected abstract _getResolver(): KeybindingResolver;
@@ -128,9 +114,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			keypress: firstPart,
 			label: keypressLabel
 		};
-		if (this._statusService) {
-			this._currentChordStatusMessage = this._statusService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", keypressLabel));
-		}
+		this._currentChordStatusMessage = this._notificationService.status(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", keypressLabel));
 		const chordEnterTime = Date.now();
 		this._currentChordChecker.cancelAndSet(() => {
 
@@ -192,9 +176,9 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			return shouldPreventDefault;
 		}
 
-		if (this._statusService && this._currentChord) {
+		if (this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
-				this._statusService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", this._currentChord.label, keypressLabel), 10 * 1000 /* 10s */);
+				this._notificationService.status(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", this._currentChord.label, keypressLabel), { hideAfter: 10 * 1000 /* 10s */ });
 				shouldPreventDefault = true;
 			}
 		}

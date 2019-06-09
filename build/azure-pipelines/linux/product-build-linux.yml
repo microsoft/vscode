@@ -16,9 +16,6 @@ steps:
 - script: |
     set -e
     export npm_config_arch="$(VSCODE_ARCH)"
-    if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
-      export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
-    fi
 
     cat << EOF > ~/.netrc
     machine monacotools.visualstudio.com
@@ -38,7 +35,8 @@ steps:
     yarn gulp mixin
     yarn gulp hygiene
     yarn monaco-compile-check
-    node build/azure-pipelines/common/installDistro.js
+    node build/azure-pipelines/common/installDistroDependencies.js
+    node build/azure-pipelines/common/installDistroDependencies.js remote
     node build/lib/builtInExtensions.js
   displayName: Prepare build
 

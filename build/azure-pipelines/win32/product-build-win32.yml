@@ -35,7 +35,8 @@ steps:
     exec { yarn gulp mixin }
     exec { yarn gulp hygiene }
     exec { yarn monaco-compile-check }
-    exec { node build/azure-pipelines/common/installDistro.js }
+    exec { node build/azure-pipelines/common/installDistroDependencies.js }
+    exec { node build/azure-pipelines/common/installDistroDependencies.js remote }
     exec { node build/lib/builtInExtensions.js }
   displayName: Prepare build
 

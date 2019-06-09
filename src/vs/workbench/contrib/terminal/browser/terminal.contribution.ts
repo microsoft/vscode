@@ -260,14 +260,9 @@ configurationRegistry.registerConfiguration({
 			default: 'inherited'
 		},
 		'terminal.integrated.windowsEnableConpty': {
-			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication. Winpty will be used if this is false. Note that ConPTY will be disabled regardless of this setting when the Windows 10 build number is lower than 18309 or when you're running the 32-bit VS Code client under 64-bit Windows."),
+			description: nls.localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
 			type: 'boolean',
 			default: true
-		},
-		'terminal.integrated.enableLatencyMitigation': {
-			description: nls.localize('terminal.integrated.enableLatencyMitigation', "Whether to enable the latency mitigation feature for high-latency terminals."),
-			type: 'boolean',
-			default: false
 		},
 		'terminal.integrated.experimentalRefreshOnResume': {
 			description: nls.localize('terminal.integrated.experimentalRefreshOnResume', "An experimental setting that will refresh the terminal renderer when the system is resumed."),
@@ -397,8 +392,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(MoveToLineEndTer
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line End', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
-	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5],
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
 		secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]

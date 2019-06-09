@@ -114,12 +114,12 @@
 }
 
 /* Statusbar */
-.monaco-workbench .statusbar > .statusbar-item > .monaco-dropdown.send-feedback {
+.monaco-workbench .statusbar > .items-container > .statusbar-item > .monaco-dropdown.send-feedback {
 	display: inline-block;
 	padding: 0 5px 0 5px;
 }
 
-.monaco-workbench .statusbar > .statusbar-item > .monaco-dropdown.send-feedback span.octicon {
+.monaco-workbench .statusbar > .items-container > .statusbar-item > .monaco-dropdown.send-feedback span.octicon {
 	text-align: center;
 	font-size: 14px;
 }
