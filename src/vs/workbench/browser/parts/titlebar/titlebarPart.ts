@@ -551,7 +551,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private adjustTitleMarginToCenter(): void {
-		if (!isMacintosh || isWeb) {
+		if (this.menubarPart instanceof CustomMenubarControl) {
 			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
 			const rightMarker = this.element.clientWidth - (this.windowControls ? this.windowControls.clientWidth : 0) - 10;
 
