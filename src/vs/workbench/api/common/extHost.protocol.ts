@@ -130,6 +130,7 @@ export interface CommentProviderFeatures {
 	finishDraftLabel?: string;
 	reactionGroup?: modes.CommentReaction[];
 	commentThreadTemplate?: CommentThreadTemplate;
+	reactionHandler?: boolean;
 }
 
 export interface MainThreadCommentsShape extends IDisposable {

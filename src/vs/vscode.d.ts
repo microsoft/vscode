@@ -9055,6 +9055,31 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Reactions of a [comment](#Comment)
+	 */
+	export interface CommentReaction {
+		/**
+		 * The human-readable label for the reaction
+		 */
+		readonly label: string;
+
+		/**
+		 * Icon for the reaction shown in UI.
+		 */
+		readonly iconPath: string | Uri;
+
+		/**
+		 * The number of users who have reacted to this reaction
+		 */
+		readonly count: number;
+
+		/**
+		 * Whether the [author](CommentAuthorInformation) of the comment has reacted to this reaction
+		 */
+		readonly authorHasReacted: boolean;
+	}
+
+	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
 	 */
 	export interface Comment {
@@ -9092,6 +9117,11 @@ declare module 'vscode' {
 		 * This will show action `extension.deleteComment` only for comments with `contextValue` is `editable`.
 		 */
 		contextValue?: string;
+
+		/**
+		 * Optional reactions of the [comment](#Comment)
+		 */
+		reactions?: CommentReaction[];
 
 		/**
 		 * Optional label describing the [Comment](#Comment)
@@ -9156,6 +9186,11 @@ declare module 'vscode' {
 		 * @param comments The ordered comments of the thread.
 		 */
 		createCommentThread(uri: Uri, range: Range, comments: Comment[]): CommentThread;
+
+		/**
+		 * Optional reaction handler for creating and deleting reactions on a [comment](#Comment).
+		 */
+		reactionHandler?: (comment: Comment, reaction: CommentReaction) => Promise<void>;
 
 		/**
 		 * Dispose this comment controller.

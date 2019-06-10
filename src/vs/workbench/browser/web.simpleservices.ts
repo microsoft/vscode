@@ -540,6 +540,7 @@ export class SimpleCommentService implements ICommentService {
 	addReaction: any;
 	deleteReaction: any;
 	getReactionGroup: any;
+	hasReactionHandler: any;
 	toggleReaction: any;
 	setActiveCommentThread: any;
 }
