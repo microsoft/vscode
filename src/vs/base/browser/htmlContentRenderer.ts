@@ -9,7 +9,7 @@ import { escape } from 'vs/base/common/strings';
 import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
 import * as marked from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { parse } from 'vs/base/common/marshalling';
@@ -17,7 +17,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 
 export interface IContentActionHandler {
 	callback: (content: string, event?: IMouseEvent) => void;
-	readonly disposeables: IDisposable[];
+	readonly disposeables: DisposableStore;
 }
 
 export interface RenderOptions {
@@ -189,7 +189,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 	}
 
 	if (options.actionHandler) {
-		options.actionHandler.disposeables.push(DOM.addStandardDisposableListener(element, 'click', event => {
+		options.actionHandler.disposeables.add(DOM.addStandardDisposableListener(element, 'click', event => {
 			let target: HTMLElement | null = event.target;
 			if (target.tagName !== 'A') {
 				target = target.parentElement;
@@ -284,7 +284,7 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 	else if (treeNode.type === FormatType.Action && actionHandler) {
 		const a = document.createElement('a');
 		a.href = '#';
-		actionHandler.disposeables.push(DOM.addStandardDisposableListener(a, 'click', (event) => {
+		actionHandler.disposeables.add(DOM.addStandardDisposableListener(a, 'click', (event) => {
 			actionHandler.callback(String(treeNode.index), event);
 		}));
 
