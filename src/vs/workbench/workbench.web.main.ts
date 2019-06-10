@@ -261,10 +261,11 @@ import 'vs/workbench/contrib/output/browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputPanel';
 
 // Terminal
-// import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
-// import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
-// import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-// import 'vs/workbench/contrib/terminal/browser/terminalPanel';
+import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
+import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
+import 'vs/workbench/contrib/terminal/browser/terminalPanel';
+registerSingleton(ITerminalNativeService, TerminalNativeService, true);
+registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
 
 // Relauncher
 // import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';
@@ -326,6 +327,10 @@ import 'vs/workbench/contrib/outline/browser/outline.contribution';
 import { IWebviewService } from 'vs/workbench/contrib/webview/common/webview';
 import { NullWebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
 import { IWebviewEditorService, WebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalNativeService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalNativeService } from 'vs/workbench/contrib/terminal/browser/terminalNativeService';
+import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 
 // Experiments
 // import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';

@@ -9,8 +9,7 @@ import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITerminalNativeService, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Platform } from 'vs/base/common/platform';
-import { getDefaultShell, getWindowsBuildNumber, linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getWindowsBuildNumber, linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IQuickPickItem, IPickOptions, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { execFile } from 'child_process';
@@ -57,10 +56,6 @@ export class TerminalNativeService implements ITerminalNativeService {
 				}
 			}, 1000);
 		});
-	}
-
-	public getDefaultShell(p: Platform): string {
-		return getDefaultShell(p);
 	}
 
 	public selectDefaultWindowsShell(): Promise<string | undefined> {
@@ -140,7 +135,7 @@ export class TerminalNativeService implements ITerminalNativeService {
 			});
 	}
 
-	protected _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {
+	private _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {
 		if (potentialPaths.length === 0) {
 			return Promise.resolve(null);
 		}

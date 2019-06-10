@@ -58,8 +58,6 @@ import { State as DebugState, IDebugService, IDebugSession, IConfigurationManage
 // tslint:disable-next-line: import-patterns
 import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
 // tslint:disable-next-line: import-patterns
-import { ITerminalService, ITerminalConfigHelper, ITerminalTab, ITerminalInstance, ITerminalProcessExtHostRequest } from 'vs/workbench/contrib/terminal/common/terminal';
-// tslint:disable-next-line: import-patterns
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 // tslint:disable-next-line: import-patterns
 import { TaskEvent } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -417,58 +415,7 @@ export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchSer
 	allowedBadgeProviders: string[];
 }
 registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService, true);
-//#endregion
-
-//#region ITerminalService
-export class SimpleTerminalService implements ITerminalService {
-	_serviceBrand: any; activeTabIndex: number;
-	configHelper: ITerminalConfigHelper;
-	onActiveTabChanged: Event<void> = Event.None;
-	onTabDisposed: Event<ITerminalTab> = Event.None;
-	onInstanceCreated: Event<ITerminalInstance> = Event.None;
-	onInstanceDisposed: Event<ITerminalInstance> = Event.None;
-	onInstanceProcessIdReady: Event<ITerminalInstance> = Event.None;
-	onInstanceDimensionsChanged: Event<ITerminalInstance> = Event.None;
-	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest> = Event.None;
-	onInstancesChanged: Event<void> = Event.None;
-	onInstanceTitleChanged: Event<ITerminalInstance> = Event.None;
-	onActiveInstanceChanged: Event<ITerminalInstance | undefined> = Event.None;
-	terminalInstances: ITerminalInstance[] = [];
-	terminalTabs: ITerminalTab[];
-	createTerminal: any;
-	createTerminalRenderer: any;
-	createInstance: any;
-	getInstanceFromId: any;
-	getInstanceFromIndex: any;
-	getTabLabels: any;
-	getActiveInstance() { return null; }
-	setActiveInstance: any;
-	setActiveInstanceByIndex: any;
-	getActiveOrCreateInstance: any;
-	splitInstance: any;
-	getActiveTab: any;
-	setActiveTabToNext: any;
-	setActiveTabToPrevious: any;
-	setActiveTabByIndex: any;
-	refreshActiveTab: any;
-	showPanel: any;
-	hidePanel: any;
-	focusFindWidget: any;
-	hideFindWidget: any;
-	getFindState: any;
-	findNext: any;
-	findPrevious: any;
-	setContainers: any;
-	getDefaultShell: any;
-	selectDefaultWindowsShell: any;
-	setWorkspaceShellAllowed: any;
-	preparePathForTerminalAsync: any;
-	extHostReady() { }
-	requestExtHostProcess: any;
-}
-registerSingleton(ITerminalService, SimpleTerminalService, true);
-
-//#endregion
+//#endregio
 
 //#region ITaskService
 export class SimpleTaskService implements ITaskService {

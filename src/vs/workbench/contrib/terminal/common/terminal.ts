@@ -295,7 +295,6 @@ export interface ITerminalNativeService {
 	readonly onOpenFileRequest: Event<IOpenFileRequest>;
 	readonly onOsResume: Event<void>;
 
-	getDefaultShell(p: Platform): string;
 	getWindowsBuildNumber(): number;
 	whenFileDeleted(path: URI): Promise<void>;
 	getWslPath(path: string): Promise<string>;

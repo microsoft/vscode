@@ -32,8 +32,13 @@ import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { registerShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalShellConfig';
 
 registerSingleton(ITerminalService, TerminalService, true);
+
+if (platform.isWeb) {
+	registerShellConfiguration();
+}
 
 const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
 
