@@ -22,7 +22,7 @@ import product from 'vs/platform/product/node/product';
 import { generateUuid } from 'vs/base/common/uuid';
 import { getMediaMime } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
-import { isEqualOrParent } from 'vs/base/common/extpath';
+import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
 import { isLinux } from 'vs/base/common/platform';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -97,7 +97,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
 					const _data = await util.promisify(fs.readFile)(filePath);
 					const appRoot = path.join(URI.parse(require.toUrl('vs')).fsPath, '../../');
-					const folder = this._environmentService.args['folder'];
+					const folder = this._environmentService.args['folder'] ? sanitizeFilePath(this._environmentService.args['folder'], process.env['VSCODE_CWD'] || process.cwd()) : undefined;
 					const workspace = this._environmentService.args['workspace'];
 					const data = _data.toString()
 						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
