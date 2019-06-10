@@ -98,7 +98,7 @@ const entryPoints = [
 ];
 
 // VSCode Web Support (behind a build flag)
-if (process.env.VSCODE_WEB) {
+if (process.env['VSCODE_WEB_BUILD']) {
 	vscodeResources.push(...[
 		'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
 		'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
@@ -257,6 +257,10 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName) {
 		const localWorkspaceExtensions = glob.sync('extensions/*/package.json')
 			.filter((extensionPath) => {
 				const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, extensionPath)).toString());
+				if (process.env['VSCODE_WEB_BUILD']) {
+					return true; // web: ship all extensions for now
+				}
+
 				return !isUIExtension(manifest);
 			}).map((extensionPath) => path.basename(path.dirname(extensionPath)))
 			.filter(name => name !== 'vscode-api-tests' && name !== 'vscode-test-resolver'); // Do not ship the test extensions
