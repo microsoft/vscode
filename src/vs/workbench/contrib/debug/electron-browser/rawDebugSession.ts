@@ -14,6 +14,7 @@ import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import * as cp from 'child_process';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -69,9 +70,10 @@ export class RawDebugSession {
 	constructor(
 		debugAdapter: IDebugAdapter,
 		dbgr: IDebugger,
-		private telemetryService: ITelemetryService,
-		public customTelemetryService: ITelemetryService | undefined,
-		private environmentService: IEnvironmentService
+		private readonly telemetryService: ITelemetryService,
+		public readonly customTelemetryService: ITelemetryService | undefined,
+		private readonly environmentService: IEnvironmentService,
+		private readonly signService: ISignService
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
@@ -528,11 +530,9 @@ export class RawDebugSession {
 				break;
 			case 'handshake':
 				try {
-					const vsda = await import('vsda');
-					const obj = new vsda.signer();
-					const sig = obj.sign(request.arguments.value);
+					const signature = await this.signService.sign(request.arguments.value);
 					response.body = {
-						signature: sig
+						signature: signature
 					};
 					safeSendResponse(response);
 				} catch (e) {
