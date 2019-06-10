@@ -450,6 +450,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		title: nls.localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
 		toggled: ContextKeyExpr.and(IsMacContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'))
 	},
+	when: IsMacContext.toNegated(),
 	order: 0
 });
 
