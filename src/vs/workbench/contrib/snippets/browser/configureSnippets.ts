@@ -259,8 +259,8 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id,
-		title: { value: nls.localize('openSnippet.label', "Configure User Snippets"), original: 'Preferences: Configure User Snippets' },
-		category: nls.localize('preferences', "Preferences")
+		title: { value: nls.localize('openSnippet.label', "Configure User Snippets"), original: 'Configure User Snippets' },
+		category: { value: nls.localize('preferences', "Preferences"), original: 'Preferences' }
 	}
 });
 

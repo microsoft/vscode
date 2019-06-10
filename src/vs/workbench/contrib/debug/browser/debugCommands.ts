@@ -435,14 +435,15 @@ export function registerCommands(): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
-			title: { value: nls.localize('inlineBreakpoint', "Inline Breakpoint"), original: 'Debug: Inline Breakpoint' },
-			category: nls.localize('debug', "Debug")
+			title: { value: nls.localize('inlineBreakpoint', "Inline Breakpoint"), original: 'Inline Breakpoint' },
+			category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 		command: {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
-			title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint")
+			title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint"),
+			category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
 		},
 		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
 		group: 'debug',

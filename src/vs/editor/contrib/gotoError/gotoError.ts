@@ -428,7 +428,7 @@ export class NextMarkerAction extends MarkerNavigationAction {
 		super(true, false, {
 			id: NextMarkerAction.ID,
 			label: NextMarkerAction.LABEL,
-			alias: 'Go to Next Error or Warning',
+			alias: 'Go to Next Problem (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
@@ -442,7 +442,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 		super(false, false, {
 			id: PrevMarkerAction.ID,
 			label: PrevMarkerAction.LABEL,
-			alias: 'Go to Previous Error or Warning',
+			alias: 'Go to Previous Problem (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
@@ -454,7 +454,7 @@ class NextMarkerInFilesAction extends MarkerNavigationAction {
 		super(true, true, {
 			id: 'editor.action.marker.nextInFiles',
 			label: nls.localize('markerAction.nextInFiles.label', "Go to Next Problem in Files (Error, Warning, Info)"),
-			alias: 'Go to Next Error or Warning in Files',
+			alias: 'Go to Next Problem in Files (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -470,7 +470,7 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 		super(false, true, {
 			id: 'editor.action.marker.prevInFiles',
 			label: nls.localize('markerAction.previousInFiles.label', "Go to Previous Problem in Files (Error, Warning, Info)"),
-			alias: 'Go to Previous Error or Warning in Files',
+			alias: 'Go to Previous Problem in Files (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
