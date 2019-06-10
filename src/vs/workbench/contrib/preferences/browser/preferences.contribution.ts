@@ -741,6 +741,8 @@ CommandsRegistry.registerCommand(SETTINGS_EDITOR_COMMAND_FILTER_ONLINE, serviceA
 	const control = serviceAccessor.get(IEditorService).activeControl as SettingsEditor2;
 	if (control instanceof SettingsEditor2) {
 		control.focusSearch(`@tag:usesOnlineServices`);
+	} else {
+		serviceAccessor.get(IPreferencesService).openSettings(undefined, '@tag:usesOnlineServices');
 	}
 });
 
@@ -753,6 +755,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 		title: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")
 	},
 	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '1_settings',
+	command: {
+		id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
+		title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "&&Online Services Settings")
+	},
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
