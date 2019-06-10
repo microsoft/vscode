@@ -14,8 +14,6 @@ import { URI as uri } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -23,28 +21,25 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, isFileMatch, isProgressMessage } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-// import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 
 export class SearchService extends Disposable implements ISearchService {
 	_serviceBrand: any;
 
-	private diskSearch: ISearchResultProvider;
+	protected diskSearch: ISearchResultProvider;
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IFileService private readonly fileService: IFileService
+		private readonly modelService: IModelService,
+		private readonly untitledEditorService: IUntitledEditorService,
+		private readonly editorService: IEditorService,
+		environmentService: IEnvironmentService,
+		private readonly telemetryService: ITelemetryService,
+		private readonly logService: ILogService,
+		private readonly extensionService: IExtensionService,
+		private readonly fileService: IFileService
 	) {
 		super();
-		// this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, environmentService.debugSearch);
 	}
 
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
@@ -206,9 +201,12 @@ export class SearchService extends Disposable implements ISearchService {
 				extraFileResources: diskSearchExtraFileResources
 			};
 
-			searchPs.push(diskSearchQuery.type === QueryType.File ?
-				this.diskSearch.fileSearch(diskSearchQuery, token) :
-				this.diskSearch.textSearch(diskSearchQuery, onProviderProgress, token));
+
+			if (this.diskSearch) {
+				searchPs.push(diskSearchQuery.type === QueryType.File ?
+					this.diskSearch.fileSearch(diskSearchQuery, token) :
+					this.diskSearch.textSearch(diskSearchQuery, onProviderProgress, token));
+			}
 		}
 
 		return Promise.all(searchPs).then(completes => {
@@ -411,4 +409,18 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 }
 
-registerSingleton(ISearchService, SearchService, true);
+export class RemoteSearchService extends SearchService {
+	constructor(
+		@IModelService modelService: IModelService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IEditorService editorService: IEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILogService logService: ILogService,
+		@IExtensionService extensionService: IExtensionService,
+		@IFileService fileService: IFileService
+	) {
+		super(modelService, untitledEditorService, editorService, environmentService, telemetryService, logService, extensionService, fileService);
+	}
+}
+
