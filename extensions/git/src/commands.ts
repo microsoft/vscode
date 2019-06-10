@@ -695,7 +695,13 @@ export class CommandCenter {
 				viewColumn: ViewColumn.Active
 			};
 
-			const document = await workspace.openTextDocument(uri);
+			let document;
+			try {
+				document = await workspace.openTextDocument(uri);
+			} catch (error) {
+				await commands.executeCommand<void>('vscode.open', uri, opts);
+				continue;
+			}
 
 			// Check if active text editor has same path as other editor. we cannot compare via
 			// URI.toString() here because the schemas can be different. Instead we just go by path.
