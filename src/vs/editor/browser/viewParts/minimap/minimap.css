@@ -25,3 +25,31 @@
 	left: -6px;
 	width: 6px;
 }
+
+.monaco-editor .minimap.slider-mouseover .preview {
+	opacity: 0;
+	transition: opacity 100ms linear;
+	position: absolute;
+	box-sizing: border-box;
+	overflow: hidden;
+	display: none;
+}
+.monaco-editor .minimap.slider-mouseover .preview.active {
+	opacity: 1;
+	display: block;
+}
+
+.monaco-editor .minimap.slider-mouseover .preview {
+	opacity: 0;
+	transition: opacity 100ms linear;
+	position: absolute;
+	box-sizing: border-box;
+	border: 2px white solid;
+	overflow: hidden;
+	display: none;
+}
+
+.monaco-editor .minimap.slider-mouseover .preview.active {
+	opacity: 1;
+	display: block;
+}
