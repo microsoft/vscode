@@ -79,6 +79,7 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list
 body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action,
 body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action,
 body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .action-label,
+body[data-exploration^="icon-exploration"] .monaco-workbench .activitybar > .content .monaco-action-bar .action-label[title="References"],
 body[data-exploration^="icon-exploration"] .markers-panel .marker-icon,
 body[data-exploration^="icon-exploration"] .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix,
 body[data-exploration^="icon-exploration"] .monaco-tl-twistie.collapsible:not(.loading),
@@ -251,6 +252,10 @@ body[data-exploration="icon-exploration"] .monaco-workbench .activitybar .monaco
 
 body[data-exploration="icon-exploration"] .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-label.toggle-more {
 	-webkit-mask-image: url("images/activitybar/more-alt1.svg");
+}
+
+body[data-exploration="icon-exploration"] .monaco-workbench .activitybar > .content .monaco-action-bar .action-label[title="References"] {
+	-webkit-mask-image: url("images/activitybar/references-alt1.svg");
 }
 
 
