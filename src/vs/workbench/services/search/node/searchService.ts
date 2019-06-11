@@ -31,17 +31,17 @@ export class LocalSearchService extends SearchService {
 		@IModelService modelService: IModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IEditorService editorService: IEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IEnvironmentService readonly environmentService: IEnvironmentService,
+		@IInstantiationService readonly instantiationService: IInstantiationService
 	) {
-		super(modelService, untitledEditorService, editorService, environmentService, telemetryService, logService, extensionService, fileService);
+		super(modelService, untitledEditorService, editorService, telemetryService, logService, extensionService, fileService);
 
 
-		this.diskSearch = this.instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, environmentService.debugSearch);
+		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, environmentService.debugSearch);
 	}
 }
 

@@ -12,7 +12,6 @@ import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI as uri } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -33,7 +32,6 @@ export class SearchService extends Disposable implements ISearchService {
 		private readonly modelService: IModelService,
 		private readonly untitledEditorService: IUntitledEditorService,
 		private readonly editorService: IEditorService,
-		environmentService: IEnvironmentService,
 		private readonly telemetryService: ITelemetryService,
 		private readonly logService: ILogService,
 		private readonly extensionService: IExtensionService,
@@ -414,13 +412,12 @@ export class RemoteSearchService extends SearchService {
 		@IModelService modelService: IModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IEditorService editorService: IEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService
 	) {
-		super(modelService, untitledEditorService, editorService, environmentService, telemetryService, logService, extensionService, fileService);
+		super(modelService, untitledEditorService, editorService, telemetryService, logService, extensionService, fileService);
 	}
 }
 
