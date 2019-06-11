@@ -276,13 +276,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Toolbar
 		const groupId = this._group.id;
-		const containerToolbar = new ActionBar(toolbarContainer, {
+		const containerToolbar = this._register(new ActionBar(toolbarContainer, {
 			ariaLabel: localize('araLabelGroupActions', "Editor group actions"), actionRunner: this._register(new class extends ActionRunner {
 				run(action: IAction) {
 					return action.run(groupId);
 				}
 			})
-		});
+		}));
 
 		// Toolbar actions
 		const removeGroupAction = this._register(new Action(
