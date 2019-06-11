@@ -81,9 +81,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 	dispose() {
 		super.dispose();
-		for (const [, decorations] of this._markerDecorations) {
-			decorations.dispose();
-		}
+		this._markerDecorations.forEach(value => value.dispose());
 		this._markerDecorations.clear();
 	}
 
