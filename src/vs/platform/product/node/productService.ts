@@ -6,10 +6,11 @@
 import { IProductService } from 'vs/platform/product/common/product';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class ProductService implements IProductService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IProductService>;
 
 	get version(): string { return pkg.version; }
 
@@ -24,4 +25,6 @@ export class ProductService implements IProductService {
 	get uiExtensions(): string[] | undefined { return product.uiExtensions; }
 
 	get enableTelemetry(): boolean { return product.enableTelemetry; }
+
+	get sendASmile(): { reportIssueUrl: string, requestFeatureUrl: string } { return product.sendASmile; }
 }

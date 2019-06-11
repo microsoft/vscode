@@ -5,12 +5,12 @@
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/electron-browser/terminalInstanceService';
-import { TerminalService } from 'vs/workbench/contrib/terminal/electron-browser/terminalService';
 import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { registerShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalShellConfig';
+import { TerminalNativeService } from 'vs/workbench/contrib/terminal/electron-browser/terminalNativeService';
+import { ITerminalNativeService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 registerShellConfiguration(getDefaultShell);
-registerSingleton(ITerminalService, TerminalService, true);
+registerSingleton(ITerminalNativeService, TerminalNativeService, true);
 registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);

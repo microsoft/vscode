@@ -79,6 +79,7 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list
 body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action,
 body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action,
 body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .action-label,
+body[data-exploration^="icon-exploration"] .monaco-workbench .activitybar > .content .monaco-action-bar .action-label[title="References"],
 body[data-exploration^="icon-exploration"] .markers-panel .marker-icon,
 body[data-exploration^="icon-exploration"] .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix,
 body[data-exploration^="icon-exploration"] .monaco-tl-twistie.collapsible:not(.loading),
@@ -115,6 +116,9 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .con
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
 body[data-exploration^="icon-exploration"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"],
 body[data-exploration^="icon-exploration"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.refresh"],
+body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="references-view.refresh"],
+body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="references-view.clear"],
+body[data-exploration^="icon-exploration"] .customview-tree .monaco-tree .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions .action-label[data-title="references-view.remove"],
 body[data-exploration^="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-exploration^="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-viewlet .action-close-all-files,
@@ -250,6 +254,10 @@ body[data-exploration="icon-exploration"] .monaco-workbench .activitybar > .cont
 	-webkit-mask-image: url("images/activitybar/more-alt1.svg");
 }
 
+body[data-exploration="icon-exploration"] .monaco-workbench .activitybar > .content .monaco-action-bar .action-label[title="References"] {
+	-webkit-mask-image: url("images/activitybar/references-alt1.svg");
+}
+
 
 /****************
 	Explorer
@@ -276,7 +284,8 @@ body[data-exploration="icon-exploration"] .monaco-workbench .explorer-action.new
 	-webkit-mask-image: url("images/explorer/add-folder-alt1.svg");
 }
 
-body[data-exploration="icon-exploration"] .monaco-workbench .explorer-action.refresh-explorer {
+body[data-exploration="icon-exploration"] .monaco-workbench .explorer-action.refresh-explorer,
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="references-view.refresh"] {
 	-webkit-mask-image: url("images/explorer/refresh-alt1.svg");
 }
 
@@ -297,7 +306,8 @@ body[data-exploration="icon-exploration"] .monaco-workbench .search-action.refre
 	-webkit-mask-image: url("images/search/refresh-alt1.svg");
 }
 
-body[data-exploration="icon-exploration"] .monaco-workbench .search-action.clear-search-results {
+body[data-exploration="icon-exploration"] .monaco-workbench .search-action.clear-search-results,
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="references-view.clear"] {
 	-webkit-mask-image: url("images/search/clear-alt1.svg");
 }
 
@@ -1079,7 +1089,7 @@ body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-hea
 body[data-exploration="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-exploration="icon-exploration"] .monaco-tl-twistie.collapsible:not(.loading) {
 	-webkit-mask-image: url("images/tree/expand-alt1.svg");
-	background-image: url("images/tree/expand-alt1.svg");
+	background-image: url("images/tree/expand-empty.svg");
 }
 
 body[data-exploration="icon-exploration"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
@@ -1088,10 +1098,11 @@ body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-hea
 body[data-exploration="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-exploration="icon-exploration"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	-webkit-mask-image: url("images/tree/collapse-alt1.svg");
-	background-image: url("images/tree/collapse-alt1.svg");
+	background-image: url("images/tree/expand-empty.svg");
 
 }
 
+body[data-exploration="icon-exploration"] .customview-tree .monaco-tree .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions .action-label[data-title="references-view.remove"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.closeActiveEditor"],
 body[data-exploration="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-actions .action-label.icon[data-title="peekview.close"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,

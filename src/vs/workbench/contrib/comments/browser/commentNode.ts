@@ -119,7 +119,7 @@ export class CommentNode extends Disposable {
 		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
-		if (this.comment.commentReactions && this.comment.commentReactions.length) {
+		if (this.comment.commentReactions && this.comment.commentReactions.length && this.comment.commentReactions.filter(reaction => !!reaction.count).length) {
 			this.createReactionsContainer(this._commentDetailsContainer);
 		}
 
@@ -154,15 +154,23 @@ export class CommentNode extends Disposable {
 	private createActionsToolbar() {
 		const actions: IAction[] = [];
 
-		let reactionGroup = this.commentService.getReactionGroup(this.owner);
-		if (reactionGroup && reactionGroup.length) {
-			let commentThread = this.commentThread as modes.CommentThread2;
-			if (commentThread.commentThreadHandle !== undefined) {
-				let toggleReactionAction = this.createReactionPicker2();
-				actions.push(toggleReactionAction);
-			} else {
-				let toggleReactionAction = this.createReactionPicker();
-				actions.push(toggleReactionAction);
+		let hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
+
+		if (hasReactionHandler) {
+			let toggleReactionAction = this.createReactionPicker2(this.comment.commentReactions || []);
+			actions.push(toggleReactionAction);
+		} else {
+			let reactionGroup = this.commentService.getReactionGroup(this.owner);
+			if (reactionGroup && reactionGroup.length) {
+				let commentThread = this.commentThread as modes.CommentThread2;
+				if (commentThread.commentThreadHandle !== undefined) {
+					let reactionGroup = this.commentService.getReactionGroup(this.owner);
+					let toggleReactionAction = this.createReactionPicker2(reactionGroup || []);
+					actions.push(toggleReactionAction);
+				} else {
+					let toggleReactionAction = this.createReactionPicker();
+					actions.push(toggleReactionAction);
+				}
 			}
 		}
 
@@ -241,7 +249,7 @@ export class CommentNode extends Disposable {
 		}
 	}
 
-	private createReactionPicker2(): ToggleReactionsAction {
+	private createReactionPicker2(reactionGroup: modes.CommentReaction[]): ToggleReactionsAction {
 		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
 		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionViewItem) {
@@ -250,7 +258,6 @@ export class CommentNode extends Disposable {
 		}, nls.localize('commentToggleReaction', "Toggle Reaction")));
 
 		let reactionMenuActions: Action[] = [];
-		let reactionGroup = this.commentService.getReactionGroup(this.owner);
 		if (reactionGroup && reactionGroup.length) {
 			reactionMenuActions = reactionGroup.map((reaction) => {
 				return new Action(`reaction.command.${reaction.label}`, `${reaction.label}`, '', true, async () => {
@@ -356,8 +363,9 @@ export class CommentNode extends Disposable {
 		});
 		this._register(this._reactionsActionBar);
 
-		this.comment.commentReactions!.map(reaction => {
-			let action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && reaction.canEdit ? 'active' : '', reaction.canEdit, async () => {
+		let hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
+		this.comment.commentReactions!.filter(reaction => !!reaction.count).map(reaction => {
+			let action = new ReactionAction(`reaction.${reaction.label}`, `${reaction.label}`, reaction.hasReacted && (reaction.canEdit || hasReactionHandler) ? 'active' : '', (reaction.canEdit || hasReactionHandler), async () => {
 				try {
 					let commentThread = this.commentThread as modes.CommentThread2;
 					if (commentThread.commentThreadHandle !== undefined) {
@@ -390,15 +398,20 @@ export class CommentNode extends Disposable {
 			}
 		});
 
-		let reactionGroup = this.commentService.getReactionGroup(this.owner);
-		if (reactionGroup && reactionGroup.length) {
-			let commentThread = this.commentThread as modes.CommentThread2;
-			if (commentThread.commentThreadHandle !== undefined) {
-				let toggleReactionAction = this.createReactionPicker2();
-				this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
-			} else {
-				let toggleReactionAction = this.createReactionPicker();
-				this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+		if (hasReactionHandler) {
+			let toggleReactionAction = this.createReactionPicker2(this.comment.commentReactions || []);
+			this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+		} else {
+			let reactionGroup = this.commentService.getReactionGroup(this.owner);
+			if (reactionGroup && reactionGroup.length) {
+				let commentThread = this.commentThread as modes.CommentThread2;
+				if (commentThread.commentThreadHandle !== undefined) {
+					let toggleReactionAction = this.createReactionPicker2(reactionGroup || []);
+					this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+				} else {
+					let toggleReactionAction = this.createReactionPicker();
+					this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
+				}
 			}
 		}
 	}
@@ -407,7 +420,7 @@ export class CommentNode extends Disposable {
 		const container = dom.append(this._commentEditContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentEditor, this.parentThread);
 		const resource = URI.parse(`comment:commentinput-${this.comment.commentId}-${Date.now()}.md`);
-		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource.path), resource, false);
+		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource), resource, false);
 
 		this._commentEditor.setModel(this._commentEditorModel);
 		this._commentEditor.setValue(this.comment.body.value);

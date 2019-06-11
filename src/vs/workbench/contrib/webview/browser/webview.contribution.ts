@@ -129,10 +129,10 @@ registerWebViewCommands(WebviewEditor.ID);
 
 actionRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(OpenWebviewDeveloperToolsAction, OpenWebviewDeveloperToolsAction.ID, OpenWebviewDeveloperToolsAction.LABEL),
-	'Webview Tools',
+	'Open Webview Developer Tools',
 	webviewDeveloperCategory);
 
 actionRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
-	'Reload Webview',
+	'Reload Webviews',
 	webviewDeveloperCategory);

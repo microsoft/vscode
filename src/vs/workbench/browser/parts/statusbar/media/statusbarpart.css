@@ -81,14 +81,13 @@
 	height: 100%;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-entry > span {
-	height: 100%;
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-entry > span,
 .monaco-workbench .part.statusbar > .items-container > .statusbar-entry > a {
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-entry > a.disabled {
+	pointer-events: none;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-entry span.octicon {

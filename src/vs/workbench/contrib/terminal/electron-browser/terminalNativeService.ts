@@ -4,79 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ITerminalService, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalService as BrowserTerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getDefaultShell, linuxDistro, getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ipcRenderer as ipc } from 'electron';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
-import { coalesce } from 'vs/base/common/arrays';
+import { ITerminalNativeService, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
+import { getWindowsBuildNumber, linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
+import { IQuickPickItem, IPickOptions, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { execFile } from 'child_process';
-import { URI } from 'vs/base/common/uri';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { coalesce } from 'vs/base/common/arrays';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export class TerminalService extends BrowserTerminalService implements ITerminalService {
-	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
+export class TerminalNativeService implements ITerminalNativeService {
+	public _serviceBrand: any;
+
+	public get linuxDistro(): LinuxDistro { return linuxDistro; }
+
+	private readonly _onOpenFileRequest = new Emitter<IOpenFileRequest>();
+	public get onOpenFileRequest(): Event<IOpenFileRequest> { return this._onOpenFileRequest.event; }
+	private readonly _onOsResume = new Emitter<void>();
+	public get onOsResume(): Event<void> { return this._onOsResume.event; }
 
 	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IPanelService panelService: IPanelService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IStorageService storageService: IStorageService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IFileService private readonly _fileService: IFileService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@INotificationService notificationService: INotificationService,
-		@IDialogService dialogService: IDialogService,
-		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService readonly instantiationService: IInstantiationService,
 	) {
-		super(contextKeyService, panelService, layoutService, lifecycleService, storageService, notificationService, dialogService, instantiationService, extensionService, fileService, remoteAgentService);
-
-		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, linuxDistro);
-		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
-			// if the request to open files is coming in from the integrated terminal (identified though
-			// the termProgram variable) and we are instructed to wait for editors close, wait for the
-			// marker file to get deleted and then focus back to the integrated terminal.
-			if (request.termProgram === 'vscode' && request.filesToWait) {
-				const waitMarkerFileUri = URI.revive(request.filesToWait.waitMarkerFileUri);
-				this.whenDeleted(waitMarkerFileUri).then(() => {
-					if (this.terminalInstances.length > 0) {
-						const terminal = this.getActiveInstance();
-						if (terminal) {
-							terminal.focus();
-						}
-					}
-				});
-			}
-		});
-		ipc.on('vscode:osResume', () => {
-			const activeTab = this.getActiveTab();
-			if (!activeTab) {
-				return;
-			}
-			activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
-		});
+		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => this._onOpenFileRequest.fire(request));
+		ipc.on('vscode:osResume', () => this._onOsResume.fire());
 	}
 
-	private whenDeleted(path: URI): Promise<void> {
-
+	public whenFileDeleted(path: URI): Promise<void> {
 		// Complete when wait marker file is deleted
 		return new Promise<void>(resolve => {
 			let running = false;
@@ -94,10 +56,6 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 				}
 			}, 1000);
 		});
-	}
-
-	public getDefaultShell(p: platform.Platform): string {
-		return getDefaultShell(p);
 	}
 
 	public selectDefaultWindowsShell(): Promise<string | undefined> {
@@ -177,15 +135,27 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 			});
 	}
 
-	protected _getWindowsBuildNumber(): number {
-		return getWindowsBuildNumber();
+	private _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {
+		if (potentialPaths.length === 0) {
+			return Promise.resolve(null);
+		}
+		const current = potentialPaths.shift();
+		if (current! === '') {
+			return this._validateShellPaths(label, potentialPaths);
+		}
+		return this._fileService.exists(URI.file(current!)).then(exists => {
+			if (!exists) {
+				return this._validateShellPaths(label, potentialPaths);
+			}
+			return [label, current] as [string, string];
+		});
 	}
 
 	/**
 	 * Converts a path to a path on WSL using the wslpath utility.
 	 * @param path The original path.
 	 */
-	protected _getWslPath(path: string): Promise<string> {
+	public getWslPath(path: string): Promise<string> {
 		if (getWindowsBuildNumber() < 17063) {
 			throw new Error('wslpath does not exist on Windows build < 17063');
 		}
@@ -194,5 +164,9 @@ export class TerminalService extends BrowserTerminalService implements ITerminal
 				c(escapeNonWindowsPath(stdout.trim()));
 			});
 		});
+	}
+
+	public getWindowsBuildNumber(): number {
+		return getWindowsBuildNumber();
 	}
 }

@@ -113,7 +113,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private createBrowserWindow(config: IWindowCreationOptions): void {
 
 		// Load window state
-		this.windowState = this.restoreWindowState(config.state);
+		const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
+		this.windowState = state;
 
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
@@ -174,6 +175,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		if (isMacintosh && useCustomTitleStyle) {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
+		}
+
+		// TODO@Ben (Electron 4 regression): when running on multiple displays where the target display
+		// to open the window has a larger resolution than the primary display, the window will not size
+		// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
+		if (isMacintosh && hasMultipleDisplays) {
+			if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
+				this._win.setBounds({
+					width: this.windowState.width!,
+					height: this.windowState.height!,
+					x: this.windowState.x!,
+					y: this.windowState.y!
+				});
+			}
 		}
 
 		if (isFullscreenOrMaximized) {
@@ -679,18 +694,23 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return state;
 	}
 
-	private restoreWindowState(state?: IWindowState): IWindowState {
+	private restoreWindowState(state?: IWindowState): [IWindowState, boolean? /* has multiple displays */] {
+		let hasMultipleDisplays = false;
 		if (state) {
 			try {
-				state = this.validateWindowState(state);
+				const displays = screen.getAllDisplays();
+				hasMultipleDisplays = displays.length > 1;
+
+				state = this.validateWindowState(state, displays);
 			} catch (err) {
 				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
 		}
-		return state || defaultWindowState();
+
+		return [state || defaultWindowState(), hasMultipleDisplays];
 	}
 
-	private validateWindowState(state: IWindowState): IWindowState | undefined {
+	private validateWindowState(state: IWindowState, displays: Display[]): IWindowState | undefined {
 		if (typeof state.x !== 'number'
 			|| typeof state.y !== 'number'
 			|| typeof state.width !== 'number'
@@ -702,8 +722,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (state.width <= 0 || state.height <= 0) {
 			return undefined;
 		}
-
-		const displays = screen.getAllDisplays();
 
 		// Single Monitor: be strict about x/y positioning
 		if (displays.length === 1) {

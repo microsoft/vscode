@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.36.0",
-  "distro": "f95785bc1873ba4ce69b4e8e63bb5416ae96201f",
+  "distro": "8a9f9dd1ba6499b20ee1f470a5c7b3fa1b684d7f",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -26,6 +26,7 @@
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
     "web": "node resources/server/bin-dev/code-web.js",
+    "web-selfhost": "node resources/server/bin-dev/code-web.js --selfhost --folder .",
     "install-server": "git fetch distro && git checkout distro/distro -- src/vs/server resources/server && git reset HEAD src/vs/server resources/server"
   },
   "dependencies": {
@@ -54,9 +55,9 @@
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.1.1",
-    "xterm": "3.15.0-beta23",
-    "xterm-addon-search": "0.1.0-beta5",
-    "xterm-addon-web-links": "0.1.0-beta9",
+    "xterm": "3.15.0-beta34",
+    "xterm-addon-search": "0.1.0-beta6",
+    "xterm-addon-web-links": "0.1.0-beta10",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },

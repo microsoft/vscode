@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper, ITerminalNativeService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -239,7 +239,7 @@ export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
 
 export class DeleteToLineStartTerminalAction extends BaseSendTextTerminalAction {
 	public static readonly ID = TERMINAL_COMMAND_ID.DELETE_TO_LINE_START;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteToLineStart', "Delete to Line Start");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteToLineStart', "Delete To Line Start");
 
 	constructor(
 		id: string,
@@ -624,13 +624,13 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalNativeService private readonly _terminalNativeService: ITerminalNativeService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): Promise<any> {
-		return this.terminalService.selectDefaultWindowsShell();
+		return this._terminalNativeService.selectDefaultWindowsShell();
 	}
 }
 
@@ -712,7 +712,8 @@ export class SwitchTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@ITerminalNativeService private readonly terminalNativeService: ITerminalNativeService
 	) {
 		super(id, label, 'terminal-action switch-terminal');
 	}
@@ -727,7 +728,7 @@ export class SwitchTerminalAction extends Action {
 		}
 		if (item === SelectDefaultShellWindowsTerminalAction.LABEL) {
 			this.terminalService.refreshActiveTab();
-			return this.terminalService.selectDefaultWindowsShell();
+			return this.terminalNativeService.selectDefaultWindowsShell();
 		}
 		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
 		this.terminalService.setActiveTabByIndex(selectedTabIndex);

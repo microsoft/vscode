@@ -13,7 +13,7 @@ import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 
 export interface IMarkdownRenderResult extends IDisposable {
@@ -32,7 +32,7 @@ export class MarkdownRenderer {
 	) {
 	}
 
-	private getOptions(disposeables: IDisposable[]): RenderOptions {
+	private getOptions(disposeables: DisposableStore): RenderOptions {
 		return {
 			codeBlockRenderer: (languageAlias, value) => {
 				// In markdown,
@@ -78,7 +78,7 @@ export class MarkdownRenderer {
 	}
 
 	render(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
-		const disposeables: IDisposable[] = [];
+		const disposeables = new DisposableStore();
 
 		let element: HTMLElement;
 		if (!markdown) {
@@ -89,7 +89,7 @@ export class MarkdownRenderer {
 
 		return {
 			element,
-			dispose: () => dispose(disposeables)
+			dispose: () => disposeables.dispose()
 		};
 	}
 }

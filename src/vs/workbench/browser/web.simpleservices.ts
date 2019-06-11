@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { keys, ResourceMap } from 'vs/base/common/map';
+import { keys } from 'vs/base/common/map';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -29,13 +29,6 @@ import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycle
 import { ILogService, LogLevel, ConsoleLogService } from 'vs/platform/log/common/log';
 import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/product';
-import { ISearchService, ITextQueryProps, ISearchProgressItem, ISearchComplete, IFileQueryProps, SearchProviderType, ISearchResultProvider, ITextQuery, IFileMatch, QueryType, FileMatch, pathIncludedInQuery } from 'vs/workbench/services/search/common/search';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { coalesce } from 'vs/base/common/arrays';
-import { Schemas } from 'vs/base/common/network';
-import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/workbench/services/search/common/searchHelpers';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
@@ -50,15 +43,12 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 // tslint:disable-next-line: import-patterns
 import { State as DebugState, IDebugService, IDebugSession, IConfigurationManager, IStackFrame, IThread, IViewModel, IExpression, IFunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 // tslint:disable-next-line: import-patterns
 import { IExtensionsWorkbenchService, IExtension as IExtension2 } from 'vs/workbench/contrib/extensions/common/extensions';
-// tslint:disable-next-line: import-patterns
-import { ITerminalService, ITerminalConfigHelper, ITerminalTab, ITerminalInstance, ITerminalProcessExtHostRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 // tslint:disable-next-line: import-patterns
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 // tslint:disable-next-line: import-patterns
@@ -206,11 +196,11 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	userDataPath: string;
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string;
+	appSettingsHome: URI;
 	settingsResource: URI;
-	appKeybindingsPath: string;
-	machineSettingsHome: string;
-	machineSettingsPath: string;
+	keybindingsResource: URI;
+	machineSettingsHome: URI;
+	machineSettingsResource: URI;
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;
 	globalStorageHome: string;
@@ -419,57 +409,6 @@ export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchSer
 registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService, true);
 //#endregion
 
-//#region ITerminalService
-export class SimpleTerminalService implements ITerminalService {
-	_serviceBrand: any; activeTabIndex: number;
-	configHelper: ITerminalConfigHelper;
-	onActiveTabChanged: Event<void> = Event.None;
-	onTabDisposed: Event<ITerminalTab> = Event.None;
-	onInstanceCreated: Event<ITerminalInstance> = Event.None;
-	onInstanceDisposed: Event<ITerminalInstance> = Event.None;
-	onInstanceProcessIdReady: Event<ITerminalInstance> = Event.None;
-	onInstanceDimensionsChanged: Event<ITerminalInstance> = Event.None;
-	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest> = Event.None;
-	onInstancesChanged: Event<void> = Event.None;
-	onInstanceTitleChanged: Event<ITerminalInstance> = Event.None;
-	onActiveInstanceChanged: Event<ITerminalInstance | undefined> = Event.None;
-	terminalInstances: ITerminalInstance[] = [];
-	terminalTabs: ITerminalTab[];
-	createTerminal: any;
-	createTerminalRenderer: any;
-	createInstance: any;
-	getInstanceFromId: any;
-	getInstanceFromIndex: any;
-	getTabLabels: any;
-	getActiveInstance() { return null; }
-	setActiveInstance: any;
-	setActiveInstanceByIndex: any;
-	getActiveOrCreateInstance: any;
-	splitInstance: any;
-	getActiveTab: any;
-	setActiveTabToNext: any;
-	setActiveTabToPrevious: any;
-	setActiveTabByIndex: any;
-	refreshActiveTab: any;
-	showPanel: any;
-	hidePanel: any;
-	focusFindWidget: any;
-	hideFindWidget: any;
-	getFindState: any;
-	findNext: any;
-	findPrevious: any;
-	setContainers: any;
-	getDefaultShell: any;
-	selectDefaultWindowsShell: any;
-	setWorkspaceShellAllowed: any;
-	preparePathForTerminalAsync: any;
-	extHostReady() { }
-	requestExtHostProcess: any;
-}
-registerSingleton(ITerminalService, SimpleTerminalService, true);
-
-//#endregion
-
 //#region ITaskService
 export class SimpleTaskService implements ITaskService {
 	_serviceBrand: any;
@@ -540,6 +479,7 @@ export class SimpleCommentService implements ICommentService {
 	addReaction: any;
 	deleteReaction: any;
 	getReactionGroup: any;
+	hasReactionHandler: any;
 	toggleReaction: any;
 	setActiveCommentThread: any;
 }
@@ -864,103 +804,6 @@ export class SimpleRequestService implements IRequestService {
 
 //#endregion
 
-//#region Search
-
-export class SimpleSearchService implements ISearchService {
-
-	_serviceBrand: any;
-
-	constructor(
-		@IModelService private modelService: IModelService,
-		@IEditorService private editorService: IEditorService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IFileService private fileService: IFileService
-	) {
-
-	}
-
-	textSearch(query: ITextQueryProps<URI>, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		// Get local results from dirty/untitled
-		const localResults = this.getLocalResults(query);
-
-		if (onProgress) {
-			coalesce(localResults.values()).forEach(onProgress);
-		}
-
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	fileSearch(query: IFileQueryProps<URI>, token?: CancellationToken): Promise<ISearchComplete> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	clearCache(cacheKey: string): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
-		return Disposable.None;
-	}
-
-	private getLocalResults(query: ITextQuery): ResourceMap<IFileMatch | null> {
-		const localResults = new ResourceMap<IFileMatch | null>();
-
-		if (query.type === QueryType.Text) {
-			const models = this.modelService.getModels();
-			models.forEach((model) => {
-				const resource = model.uri;
-				if (!resource) {
-					return;
-				}
-
-				if (!this.editorService.isOpen({ resource })) {
-					return;
-				}
-
-				// Support untitled files
-				if (resource.scheme === Schemas.untitled) {
-					if (!this.untitledEditorService.exists(resource)) {
-						return;
-					}
-				}
-
-				// Block walkthrough, webview, etc.
-				else if (!this.fileService.canHandleResource(resource)) {
-					return;
-				}
-
-				if (!this.matches(resource, query)) {
-					return; // respect user filters
-				}
-
-				// Use editor API to find matches
-				const matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, query.maxResults);
-				if (matches.length) {
-					const fileMatch = new FileMatch(resource);
-					localResults.set(resource, fileMatch);
-
-					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
-					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
-				} else {
-					localResults.set(resource, null);
-				}
-			});
-		}
-
-		return localResults;
-	}
-
-	private matches(resource: URI, query: ITextQuery): boolean {
-		return pathIncludedInQuery(query, resource.fsPath);
-	}
-}
-
-registerSingleton(ISearchService, SimpleSearchService, true);
-
-//#endregion
-
 //#region Storage
 
 export class SimpleStorageService extends InMemoryStorageService { }
@@ -1107,12 +950,12 @@ export class SimpleWindowService implements IWindowService {
 	readonly onDidChangeFocus: Event<boolean> = Event.None;
 	readonly onDidChangeMaximize: Event<boolean> = Event.None;
 
-	hasFocus = true;
+	readonly hasFocus = true;
 
 	readonly windowId = 0;
 
 	isFocused(): Promise<boolean> {
-		return Promise.resolve(false);
+		return Promise.resolve(this.hasFocus);
 	}
 
 	isMaximized(): Promise<boolean> {
@@ -1266,7 +1109,7 @@ export class SimpleWindowsService implements IWindowsService {
 	readonly onRecentlyOpenedChange: Event<void> = Event.None;
 
 	isFocused(_windowId: number): Promise<boolean> {
-		return Promise.resolve(false);
+		return Promise.resolve(true);
 	}
 
 	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
