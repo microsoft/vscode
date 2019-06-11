@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/update.contribution';
 import 'vs/platform/update/node/update.config.contribution';
 import * as platform from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
