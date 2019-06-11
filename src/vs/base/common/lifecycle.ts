@@ -144,6 +144,48 @@ export abstract class Disposable implements IDisposable {
 	}
 }
 
+/**
+ * Manages the lifecycle of a disposable value that may be changed.
+ *
+ * This ensures that when the the disposable value is changed, the previously held disposable is disposed of. You can
+ * also register a `MutableDisposable` on a `Disposable` to ensure it is automatically cleaned up.
+ */
+export class MutableDisposable<T extends IDisposable> implements IDisposable {
+	private _value?: T;
+	private _isDisposed = false;
+
+	constructor() {
+		trackDisposable(this);
+	}
+
+	get value(): T | undefined {
+		return this._isDisposed ? undefined : this._value;
+	}
+
+	set value(value: T | undefined) {
+		if (this._isDisposed || value === this._value) {
+			return;
+		}
+
+		if (this._value) {
+			this._value.dispose();
+		}
+		if (value) {
+			markTracked(value);
+		}
+		this._value = value;
+	}
+
+	dispose(): void {
+		this._isDisposed = true;
+		markTracked(this);
+		if (this._value) {
+			this._value.dispose();
+		}
+		this._value = undefined;
+	}
+}
+
 export interface IReference<T> extends IDisposable {
 	readonly object: T;
 }
