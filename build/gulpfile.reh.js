@@ -99,21 +99,21 @@ const entryPoints = [
 
 // VSCode Web Support (behind a build flag)
 if (process.env['VSCODE_WEB_BUILD']) {
-	vscodeResources.push(...[
+	vscodeResources.push(
 		'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
 		'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 		'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
 		'out-build/vs/code/browser/workbench/**',
-		'out-build/vs/**/markdown.css',
-	]);
+		'out-build/vs/**/markdown.css'
+	);
 
 	const buildfile = require('../src/buildfile');
 
-	entryPoints.push(...[
+	entryPoints.push(
 		buildfile.entrypoint('vs/workbench/workbench.web.main'),
 		buildfile.base,
 		buildfile.workbenchWeb
-	]);
+	);
 }
 
 const optimizeVSCodeREHTask = task.define('optimize-vscode-reh', task.series(
@@ -256,11 +256,11 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName) {
 		};
 		const localWorkspaceExtensions = glob.sync('extensions/*/package.json')
 			.filter((extensionPath) => {
-				const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, extensionPath)).toString());
 				if (process.env['VSCODE_WEB_BUILD']) {
 					return true; // web: ship all extensions for now
 				}
 
+				const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, extensionPath)).toString());
 				return !isUIExtension(manifest);
 			}).map((extensionPath) => path.basename(path.dirname(extensionPath)))
 			.filter(name => name !== 'vscode-api-tests' && name !== 'vscode-test-resolver'); // Do not ship the test extensions
