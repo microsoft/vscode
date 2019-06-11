@@ -14,18 +14,23 @@ import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, IWorkspacesMainService, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IHistoryMainService, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile } from 'vs/platform/history/common/history';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import { isEqual as areResourcesEqual, dirname, originalFSPath, basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
 import { toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/history/electron-main/historyStorage';
+import { exists } from 'vs/base/node/pfs';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 
 export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
+
+	private static readonly MAX_MACOS_DOCK_RECENT_WORKSPACES = 7; // prefer more workspaces...
+	private static readonly MAX_MACOS_DOCK_RECENT_FILES = 3; // ...compared to files
 
 	// Exclude some very common files from the dock/taskbar
 	private static readonly COMMON_FILES_FILTER = [
@@ -40,6 +45,8 @@ export class HistoryMainService implements IHistoryMainService {
 	private _onRecentlyOpenedChange = new Emitter<void>();
 	readonly onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;
 
+	private macOSRecentDocumentsUpdater: ThrottledDelayer<void>;
+
 	constructor(
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService,
@@ -47,6 +54,8 @@ export class HistoryMainService implements IHistoryMainService {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
+		this.macOSRecentDocumentsUpdater = new ThrottledDelayer<void>(800);
+
 		lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
 	}
 
@@ -69,7 +78,6 @@ export class HistoryMainService implements IHistoryMainService {
 			if (isRecentWorkspace(curr)) {
 				if (!this.workspacesMainService.isUntitledWorkspace(curr.workspace) && indexOfWorkspace(workspaces, curr.workspace) === -1) {
 					workspaces.push(curr);
-					this.addToPlatformRecentDocument(curr);
 				}
 			}
 
@@ -77,7 +85,6 @@ export class HistoryMainService implements IHistoryMainService {
 			else if (isRecentFolder(curr)) {
 				if (indexOfFolder(workspaces, curr.folderUri) === -1) {
 					workspaces.push(curr);
-					this.addToPlatformRecentDocument(curr);
 				}
 			}
 
@@ -88,7 +95,11 @@ export class HistoryMainService implements IHistoryMainService {
 
 				if (!alreadyExistsInHistory && !shouldBeFiltered) {
 					files.push(curr);
-					this.addToPlatformRecentDocument(curr);
+
+					// Add to recent documents (Windows only, macOS later)
+					if (isWindows && curr.fileUri.scheme === Schemas.file) {
+						app.addRecentDocument(curr.fileUri.fsPath);
+					}
 				}
 			}
 		}
@@ -105,12 +116,10 @@ export class HistoryMainService implements IHistoryMainService {
 
 		this.saveRecentlyOpened({ workspaces, files });
 		this._onRecentlyOpenedChange.fire();
-	}
 
-	private addToPlatformRecentDocument(toAdd: IRecent) {
-		if (isMacintosh || isWindows) {
-			const uri = location(toAdd);
-			app.addRecentDocument(originalFSPath(uri));
+		// Schedule update to recent documents on macOS dock
+		if (isMacintosh) {
+			this.macOSRecentDocumentsUpdater.trigger(() => this.updateMacOSRecentDocuments());
 		}
 	}
 
@@ -132,7 +141,70 @@ export class HistoryMainService implements IHistoryMainService {
 		if (workspaces.length !== mru.workspaces.length || files.length !== mru.files.length) {
 			this.saveRecentlyOpened({ files, workspaces });
 			this._onRecentlyOpenedChange.fire();
+
+			// Schedule update to recent documents on macOS dock
+			if (isMacintosh) {
+				this.macOSRecentDocumentsUpdater.trigger(() => this.updateMacOSRecentDocuments());
+			}
 		}
+	}
+
+	private async updateMacOSRecentDocuments(): Promise<void> {
+		if (!isMacintosh) {
+			return;
+		}
+
+		// We clear all documents first to ensure an up-to-date view on the set. Since entries
+		// can get deleted on disk, this ensures that the list is always valid
+		app.clearRecentDocuments();
+
+		const mru = this.getRecentlyOpened();
+
+		// Collect max-N recent workspaces that are known to exist
+		const workspaceEntries: string[] = [];
+		for (let i = 0, entries = 0; i < mru.workspaces.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_WORKSPACES; i++) {
+			const loc = location(mru.workspaces[i]);
+			if (loc.scheme === Schemas.file) {
+				const workspacePath = originalFSPath(loc);
+				if (await exists(workspacePath)) {
+					workspaceEntries.push(workspacePath);
+					entries++;
+				}
+			}
+		}
+
+		// Collect max-N recent files that are known to exist
+		const fileEntries: string[] = [];
+		for (let i = 0, entries = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i++) {
+			const loc = location(mru.files[i]);
+			if (loc.scheme === Schemas.file) {
+				const filePath = originalFSPath(loc);
+				if (
+					HistoryMainService.COMMON_FILES_FILTER.indexOf(basename(loc)) !== -1 || // skip some well known file entries
+					workspaceEntries.indexOf(filePath) !== -1								// prefer a workspace entry over a file entry (e.g. for .code-workspace)
+				) {
+					continue;
+				}
+
+				if (await exists(filePath)) {
+					fileEntries.push(filePath);
+					entries++;
+				}
+			}
+		}
+
+		// The apple guidelines (https://developer.apple.com/design/human-interface-guidelines/macos/menus/menu-anatomy/)
+		// explain that most recent entries should appear close to the interaction by the user (e.g. close to the
+		// mouse click). Most native macOS applications that add recent documents to the dock, show the most recent document
+		// to the bottom (because the dock menu is not appearing from top to bottom, but from the bottom to the top). As such
+		// we fill in the entries in reverse order so that the most recent shows up at the bottom of the menu.
+		//
+		// On top of that, the maximum number of documents can be configured by the user (defaults to 10). To ensure that
+		// we are not failing to show the most recent entries, we start by adding files first (in reverse order of recency)
+		// and then add folders (in reverse order of recency). Given that strategy, we can ensure that the most recent
+		// N folders are always appearing, even if the limit is low (https://github.com/microsoft/vscode/issues/74788)
+		fileEntries.reverse().forEach(fileEntry => app.addRecentDocument(fileEntry));
+		workspaceEntries.reverse().forEach(workspaceEntry => app.addRecentDocument(workspaceEntry));
 	}
 
 	clearRecentlyOpened(): void {
