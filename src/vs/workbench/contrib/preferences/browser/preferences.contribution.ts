@@ -755,6 +755,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 1
 });
 
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: SETTINGS_COMMAND_OPEN_SETTINGS,
+		title: nls.localize('settings', "Settings")
+	},
+	order: 1
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '2_keybindings',
 	command: {
@@ -762,6 +771,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 		title: nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts")
 	},
 	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: OpenGlobalKeybindingsAction.ID,
+		title: nls.localize('keyboardShortcuts', "Keyboard Shortcuts")
+	},
+	order: 3
 });
 
 // Editor tool items

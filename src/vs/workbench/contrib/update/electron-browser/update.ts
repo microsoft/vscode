@@ -13,9 +13,8 @@ import product from 'vs/platform/product/node/product';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IGlobalActivity } from 'vs/workbench/common/activity';
+import { IGlobalActivity, GLOBAL_ACTIVITY_ID, IGlobalActivityRegistry, GlobalActivityActionsExtensions as GlobalActivityExtensions } from 'vs/workbench/common/activity';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
@@ -27,6 +26,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -212,37 +212,13 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 	}
 }
 
-class CommandAction extends Action {
-
-	constructor(
-		commandId: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(`command-action:${commandId}`, label, undefined, true, () => commandService.executeCommand(commandId));
-	}
-}
-
 export class UpdateContribution extends Disposable implements IGlobalActivity {
-
-	private static readonly showCommandsId = 'workbench.action.showCommands';
-	private static readonly openSettingsId = 'workbench.action.openSettings';
-	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
-	private static readonly openUserSnippets = 'workbench.action.openSnippets';
-	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
-	private static readonly selectIconThemeId = 'workbench.action.selectIconTheme';
-	private static readonly showExtensionsId = 'workbench.view.extensions';
-
-	get id() { return 'vs.update'; }
-	get name() { return nls.localize('manage', "Manage"); }
-	get cssClass() { return 'update-activity'; }
 
 	private state: UpdateState;
 	private badgeDisposable: IDisposable = Disposable.None;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -272,6 +248,8 @@ export class UpdateContribution extends Disposable implements IGlobalActivity {
 			this.storageService.remove('update/lastKnownVersion', StorageScope.GLOBAL);
 			this.storageService.remove('update/updateNotificationTime', StorageScope.GLOBAL);
 		}
+
+		Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions).registerActivity(this);
 	}
 
 	private onUpdateStateChange(state: UpdateState): void {
@@ -314,7 +292,7 @@ export class UpdateContribution extends Disposable implements IGlobalActivity {
 		this.badgeDisposable.dispose();
 
 		if (badge) {
-			this.badgeDisposable = this.activityService.showActivity(this.id, badge, clazz);
+			this.badgeDisposable = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz);
 		}
 
 		this.state = state;
@@ -472,19 +450,7 @@ export class UpdateContribution extends Disposable implements IGlobalActivity {
 	}
 
 	getActions(): IAction[] {
-		const result: IAction[] = [
-			new CommandAction(UpdateContribution.showCommandsId, nls.localize('commandPalette', "Command Palette..."), this.commandService),
-			new Separator(),
-			new CommandAction(UpdateContribution.openSettingsId, nls.localize('settings', "Settings"), this.commandService),
-			new CommandAction(UpdateContribution.showExtensionsId, nls.localize('showExtensions', "Extensions"), this.commandService),
-			new CommandAction(UpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), this.commandService),
-			new Separator(),
-			new CommandAction(UpdateContribution.openUserSnippets, nls.localize('userSnippets', "User Snippets"), this.commandService),
-			new Separator(),
-			new CommandAction(UpdateContribution.selectColorThemeId, nls.localize('selectTheme.label', "Color Theme"), this.commandService),
-			new CommandAction(UpdateContribution.selectIconThemeId, nls.localize('themes.selectIconTheme.label', "File Icon Theme"), this.commandService)
-		];
-
+		const result: IAction[] = [];
 		const updateAction = this.getUpdateAction();
 
 		if (updateAction) {

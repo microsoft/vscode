@@ -272,3 +272,12 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	},
 	order: 1
 });
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '3_snippets',
+	command: {
+		id,
+		title: nls.localize('userSnippets', "User Snippets")
+	},
+	order: 1
+});
