@@ -40,6 +40,7 @@ import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions/windowActions';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { RemoteConnectionState } from 'vs/workbench/browser/contextkeys';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
 const CLOSE_REMOTE_COMMAND_ID = 'remote.closeRemote';
@@ -50,7 +51,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 	private windowCommandMenu: IMenu;
 	private hasWindowActions: boolean = false;
 	private remoteAuthority: string | undefined;
-	private disconnected: boolean = false;
+	private disconnected: boolean = true;
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -77,6 +78,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		if (this.remoteAuthority) {
 			// Pending entry until extensions are ready
 			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
+			RemoteConnectionState.bindTo(this.contextKeyService).set('initializing');
 
 			MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 				group: '6_close',
@@ -118,6 +120,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 	private setDisconnected(isDisconnected: boolean): void {
 		if (this.disconnected !== isDisconnected) {
 			this.disconnected = isDisconnected;
+			RemoteConnectionState.bindTo(this.contextKeyService).set(isDisconnected ? 'disconnected' : 'connected');
 			this.updateWindowIndicator();
 		}
 	}
@@ -162,7 +165,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 
 	private showIndicatorActions(menu: IMenu) {
 
-		const actions = !this.disconnected ? menu.getActions() : [];
+		const actions = !this.disconnected || !this.remoteAuthority ? menu.getActions() : [];
 
 		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 		for (let actionGroup of actions) {
