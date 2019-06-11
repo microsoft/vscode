@@ -171,6 +171,20 @@ export interface IPromptOptions extends INotificationProperties {
 	 * any of the provided choices.
 	 */
 	onCancel?: () => void;
+	neverShowOptions?: INeverShowOptions;
+}
+
+export interface INotifyOptions {
+	neverShowOptions?: INeverShowOptions;
+}
+
+export interface INeverShowOptions {
+	/**
+	* Sending prompt id automatically adds a "never show again" action to the prompt.
+	* If user picks this option, future calls to 'prompt' with the same prompt id will be ignored.
+	* The id is used to persist the selection to storage
+	*/
+	promptId: string;
 }
 
 export interface IStatusMessageOptions {
@@ -207,7 +221,7 @@ export interface INotificationService {
 	 *
 	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
-	notify(notification: INotification): INotificationHandle;
+	notify(notification: INotification, options?: INotifyOptions): INotificationHandle;
 
 	/**
 	 * A convenient way of reporting infos. Use the `INotificationService.notify`

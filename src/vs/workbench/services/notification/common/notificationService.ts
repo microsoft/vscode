@@ -3,22 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, INotifyOptions } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import * as nls from 'vs/nls';
 
 export class NotificationService extends Disposable implements INotificationService {
 
 	_serviceBrand: ServiceIdentifier<INotificationService>;
-
+	private readonly neverShowLabel = nls.localize('neverShowAgain', "Don't Show Again");
 	private _model: INotificationsModel = this._register(new NotificationsModel());
 
 	get model(): INotificationsModel {
 		return this._model;
+	}
+
+	constructor(@IStorageService private readonly _storageService: IStorageService) {
+		super();
 	}
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
@@ -51,12 +57,47 @@ export class NotificationService extends Disposable implements INotificationServ
 		this.model.addNotification({ severity: Severity.Error, message });
 	}
 
-	notify(notification: INotification): INotificationHandle {
-		return this.model.addNotification(notification);
+	notify(notification: INotification, options?: INotifyOptions): INotificationHandle {
+
+		let handle: INotificationHandle;
+		if (options && options.neverShowOptions) {
+			const id = options.neverShowOptions.promptId;
+			if (this.isRejected(id)) {
+				return new NoOpNotification();
+			}
+
+			notification.actions = notification.actions || {};
+			notification.actions.primary = notification.actions.primary || [];
+			notification.actions.primary = [
+				...notification.actions.primary,
+				new Action('workbench.dialog.choice.neverShowAgain', this.neverShowLabel, undefined, true, () => {
+					handle.close();
+					this.neverShow(id);
+					return Promise.resolve();
+				})];
+
+
+		}
+
+		handle = this.model.addNotification(notification);
+		return handle;
 	}
 
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 		const toDispose = new DisposableStore();
+
+
+		if (options && options.neverShowOptions) {
+			const id = options.neverShowOptions.promptId;
+			if (this.isRejected(id)) {
+				return new NoOpNotification();
+			}
+
+			choices.push({
+				label: this.neverShowLabel,
+				run: () => this.neverShow(id)
+			});
+		}
 
 		let choiceClicked = false;
 		let handle: INotificationHandle;
@@ -101,6 +142,14 @@ export class NotificationService extends Disposable implements INotificationServ
 		});
 
 		return handle;
+	}
+
+	private neverShow(id: string) {
+		this._storageService.store(id, true, StorageScope.GLOBAL);
+	}
+
+	private isRejected(id: string): boolean {
+		return !!this._storageService.get(id, StorageScope.GLOBAL);
 	}
 
 	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
