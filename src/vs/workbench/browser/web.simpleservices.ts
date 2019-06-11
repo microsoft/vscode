@@ -415,7 +415,7 @@ export class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchSer
 	allowedBadgeProviders: string[];
 }
 registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService, true);
-//#endregio
+//#endregion
 
 //#region ITaskService
 export class SimpleTaskService implements ITaskService {
