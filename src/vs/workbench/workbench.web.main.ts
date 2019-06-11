@@ -310,7 +310,7 @@ import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import 'vs/workbench/contrib/format/browser/format.contribution';
 
 // Send a Smile
-// import 'vs/workbench/contrib/feedback/electron-browser/feedback.contribution';
+// import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
 // Update
 // import 'vs/workbench/contrib/update/electron-browser/update.contribution';
