@@ -51,6 +51,7 @@ export interface WorkspaceStats {
 	configFiles: WorkspaceStatItem[];
 	fileCount: number;
 	maxFilesReached: boolean;
+	launchConfigFiles: WorkspaceStatItem[];
 }
 
 export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {

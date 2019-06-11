@@ -187,6 +187,10 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('toggleSharedProcess');
 	}
 
+	sendToSharedProcess(channel: string, ...args: any[]): Promise<void> {
+		return this.channel.call('sendToSharedProcess', [channel, ...args]);
+	}
+
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void> {
 		return this.channel.call('openWindow', [windowId, uris, options]);
 	}

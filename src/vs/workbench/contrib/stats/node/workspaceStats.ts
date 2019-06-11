@@ -11,7 +11,7 @@ import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/c
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration, IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
@@ -224,7 +224,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		this.report();
 	}
@@ -239,6 +240,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportCloudStats();
 
 		this.reportProxyStats();
+
+		this.windowsService.sendToSharedProcess('reportWorkspaceStats', this.contextService.getWorkspace());
 	}
 
 	private static searchArray(arr: string[], regEx: RegExp): boolean | undefined {

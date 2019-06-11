@@ -1175,6 +1175,10 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
+	sendToSharedProcess(): Promise<void> {
+		return Promise.resolve();
+	}
+
 	// Global methods
 	openWindow(_windowId: number, _uris: IURIToOpen[], _options: IOpenSettings): Promise<void> {
 		return Promise.resolve();

@@ -374,6 +374,10 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 
 	}
 
+	async sendToSharedProcess(channel: string, ...args: any[]): Promise<void> {
+		this.sharedProcess.send(channel, args);
+	}
+
 	async openAboutDialog(): Promise<void> {
 		this.logService.trace('windowsService#openAboutDialog');
 

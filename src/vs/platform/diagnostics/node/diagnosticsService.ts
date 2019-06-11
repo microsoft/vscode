@@ -5,8 +5,9 @@
 import * as os from 'os';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { IMachineInfo, WorkspaceStats, WorkspaceStatItem } from 'vs/platform/diagnostics/common/diagnosticsService';
-import { readdir, stat } from 'fs';
+import { readdir, stat, exists, readFile } from 'fs';
 import { join } from 'vs/base/common/path';
+import { parse, ParseError } from 'vs/base/common/json';
 
 export function getMachineInfo(): IMachineInfo {
 	const MB = 1024 * 1024;
@@ -24,6 +25,47 @@ export function getMachineInfo(): IMachineInfo {
 	}
 
 	return machineInfo;
+}
+
+export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[]> {
+	let launchConfigs = new Map<string, number>();
+
+	let launchConfig = join(folder, '.vscode', 'launch.json');
+	return new Promise((resolve, reject) => {
+		exists(launchConfig, (doesExist) => {
+			if (doesExist) {
+				readFile(launchConfig, (err, contents) => {
+					if (err) {
+						return resolve([]);
+					}
+
+					const errors: ParseError[] = [];
+					const json = parse(contents.toString(), errors);
+					if (errors.length) {
+						console.log(`Unable to parse ${launchConfig}`);
+						return resolve([]);
+					}
+
+					if (json['configurations']) {
+						for (const each of json['configurations']) {
+							const type = each['type'];
+							if (type) {
+								if (launchConfigs.has(type)) {
+									launchConfigs.set(type, launchConfigs.get(type)! + 1);
+								} else {
+									launchConfigs.set(type, 1);
+								}
+							}
+						}
+					}
+
+					return resolve(asSortedItems(launchConfigs));
+				});
+			} else {
+				return resolve([]);
+			}
+		});
+	});
 }
 
 export function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
@@ -145,16 +187,14 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 		walk(folder, filter, token, async (files) => {
 			files.forEach(acceptFile);
 
-			// TODO@rachel commented out due to severe performance issues
-			// see https://github.com/Microsoft/vscode/issues/70563
-			// const launchConfigs = await collectLaunchConfigs(folder);
+			const launchConfigs = await collectLaunchConfigs(folder);
 
 			resolve({
 				configFiles: asSortedItems(configFiles),
 				fileTypes: asSortedItems(fileTypes),
 				fileCount: token.count,
 				maxFilesReached: token.maxReached,
-				// launchConfigFiles: launchConfigs
+				launchConfigFiles: launchConfigs
 			});
 		});
 	});

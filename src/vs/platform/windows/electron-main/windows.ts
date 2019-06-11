@@ -139,4 +139,5 @@ export interface IOpenConfiguration {
 export interface ISharedProcess {
 	whenReady(): Promise<void>;
 	toggle(): void;
+	send(channel: string, ...args: any[]): void;
 }

@@ -29,7 +29,7 @@ import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
-import { ipcRenderer } from 'electron';
+import { ipcRenderer, Event } from 'electron';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
@@ -48,6 +48,9 @@ import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { URI } from 'vs/base/common/uri';
+import { collectWorkspaceStats } from 'vs/platform/diagnostics/node/diagnosticsService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -121,6 +124,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	const instantiationService = new InstantiationService(services);
 
+	let telemetryService: ITelemetryService;
 	instantiationService.invokeFunction(accessor => {
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
@@ -141,8 +145,10 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 				piiPaths: [appRoot, extensionsPath]
 			};
 
-			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
+			telemetryService = new TelemetryService(config, configurationService);
+			services.set(ITelemetryService, telemetryService);
 		} else {
+			telemetryService = NullTelemetryService;
 			services.set(ITelemetryService, NullTelemetryService);
 		}
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
@@ -176,6 +182,36 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			));
 			disposables.push(extensionManagementService as ExtensionManagementService);
 		});
+
+		ipcRenderer.once('reportWorkspaceStats', (_event: Event, args: any[]) => {
+			const workspace = args[0];
+			reportWorkspaceStats(workspace, telemetryService);
+		});
+	});
+}
+
+function reportWorkspaceStats(workspace: IWorkspace, telemetryService: ITelemetryService) {
+	workspace.folders.forEach(folder => {
+		const folderUri = URI.revive(folder.uri);
+		if (folderUri.scheme === 'file') {
+			const folder = folderUri.fsPath;
+			collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
+				/* __GDPR__
+					"workspace.metadata" : {
+						"fileTypes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"configTypes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"launchConfigs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+					}
+				*/
+				telemetryService.publicLog('workspace.metadata', {
+					fileTypes: stats.fileTypes,
+					configTypes: stats.configFiles,
+					launchConfigs: stats.launchConfigFiles
+				});
+			}).catch(_ => {
+				// Report nothing if collecting metadata fails.
+			});
+		}
 	});
 }
 
