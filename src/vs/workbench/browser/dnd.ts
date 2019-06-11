@@ -328,9 +328,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath)) : source.resource.toString()).join(lineDelimiter));
 
 	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
-	if (firstSource.resource.scheme === Schemas.file) {
-		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), firstSource.resource.toString()].join(':'));
-	}
+	event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), firstSource.resource.toString()].join(':'));
 
 	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
 	const files = sources.filter(s => !s.isDirectory);

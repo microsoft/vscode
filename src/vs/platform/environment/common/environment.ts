@@ -96,12 +96,12 @@ export interface IEnvironmentService {
 
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string;
+	appSettingsHome: URI;
 	settingsResource: URI;
-	appKeybindingsPath: string;
+	keybindingsResource: URI;
 
-	machineSettingsHome: string;
-	machineSettingsPath: string;
+	machineSettingsHome: URI;
+	machineSettingsResource: URI;
 
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;

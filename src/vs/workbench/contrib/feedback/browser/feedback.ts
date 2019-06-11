@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import product from 'vs/platform/product/node/product';
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
@@ -20,6 +19,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IProductService } from 'vs/platform/product/common/product';
 
 export interface IFeedback {
 	feedback: string;
@@ -54,7 +54,7 @@ export class FeedbackDropdown extends Dropdown {
 	private hideButton: HTMLInputElement;
 	private remainingCharacterCount: HTMLElement;
 
-	private requestFeatureLink: string;
+	private requestFeatureLink: string | undefined;
 
 	private isPure: boolean = true;
 
@@ -65,7 +65,8 @@ export class FeedbackDropdown extends Dropdown {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IProductService productService: IProductService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
@@ -79,7 +80,10 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.feedbackDelegate = options.feedbackService;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
-		this.requestFeatureLink = product.sendASmile.requestFeatureUrl;
+
+		if (productService.sendASmile) {
+			this.requestFeatureLink = productService.sendASmile.requestFeatureUrl;
+		}
 
 		this.integrityService.isPure().then(result => {
 			if (!result.isPure) {

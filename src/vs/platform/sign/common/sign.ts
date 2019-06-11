@@ -5,23 +5,11 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IProductService = createDecorator<IProductService>('productService');
+export const SIGN_SERVICE_ID = 'signService';
+export const ISignService = createDecorator<ISignService>(SIGN_SERVICE_ID);
 
-export interface IProductService {
+export interface ISignService {
 	_serviceBrand: any;
 
-	version: string;
-	commit?: string;
-
-	nameLong: string;
-	urlProtocol: string;
-	extensionAllowedProposedApi: string[];
-	uiExtensions?: string[];
-
-	enableTelemetry: boolean;
-
-	sendASmile?: {
-		reportIssueUrl: string;
-		requestFeatureUrl: string;
-	};
+	sign(value: string): Promise<string>;
 }

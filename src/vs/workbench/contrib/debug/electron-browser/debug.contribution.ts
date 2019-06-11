@@ -103,7 +103,6 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 	30,
 	OpenDebugPanelAction.ID
 ));
-Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 
 // Register default debug views
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);

@@ -239,7 +239,7 @@ export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
 
 export class DeleteToLineStartTerminalAction extends BaseSendTextTerminalAction {
 	public static readonly ID = TERMINAL_COMMAND_ID.DELETE_TO_LINE_START;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteToLineStart', "Delete to Line Start");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteToLineStart', "Delete To Line Start");
 
 	constructor(
 		id: string,

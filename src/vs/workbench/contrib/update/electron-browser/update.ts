@@ -232,6 +232,7 @@ export class UpdateContribution extends Disposable implements IGlobalActivity {
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
 	private static readonly selectIconThemeId = 'workbench.action.selectIconTheme';
 	private static readonly showExtensionsId = 'workbench.view.extensions';
+	private static readonly showOnlineSettingsId = 'settings.filterByOnline';
 
 	get id() { return 'vs.update'; }
 	get name() { return nls.localize('manage', "Manage"); }
@@ -476,6 +477,7 @@ export class UpdateContribution extends Disposable implements IGlobalActivity {
 			new CommandAction(UpdateContribution.showCommandsId, nls.localize('commandPalette', "Command Palette..."), this.commandService),
 			new Separator(),
 			new CommandAction(UpdateContribution.openSettingsId, nls.localize('settings', "Settings"), this.commandService),
+			new CommandAction(UpdateContribution.showOnlineSettingsId, nls.localize('onlineServices', "Online Services Settings"), this.commandService),
 			new CommandAction(UpdateContribution.showExtensionsId, nls.localize('showExtensions', "Extensions"), this.commandService),
 			new CommandAction(UpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), this.commandService),
 			new Separator(),

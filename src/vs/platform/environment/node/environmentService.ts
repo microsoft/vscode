@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
+import * as resources from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
@@ -108,22 +109,22 @@ export class EnvironmentService implements IEnvironmentService {
 	get appQuality(): string | undefined { return product.quality; }
 
 	@memoize
-	get appSettingsHome(): string { return path.join(this.userDataPath, 'User'); }
+	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 
 	@memoize
-	get settingsResource(): URI { return URI.file(path.join(this.appSettingsHome, 'settings.json')); }
+	get settingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'settings.json'); }
 
 	@memoize
-	get machineSettingsHome(): string { return path.join(this.userDataPath, 'Machine'); }
+	get machineSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'Machine')); }
 
 	@memoize
-	get machineSettingsPath(): string { return path.join(this.machineSettingsHome, 'settings.json'); }
+	get machineSettingsResource(): URI { return resources.joinPath(this.machineSettingsHome, 'settings.json'); }
 
 	@memoize
-	get globalStorageHome(): string { return path.join(this.appSettingsHome, 'globalStorage'); }
+	get globalStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'globalStorage'); }
 
 	@memoize
-	get workspaceStorageHome(): string { return path.join(this.appSettingsHome, 'workspaceStorage'); }
+	get workspaceStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'workspaceStorage'); }
 
 	@memoize
 	get settingsSearchBuildId(): number | undefined { return product.settingsSearchBuildId; }
@@ -132,7 +133,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
 
 	@memoize
-	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
+	get keybindingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }

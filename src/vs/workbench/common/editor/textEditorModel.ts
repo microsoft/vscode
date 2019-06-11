@@ -11,6 +11,7 @@ import { IModeService, ILanguageSelection } from 'vs/editor/common/services/mode
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -126,7 +127,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 		// lookup mode via resource path if the provided mode is unspecific
 		if (!preferredMode || preferredMode === PLAINTEXT_MODE_ID) {
-			return modeService.createByFilepathOrFirstLine(resource ? resource.path : null, firstLineText);
+			return modeService.createByFilepathOrFirstLine(withUndefinedAsNull(resource), firstLineText);
 		}
 
 		// otherwise take the preferred mode for granted

@@ -30,9 +30,13 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { ConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
 import { WebResources } from 'vs/workbench/browser/web.resources';
+import { ISignService } from 'vs/platform/sign/common/sign';
+import { SignService } from 'vs/platform/sign/browser/signService';
+import { hash } from 'vs/base/common/hash';
 
 interface IWindowConfiguration {
 	settingsUri: URI;
+	keybindingsUri: URI;
 	remoteAuthority: string;
 	folderUri?: URI;
 	workspaceUri?: URI;
@@ -96,7 +100,11 @@ class CodeRendererMain extends Disposable {
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
-		const remoteAgentService = this._register(new RemoteAgentService(environmentService, productService, remoteAuthorityResolverService));
+		// Sign
+		const signService = new SignService();
+		serviceCollection.set(ISignService, signService);
+
+		const remoteAgentService = this._register(new RemoteAgentService(environmentService, productService, remoteAuthorityResolverService, signService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files
@@ -132,9 +140,9 @@ class CodeRendererMain extends Disposable {
 		const environmentService = new SimpleWorkbenchEnvironmentService();
 		environmentService.appRoot = '/web/';
 		environmentService.args = { _: [] };
-		environmentService.appSettingsHome = '/web/settings';
+		environmentService.appSettingsHome = toResource('/web/settings');
 		environmentService.settingsResource = this.configuration.settingsUri;
-		environmentService.appKeybindingsPath = '/web/settings/keybindings.json';
+		environmentService.keybindingsResource = this.configuration.keybindingsUri;
 		environmentService.logsPath = '/web/logs';
 		environmentService.debugExtensionHost = {
 			port: null,
@@ -159,25 +167,16 @@ class CodeRendererMain extends Disposable {
 		}
 	}
 
-	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
-
-		const hash = (uri: URI) => {
-			return crypto.subtle.digest('SHA-1', new TextEncoder().encode(uri.toString())).then(buffer => {
-				// https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest#Converting_a_digest_to_a_hex_string
-				return Array.prototype.map.call(new Uint8Array(buffer), (value: number) => `00${value.toString(16)}`.slice(-2)).join('');
-			});
-		};
+	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
 
 		// Multi-root workspace
 		if (this.configuration.workspaceUri) {
-			const id = await hash(this.configuration.workspaceUri);
-			return { id, configPath: this.configuration.workspaceUri };
+			return { id: hash(this.configuration.workspaceUri.toString()).toString(16), configPath: this.configuration.workspaceUri };
 		}
 
 		// Single-folder workspace
 		if (this.configuration.folderUri) {
-			const id = await hash(this.configuration.folderUri);
-			return { id, folder: this.configuration.folderUri };
+			return { id: hash(this.configuration.folderUri.toString()).toString(16), folder: this.configuration.folderUri };
 		}
 
 		return { id: 'empty-window' };
@@ -186,6 +185,7 @@ class CodeRendererMain extends Disposable {
 
 export interface IWindowConfigurationContents {
 	settingsPath: string;
+	keybindingsPath: string;
 	folderPath?: string;
 	workspacePath?: string;
 }
@@ -193,6 +193,7 @@ export interface IWindowConfigurationContents {
 export function main(windowConfigurationContents: IWindowConfigurationContents): Promise<void> {
 	const windowConfiguration: IWindowConfiguration = {
 		settingsUri: toResource(windowConfigurationContents.settingsPath),
+		keybindingsUri: toResource(windowConfigurationContents.keybindingsPath),
 		folderUri: windowConfigurationContents.folderPath ? toResource(windowConfigurationContents.folderPath) : undefined,
 		workspaceUri: windowConfigurationContents.workspacePath ? toResource(windowConfigurationContents.workspacePath) : undefined,
 		remoteAuthority: document.location.host

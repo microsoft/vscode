@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { guessMimeTypes } from 'vs/base/common/mime';
@@ -28,7 +27,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { isLinux } from 'vs/base/common/platform';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, isEqualOrParent, extname, basename } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 
@@ -788,17 +787,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for keybindings file
-		if (isEqual(this.resource, URI.file(this.environmentService.appKeybindingsPath), !isLinux)) {
+		if (isEqual(this.resource, this.environmentService.keybindingsResource, !isLinux)) {
 			return 'keybindings';
 		}
 
 		// Check for locale file
-		if (isEqual(this.resource, URI.file(join(this.environmentService.appSettingsHome, 'locale.json')), !isLinux)) {
+		if (isEqual(this.resource, joinPath(this.environmentService.appSettingsHome, 'locale.json'), !isLinux)) {
 			return 'locale';
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(this.resource, URI.file(join(this.environmentService.appSettingsHome, 'snippets')))) {
+		if (isEqualOrParent(this.resource, joinPath(this.environmentService.appSettingsHome, 'snippets'))) {
 			return 'snippets';
 		}
 
@@ -821,7 +820,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const fileName = basename(this.resource);
 		const path = this.resource.scheme === Schemas.file ? this.resource.fsPath : this.resource.path;
 		const telemetryData = {
-			mimeType: guessMimeTypes(path).join(', '),
+			mimeType: guessMimeTypes(this.resource).join(', '),
 			ext,
 			path: hash(path),
 			reason
