@@ -49,7 +49,7 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string | undefined {
+	async resolve(variable: Variable): Promise<string | undefined> {
 		for (const delegate of this._delegates) {
 			let value = delegate.resolve(variable);
 			if (value !== undefined) {
@@ -69,7 +69,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string | undefined {
+	async resolve(variable: Variable): Promise<string | undefined> {
 
 		const { name } = variable;
 
@@ -131,7 +131,7 @@ export class ModelBasedVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string | undefined {
+	async resolve(variable: Variable): Promise<string | undefined> {
 
 		const { name } = variable;
 
@@ -169,12 +169,12 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string | undefined {
+	async resolve(variable: Variable): Promise<string | undefined> {
 		if (variable.name !== 'CLIPBOARD' || !this._clipboardService) {
 			return undefined;
 		}
 
-		const text = this._clipboardService.readText();
+		const text = await this._clipboardService.readText();
 		if (!text) {
 			return undefined;
 		}
@@ -193,7 +193,7 @@ export class CommentBasedVariableResolver implements VariableResolver {
 	) {
 		//
 	}
-	resolve(variable: Variable): string | undefined {
+	async resolve(variable: Variable): Promise<string | undefined> {
 		const { name } = variable;
 		const language = this._model.getLanguageIdentifier();
 		const config = LanguageConfigurationRegistry.getComments(language.id);
@@ -217,7 +217,7 @@ export class TimeBasedVariableResolver implements VariableResolver {
 	private static readonly monthNames = [nls.localize('January', "January"), nls.localize('February', "February"), nls.localize('March', "March"), nls.localize('April', "April"), nls.localize('May', "May"), nls.localize('June', "June"), nls.localize('July', "July"), nls.localize('August', "August"), nls.localize('September', "September"), nls.localize('October', "October"), nls.localize('November', "November"), nls.localize('December', "December")];
 	private static readonly monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
 
-	resolve(variable: Variable): string | undefined {
+	async resolve(variable: Variable): Promise<string | undefined> {
 		const { name } = variable;
 
 		if (name === 'CURRENT_YEAR') {
@@ -255,7 +255,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 		//
 	}
 
-	resolve(variable: Variable): string | undefined {
+	async resolve(variable: Variable): Promise<string | undefined> {
 		if (variable.name !== 'WORKSPACE_NAME' || !this._workspaceService) {
 			return undefined;
 		}

@@ -14,11 +14,11 @@ export class ClipboardService implements IClipboardService {
 
 	_serviceBrand: any;
 
-	writeText(text: string, type?: string): void {
+	async writeText(text: string, type?: string): Promise<void> {
 		clipboard.writeText(text, type);
 	}
 
-	readText(type?: string): string {
+	async readText(type?: string): Promise<string> {
 		return clipboard.readText(type);
 	}
 

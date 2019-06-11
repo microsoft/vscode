@@ -432,8 +432,8 @@ export class Variable extends TransformableMarker {
 		super();
 	}
 
-	resolve(resolver: VariableResolver): boolean {
-		let value = resolver.resolve(this);
+	async resolve(resolver: VariableResolver): Promise<boolean> {
+		let value = await resolver.resolve(this);
 		if (this.transform) {
 			value = this.transform.resolve(value || '');
 		}
@@ -467,7 +467,7 @@ export class Variable extends TransformableMarker {
 }
 
 export interface VariableResolver {
-	resolve(variable: Variable): string | undefined;
+	resolve(variable: Variable): Promise<string | undefined>;
 }
 
 function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {

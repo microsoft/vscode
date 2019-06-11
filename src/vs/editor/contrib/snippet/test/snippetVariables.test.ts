@@ -137,7 +137,7 @@ suite('Snippet Variables Resolver', function () {
 
 	function assertVariableResolve2(input: string, expected: string, varValue?: string) {
 		const snippet = new SnippetParser().parse(input)
-			.resolveVariables({ resolve(variable) { return varValue || variable.name; } });
+			.resolveVariables({ async resolve(variable) { return varValue || variable.name; } });
 
 		const actual = snippet.toString();
 		assert.equal(actual, expected);
@@ -245,7 +245,7 @@ suite('Snippet Variables Resolver', function () {
 		let resolver: VariableResolver;
 		const clipboardService = new class implements IClipboardService {
 			_serviceBrand: any;
-			readText(): string { return readTextResult; }
+			async readText(): Promise<string> { return readTextResult; }
 			_throw = () => { throw new Error(); };
 			writeText = this._throw;
 			readFindText = this._throw;
@@ -293,13 +293,13 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
 	});
 
-	test('creating snippet - format-condition doesn\'t work #53617', function () {
+	test('creating snippet - format-condition doesn\'t work #53617', async function () {
 
 		const snippet = new SnippetParser().parse('${TM_LINE_NUMBER/(10)/${1:?It is:It is not}/} line 10', true);
-		snippet.resolveVariables({ resolve() { return '10'; } });
+		snippet.resolveVariables({ async resolve() { return '10'; } });
 		assert.equal(snippet.toString(), 'It is line 10');
 
-		snippet.resolveVariables({ resolve() { return '11'; } });
+		snippet.resolveVariables({ async resolve() { return '11'; } });
 		assert.equal(snippet.toString(), 'It is not line 10');
 	});
 
