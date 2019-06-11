@@ -70,14 +70,14 @@ export interface INotificationActions {
 	 * Primary actions show up as buttons as part of the message and will close
 	 * the notification once clicked.
 	 */
-	primary?: IAction[];
+	primary?: ReadonlyArray<IAction>;
 
 	/**
 	 * Secondary actions are meant to provide additional configuration or context
 	 * for the notification and will show up less prominent. A notification does not
 	 * close automatically when invoking a secondary action.
 	 */
-	secondary?: IAction[];
+	secondary?: ReadonlyArray<IAction>;
 }
 
 export interface INotificationProgress {

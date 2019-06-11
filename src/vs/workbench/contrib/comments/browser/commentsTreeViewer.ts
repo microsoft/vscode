@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IDataSource, IFilter, IRenderer as ITreeRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -144,6 +144,8 @@ export class CommentsModelRenderer implements ITreeRenderer {
 	private renderCommentElement(tree: ITree, element: CommentNode, templateData: ICommentThreadTemplateData) {
 		templateData.userName.textContent = element.comment.userName;
 		templateData.commentText.innerHTML = '';
+		const disposables = new DisposableStore();
+		templateData.disposables.push(disposables);
 		const renderedComment = renderMarkdown(element.comment.body, {
 			inline: true,
 			actionHandler: {
@@ -155,7 +157,7 @@ export class CommentsModelRenderer implements ITreeRenderer {
 						// ignore
 					}
 				},
-				disposeables: templateData.disposables
+				disposeables: disposables
 			}
 		});
 

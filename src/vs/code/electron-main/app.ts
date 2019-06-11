@@ -80,6 +80,7 @@ import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAg
 import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { statSync } from 'fs';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 export class CodeApplication extends Disposable {
 
@@ -95,7 +96,8 @@ export class CodeApplication extends Disposable {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateService private readonly stateService: IStateService
+		@IStateService private readonly stateService: IStateService,
+		@ISignService private readonly signService: ISignService
 	) {
 		super();
 
@@ -646,7 +648,7 @@ export class CodeApplication extends Disposable {
 			private readonly _connection: Promise<ManagementPersistentConnection>;
 			private readonly _disposeRunner: RunOnceScheduler;
 
-			constructor(authority: string, host: string, port: number) {
+			constructor(authority: string, host: string, port: number, signService: ISignService) {
 				this._authority = authority;
 
 				const options: IConnectionOptions = {
@@ -657,7 +659,8 @@ export class CodeApplication extends Disposable {
 						getAddress: () => {
 							return Promise.resolve({ host, port });
 						}
-					}
+					},
+					signService
 				};
 
 				this._connection = connectRemoteAgentManagement(options, authority, `main`);
@@ -726,7 +729,7 @@ export class CodeApplication extends Disposable {
 					return;
 				}
 
-				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port);
+				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port, this.signService);
 				connectionPool.set(uri.authority, activeConnection);
 			}
 

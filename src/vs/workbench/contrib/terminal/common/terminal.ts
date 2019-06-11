@@ -5,11 +5,12 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { Platform, OperatingSystem } from 'vs/base/common/platform';
+import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -45,6 +46,7 @@ export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverM
 export const EXT_HOST_CREATION_DELAY = 100;
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
+export const ITerminalNativeService = createDecorator<ITerminalNativeService>('terminalNativeService');
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
@@ -111,10 +113,10 @@ export interface ITerminalConfigHelper {
 	/**
 	 * Merges the default shell path and args into the provided launch configuration
 	 */
-	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, platformOverride?: platform.Platform): void;
+	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, platformOverride?: Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	checkWorkspaceShellPermissions(osOverride?: platform.OperatingSystem): boolean;
+	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;
 }
 
 export interface ITerminalFont {
@@ -265,8 +267,6 @@ export interface ITerminalService {
 	findPrevious(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	getDefaultShell(p: platform.Platform): string;
-	selectDefaultWindowsShell(): Promise<string | undefined>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
 	/**
@@ -282,6 +282,23 @@ export interface ITerminalService {
 
 	extHostReady(remoteAuthority: string): void;
 	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+}
+
+/**
+ * Provides access to native or electron APIs to other terminal services.
+ */
+export interface ITerminalNativeService {
+	_serviceBrand: any;
+
+	readonly linuxDistro: LinuxDistro;
+
+	readonly onOpenFileRequest: Event<IOpenFileRequest>;
+	readonly onOsResume: Event<void>;
+
+	getWindowsBuildNumber(): number;
+	whenFileDeleted(path: URI): Promise<void>;
+	getWslPath(path: string): Promise<string>;
+	selectDefaultWindowsShell(): Promise<string | undefined>;
 }
 
 export const enum Direction {
@@ -662,7 +679,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number;
 	readonly remoteAuthority: string | undefined;
-	readonly os: platform.OperatingSystem | undefined;
+	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 
 	readonly onProcessReady: Event<void>;

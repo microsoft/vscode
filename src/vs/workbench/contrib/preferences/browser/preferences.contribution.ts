@@ -16,7 +16,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchStateContext, RemoteAuthorityContext } from 'vs/workbench/browser/contextkeys';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -30,10 +29,9 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { KeybindingsEditor } from 'vs/workbench/contrib/preferences/browser/keybindingsEditor';
 import { ConfigureLanguageBasedSettingsAction, OpenDefaultKeybindingsFileAction, OpenFolderSettingsAction, OpenGlobalKeybindingsAction, OpenGlobalKeybindingsFileAction, OpenGlobalSettingsAction, OpenRawDefaultSettingsAction, OpenSettings2Action, OpenSettingsJsonAction, OpenWorkspaceSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND, OPEN_FOLDER_SETTINGS_LABEL, OpenRemoteSettingsAction } from 'vs/workbench/contrib/preferences/browser/preferencesActions';
 import { PreferencesEditor } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
-import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IKeybindingsEditor, IPreferencesSearchService, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING, SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED, SETTINGS_EDITOR_COMMAND_FILTER_ONLINE, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON, SETTINGS_COMMAND_OPEN_SETTINGS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IKeybindingsEditor, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING, SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED, SETTINGS_EDITOR_COMMAND_FILTER_ONLINE, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON, SETTINGS_COMMAND_OPEN_SETTINGS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN } from 'vs/workbench/contrib/preferences/common/preferences';
 import { PreferencesContribution } from 'vs/workbench/contrib/preferences/common/preferencesContribution';
-import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/electron-browser/preferencesSearch';
-import { SettingsEditor2 } from 'vs/workbench/contrib/preferences/electron-browser/settingsEditor2';
+import { SettingsEditor2 } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -41,8 +39,6 @@ import { ExplorerRootContext, ExplorerFolderContext } from 'vs/workbench/contrib
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-
-registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
@@ -202,14 +198,14 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 // Contribute Global Actions
 const category = nls.localize('preferences', "Preferences");
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRawDefaultSettingsAction, OpenRawDefaultSettingsAction.ID, OpenRawDefaultSettingsAction.LABEL), 'Preferences: Open Raw Default Settings', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRawDefaultSettingsAction, OpenRawDefaultSettingsAction.ID, OpenRawDefaultSettingsAction.LABEL), 'Preferences: Open Default Settings (JSON)', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettingsJsonAction, OpenSettingsJsonAction.ID, OpenSettingsJsonAction.LABEL), 'Preferences: Open Settings (JSON)', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettings2Action, OpenSettings2Action.ID, OpenSettings2Action.LABEL), 'Preferences: Open Settings (UI)', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL), 'Preferences: Open User Settings', category);
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S) }), 'Preferences: Open Keyboard Shortcuts', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenDefaultKeybindingsFileAction, OpenDefaultKeybindingsFileAction.ID, OpenDefaultKeybindingsFileAction.LABEL), 'Preferences: Open Default Keyboard Shortcuts File', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsFileAction, OpenGlobalKeybindingsFileAction.ID, OpenGlobalKeybindingsFileAction.LABEL, { primary: 0 }), 'Preferences: Open Keyboard Shortcuts File', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenDefaultKeybindingsFileAction, OpenDefaultKeybindingsFileAction.ID, OpenDefaultKeybindingsFileAction.LABEL), 'Preferences: Open Default Keyboard Shortcuts (JSON)', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsFileAction, OpenGlobalKeybindingsFileAction.ID, OpenGlobalKeybindingsFileAction.LABEL, { primary: 0 }), 'Preferences: Open Keyboard Shortcuts (JSON)', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLanguageBasedSettingsAction, ConfigureLanguageBasedSettingsAction.ID, ConfigureLanguageBasedSettingsAction.LABEL), 'Preferences: Configure Language Specific Settings...', category);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -385,11 +381,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				id: OpenGlobalKeybindingsAction.ID,
 				title: OpenGlobalKeybindingsAction.LABEL,
 				iconLocation: {
-					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor.svg`)),
-					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor-inverse.svg`))
+					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
+					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
 				}
 			},
-			when: ResourceContextKey.Resource.isEqualTo(URI.file(environmentService.appKeybindingsPath).toString()),
+			when: ResourceContextKey.Resource.isEqualTo(environmentService.keybindingsResource.toString()),
 			group: 'navigation',
 			order: 1
 		});
@@ -401,8 +397,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				id: commandId,
 				title: OpenSettings2Action.LABEL,
 				iconLocation: {
-					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor.svg`)),
-					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor-inverse.svg`))
+					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
+					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
 				}
 			},
 			when: ResourceContextKey.Resource.isEqualTo(environmentService.settingsResource.toString()),
@@ -425,8 +421,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 					command: {
 						id: OpenRemoteSettingsAction.ID,
-						title: { value: label, original: `Preferences: Open Remote Settings (${hostLabel})` },
-						category: nls.localize('preferencesCategory', "Preferences")
+						title: { value: label, original: `Open Remote Settings (${hostLabel})` },
+						category: { value: nls.localize('preferencesCategory', "Preferences"), original: 'Preferences' }
 					},
 					when: RemoteAuthorityContext.notEqualsTo('')
 				});
@@ -442,8 +438,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: commandId,
 					title: OpenSettings2Action.LABEL,
 					iconLocation: {
-						light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor.svg`)),
-						dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor-inverse.svg`))
+						light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
+						dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
 					}
 				},
 				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
@@ -470,8 +466,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						id: commandId,
 						title: OpenSettings2Action.LABEL,
 						iconLocation: {
-							light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor.svg`)),
-							dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/preferences-editor-inverse.svg`))
+							light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor.svg`)),
+							dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-inverse.svg`))
 						}
 					},
 					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
@@ -498,8 +494,8 @@ CommandsRegistry.registerCommand(OpenFolderSettingsAction.ID, serviceAccessor =>
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenFolderSettingsAction.ID,
-		title: { value: OpenFolderSettingsAction.LABEL, original: 'Preferences: Open Folder Settings' },
-		category: nls.localize('preferencesCategory', "Preferences")
+		title: { value: OpenFolderSettingsAction.LABEL, original: 'Open Folder Settings' },
+		category: { value: nls.localize('preferencesCategory', "Preferences"), original: 'Preferences' }
 	},
 	when: WorkbenchStateContext.isEqualTo('workspace')
 });
@@ -510,8 +506,8 @@ CommandsRegistry.registerCommand(OpenWorkspaceSettingsAction.ID, serviceAccessor
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenWorkspaceSettingsAction.ID,
-		title: { value: OpenWorkspaceSettingsAction.LABEL, original: 'Preferences: Open Workspace Settings' },
-		category: nls.localize('preferencesCategory', "Preferences")
+		title: { value: OpenWorkspaceSettingsAction.LABEL, original: 'Open Workspace Settings' },
+		category: { value: nls.localize('preferencesCategory', "Preferences"), original: 'Preferences' }
 	},
 	when: WorkbenchStateContext.notEqualsTo('empty')
 });
@@ -537,8 +533,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: OpenGlobalKeybindingsFileAction.ID,
 		title: OpenGlobalKeybindingsFileAction.LABEL,
 		iconLocation: {
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/edit-json.svg`)),
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/electron-browser/media/edit-json-inverse.svg`))
+			light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/edit-json-inverse.svg`))
 		}
 	},
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
@@ -775,8 +771,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
 		title: nls.localize('openSettingsJson', "Open Settings (JSON)"),
 		iconLocation: {
-			dark: URI.parse(require.toUrl('vs/workbench/contrib/preferences/electron-browser/media/edit-json-inverse.svg')),
-			light: URI.parse(require.toUrl('vs/workbench/contrib/preferences/electron-browser/media/edit-json.svg'))
+			dark: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json-inverse.svg')),
+			light: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/edit-json.svg'))
 		}
 	},
 	group: 'navigation',

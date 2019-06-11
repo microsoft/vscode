@@ -29,14 +29,13 @@ export interface IActionRunner extends IDisposable {
 	onDidBeforeRun: Event<IRunEvent>;
 }
 
-export interface IActionViewItem {
+export interface IActionViewItem extends IDisposable {
 	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: any /* HTMLElement */): void;
 	isEnabled(): boolean;
 	focus(): void;
 	blur(): void;
-	dispose(): void;
 }
 
 export interface IActionChangeEvent {

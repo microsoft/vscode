@@ -403,7 +403,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		template.descriptionElement.innerHTML = '';
 		if (element.setting.descriptionIsMarkdown) {
-			const renderedDescription = this.renderDescriptionMarkdown(element, element.description, template.toDispose);
+			const disposables = new DisposableStore();
+			template.toDispose.push(disposables);
+			const renderedDescription = this.renderDescriptionMarkdown(element, element.description, disposables);
 			template.descriptionElement.appendChild(renderedDescription);
 		} else {
 			template.descriptionElement.innerText = element.description;
@@ -447,7 +449,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	}
 
-	private renderDescriptionMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: IDisposable[]): HTMLElement {
+	private renderDescriptionMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 

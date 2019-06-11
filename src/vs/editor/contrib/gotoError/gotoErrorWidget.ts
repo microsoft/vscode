@@ -180,7 +180,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		private readonly actions: IAction[],
+		private readonly actions: ReadonlyArray<IAction>,
 		private readonly _themeService: IThemeService
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });

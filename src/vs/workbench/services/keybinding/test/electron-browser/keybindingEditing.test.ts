@@ -66,7 +66,7 @@ suite('KeybindingsEditing', () => {
 
 			instantiationService = new TestInstantiationService();
 
-			instantiationService.stub(IEnvironmentService, <IEnvironmentService>{ appKeybindingsPath: keybindingsFile, settingsResource: URI.file(path.join(testDir, 'settings.json')) });
+			instantiationService.stub(IEnvironmentService, <IEnvironmentService>{ keybindingsResource: URI.file(keybindingsFile), settingsResource: URI.file(path.join(testDir, 'settings.json')) });
 			instantiationService.stub(IConfigurationService, ConfigurationService);
 			instantiationService.stub(IConfigurationService, 'getValue', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
@@ -146,7 +146,7 @@ suite('KeybindingsEditing', () => {
 
 	test('edit a default keybinding to a non existing keybindings file', () => {
 		keybindingsFile = path.join(testDir, 'nonExistingFile.json');
-		instantiationService.get(IEnvironmentService).appKeybindingsPath = keybindingsFile;
+		instantiationService.get(IEnvironmentService).keybindingsResource = URI.file(keybindingsFile);
 		testObject = instantiationService.createInstance(KeybindingsEditingService);
 
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];

@@ -305,7 +305,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this._cachedResolver = null;
 		this._firstTimeComputingResolver = true;
 
-		this.userKeybindings = this._register(new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) }));
+		this.userKeybindings = this._register(new ConfigWatcher(environmentService.keybindingsResource.fsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) }));
 
 		keybindingsExtPoint.setHandler((extensions) => {
 

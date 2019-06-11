@@ -9,6 +9,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import * as modes from 'vs/editor/common/modes';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * Set when the find widget in a webview is visible.
@@ -45,7 +46,7 @@ export interface WebviewContentOptions {
 	readonly portMappings?: ReadonlyArray<modes.IWebviewPortMapping>;
 }
 
-export interface Webview {
+export interface Webview extends IDisposable {
 
 	html: string;
 	options: WebviewContentOptions;
@@ -68,8 +69,6 @@ export interface Webview {
 	layout(): void;
 	mountTo(parent: HTMLElement): void;
 	focus(): void;
-	dispose(): void;
-
 
 	reload(): void;
 	selectAll(): void;

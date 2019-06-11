@@ -19,4 +19,9 @@ export interface IProductService {
 	uiExtensions?: string[];
 
 	enableTelemetry: boolean;
+
+	sendASmile?: {
+		reportIssueUrl: string;
+		requestFeatureUrl: string;
+	};
 }

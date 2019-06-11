@@ -24,7 +24,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
-import { addClass, EventHelper, createStyleSheet, addDisposableListener, addClasses, clearNode, removeClass, EventType, hide, show, removeClasses } from 'vs/base/browser/dom';
+import { addClass, EventHelper, createStyleSheet, addDisposableListener, addClasses, removeClass, EventType, hide, show, removeClasses } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -409,15 +409,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		return {
 			update: entry => {
-
-				// Update beak
-				if (entry.showBeak) {
-					addClass(itemContainer, 'has-beak');
-				} else {
-					removeClass(itemContainer, 'has-beak');
-				}
-
-				// Update entry
 				item.update(entry);
 			},
 			dispose: () => {
@@ -640,7 +631,15 @@ export class StatusbarPart extends Part implements IStatusbarService {
 }
 
 class StatusbarEntryItem extends Disposable {
-	private entryDisposables: IDisposable[] = [];
+	private entry: IStatusbarEntry;
+
+	private labelContainer: HTMLElement;
+	private label: OcticonLabel;
+
+	private foregroundListener: IDisposable | undefined;
+	private backgroundListener: IDisposable | undefined;
+
+	private commandListener: IDisposable | undefined;
 
 	constructor(
 		private container: HTMLElement,
@@ -653,61 +652,84 @@ class StatusbarEntryItem extends Disposable {
 	) {
 		super();
 
-		this.render(entry);
+		this.create();
+		this.update(entry);
+	}
+
+	private create(): void {
+
+		// Label Container
+		this.labelContainer = document.createElement('a');
+
+		// Label
+		this.label = new OcticonLabel(this.labelContainer);
+
+		// Add to parent
+		this.container.appendChild(this.labelContainer);
 	}
 
 	update(entry: IStatusbarEntry): void {
-		clearNode(this.container);
-		this.entryDisposables = dispose(this.entryDisposables);
 
-		this.render(entry);
-	}
+		// Update: Text
+		if (!this.entry || entry.text !== this.entry.text) {
+			this.label.text = entry.text;
 
-	private render(entry: IStatusbarEntry): void {
-
-		// Text Container
-		let textContainer: HTMLElement;
-		if (entry.command) {
-			textContainer = document.createElement('a');
-
-			this.entryDisposables.push((addDisposableListener(textContainer, 'click', () => this.executeCommand(entry.command!, entry.arguments))));
-		} else {
-			textContainer = document.createElement('span');
-		}
-
-		// Label
-		new OcticonLabel(textContainer).text = entry.text;
-
-		// Tooltip
-		if (entry.tooltip) {
-			textContainer.title = entry.tooltip;
-		}
-
-		// Color (only applies to text container)
-		this.applyColor(textContainer, entry.color);
-
-		// Background Color (applies to parent element to fully fill container)
-		if (entry.backgroundColor) {
-			this.applyColor(this.container, entry.backgroundColor, true);
-			addClass(this.container, 'has-background-color');
-		}
-
-		this.container.appendChild(textContainer);
-	}
-
-	private applyColor(container: HTMLElement, color: string | ThemeColor | undefined, isBackground?: boolean): void {
-		if (color) {
-			if (isThemeColor(color)) {
-				const colorId = color.id;
-				color = (this.themeService.getTheme().getColor(colorId) || Color.transparent).toString();
-				this.entryDisposables.push(((this.themeService.onThemeChange(theme => {
-					const colorValue = (theme.getColor(colorId) || Color.transparent).toString();
-					isBackground ? container.style.backgroundColor = colorValue : container.style.color = colorValue;
-				}))));
+			if (entry.text) {
+				show(this.labelContainer);
+			} else {
+				hide(this.labelContainer);
 			}
-
-			isBackground ? container.style.backgroundColor = color : container.style.color = color;
 		}
+
+		// Update: Tooltip
+		if (!this.entry || entry.tooltip !== this.entry.tooltip) {
+			if (entry.tooltip) {
+				this.labelContainer.title = entry.tooltip;
+			} else {
+				delete this.labelContainer.title;
+			}
+		}
+
+		// Update: Command
+		if (!this.entry || entry.command !== this.entry.command) {
+			dispose(this.commandListener);
+			this.commandListener = undefined;
+
+			if (entry.command) {
+				this.commandListener = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(entry.command!, entry.arguments));
+
+				removeClass(this.labelContainer, 'disabled');
+			} else {
+				addClass(this.labelContainer, 'disabled');
+			}
+		}
+
+		// Update: Beak
+		if (!this.entry || entry.showBeak !== this.entry.showBeak) {
+			if (entry.showBeak) {
+				addClass(this.container, 'has-beak');
+			} else {
+				removeClass(this.container, 'has-beak');
+			}
+		}
+
+		// Update: Foreground
+		if (!this.entry || entry.color !== this.entry.color) {
+			this.applyColor(this.labelContainer, entry.color);
+		}
+
+		// Update: Backgroud
+		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
+			if (entry.backgroundColor) {
+				this.applyColor(this.container, entry.backgroundColor, true);
+				addClass(this.container, 'has-background-color');
+			} else {
+				removeClass(this.container, 'has-background-color');
+			}
+		}
+
+		// Remember for next round
+		this.entry = entry;
 	}
 
 	private async executeCommand(id: string, args?: unknown[]): Promise<void> {
@@ -733,10 +755,54 @@ class StatusbarEntryItem extends Disposable {
 		}
 	}
 
+	private applyColor(container: HTMLElement, color: string | ThemeColor | undefined, isBackground?: boolean): void {
+		let colorResult: string | null = null;
+
+		if (isBackground) {
+			dispose(this.backgroundListener);
+			this.backgroundListener = undefined;
+		} else {
+			dispose(this.foregroundListener);
+			this.foregroundListener = undefined;
+		}
+
+		if (color) {
+			if (isThemeColor(color)) {
+				colorResult = (this.themeService.getTheme().getColor(color.id) || Color.transparent).toString();
+
+				const listener = this.themeService.onThemeChange(theme => {
+					const colorValue = (theme.getColor(color.id) || Color.transparent).toString();
+
+					if (isBackground) {
+						container.style.backgroundColor = colorValue;
+					} else {
+						container.style.color = colorValue;
+					}
+				});
+
+				if (isBackground) {
+					this.backgroundListener = listener;
+				} else {
+					this.foregroundListener = listener;
+				}
+			} else {
+				colorResult = color;
+			}
+		}
+
+		if (isBackground) {
+			container.style.backgroundColor = colorResult;
+		} else {
+			container.style.color = colorResult;
+		}
+	}
+
 	dispose(): void {
 		super.dispose();
 
-		this.entryDisposables = dispose(this.entryDisposables);
+		dispose(this.foregroundListener);
+		dispose(this.backgroundListener);
+		dispose(this.commandListener);
 	}
 }
 

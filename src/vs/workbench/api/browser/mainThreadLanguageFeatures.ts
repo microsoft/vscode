@@ -11,7 +11,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, WorkspaceSymbolDto, CodeActionDto, reviveWorkspaceEditDto, ISerializedDocumentFilter, DefinitionLinkDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CallHierarchyDto, SuggestDataDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, WorkspaceSymbolDto, reviveWorkspaceEditDto, ISerializedDocumentFilter, DefinitionLinkDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CallHierarchyDto, SuggestDataDto, CodeActionDto } from '../common/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -20,24 +20,20 @@ import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { IHeapService } from 'vs/workbench/services/heap/common/heap';
 import { mixin } from 'vs/base/common/objects';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
 
 	private readonly _proxy: ExtHostLanguageFeaturesShape;
-	private readonly _heapService: IHeapService;
 	private readonly _modeService: IModeService;
 	private readonly _registrations: { [handle: number]: IDisposable; } = Object.create(null);
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IHeapService heapService: IHeapService,
 		@IModeService modeService: IModeService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
-		this._heapService = heapService;
 		this._modeService = modeService;
 	}
 
@@ -100,7 +96,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
-	private static _reviveCodeActionDto(data: CodeActionDto[] | undefined): modes.CodeAction[] {
+	private static _reviveCodeActionDto(data: ReadonlyArray<CodeActionDto>): modes.CodeAction[] {
 		if (data) {
 			data.forEach(code => reviveWorkspaceEditDto(code.edit));
 		}
@@ -239,13 +235,19 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], providedCodeActionKinds?: string[]): void {
 		this._registrations[handle] = modes.CodeActionProviderRegistry.register(selector, <modes.CodeActionProvider>{
-			provideCodeActions: (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeAction[]> => {
-				return this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token).then(dto => {
-					if (dto) {
-						dto.forEach(obj => { this._heapService.trackObject(obj.command); });
+			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeActionList | undefined> => {
+				const listDto = await this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token);
+				if (!listDto) {
+					return undefined;
+				}
+				return <modes.CodeActionList>{
+					actions: MainThreadLanguageFeatures._reviveCodeActionDto(listDto.actions),
+					dispose: () => {
+						if (typeof listDto.cacheId === 'number') {
+							this._proxy.$releaseCodeActions(handle, listDto.cacheId);
+						}
 					}
-					return MainThreadLanguageFeatures._reviveCodeActionDto(dto);
-				});
+				};
 			},
 			providedCodeActionKinds
 		});

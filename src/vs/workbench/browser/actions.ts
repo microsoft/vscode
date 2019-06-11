@@ -24,7 +24,7 @@ export class ActionBarContributor {
 	/**
 	 * Returns an array of primary actions in the given context.
 	 */
-	getActions(context: unknown): IAction[] {
+	getActions(context: unknown): ReadonlyArray<IAction> {
 		return [];
 	}
 }
@@ -66,7 +66,7 @@ export class ContributableActionProvider implements IActionProvider {
 		return false;
 	}
 
-	getActions(tree: ITree, element: unknown): IAction[] {
+	getActions(tree: ITree, element: unknown): ReadonlyArray<IAction> {
 		const actions: IAction[] = [];
 		const context = this.toContext(tree, element);
 

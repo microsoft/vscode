@@ -5,10 +5,9 @@
 
 import 'vs/css!./media/feedback';
 import * as nls from 'vs/nls';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import product from 'vs/platform/product/node/product';
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
@@ -20,6 +19,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IProductService } from 'vs/platform/product/common/product';
 
 export interface IFeedback {
 	feedback: string;
@@ -54,7 +54,7 @@ export class FeedbackDropdown extends Dropdown {
 	private hideButton: HTMLInputElement;
 	private remainingCharacterCount: HTMLElement;
 
-	private requestFeatureLink: string;
+	private requestFeatureLink: string | undefined;
 
 	private isPure: boolean = true;
 
@@ -65,7 +65,8 @@ export class FeedbackDropdown extends Dropdown {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IProductService productService: IProductService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
@@ -79,7 +80,10 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.feedbackDelegate = options.feedbackService;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
-		this.requestFeatureLink = product.sendASmile.requestFeatureUrl;
+
+		if (productService.sendASmile) {
+			this.requestFeatureLink = productService.sendASmile.requestFeatureUrl;
+		}
 
 		this.integrityService.isPure().then(result => {
 			if (!result.isPure) {
@@ -103,7 +107,7 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	protected renderContents(container: HTMLElement): IDisposable {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		dom.addClass(container, 'monaco-menu-container');
 
@@ -120,7 +124,7 @@ export class FeedbackDropdown extends Dropdown {
 		closeBtn.setAttribute('role', 'button');
 		closeBtn.title = nls.localize('close', "Close");
 
-		disposables.push(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OVER, () => {
+		disposables.add(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OVER, () => {
 			const theme = this.themeService.getTheme();
 			let darkenFactor: number | undefined;
 			switch (theme.type) {
@@ -143,7 +147,7 @@ export class FeedbackDropdown extends Dropdown {
 			}
 		}));
 
-		disposables.push(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OUT, () => {
+		disposables.add(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OUT, () => {
 			closeBtn.style.backgroundColor = null;
 		}));
 
@@ -212,7 +216,7 @@ export class FeedbackDropdown extends Dropdown {
 		submitBugLink.textContent = nls.localize("submit a bug", "Submit a bug");
 		submitBugLink.tabIndex = 0;
 
-		disposables.push(dom.addDisposableListener(submitBugLink, 'click', e => {
+		disposables.add(dom.addDisposableListener(submitBugLink, 'click', e => {
 			dom.EventHelper.stop(e);
 			const actionId = 'workbench.action.openIssueReporter';
 			this.commandService.executeCommand(actionId);
@@ -237,7 +241,7 @@ export class FeedbackDropdown extends Dropdown {
 			requestFeatureLink.textContent = nls.localize("request a missing feature", "Request a missing feature");
 			requestFeatureLink.tabIndex = 0;
 
-			disposables.push(dom.addDisposableListener(requestFeatureLink, 'click', e => this.hide()));
+			disposables.add(dom.addDisposableListener(requestFeatureLink, 'click', e => this.hide()));
 		}
 
 		// Remaining Characters
@@ -256,7 +260,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.feedbackDescriptionInput.setAttribute('aria-label', nls.localize("feedbackTextInput", "Tell us your feedback"));
 		this.feedbackDescriptionInput.focus();
 
-		disposables.push(dom.addDisposableListener(this.feedbackDescriptionInput, 'keyup', () => this.updateCharCountText()));
+		disposables.add(dom.addDisposableListener(this.feedbackDescriptionInput, 'keyup', () => this.updateCharCountText()));
 
 		// Feedback Input Form Buttons Container
 		const buttonsContainer = dom.append(this.feedbackForm, dom.$('div.form-buttons'));
@@ -279,11 +283,11 @@ export class FeedbackDropdown extends Dropdown {
 		this.sendButton.label = nls.localize('tweet', "Tweet");
 		dom.addClass(this.sendButton.element, 'send');
 		this.sendButton.element.title = nls.localize('tweetFeedback', "Tweet Feedback");
-		disposables.push(attachButtonStyler(this.sendButton, this.themeService));
+		disposables.add(attachButtonStyler(this.sendButton, this.themeService));
 
 		this.sendButton.onDidClick(() => this.onSubmit());
 
-		disposables.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
+		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
 			if (this.feedbackForm) {
 				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : null;
 				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : null;
@@ -305,7 +309,7 @@ export class FeedbackDropdown extends Dropdown {
 				this.smileyInput = null;
 				this.frownyInput = null;
 
-				dispose(disposables);
+				disposables.dispose();
 			}
 		};
 	}
@@ -362,10 +366,10 @@ export class FeedbackDropdown extends Dropdown {
 		}
 	}
 
-	private invoke(element: HTMLElement, disposables: IDisposable[], callback: () => void): HTMLElement {
-		disposables.push(dom.addDisposableListener(element, 'click', callback));
+	private invoke(element: HTMLElement, disposables: DisposableStore, callback: () => void): HTMLElement {
+		disposables.add(dom.addDisposableListener(element, 'click', callback));
 
-		disposables.push(dom.addDisposableListener(element, 'keypress', e => {
+		disposables.add(dom.addDisposableListener(element, 'keypress', e => {
 			if (e instanceof KeyboardEvent) {
 				const keyboardEvent = <KeyboardEvent>e;
 				if (keyboardEvent.keyCode === 13 || keyboardEvent.keyCode === 32) { // Enter or Spacebar

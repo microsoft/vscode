@@ -15,7 +15,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, SuggestDataDto, LinksListDto, ChainedCacheId, CodeLensListDto } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto, ISerializedSignatureHelpProviderMetadata, LinkDto, CodeLensDto, SuggestDataDto, LinksListDto, ChainedCacheId, CodeLensListDto, CodeActionListDto } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -145,8 +145,7 @@ class CodeLensAdapter {
 	resolveCodeLens(symbol: CodeLensDto, token: CancellationToken): Promise<CodeLensDto | undefined> {
 
 		const lens = symbol.cacheId && this._cache.get(...symbol.cacheId);
-		const disposables = symbol.cacheId && this._disposables.get(symbol.cacheId[0]);
-		if (!lens || !disposables) {
+		if (!lens) {
 			return Promise.resolve(undefined);
 		}
 
@@ -158,6 +157,16 @@ class CodeLensAdapter {
 		}
 
 		return resolve.then(newLens => {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			const disposables = symbol.cacheId && this._disposables.get(symbol.cacheId[0]);
+			if (!disposables) {
+				// We've already been disposed of
+				return undefined;
+			}
+
 			newLens = newLens || lens;
 			symbol.command = this._commands.toInternal2(newLens.command || CodeLensAdapter._badCmd, disposables);
 			return symbol;
@@ -307,6 +316,9 @@ export interface CustomCodeAction extends CodeActionDto {
 class CodeActionAdapter {
 	private static readonly _maxCodeActionsPerFile: number = 1000;
 
+	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>();
+	private readonly _disposables = new Map<number, DisposableStore>();
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
@@ -316,7 +328,7 @@ class CodeActionAdapter {
 		private readonly _extensionId: ExtensionIdentifier
 	) { }
 
-	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionDto[] | undefined> {
+	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionListDto | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const ran = Selection.isISelection(rangeOrSelection)
@@ -339,34 +351,39 @@ class CodeActionAdapter {
 		};
 
 		return asPromise(() => this._provider.provideCodeActions(doc, ran, codeActionContext, token)).then(commandsOrActions => {
-			if (!isNonEmptyArray(commandsOrActions)) {
+			if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
 				return undefined;
 			}
-			const result: CustomCodeAction[] = [];
+
+			const cacheId = this._cache.add(commandsOrActions);
+			const disposables = new DisposableStore();
+			this._disposables.set(cacheId, disposables);
+
+			const actions: CustomCodeAction[] = [];
 			for (const candidate of commandsOrActions) {
 				if (!candidate) {
 					continue;
 				}
 				if (CodeActionAdapter._isCommand(candidate)) {
 					// old school: synthetic code action
-					result.push({
+					actions.push({
 						_isSynthetic: true,
 						title: candidate.title,
-						command: this._commands.toInternal(candidate),
+						command: this._commands.toInternal2(candidate, disposables),
 					});
 				} else {
 					if (codeActionContext.only) {
 						if (!candidate.kind) {
 							this._logService.warn(`${this._extensionId.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
 						} else if (!codeActionContext.only.contains(candidate.kind)) {
-							this._logService.warn(`${this._extensionId.value} -Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
+							this._logService.warn(`${this._extensionId.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
 						}
 					}
 
 					// new school: convert code action
-					result.push({
+					actions.push({
 						title: candidate.title,
-						command: candidate.command && this._commands.toInternal(candidate.command),
+						command: candidate.command && this._commands.toInternal2(candidate.command, disposables),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value,
@@ -375,8 +392,14 @@ class CodeActionAdapter {
 				}
 			}
 
-			return result;
+			return <CodeActionListDto>{ cacheId, actions };
 		});
+	}
+
+	public releaseCodeActions(cachedId: number): void {
+		dispose(this._disposables.get(cachedId));
+		this._disposables.delete(cachedId);
+		this._cache.delete(cachedId);
 	}
 
 	private static _isCommand(thing: any): thing is vscode.Command {
@@ -1276,8 +1299,12 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 
-	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionDto[] | undefined> {
+	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionListDto | undefined> {
 		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context, token), undefined);
+	}
+
+	$releaseCodeActions(handle: number, cacheId: number): void {
+		this._withAdapter(handle, CodeActionAdapter, adapter => Promise.resolve(adapter.releaseCodeActions(cacheId)), undefined);
 	}
 
 	// --- formatting

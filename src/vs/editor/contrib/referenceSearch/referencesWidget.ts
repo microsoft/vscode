@@ -47,8 +47,8 @@ class DecorationsManager implements IDisposable {
 
 	private _decorations = new Map<string, OneReference>();
 	private _decorationIgnoreSet = new Set<string>();
-	private _callOnDispose = new DisposableStore();
-	private _callOnModelChange = new DisposableStore();
+	private readonly _callOnDispose = new DisposableStore();
+	private readonly _callOnModelChange = new DisposableStore();
 
 	constructor(private _editor: ICodeEditor, private _model: ReferencesModel) {
 		this._callOnDispose.add(this._editor.onDidChangeModel(() => this._onModelChanged()));
@@ -62,7 +62,7 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _onModelChanged(): void {
-		this._callOnModelChange = dispose(this._callOnModelChange);
+		this._callOnModelChange.clear();
 		const model = this._editor.getModel();
 		if (model) {
 			for (const ref of this._model.groups) {
@@ -194,8 +194,8 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _model: ReferencesModel | undefined;
 	private _decorationsManager: DecorationsManager;
 
-	private _disposeOnNewModel = new DisposableStore();
-	private _callOnDispose = new DisposableStore();
+	private readonly _disposeOnNewModel = new DisposableStore();
+	private readonly _callOnDispose = new DisposableStore();
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
 	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
@@ -230,6 +230,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	dispose(): void {
 		this.setModel(undefined);
 		this._callOnDispose.dispose();
+		this._disposeOnNewModel.dispose();
 		dispose(this._preview);
 		dispose(this._previewNotAvailableMessage);
 		dispose(this._tree);
@@ -424,7 +425,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
 		// clean up
-		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
+		this._disposeOnNewModel.clear();
 		this._model = newModel;
 		if (this._model) {
 			return this._onNewModel();

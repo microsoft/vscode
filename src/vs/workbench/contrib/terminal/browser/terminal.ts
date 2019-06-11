@@ -12,6 +12,11 @@ import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 
+/**
+ * A service used by TerminalInstance (and components owned by it) that allows it to break its
+ * dependency on electron-browser and node layers, while at the same time avoiding a cyclic
+ * dependency on ITerminalService.
+ */
 export interface ITerminalInstanceService {
 	_serviceBrand: any;
 

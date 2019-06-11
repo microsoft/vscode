@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import * as arrays from 'vs/base/common/arrays';
-import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
+import { Delayer, ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
@@ -208,7 +208,7 @@ export class SettingsEditor2 extends BaseEditor {
 	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | null, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
-			.then(() => new Promise(process.nextTick)) // Force setInput to be async
+			.then(() => timeout(0)) // Force setInput to be async
 			.then(() => {
 				return this.render(token);
 			})
