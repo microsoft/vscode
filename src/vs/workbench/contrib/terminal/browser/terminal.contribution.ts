@@ -294,6 +294,10 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionTerm
 	40,
 	TERMINAL_COMMAND_ID.TOGGLE
 ));
+if (platform.isWeb) {
+	// TODO@ben revisit if this should be consistent
+	Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERMINAL_PANEL_ID);
+}
 
 // On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl
 const category = nls.localize('terminalCategory', "Terminal");
