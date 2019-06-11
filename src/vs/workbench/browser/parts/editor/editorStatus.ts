@@ -1188,13 +1188,16 @@ export class ChangeEncodingAction extends Action {
 
 		await timeout(50); // quick open is sensitive to being opened so soon after another
 
-		const resource = toResource(activeControl!.input, { supportSideBySide: SideBySideEditor.MASTER });
-		if (!resource || !this.fileService.canHandleResource(resource)) {
-			return null; // encoding detection only possible for resources the file service can handle
+		const resource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
+		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
+			return null; // encoding detection only possible for resources the file service can handle or that are untitled
 		}
 
-		const content = await this.textFileService.read(resource, { autoGuessEncoding: true, acceptTextOnly: true });
-		const guessedEncoding = content.encoding;
+		let guessedEncoding: string | undefined = undefined;
+		if (this.fileService.canHandleResource(resource)) {
+			const content = await this.textFileService.read(resource, { autoGuessEncoding: true, acceptTextOnly: true });
+			guessedEncoding = content.encoding;
+		}
 
 		const isReopenWithEncoding = (action === reopenWithEncodingPick);
 
