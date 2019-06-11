@@ -163,6 +163,7 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IWorkspacesService, WorkspacesService);
 // registerSingleton(IMenubarService, MenubarService);
 // registerSingleton(IURLService, RelayURLService);
+registerSingleton(ISearchService, RemoteSearchService, true);
 registerSingleton(IHeapService, NullHeapService);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
@@ -331,6 +332,8 @@ import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/
 import { ITerminalNativeService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalNativeService } from 'vs/workbench/contrib/terminal/browser/terminalNativeService';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
+import { RemoteSearchService } from 'vs/workbench/services/search/common/searchService';
 
 // Experiments
 // import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';
