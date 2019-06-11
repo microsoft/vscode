@@ -93,6 +93,10 @@ export class DisposableStore implements IDisposable {
 	 * Any future disposables added to this object will be disposed of on `add`.
 	 */
 	public dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+
 		markTracked(this);
 		this._isDisposed = true;
 		this.clear();
@@ -109,6 +113,9 @@ export class DisposableStore implements IDisposable {
 	public add<T extends IDisposable>(t: T): T {
 		if (!t) {
 			return t;
+		}
+		if ((t as any as DisposableStore) === this) {
+			throw new Error('Cannot register a disposable on itself!');
 		}
 
 		markTracked(t);
@@ -140,6 +147,9 @@ export abstract class Disposable implements IDisposable {
 	}
 
 	protected _register<T extends IDisposable>(t: T): T {
+		if ((t as any as Disposable) === this) {
+			throw new Error('Cannot register a disposable on itself!');
+		}
 		return this._store.add(t);
 	}
 }
