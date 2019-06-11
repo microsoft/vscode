@@ -139,7 +139,7 @@ class CodeRendererMain extends Disposable {
 		const environmentService = new SimpleWorkbenchEnvironmentService();
 		environmentService.appRoot = '/web/';
 		environmentService.args = { _: [] };
-		environmentService.appSettingsHome = '/web/settings';
+		environmentService.appSettingsHome = toResource('/web/settings');
 		environmentService.settingsResource = this.configuration.settingsUri;
 		environmentService.appKeybindingsPath = '/web/settings/keybindings.json';
 		environmentService.logsPath = '/web/logs';
