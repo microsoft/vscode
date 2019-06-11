@@ -658,7 +658,19 @@ export class Repository implements Disposable {
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
-		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)");
+		this.onDidRunGitStatus(() => {
+			const headLabel = this.headLabel;
+			let placeholder: string;
+
+			if (headLabel !== '') {
+				// '{0}' will be replaced by the corresponding key-command later in the process, which is why it needs to stay.
+				placeholder = localize('commitMessageWithHeadLabel', "Message ({0} to commit to {1})", "{0}", this.headLabel);
+			} else {
+				placeholder = localize('commitMessage', "Message ({0} to commit)");
+			}
+
+			this._sourceControl.inputBox.placeholder = placeholder;
+		});
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
