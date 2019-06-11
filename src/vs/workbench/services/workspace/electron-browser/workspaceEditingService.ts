@@ -216,6 +216,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
 		const state = this.contextService.getWorkbenchState();
+		if (this.environmentService.configuration.remoteAuthority) {
+			// Do not allow workspace folders with scheme different than the current remote scheme
+			const schemas = this.contextService.getWorkspace().folders.map(f => f.uri.scheme);
+			foldersToAdd = foldersToAdd.filter(f => schemas.indexOf(f.uri.scheme) >= 0);
+		}
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
 		// enter a workspace.
