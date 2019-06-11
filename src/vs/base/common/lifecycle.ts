@@ -176,6 +176,10 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 		this._value = value;
 	}
 
+	clear() {
+		this.value = undefined;
+	}
+
 	dispose(): void {
 		this._isDisposed = true;
 		markTracked(this);
