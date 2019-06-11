@@ -13,6 +13,7 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ClassifiedEvent, IPropertyData, IGDPRProperty, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
@@ -102,6 +103,33 @@ export class TelemetryService implements ITelemetryService {
 
 	dispose(): void {
 		this._disposables = dispose(this._disposables);
+	}
+
+	publicLog2?<E extends ClassifiedEvent<T> = never, T extends { [_ in keyof T]: IPropertyData | IGDPRProperty | undefined } = never>(eventName: string, data?: StrictPropertyCheck<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>, anonymizeFilePaths?: boolean): Promise<any> {
+		// don't send events when the user is optout
+		if (!this.isOptedIn) {
+			return Promise.resolve(undefined);
+		}
+
+		return this._commonProperties.then(values => {
+
+			// (first) add common properties
+			data = mixin(data, values);
+
+			// (last) remove all PII from data
+			data = cloneAndChange(data, value => {
+				if (typeof value === 'string') {
+					return this._cleanupInfo(value, anonymizeFilePaths);
+				}
+				return undefined;
+			});
+
+			this._appender.log(eventName, data);
+
+		}, err => {
+			// unsure what to do now...
+			console.error(err);
+		});
 	}
 
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {

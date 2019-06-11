@@ -681,6 +681,13 @@ export class IssueReporter extends Disposable {
 				"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 			}
 		*/
+		type IssueReporterSearchErrorClassification = {
+			message: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' }
+		};
+
+		type IssueReporterSearchError = {
+			message: string;
+		};
 		this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
 	}
 

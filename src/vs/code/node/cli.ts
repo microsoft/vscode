@@ -5,7 +5,7 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { assign } from 'vs/base/common/objects';
-import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile, buildTelemetryMessage } from 'vs/platform/environment/node/argv';
+import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
 import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/node/product';
@@ -25,7 +25,8 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
 		|| !!argv['uninstall-extension']
-		|| !!argv['locate-extension'];
+		|| !!argv['locate-extension']
+		|| !!argv['telemetry'];
 }
 
 interface IMainCli {
@@ -51,10 +52,6 @@ export async function main(argv: string[]): Promise<any> {
 	// Version Info
 	else if (args.version) {
 		console.log(buildVersionMessage(pkg.version, product.commit));
-	}
-
-	else if (args.telemetry) {
-		console.log(buildTelemetryMessage());
 	}
 
 	// Extensions Management
