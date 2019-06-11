@@ -660,7 +660,7 @@ export class CodeApplication extends Disposable {
 							return Promise.resolve({ host, port });
 						}
 					},
-					signService: signService
+					signService
 				};
 
 				this._connection = connectRemoteAgentManagement(options, authority, `main`);
