@@ -26,6 +26,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
 import { IProductService } from 'vs/platform/product/common/product';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 export interface IInitDataProvider {
 	readonly remoteAuthority: string;
@@ -55,7 +56,8 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 		@ILabelService private readonly _labelService: ILabelService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@ISignService private readonly _signService: ISignService
 	) {
 		super();
 		this._protocol = null;
@@ -77,7 +79,8 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 					const { host, port } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
 					return { host, port };
 				}
-			}
+			},
+			signService: this._signService
 		};
 		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolvedAuthority) => {
 

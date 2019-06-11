@@ -40,6 +40,8 @@ import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { once } from 'vs/base/common/functional';
+import { ISignService } from 'vs/platform/sign/common/sign';
+import { SignService } from 'vs/platform/sign/node/signService';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -147,6 +149,7 @@ class CodeMain {
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
+		services.set(ISignService, new SyncDescriptor(SignService));
 
 		return [new InstantiationService(services, true), instanceEnvironment];
 	}
