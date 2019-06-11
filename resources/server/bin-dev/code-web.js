@@ -39,7 +39,7 @@ if (selfhost) {
 	executable = path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh');
 }
 
-const proc = cp.execFile(executable, process.argv);
+const proc = path.extname(executable) === '.cmd' ? cp.exec(executable, process.argv) : cp.execFile(executable, process.argv);
 
 let launched = false;
 proc.stdout.on("data", data => {
