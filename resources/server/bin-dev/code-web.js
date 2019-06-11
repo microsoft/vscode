@@ -6,10 +6,40 @@
 const opn = require('opn');
 const cp = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 const verbose = process.argv.indexOf('--verbose') !== -1;
+const selfhost = process.argv.indexOf('--selfhost') !== -1;
 
-const proc = cp.execFile(path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh'), process.argv);
+let executable;
+if (selfhost) {
+	const parentFolder = path.dirname(path.dirname(path.dirname(path.dirname(__dirname))));
+
+	const executables = {
+		'win32': {
+			folder: 'vscode-server-win32-x64',
+			command: 'server.cmd'
+		},
+		'darwin': {
+			folder: 'vscode-server-darwin',
+			command: 'server.sh'
+		},
+		'linux': {
+			folder: 'vscode-server-linux-x64',
+			command: 'server.sh'
+		}
+	};
+
+	executable = path.join(parentFolder, executables[process.platform].folder, executables[process.platform].command);
+
+	if (!fs.existsSync(executable)) {
+		console.error(`Unable to find ${executable}. Make sure to download the server first.`);
+	}
+} else {
+	executable = path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh');
+}
+
+const proc = cp.execFile(executable, process.argv);
 
 let launched = false;
 proc.stdout.on("data", data => {
@@ -30,7 +60,7 @@ proc.stdout.on("data", data => {
 				console.log(`Opening ${url} in your browser...`);
 			}
 
-			opn(url).catch(() => { console.log(`Failed to open ${url} in your browser. Please do so manually.`); });
+			opn(url).catch(() => { console.error(`Failed to open ${url} in your browser. Please do so manually.`); });
 		}, 100);
 	}
 });
