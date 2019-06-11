@@ -67,9 +67,9 @@ export class NotificationService extends Disposable implements INotificationServ
 			}
 
 			notification.actions = notification.actions || {};
-			notification.actions.primary = notification.actions.primary || [];
-			notification.actions.primary = [
-				...notification.actions.primary,
+			notification.actions.secondary = notification.actions.secondary || [];
+			notification.actions.secondary = [
+				...notification.actions.secondary,
 				new Action('workbench.dialog.choice.neverShowAgain', this.neverShowLabel, undefined, true, () => {
 					handle.close();
 					this.neverShow(id);
