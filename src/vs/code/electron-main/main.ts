@@ -143,7 +143,7 @@ class CodeMain {
 		process.once('exit', () => logService.dispose());
 		services.set(ILogService, logService);
 
-		services.set(IConfigurationService, new ConfigurationService(environmentService.settingsResource.path));
+		services.set(IConfigurationService, new ConfigurationService(environmentService.settingsResource));
 		services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 		services.set(IStateService, new SyncDescriptor(StateService));
 		services.set(IRequestService, new SyncDescriptor(RequestService));

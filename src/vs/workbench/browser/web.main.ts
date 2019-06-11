@@ -32,6 +32,7 @@ import { ConfigurationFileService } from 'vs/workbench/services/configuration/co
 import { WebResources } from 'vs/workbench/browser/web.resources';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
+import { hash } from 'vs/base/common/hash';
 
 interface IWindowConfiguration {
 	settingsUri: URI;
@@ -165,25 +166,16 @@ class CodeRendererMain extends Disposable {
 		}
 	}
 
-	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
-
-		const hash = (uri: URI) => {
-			return crypto.subtle.digest('SHA-1', new TextEncoder().encode(uri.toString())).then(buffer => {
-				// https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest#Converting_a_digest_to_a_hex_string
-				return Array.prototype.map.call(new Uint8Array(buffer), (value: number) => `00${value.toString(16)}`.slice(-2)).join('');
-			});
-		};
+	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
 
 		// Multi-root workspace
 		if (this.configuration.workspaceUri) {
-			const id = await hash(this.configuration.workspaceUri);
-			return { id, configPath: this.configuration.workspaceUri };
+			return { id: hash(this.configuration.workspaceUri.toString()).toString(16), configPath: this.configuration.workspaceUri };
 		}
 
 		// Single-folder workspace
 		if (this.configuration.folderUri) {
-			const id = await hash(this.configuration.folderUri);
-			return { id, folder: this.configuration.folderUri };
+			return { id: hash(this.configuration.folderUri.toString()).toString(16), folder: this.configuration.folderUri };
 		}
 
 		return { id: 'empty-window' };

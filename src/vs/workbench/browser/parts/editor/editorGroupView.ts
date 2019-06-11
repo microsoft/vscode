@@ -538,7 +538,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const resource = editor.getResource();
 		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
 		if (resource && path) {
-			descriptor['resource'] = { mimeType: guessMimeTypes(path).join(', '), scheme: resource.scheme, ext: extname(resource), path: hash(path) };
+			descriptor['resource'] = { mimeType: guessMimeTypes(resource).join(', '), scheme: resource.scheme, ext: extname(resource), path: hash(path) };
 
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {

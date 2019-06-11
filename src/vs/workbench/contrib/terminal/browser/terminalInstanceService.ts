@@ -4,12 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalInstance, IWindowsShellHelper, IShellLaunchConfig, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
-import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/node/windowsShellHelper';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
-import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
-import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
+import { IWindowsShellHelper, ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Terminal as XTermTerminal } from 'xterm';
 import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
@@ -21,10 +16,7 @@ let SearchAddon: typeof XTermSearchAddon;
 export class TerminalInstanceService implements ITerminalInstanceService {
 	public _serviceBrand: any;
 
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
-	) {
-	}
+	constructor() { }
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
@@ -47,15 +39,15 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return SearchAddon;
 	}
 
-	public createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper {
-		return new WindowsShellHelper(shellProcessId, instance, xterm);
+	public createWindowsShellHelper(): IWindowsShellHelper {
+		throw new Error('Not implemented');
 	}
 
-	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {
-		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
+	public createTerminalProcess(): ITerminalChildProcess {
+		throw new Error('Not implemented');
 	}
 
-	public getDefaultShell(p: Platform): string {
-		return getDefaultShell(p);
+	public getDefaultShell(): string {
+		throw new Error('Not implemented');
 	}
 }

@@ -70,6 +70,7 @@ export interface ICommentService {
 	addReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	deleteReaction(owner: string, resource: URI, comment: Comment, reaction: CommentReaction): Promise<void>;
 	getReactionGroup(owner: string): CommentReaction[] | undefined;
+	hasReactionHandler(owner: string): boolean;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread2, comment: Comment, reaction: CommentReaction): Promise<void>;
 	setActiveCommentThread(commentThread: CommentThread | null): void;
 }
@@ -313,6 +314,16 @@ export class CommentService extends Disposable implements ICommentService {
 		}
 
 		return undefined;
+	}
+
+	hasReactionHandler(owner: string): boolean {
+		const commentProvider = this._commentControls.get(owner);
+
+		if (commentProvider) {
+			return !!commentProvider.features.reactionHandler;
+		}
+
+		return false;
 	}
 
 	getStartDraftLabel(owner: string): string | undefined {

@@ -12,6 +12,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
@@ -24,7 +26,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
-		private readonly configurationPath: string
+		private readonly settingsResource: URI
 	) {
 		super();
 		this.configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
@@ -36,10 +38,13 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 			this.userConfigModelWatcher.dispose();
 		}
 
+		if (this.settingsResource.scheme !== Schemas.file) {
+			return Promise.resolve();
+		}
 		return new Promise<void>((c, e) => {
-			this.userConfigModelWatcher = this._register(new ConfigWatcher(this.configurationPath, {
-				changeBufferDelay: 300, onError: error => onUnexpectedError(error), defaultConfig: new ConfigurationModelParser(this.configurationPath), parse: (content: string, parseErrors: any[]) => {
-					const userConfigModelParser = new ConfigurationModelParser(this.configurationPath);
+			this.userConfigModelWatcher = this._register(new ConfigWatcher(this.settingsResource.fsPath, {
+				changeBufferDelay: 300, onError: error => onUnexpectedError(error), defaultConfig: new ConfigurationModelParser(this.settingsResource.fsPath), parse: (content: string, parseErrors: any[]) => {
+					const userConfigModelParser = new ConfigurationModelParser(this.settingsResource.fsPath);
 					userConfigModelParser.parseContent(content);
 					parseErrors = [...userConfigModelParser.errors];
 					return userConfigModelParser;

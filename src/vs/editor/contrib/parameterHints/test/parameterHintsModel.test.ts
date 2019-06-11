@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
@@ -32,10 +32,14 @@ const emptySigHelpResult = {
 	activeSignature: 0
 };
 suite('ParameterHintsModel', () => {
-	let disposables: IDisposable[] = [];
+	const disposables = new DisposableStore();
 
-	setup(function () {
-		disposables = dispose(disposables);
+	setup(() => {
+		disposables.clear();
+	});
+
+	teardown(() => {
+		disposables.clear();
 	});
 
 	function createMockEditor(fileContents: string) {
@@ -47,8 +51,8 @@ suite('ParameterHintsModel', () => {
 				[IStorageService, new InMemoryStorageService()]
 			)
 		});
-		disposables.push(textModel);
-		disposables.push(editor);
+		disposables.add(textModel);
+		disposables.add(editor);
 		return editor;
 	}
 
@@ -56,9 +60,9 @@ suite('ParameterHintsModel', () => {
 		const triggerChar = '(';
 
 		const editor = createMockEditor('');
-		disposables.push(new ParameterHintsModel(editor));
+		disposables.add(new ParameterHintsModel(editor));
 
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
@@ -77,10 +81,10 @@ suite('ParameterHintsModel', () => {
 		const triggerChar = '(';
 
 		const editor = createMockEditor('');
-		disposables.push(new ParameterHintsModel(editor));
+		disposables.add(new ParameterHintsModel(editor));
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
@@ -115,10 +119,10 @@ suite('ParameterHintsModel', () => {
 
 		const editor = createMockEditor('');
 		const hintModel = new ParameterHintsModel(editor);
-		disposables.push(hintModel);
+		disposables.add(hintModel);
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
@@ -150,10 +154,10 @@ suite('ParameterHintsModel', () => {
 
 	test('Provider should get last trigger character when triggered multiple times and only be invoked once', (done) => {
 		const editor = createMockEditor('');
-		disposables.push(new ParameterHintsModel(editor, 5));
+		disposables.add(new ParameterHintsModel(editor, 5));
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = ['a', 'b', 'c'];
 			signatureHelpRetriggerCharacters = [];
 
@@ -181,10 +185,10 @@ suite('ParameterHintsModel', () => {
 
 	test('Provider should be retriggered if already active', (done) => {
 		const editor = createMockEditor('');
-		disposables.push(new ParameterHintsModel(editor, 5));
+		disposables.add(new ParameterHintsModel(editor, 5));
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = ['a', 'b'];
 			signatureHelpRetriggerCharacters = [];
 
@@ -247,7 +251,7 @@ suite('ParameterHintsModel', () => {
 			}
 		};
 
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, longRunningProvider));
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, longRunningProvider));
 
 		hintsModel.trigger({ triggerKind: modes.SignatureHelpTriggerKind.Invoke }, 0);
 		assert.strictEqual(-1, didRequestCancellationOf);
@@ -269,10 +273,10 @@ suite('ParameterHintsModel', () => {
 		const retriggerChar = 'b';
 
 		const editor = createMockEditor('');
-		disposables.push(new ParameterHintsModel(editor, 5));
+		disposables.add(new ParameterHintsModel(editor, 5));
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [retriggerChar];
 
@@ -312,9 +316,9 @@ suite('ParameterHintsModel', () => {
 
 		const editor = createMockEditor('');
 		const model = new ParameterHintsModel(editor, 5);
-		disposables.push(model);
+		disposables.add(model);
 
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 
@@ -339,7 +343,7 @@ suite('ParameterHintsModel', () => {
 			}
 		}));
 
-		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
+		disposables.add(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 			signatureHelpRetriggerCharacters = [];
 

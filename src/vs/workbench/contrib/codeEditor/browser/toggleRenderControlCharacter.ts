@@ -14,7 +14,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 export class ToggleRenderControlCharacterAction extends Action {
 
 	public static readonly ID = 'editor.action.toggleRenderControlCharacter';
-	public static readonly LABEL = nls.localize('toggleRenderControlCharacters', "View: Toggle Control Characters");
+	public static readonly LABEL = nls.localize('toggleRenderControlCharacters', "Toggle Control Characters");
 
 	constructor(
 		id: string,
@@ -31,7 +31,7 @@ export class ToggleRenderControlCharacterAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRenderControlCharacterAction, ToggleRenderControlCharacterAction.ID, ToggleRenderControlCharacterAction.LABEL), 'View: Toggle Control Characters');
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRenderControlCharacterAction, ToggleRenderControlCharacterAction.ID, ToggleRenderControlCharacterAction.LABEL), 'View: Toggle Control Characters', nls.localize('view', "View"));
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',
