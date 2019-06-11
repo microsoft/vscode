@@ -6,7 +6,7 @@
 import 'vs/css!./media/progressService';
 
 import { localize } from 'vs/nls';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, emptyProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -25,12 +25,12 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
-export class ProgressService implements IProgressService {
+export class ProgressService implements IProgressService, IDisposable {
 
 	_serviceBrand: ServiceIdentifier<IProgressService>;
 
 	private readonly _stack: [IProgressOptions, Progress<IProgressStep>][] = [];
-	private _globalStatusEntry: IDisposable;
+	private readonly _globalStatusEntry = new MutableDisposable();
 
 	constructor(
 		@IActivityService private readonly _activityBar: IActivityService,
@@ -41,6 +41,10 @@ export class ProgressService implements IProgressService {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) { }
+
+	dispose() {
+		this._globalStatusEntry.dispose();
+	}
 
 	withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
 		const { location } = options;
@@ -97,7 +101,7 @@ export class ProgressService implements IProgressService {
 	}
 
 	private _updateWindowProgress(idx: number = 0) {
-		dispose(this._globalStatusEntry);
+		this._globalStatusEntry.clear();
 
 		if (idx < this._stack.length) {
 			const [options, progress] = this._stack[idx];
@@ -128,7 +132,7 @@ export class ProgressService implements IProgressService {
 				return;
 			}
 
-			this._globalStatusEntry = this._statusbarService.addEntry({
+			this._globalStatusEntry.value = this._statusbarService.addEntry({
 				text: `$(sync~spin) ${text}`,
 				tooltip: title
 			}, 'status.progress', localize('status.progress', "Progress Message"), StatusbarAlignment.LEFT);

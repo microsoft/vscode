@@ -307,7 +307,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 		id: VIEWLET_ID,
 		title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 	},
-	order: 2
+	order: 3
 });
 
 // View menu

@@ -36,6 +36,7 @@ import { hash } from 'vs/base/common/hash';
 
 interface IWindowConfiguration {
 	settingsUri: URI;
+	keybindingsUri: URI;
 	remoteAuthority: string;
 	folderUri?: URI;
 	workspaceUri?: URI;
@@ -141,7 +142,7 @@ class CodeRendererMain extends Disposable {
 		environmentService.args = { _: [] };
 		environmentService.appSettingsHome = toResource('/web/settings');
 		environmentService.settingsResource = this.configuration.settingsUri;
-		environmentService.keybindingsResource = toResource('/web/settings/keybindings.json');
+		environmentService.keybindingsResource = this.configuration.keybindingsUri;
 		environmentService.logsPath = '/web/logs';
 		environmentService.debugExtensionHost = {
 			port: null,
@@ -184,6 +185,7 @@ class CodeRendererMain extends Disposable {
 
 export interface IWindowConfigurationContents {
 	settingsPath: string;
+	keybindingsPath: string;
 	folderPath?: string;
 	workspacePath?: string;
 }
@@ -191,6 +193,7 @@ export interface IWindowConfigurationContents {
 export function main(windowConfigurationContents: IWindowConfigurationContents): Promise<void> {
 	const windowConfiguration: IWindowConfiguration = {
 		settingsUri: toResource(windowConfigurationContents.settingsPath),
+		keybindingsUri: toResource(windowConfigurationContents.keybindingsPath),
 		folderUri: windowConfigurationContents.folderPath ? toResource(windowConfigurationContents.folderPath) : undefined,
 		workspaceUri: windowConfigurationContents.workspacePath ? toResource(windowConfigurationContents.workspacePath) : undefined,
 		remoteAuthority: document.location.host

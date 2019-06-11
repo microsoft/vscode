@@ -9,7 +9,7 @@ import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionba
 import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
@@ -127,7 +127,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	static readonly ICON_PATH_TO_CSS_RULES: Map<string /* path*/, string /* CSS rule */> = new Map<string, string>();
 
 	private _wantsAltCommand: boolean;
-	private _itemClassDispose?: IDisposable;
+	private readonly _itemClassDispose = this._register(new MutableDisposable());
 	private readonly _altKey: AlternativeKeyEmitter;
 
 	constructor(
@@ -222,8 +222,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	}
 
 	_updateItemClass(item: ICommandAction): void {
-		dispose(this._itemClassDispose);
-		this._itemClassDispose = undefined;
+		this._itemClassDispose.value = undefined;
 
 		if (item.iconLocation) {
 			let iconClass: string;
@@ -240,17 +239,8 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			}
 
 			addClasses(this.label, 'icon', iconClass);
-			this._itemClassDispose = toDisposable(() => removeClasses(this.label, 'icon', iconClass));
+			this._itemClassDispose.value = toDisposable(() => removeClasses(this.label, 'icon', iconClass));
 		}
-	}
-
-	dispose(): void {
-		if (this._itemClassDispose) {
-			dispose(this._itemClassDispose);
-			this._itemClassDispose = undefined;
-		}
-
-		super.dispose();
 	}
 }
 
