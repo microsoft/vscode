@@ -775,6 +775,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
+		title: nls.localize('onlineServices', "Online Services Settings")
+	},
+	order: 2
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '2_keybindings',
 	command: {
@@ -790,7 +799,7 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 		id: OpenGlobalKeybindingsAction.ID,
 		title: nls.localize('keyboardShortcuts', "Keyboard Shortcuts")
 	},
-	order: 3
+	order: 4
 });
 
 // Editor tool items
