@@ -30,7 +30,7 @@ export class HistoryMainService implements IHistoryMainService {
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
 
 	private static readonly MAX_MACOS_DOCK_RECENT_WORKSPACES = 7; // prefer more workspaces...
-	private static readonly MAX_MACOS_DOCK_RECENT_FILES = 3; // ...compared to files
+	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES = 10; // ...compared to files
 
 	// Exclude some very common files from the dock/taskbar
 	private static readonly COMMON_FILES_FILTER = [
@@ -162,7 +162,8 @@ export class HistoryMainService implements IHistoryMainService {
 
 		// Collect max-N recent workspaces that are known to exist
 		const workspaceEntries: string[] = [];
-		for (let i = 0, entries = 0; i < mru.workspaces.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_WORKSPACES; i++) {
+		let entries = 0;
+		for (let i = 0; i < mru.workspaces.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_WORKSPACES; i++) {
 			const loc = location(mru.workspaces[i]);
 			if (loc.scheme === Schemas.file) {
 				const workspacePath = originalFSPath(loc);
@@ -175,7 +176,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 		// Collect max-N recent files that are known to exist
 		const fileEntries: string[] = [];
-		for (let i = 0, entries = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i++) {
+		for (let i = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES; i++) {
 			const loc = location(mru.files[i]);
 			if (loc.scheme === Schemas.file) {
 				const filePath = originalFSPath(loc);
