@@ -53,7 +53,7 @@
     "vscode-ripgrep": "^1.2.5",
     "vscode-sqlite3": "4.0.7",
     "vscode-textmate": "^4.1.1",
-    "vscode-xterm": "3.14.0-beta6",
+    "vscode-xterm": "3.14.0-beta7",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
