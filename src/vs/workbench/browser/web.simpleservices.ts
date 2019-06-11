@@ -198,7 +198,7 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	appQuality?: string;
 	appSettingsHome: URI;
 	settingsResource: URI;
-	appKeybindingsPath: string;
+	keybindingsResource: URI;
 	machineSettingsHome: string;
 	machineSettingsPath: string;
 	settingsSearchBuildId?: number;

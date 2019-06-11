@@ -141,7 +141,7 @@ class CodeRendererMain extends Disposable {
 		environmentService.args = { _: [] };
 		environmentService.appSettingsHome = toResource('/web/settings');
 		environmentService.settingsResource = this.configuration.settingsUri;
-		environmentService.appKeybindingsPath = '/web/settings/keybindings.json';
+		environmentService.keybindingsResource = toResource('/web/settings/keybindings.json');
 		environmentService.logsPath = '/web/logs';
 		environmentService.debugExtensionHost = {
 			port: null,
