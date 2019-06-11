@@ -207,7 +207,7 @@ export class QuickFixAction extends EditorAction {
 		super({
 			id: QuickFixAction.Id,
 			label: nls.localize('quickfix.trigger.label', "Quick Fix..."),
-			alias: 'Quick Fix',
+			alias: 'Quick Fix...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -317,7 +317,7 @@ export class RefactorAction extends EditorAction {
 		super({
 			id: RefactorAction.Id,
 			label: nls.localize('refactor.label', "Refactor..."),
-			alias: 'Refactor',
+			alias: 'Refactor...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -380,7 +380,7 @@ export class SourceAction extends EditorAction {
 		super({
 			id: SourceAction.Id,
 			label: nls.localize('source.label', "Source Action..."),
-			alias: 'Source Action',
+			alias: 'Source Action...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			menuOpts: {
 				group: '1_modification',
@@ -486,7 +486,7 @@ export class AutoFixAction extends EditorAction {
 		super({
 			id: AutoFixAction.Id,
 			label: nls.localize('autoFix.label', "Auto Fix..."),
-			alias: 'Auto Fix',
+			alias: 'Auto Fix...',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.writable,
 				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
