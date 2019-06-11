@@ -239,8 +239,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			return {
 				pid: process.pid,
 				appRoot: URI.file(this.environmentService.appRoot),
-				appSettingsHome: URI.file(this.environmentService.appSettingsHome),
-				settingsPath: URI.file(this.environmentService.machineSettingsPath),
+				appSettingsHome: this.environmentService.appSettingsHome,
+				settingsPath: this.environmentService.machineSettingsResource,
 				logsPath: URI.file(this.environmentService.logsPath),
 				extensionsPath: URI.file(this.environmentService.extensionsPath),
 				extensionHostLogsPath: URI.file(path.join(this.environmentService.logsPath, `exthost${RemoteAgentEnvironmentChannel._namePool++}`)),

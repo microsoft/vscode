@@ -155,7 +155,7 @@ export class RemoteExtensionManagementServer extends Disposable {
 
 		services.set(IEnvironmentService, this._environmentService);
 		services.set(ILogService, logService);
-		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [this._environmentService.machineSettingsPath]));
+		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [this._environmentService.machineSettingsResource]));
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
 		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
@@ -241,7 +241,7 @@ export class RemoteExtensionManagementCli {
 		services.set(ILogService, logService);
 		const instantiationService: IInstantiationService = new InstantiationService(services);
 
-		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.machineSettingsPath]));
+		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [environmentService.machineSettingsResource]));
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 		services.set(ITelemetryService, NullTelemetryService);
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
