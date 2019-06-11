@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -111,10 +111,3 @@ export function isStatusbarInDebugMode(debugService: IDebugService): boolean {
 
 	return true;
 }
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const statusBarItemDebuggingForeground = theme.getColor(STATUS_BAR_DEBUGGING_FOREGROUND);
-	if (statusBarItemDebuggingForeground) {
-		collector.addRule(`.monaco-workbench .part.statusbar.debugging > .items-container > .statusbar-item .mask-icon { background-color: ${statusBarItemDebuggingForeground} !important; }`);
-	}
-});
