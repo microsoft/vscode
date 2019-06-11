@@ -821,7 +821,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const fileName = basename(this.resource);
 		const path = this.resource.scheme === Schemas.file ? this.resource.fsPath : this.resource.path;
 		const telemetryData = {
-			mimeType: guessMimeTypes(path).join(', '),
+			mimeType: guessMimeTypes(this.resource).join(', '),
 			ext,
 			path: hash(path),
 			reason

@@ -837,7 +837,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 	) { }
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
-		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource.path), resource);
+		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource), resource);
 
 		return Promise.resolve(model);
 	}

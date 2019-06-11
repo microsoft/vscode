@@ -7,6 +7,9 @@ import { basename, posix, extname } from 'vs/base/common/path';
 import { endsWith, startsWithUTF8BOM, startsWith } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
 import { match } from 'vs/base/common/glob';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { DataUri } from 'vs/base/common/resources';
 
 export const MIME_TEXT = 'text/plain';
 export const MIME_BINARY = 'application/octet-stream';
@@ -106,12 +109,28 @@ export function clearTextMimes(onlyUserConfigured?: boolean): void {
 /**
  * Given a file, return the best matching mime type for it
  */
-export function guessMimeTypes(path: string | null, firstLine?: string): string[] {
+export function guessMimeTypes(resource: URI | null, firstLine?: string): string[] {
+	let path: string | undefined;
+	if (resource) {
+		switch (resource.scheme) {
+			case Schemas.file:
+				path = resource.fsPath;
+				break;
+			case Schemas.data:
+				const metadata = DataUri.parseMetaData(resource);
+				path = metadata.get(DataUri.META_DATA_LABEL);
+				break;
+			default:
+				path = resource.path;
+		}
+	}
+
 	if (!path) {
 		return [MIME_UNKNOWN];
 	}
 
 	path = path.toLowerCase();
+
 	const filename = basename(path);
 
 	// 1.) User configured mappings have highest priority
