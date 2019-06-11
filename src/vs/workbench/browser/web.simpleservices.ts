@@ -950,12 +950,12 @@ export class SimpleWindowService implements IWindowService {
 	readonly onDidChangeFocus: Event<boolean> = Event.None;
 	readonly onDidChangeMaximize: Event<boolean> = Event.None;
 
-	hasFocus = true;
+	readonly hasFocus = true;
 
 	readonly windowId = 0;
 
 	isFocused(): Promise<boolean> {
-		return Promise.resolve(false);
+		return Promise.resolve(this.hasFocus);
 	}
 
 	isMaximized(): Promise<boolean> {
@@ -1109,7 +1109,7 @@ export class SimpleWindowsService implements IWindowsService {
 	readonly onRecentlyOpenedChange: Event<void> = Event.None;
 
 	isFocused(_windowId: number): Promise<boolean> {
-		return Promise.resolve(false);
+		return Promise.resolve(true);
 	}
 
 	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
