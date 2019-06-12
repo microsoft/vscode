@@ -440,3 +440,12 @@ CommandsRegistry.registerCommand({
 		}
 	}
 });
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: VIEWLET_ID,
+		title: localize('showExtensions', "Extensions")
+	},
+	order: 3
+});

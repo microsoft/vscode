@@ -757,11 +757,29 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 1
 });
 
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: SETTINGS_COMMAND_OPEN_SETTINGS,
+		title: nls.localize('settings', "Settings")
+	},
+	order: 1
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '1_settings',
 	command: {
 		id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
 		title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "&&Online Services Settings")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
+		title: nls.localize('onlineServices', "Online Services Settings")
 	},
 	order: 2
 });
@@ -773,6 +791,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 		title: nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts")
 	},
 	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: OpenGlobalKeybindingsAction.ID,
+		title: nls.localize('keyboardShortcuts', "Keyboard Shortcuts")
+	},
+	order: 4
 });
 
 // Editor tool items
