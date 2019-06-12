@@ -11,9 +11,12 @@ const fs = require('fs');
 const VERBOSE = process.argv.indexOf('--verbose') !== -1;
 const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
 
-const SELFHOST_PORT = 9777;
-const DEVELOPMENT_PORT = 9888;
-const PORT = SELFHOST ? SELFHOST_PORT : DEVELOPMENT_PORT;
+let PORT = 8000;
+process.argv.forEach(arg => {
+	if (arg.indexOf('--port') !== -1) {
+		PORT = arg.substring(arg.indexOf('=') + 1);
+	}
+});
 
 let executable;
 if (SELFHOST) {
@@ -43,7 +46,13 @@ if (SELFHOST) {
 	executable = path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh');
 }
 
+// Start Server
 const proc = path.extname(executable) === '.cmd' || path.extname(executable) === '.bat' ? cp.spawn(executable, process.argv, { shell: true }) : cp.execFile(executable, process.argv);
+
+// Show warning message eventually
+const handle = setTimeout(() => {
+	console.log(`...still waiting for the extension host agent listening on ${PORT}. Is the port free? You can run with --verbose to see for errors from starting the server.`);
+}, 5000);
 
 let launched = false;
 proc.stdout.on("data", data => {
@@ -55,6 +64,7 @@ proc.stdout.on("data", data => {
 
 	// Bring up web URL when we detect the server is ready
 	if (!launched && data.toString().indexOf(`Extension host agent listening on ${PORT}`) >= 0) {
+		clearTimeout(handle);
 		launched = true;
 
 		setTimeout(() => {
