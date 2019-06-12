@@ -352,16 +352,17 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 	}
 
 	// TODO: only do iff indent guides are enabled
-	private renderIndentGuides(_node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
-		let node: ITreeNode<T, TFilterData> | undefined = _node;
+	private renderIndentGuides(target: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>, height: number): void {
 		let parent: ITreeNode<T, TFilterData> | undefined;
 		const guides: IndentGuide[] = [];
 
-		if (node && node.collapsible && !node.collapsed && hasVisibleChildren(node)) {
+		if (target && target.collapsible && !target.collapsed && hasVisibleChildren(target)) {
 			guides.push(IndentGuide.First);
 		} else {
 			guides.push(IndentGuide.None);
 		}
+
+		let node: ITreeNode<T, TFilterData> | undefined = target;
 
 		while (node) {
 			parent = node.parent;
@@ -370,10 +371,8 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 				break;
 			}
 
-			const isLastChild = parent && getLastVisibleChild(parent) === node;
-
-			if (isLastChild) {
-				if (node === _node) {
+			if (getLastVisibleChild(parent) === node) {
+				if (node === target) {
 					guides.push(IndentGuide.Last);
 				} else {
 					guides.push(IndentGuide.None);
