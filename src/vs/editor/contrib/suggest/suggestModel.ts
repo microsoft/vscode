@@ -226,8 +226,10 @@ export class SuggestModel implements IDisposable {
 				this._requestToken = undefined;
 			}
 			this._state = State.Idle;
-			dispose(this._completionModel);
-			this._completionModel = undefined;
+			if (retrigger) {
+				dispose(this._completionModel);
+				this._completionModel = undefined;
+			}
 			this._context = undefined;
 			this._onDidCancel.fire({ retrigger });
 		}
