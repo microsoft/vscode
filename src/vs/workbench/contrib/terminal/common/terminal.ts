@@ -94,6 +94,7 @@ export interface ITerminalConfiguration {
 	cwd: string;
 	confirmOnExit: boolean;
 	enableBell: boolean;
+	inheritEnv: boolean;
 	env: {
 		linux: { [key: string]: string };
 		osx: { [key: string]: string };
@@ -689,7 +690,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessExit: Event<number>;
 
 	dispose(immediate?: boolean): void;
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): Promise<void>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 
