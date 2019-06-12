@@ -5,15 +5,14 @@
 
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
-import { IAction, Action } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IGlobalActivity, GLOBAL_ACTIVITY_ID, IGlobalActivityRegistry, GlobalActivityActionsExtensions as GlobalActivityExtensions } from 'vs/workbench/common/activity';
+import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -26,7 +25,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+
+export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateStateContext', '');
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -212,10 +215,11 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 	}
 }
 
-export class UpdateContribution extends Disposable implements IGlobalActivity {
+export class UpdateContribution extends Disposable {
 
 	private state: UpdateState;
 	private badgeDisposable: IDisposable = Disposable.None;
+	private updateStateContextKey: IContextKey<string>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -224,10 +228,12 @@ export class UpdateContribution extends Disposable implements IGlobalActivity {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this.state = updateService.state;
+		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(this.contextKeyService);
 
 		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
 		this.onUpdateStateChange(this.updateService.state);
@@ -249,10 +255,11 @@ export class UpdateContribution extends Disposable implements IGlobalActivity {
 			this.storageService.remove('update/updateNotificationTime', StorageScope.GLOBAL);
 		}
 
-		Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions).registerActivity(this);
+		this.registerGlobalActivityActions();
 	}
 
 	private onUpdateStateChange(state: UpdateState): void {
+		this.updateStateContextKey.set(state.type);
 		switch (state.type) {
 			case StateType.Idle:
 				if (state.error) {
@@ -449,49 +456,78 @@ export class UpdateContribution extends Disposable implements IGlobalActivity {
 		return diffDays > 5;
 	}
 
-	getActions(): IAction[] {
-		const result: IAction[] = [];
-		const updateAction = this.getUpdateAction();
+	private registerGlobalActivityActions(): void {
+		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates({ windowId: this.environmentService.configuration.windowId }));
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '5_update',
+			command: {
+				id: 'update.check',
+				title: nls.localize('checkForUpdates', "Check for Updates...")
+			},
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle),
+		});
 
-		if (updateAction) {
-			result.push(new Separator(), updateAction);
-		}
+		CommandsRegistry.registerCommand('update.checking', () => { });
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '5_update',
+			command: {
+				id: 'update.checking',
+				title: nls.localize('checkingForUpdates', "Checking For Updates..."),
+				precondition: CONTEXT_UPDATE_STATE.isEqualTo('')
+			},
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates),
+		});
 
-		return result;
-	}
+		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '5_update',
+			command: {
+				id: 'update.downloadNow',
+				title: nls.localize('download now', "Download Now")
+			},
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload),
+		});
 
-	private getUpdateAction(): IAction | null {
-		const state = this.updateService.state;
+		CommandsRegistry.registerCommand('update.downloading', () => { });
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '5_update',
+			command: {
+				id: 'update.downloading',
+				title: nls.localize('DownloadingUpdate', "Downloading Update..."),
+				precondition: CONTEXT_UPDATE_STATE.isEqualTo('')
+			},
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading),
+		});
 
-		switch (state.type) {
-			case StateType.Uninitialized:
-				return null;
+		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '5_update',
+			command: {
+				id: 'update.install',
+				title: nls.localize('installUpdate...', "Install Update...")
+			},
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded),
+		});
 
-			case StateType.Idle:
-				const windowId = this.environmentService.configuration.windowId;
-				return new Action('update.check', nls.localize('checkForUpdates', "Check for Updates..."), undefined, true, () =>
-					this.updateService.checkForUpdates({ windowId }));
+		CommandsRegistry.registerCommand('update.updating', () => { });
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '5_update',
+			command: {
+				id: 'update.updating',
+				title: nls.localize('installingUpdate', "Installing Update..."),
+				precondition: CONTEXT_UPDATE_STATE.isEqualTo('')
+			},
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating),
+		});
 
-			case StateType.CheckingForUpdates:
-				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false);
-
-			case StateType.AvailableForDownload:
-				return new Action('update.downloadNow', nls.localize('download now', "Download Now"), undefined, true, () =>
-					this.updateService.downloadUpdate());
-
-			case StateType.Downloading:
-				return new Action('update.downloading', nls.localize('DownloadingUpdate', "Downloading Update..."), undefined, false);
-
-			case StateType.Downloaded:
-				return new Action('update.install', nls.localize('installUpdate...', "Install Update..."), undefined, true, () =>
-					this.updateService.applyUpdate());
-
-			case StateType.Updating:
-				return new Action('update.updating', nls.localize('installingUpdate', "Installing Update..."), undefined, false);
-
-			case StateType.Ready:
-				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update"), undefined, true, () =>
-					this.updateService.quitAndInstall());
-		}
+		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '5_update',
+			command: {
+				id: 'update.restart',
+				title: nls.localize('restartToUpdate', "Restart to Update")
+			},
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready),
+		});
 	}
 }

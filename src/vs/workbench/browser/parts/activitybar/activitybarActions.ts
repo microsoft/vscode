@@ -21,14 +21,13 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { IActivity, IGlobalActivityRegistry, GlobalActivityActionsExtensions } from 'vs/workbench/common/activity';
+import { IActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { fillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -149,13 +148,6 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 		const globalActivityActions: IAction[] = [];
 		const globalActivityMenu = this.menuService.createMenu(MenuId.GlobalActivity, this.contextKeyService);
 		fillInActionBarActions(globalActivityMenu, undefined, { primary: [], secondary: globalActivityActions });
-
-		for (const activity of Registry.as<IGlobalActivityRegistry>(GlobalActivityActionsExtensions).getActivities()) {
-			const actions = activity.getActions();
-			if (actions.length) {
-				globalActivityActions.push(new Separator(), ...actions);
-			}
-		}
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container);
 		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
