@@ -51,14 +51,15 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { URI } from 'vs/base/common/uri';
 
 function renderBody(body: string): string {
-	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-core-resource:; child-src 'none'; frame-src 'none';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-resource:; child-src 'none'; frame-src 'none';">
 				<link rel="stylesheet" type="text/css" href="${styleSheetPath}">
 			</head>
 			<body>
@@ -538,7 +539,10 @@ export class ExtensionEditor extends BaseEditor {
 						enableFindWidget: true,
 					},
 					{
-						svgWhiteList: this.extensionsWorkbenchService.allowedBadgeProviders
+						svgWhiteList: this.extensionsWorkbenchService.allowedBadgeProviders,
+						localResourceRoots: [
+							URI.parse(require.toUrl('./media'))
+						]
 					});
 				webviewElement.mountTo(this.content);
 				this.contentDisposables.push(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
