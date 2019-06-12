@@ -672,6 +672,8 @@
 	"extensionAllowedProposedApi": [
 		"ms-vscode.references-view",
 		"ms-vsliveshare.vsliveshare",
+		"ms-vsliveshare.cloudenv",
+		"ms-vsliveshare.cloudenv-explorer",
 		"GitHub.vscode-pull-request-github",
 		"Microsoft.vscode-nmake-tools",
 		"atlassian.atlascode",
@@ -688,5 +690,18 @@
 		"ms-vscode-remote.vscode-remote-extensionpack",
 		"ms-vscode-remote.vscode-remote-extensionpack-nightly"
 	],
-	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json"
+	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
+	"uiExtensions": [
+		"atlassian.atlascode",
+		"CoenraadS.bracket-pair-colorizer",
+		"formulahendry.auto-close-tag",
+		"hiro-sun.vscode-emacs",
+		"hnw.vscode-auto-open-markdown-preview",
+		"monokai.theme-monokai-pro-vscode",
+		"shalldie.background",
+		"techer.open-in-browser",
+		"vincaslt.highlight-matching-tag",
+		"wayou.vscode-todo-highlight",
+		"peterjausovec.vscode-docker"
+	]
 }
