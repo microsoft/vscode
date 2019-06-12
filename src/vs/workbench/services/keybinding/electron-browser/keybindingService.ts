@@ -46,6 +46,7 @@ import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/file
 import { dirname, isEqual } from 'vs/base/common/resources';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
+import { isArray } from 'vs/base/common/types';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -632,7 +633,8 @@ class UserKeybindings extends Disposable {
 		const existing = this._keybindings;
 		try {
 			const content = await this.fileService.readFile(this.keybindingsResource);
-			this._keybindings = parse(content.value.toString());
+			const value = parse(content.value.toString());
+			this._keybindings = isArray(value) ? value : [];
 		} catch (e) {
 			this._keybindings = [];
 		}
