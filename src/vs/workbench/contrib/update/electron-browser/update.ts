@@ -28,8 +28,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 
-export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateStateContext', '');
+const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -260,6 +261,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	private onUpdateStateChange(state: UpdateState): void {
 		this.updateStateContextKey.set(state.type);
+
 		switch (state.type) {
 			case StateType.Idle:
 				if (state.error) {
@@ -333,7 +335,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			severity.Info,
 			nls.localize('thereIsUpdateAvailable', "There is an available update."),
 			[{
-				label: nls.localize('download now', "Download Now"),
+				label: nls.localize('download update', "Download Update"),
 				run: () => this.updateService.downloadUpdate()
 			}, {
 				label: nls.localize('later', "Later"),
@@ -464,7 +466,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				id: 'update.check',
 				title: nls.localize('checkForUpdates', "Check for Updates...")
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle),
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
 		});
 
 		CommandsRegistry.registerCommand('update.checking', () => { });
@@ -473,9 +475,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			command: {
 				id: 'update.checking',
 				title: nls.localize('checkingForUpdates', "Checking For Updates..."),
-				precondition: CONTEXT_UPDATE_STATE.isEqualTo('')
+				precondition: FalseContext
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates),
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
 		});
 
 		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate());
@@ -483,9 +485,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '5_update',
 			command: {
 				id: 'update.downloadNow',
-				title: nls.localize('download now', "Download Now")
+				title: nls.localize('download update', "Download Update")
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload),
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
 		});
 
 		CommandsRegistry.registerCommand('update.downloading', () => { });
@@ -494,9 +496,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			command: {
 				id: 'update.downloading',
 				title: nls.localize('DownloadingUpdate', "Downloading Update..."),
-				precondition: CONTEXT_UPDATE_STATE.isEqualTo('')
+				precondition: FalseContext
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading),
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
 		});
 
 		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
@@ -506,7 +508,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				id: 'update.install',
 				title: nls.localize('installUpdate...', "Install Update...")
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded),
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
 		});
 
 		CommandsRegistry.registerCommand('update.updating', () => { });
@@ -515,9 +517,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			command: {
 				id: 'update.updating',
 				title: nls.localize('installingUpdate', "Installing Update..."),
-				precondition: CONTEXT_UPDATE_STATE.isEqualTo('')
+				precondition: FalseContext
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating),
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
 		});
 
 		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
@@ -527,7 +529,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				id: 'update.restart',
 				title: nls.localize('restartToUpdate', "Restart to Update")
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready),
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
 		});
 	}
 }
