@@ -1,4 +1,4 @@
-// Type definitions for Electron 6.0.0-beta.5
+// Type definitions for Electron 6.0.0-beta.7
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -3019,12 +3019,6 @@ declare namespace Electron {
 		/**
 		 * The browserWindow argument allows the dialog to attach itself to a parent
 		 * window, making it modal. The filters specifies an array of file types that can
-		 * be displayed, see dialog.showOpenDialog for an example.
-		 */
-		showSaveDialog(options: SaveDialogOptions): (string) | (undefined);
-		/**
-		 * The browserWindow argument allows the dialog to attach itself to a parent
-		 * window, making it modal. The filters specifies an array of file types that can
 		 * be displayed, see dialog.showOpenDialog for an example. Note: On macOS, using
 		 * the asynchronous version is recommended to avoid issues when expanding and
 		 * collapsing the dialog.
@@ -3035,7 +3029,13 @@ declare namespace Electron {
 		 * window, making it modal. The filters specifies an array of file types that can
 		 * be displayed, see dialog.showOpenDialog for an example.
 		 */
-		showSaveDialog(browserWindow: BrowserWindow, options: SaveDialogOptions): (string) | (undefined);
+		showSaveDialogSync(options: SaveDialogSyncOptions): (string) | (undefined);
+		/**
+		 * The browserWindow argument allows the dialog to attach itself to a parent
+		 * window, making it modal. The filters specifies an array of file types that can
+		 * be displayed, see dialog.showOpenDialog for an example.
+		 */
+		showSaveDialogSync(browserWindow: BrowserWindow, options: SaveDialogSyncOptions): (string) | (undefined);
 	}
 
 	interface Display {
@@ -9834,6 +9834,37 @@ declare namespace Electron {
 		 * saved file. securityScopedBookmarks must be enabled for this to be present.
 		 */
 		bookmark?: string;
+	}
+
+	interface SaveDialogSyncOptions {
+		title?: string;
+		/**
+		 * Absolute directory path, absolute file path, or file name to use by default.
+		 */
+		defaultPath?: string;
+		/**
+		 * Custom label for the confirmation button, when left empty the default label will
+		 * be used.
+		 */
+		buttonLabel?: string;
+		filters?: FileFilter[];
+		/**
+		 * Message to display above text fields.
+		 */
+		message?: string;
+		/**
+		 * Custom label for the text displayed in front of the filename text field.
+		 */
+		nameFieldLabel?: string;
+		/**
+		 * Show the tags input box, defaults to true.
+		 */
+		showsTagField?: boolean;
+		/**
+		 * Create a when packaged for the Mac App Store. If this option is enabled and the
+		 * file doesn't already exist a blank file will be created at the chosen path.
+		 */
+		securityScopedBookmarks?: boolean;
 	}
 
 	interface Settings {
