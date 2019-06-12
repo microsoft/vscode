@@ -5,7 +5,7 @@
 
 import { CancelablePromise, RunOnceScheduler, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -29,7 +29,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	private readonly _localToDispose = new DisposableStore();
 	private _lenses: CodeLensWidget[] = [];
 	private _currentFindCodeLensSymbolsPromise: CancelablePromise<CodeLensModel> | undefined;
-	private _currentCodeLensModel: CodeLensModel | undefined;
+	private readonly _currentCodeLensModel = new MutableDisposable<CodeLensModel>();
 	private _modelChangeCounter: number = 0;
 	private _currentResolveCodeLensSymbolsPromise: CancelablePromise<any> | undefined;
 	private _detectVisibleLenses: RunOnceScheduler;
@@ -58,6 +58,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	dispose(): void {
 		this._localDispose();
 		this._globalToDispose.dispose();
+		this._currentCodeLensModel.dispose();
 	}
 
 	private _localDispose(): void {
@@ -71,7 +72,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			this._currentResolveCodeLensSymbolsPromise = undefined;
 		}
 		this._localToDispose.clear();
-		dispose(this._currentCodeLensModel);
+		this._currentCodeLensModel.clear();
 	}
 
 	getId(): string {
@@ -132,9 +133,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 			this._currentFindCodeLensSymbolsPromise.then(result => {
 				if (counterValue === this._modelChangeCounter) { // only the last one wins
-					// lifecycle -> dispose old model
-					dispose(this._currentCodeLensModel);
-					this._currentCodeLensModel = result;
+					this._currentCodeLensModel.value = result;
 
 					// cache model to reduce flicker
 					this._codeLensCache.put(model, result);
