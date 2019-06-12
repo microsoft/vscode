@@ -503,7 +503,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			terminalConfig.get<boolean>('setLocaleVariables', false),
 			// Always inherit the environment as we need to be running in a login shell, this may
 			// change when macOS servers are supported
-			true
+			process.env as platform.IProcessEnvironment
 		);
 
 		// Fork the process and listen for messages
