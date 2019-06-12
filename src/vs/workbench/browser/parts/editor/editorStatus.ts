@@ -276,14 +276,14 @@ const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
 export class EditorStatus extends Disposable implements IWorkbenchContribution {
-	private tabFocusModeElement: IStatusbarEntryAccessor | null = null;
-	private screenRedearModeElement: IStatusbarEntryAccessor | null = null;
-	private indentationElement: IStatusbarEntryAccessor | null = null;
-	private selectionElement: IStatusbarEntryAccessor | null = null;
-	private encodingElement: IStatusbarEntryAccessor | null = null;
-	private eolElement: IStatusbarEntryAccessor | null = null;
-	private modeElement: IStatusbarEntryAccessor | null = null;
-	private metadataElement: IStatusbarEntryAccessor | null = null;
+	private tabFocusModeElement?: IStatusbarEntryAccessor;
+	private screenRedearModeElement?: IStatusbarEntryAccessor;
+	private indentationElement?: IStatusbarEntryAccessor;
+	private selectionElement?: IStatusbarEntryAccessor;
+	private encodingElement?: IStatusbarEntryAccessor;
+	private eolElement?: IStatusbarEntryAccessor;
+	private modeElement?: IStatusbarEntryAccessor;
+	private metadataElement?: IStatusbarEntryAccessor;
 
 	private readonly state = new State();
 	private readonly activeEditorListeners: IDisposable[] = [];
@@ -392,7 +392,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		} else {
 			if (this.tabFocusModeElement) {
 				this.tabFocusModeElement.dispose();
-				this.tabFocusModeElement = null;
+				this.tabFocusModeElement = undefined;
 			}
 		}
 	}
@@ -409,7 +409,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		} else {
 			if (this.screenRedearModeElement) {
 				this.screenRedearModeElement.dispose();
-				this.screenRedearModeElement = null;
+				this.screenRedearModeElement = undefined;
 			}
 		}
 	}
@@ -418,7 +418,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!text) {
 			if (this.selectionElement) {
 				dispose(this.selectionElement);
-				this.selectionElement = null;
+				this.selectionElement = undefined;
 			}
 
 			return;
@@ -437,7 +437,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!text) {
 			if (this.indentationElement) {
 				dispose(this.indentationElement);
-				this.indentationElement = null;
+				this.indentationElement = undefined;
 			}
 
 			return;
@@ -456,7 +456,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!text) {
 			if (this.encodingElement) {
 				dispose(this.encodingElement);
-				this.encodingElement = null;
+				this.encodingElement = undefined;
 			}
 
 			return;
@@ -475,7 +475,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!text) {
 			if (this.eolElement) {
 				dispose(this.eolElement);
-				this.eolElement = null;
+				this.eolElement = undefined;
 			}
 
 			return;
@@ -494,7 +494,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!text) {
 			if (this.modeElement) {
 				dispose(this.modeElement);
-				this.modeElement = null;
+				this.modeElement = undefined;
 			}
 
 			return;
@@ -513,7 +513,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!text) {
 			if (this.metadataElement) {
 				dispose(this.metadataElement);
-				this.metadataElement = null;
+				this.metadataElement = undefined;
 			}
 
 			return;
@@ -527,7 +527,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.metadataElement = this.updateElement(this.metadataElement, props, 'status.editor.info', nls.localize('status.editor.info', "File Information"), StatusbarAlignment.RIGHT, 100);
 	}
 
-	private updateElement(element: IStatusbarEntryAccessor | null, props: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor | null {
+	private updateElement(element: IStatusbarEntryAccessor | undefined, props: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor | undefined {
 		if (!element) {
 			element = this.statusbarService.addEntry(props, id, name, alignment, priority);
 		} else {
