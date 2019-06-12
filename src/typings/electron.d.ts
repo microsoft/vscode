@@ -97,7 +97,7 @@ declare namespace Electron {
 	const powerMonitor: PowerMonitor;
 	const powerSaveBlocker: PowerSaveBlocker;
 	const protocol: Protocol;
-	const remote: Remote;
+	// const remote: Remote; ### VSCODE CHANGE (we do not want to use remote)
 	const screen: Screen;
 	type session = Session;
 	const session: typeof Session;
@@ -3548,7 +3548,7 @@ declare namespace Electron {
 		 * event.returnValue. Note: Sending a synchronous message will block the whole
 		 * renderer process, unless you know what you are doing you should never use it.
 		 */
-		sendSync(channel: string, ...args: any[]): any;
+		// sendSync(channel: string, ...args: any[]): any; ### VSCODE CHANGE (we do not want to use sendSync)
 		/**
 		 * Sends a message to a window with webContentsId via channel.
 		 */
@@ -7740,7 +7740,7 @@ declare namespace Electron {
 		 * When this attribute is present the guest page will be allowed to open new
 		 * windows. Popups are disabled by default.
 		 */
-		allowpopups?: string;
+		// allowpopups?: string; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * A list of strings which specifies the blink features to be disabled separated by
 		 * ,. The full list of supported feature strings can be found in the
@@ -7751,7 +7751,7 @@ declare namespace Electron {
 		 * When this attribute is present the guest page will have web security disabled.
 		 * Web security is enabled by default.
 		 */
-		disablewebsecurity?: string;
+		// disablewebsecurity?: string; ### VSCODE CHANGE(https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * A list of strings which specifies the blink features to be enabled separated by
 		 * ,. The full list of supported feature strings can be found in the
@@ -10350,12 +10350,12 @@ declare namespace Electron {
 		 * websites by people), and set allowRunningInsecureContent to true if this options
 		 * has not been set by user. Default is true.
 		 */
-		webSecurity?: boolean;
+		// webSecurity?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Allow an https page to run JavaScript, CSS or plugins from http URLs. Default is
 		 * false.
 		 */
-		allowRunningInsecureContent?: boolean;
+		// allowRunningInsecureContent?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Enables image support. Default is true.
 		 */
@@ -10375,7 +10375,7 @@ declare namespace Electron {
 		/**
 		 * Enables Chromium's experimental features. Default is false.
 		 */
-		experimentalFeatures?: boolean;
+		// experimentalFeatures?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Enables scroll bounce (rubber banding) effect on macOS. Default is false.
 		 */
@@ -10539,16 +10539,19 @@ declare namespace NodeJS {
 
 		// Docs: http://electronjs.org/docs/api/process
 
-		/**
-		 * Emitted when Electron has loaded its internal initialization script and is
-		 * beginning to load the web page or the main script. It can be used by the preload
-		 * script to add removed Node global symbols back to the global scope when node
-		 * integration is turned off:
-		 */
-		on(event: 'loaded', listener: Function): this;
-		once(event: 'loaded', listener: Function): this;
-		addListener(event: 'loaded', listener: Function): this;
-		removeListener(event: 'loaded', listener: Function): this;
+		// ### BEGIN VSCODE MODIFICATION ###
+		// /**
+		//  * Emitted when Electron has loaded its internal initialization script and is
+		//  * beginning to load the web page or the main script. It can be used by the preload
+		//  * script to add removed Node global symbols back to the global scope when node
+		//  * integration is turned off:
+		//  */
+		// on(event: 'loaded', listener: Function): this;
+		// once(event: 'loaded', listener: Function): this;
+		// addListener(event: 'loaded', listener: Function): this;
+		// removeListener(event: 'loaded', listener: Function): this;
+		// ### END VSCODE MODIFICATION ###
+
 		/**
 		 * Causes the main thread of the current process crash.
 		 */
