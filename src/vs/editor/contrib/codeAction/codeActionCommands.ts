@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -46,7 +46,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	private readonly _model: CodeActionModel;
 	private readonly _codeActionWidget: CodeActionWidget;
 	private readonly _lightBulbWidget: LightBulbWidget;
-	private _currentCodeActions: CodeActionSet | undefined;
+	private readonly _currentCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
 	constructor(
 		editor: ICodeEditor,
@@ -81,16 +81,11 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
 	}
 
-	dipose() {
-		super.dispose();
-		dispose(this._currentCodeActions);
-	}
 
 	private _onDidChangeCodeActionsState(newState: CodeActionsState.State): void {
 		if (newState.type === CodeActionsState.Type.Triggered) {
 			newState.actions.then(actions => {
-				dispose(this._currentCodeActions);
-				this._currentCodeActions = actions;
+				this._currentCodeActions.value = actions;
 
 				if (!actions.actions.length && newState.trigger.context) {
 					MessageController.get(this._editor).showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
@@ -123,8 +118,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 				}
 			}
 		} else {
-			dispose(this._currentCodeActions);
-			this._currentCodeActions = undefined;
+			this._currentCodeActions.clear();
 			this._lightBulbWidget.hide();
 		}
 	}
