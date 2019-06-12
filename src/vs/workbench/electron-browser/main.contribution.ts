@@ -14,14 +14,14 @@ import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, OpenNewsletterSignupUrlAction } from 'vs/workbench/electron-browser/actions/helpActions';
 import { ToggleSharedProcessAction, InspectContextKeysAction, ToggleScreencastModeAction, ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
 import { ShowAboutDialogAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, OpenRecentAction, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ReloadWindowAction, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
-import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction, CloseWorkspaceAction, OpenLocalFileAction, OpenLocalFolderAction, OpenLocalFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, CloseWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext, RemoteFileDialogContext, IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
+import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext, IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
@@ -34,16 +34,6 @@ import product from 'vs/platform/product/node/product';
 	// Actions: File
 	(function registerFileActions(): void {
 		const fileCategory = nls.localize('file', "File");
-
-		if (isMacintosh) {
-			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open...', fileCategory);
-			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFileFolderAction, OpenLocalFileFolderAction.ID, OpenLocalFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, RemoteFileDialogContext), 'File: Open Local...', fileCategory);
-		} else {
-			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open File...', fileCategory);
-			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }), 'File: Open Folder...', fileCategory);
-			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFileAction, OpenLocalFileAction.ID, OpenLocalFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, RemoteFileDialogContext), 'File: Open Local File...', fileCategory);
-			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFolderAction, OpenLocalFolderAction.ID, OpenLocalFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }, RemoteFileDialogContext), 'File: Open Local Folder...', fileCategory);
-		}
 
 		registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', fileCategory);
@@ -226,35 +216,6 @@ import product from 'vs/platform/product/node/product';
 		},
 		order: 2
 	});
-
-	if (isMacintosh) {
-		MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-			group: '2_open',
-			command: {
-				id: OpenFileFolderAction.ID,
-				title: nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
-			},
-			order: 1
-		});
-	} else {
-		MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-			group: '2_open',
-			command: {
-				id: OpenFileAction.ID,
-				title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
-			},
-			order: 1
-		});
-
-		MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-			group: '2_open',
-			command: {
-				id: OpenFolderAction.ID,
-				title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
-			},
-			order: 2
-		});
-	}
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		group: '2_open',
