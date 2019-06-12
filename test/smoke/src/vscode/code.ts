@@ -9,44 +9,44 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
-import { IDriver, connect as connectDriver, IDisposable, IElement, Thenable } from './driver';
+import { IDriver, connect as connectDriver, IDisposable, IElement, Thenable } from './puppeteer-driver';
 import { Logger } from '../logger';
 import { ncp } from 'ncp';
 
 const repoPath = path.join(__dirname, '../../../..');
 
-function getDevElectronPath(): string {
-	const buildPath = path.join(repoPath, '.build');
-	const product = require(path.join(repoPath, 'product.json'));
+// function getDevElectronPath(): string {
+// 	const buildPath = path.join(repoPath, '.build');
+// 	const product = require(path.join(repoPath, 'product.json'));
 
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
-		case 'linux':
-			return path.join(buildPath, 'electron', `${product.applicationName}`);
-		case 'win32':
-			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
+// 	switch (process.platform) {
+// 		case 'darwin':
+// 			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
+// 		case 'linux':
+// 			return path.join(buildPath, 'electron', `${product.applicationName}`);
+// 		case 'win32':
+// 			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
+// 		default:
+// 			throw new Error('Unsupported platform.');
+// 	}
+// }
 
-function getBuildElectronPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'MacOS', 'Electron');
-		case 'linux': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, product.applicationName);
-		}
-		case 'win32': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, `${product.nameShort}.exe`);
-		}
-		default:
-			throw new Error('Unsupported platform.');
-	}
-}
+// function getBuildElectronPath(root: string): string {
+// 	switch (process.platform) {
+// 		case 'darwin':
+// 			return path.join(root, 'Contents', 'MacOS', 'Electron');
+// 		case 'linux': {
+// 			const product = require(path.join(root, 'resources', 'app', 'product.json'));
+// 			return path.join(root, product.applicationName);
+// 		}
+// 		case 'win32': {
+// 			const product = require(path.join(root, 'resources', 'app', 'product.json'));
+// 			return path.join(root, `${product.nameShort}.exe`);
+// 		}
+// 		default:
+// 			throw new Error('Unsupported platform.');
+// 	}
+// }
 
 function getDevOutPath(): string {
 	return path.join(repoPath, 'out');
@@ -61,7 +61,7 @@ function getBuildOutPath(root: string): string {
 	}
 }
 
-async function connect(child: cp.ChildProcess, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
+async function connect(child: cp.ChildProcess | undefined, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
 	let errCount = 0;
 
 	while (true) {
@@ -69,8 +69,9 @@ async function connect(child: cp.ChildProcess, outPath: string, handlePath: stri
 			const { client, driver } = await connectDriver(outPath, handlePath);
 			return new Code(client, driver, logger);
 		} catch (err) {
+			console.log('err', err);
 			if (++errCount > 50) {
-				child.kill();
+				// child.kill();
 				throw err;
 			}
 
@@ -107,7 +108,7 @@ async function createDriverHandle(): Promise<string> {
 
 export async function spawn(options: SpawnOptions): Promise<Code> {
 	const codePath = options.codePath;
-	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
+	// const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 	const handle = await createDriverHandle();
 
@@ -163,13 +164,14 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		args.push(...options.extraArgs);
 	}
 
-	const spawnOptions: cp.SpawnOptions = { env };
+	// const spawnOptions: cp.SpawnOptions = { env };
 
-	const child = cp.spawn(electronPath, args, spawnOptions);
+	// const child = cp.spawn(electronPath, args, spawnOptions);
 
-	instances.add(child);
-	child.once('exit', () => instances.delete(child));
+	// instances.add(child);
+	// child.once('exit', () => instances.delete(child));
 
+	const child = undefined;
 	return connect(child, outPath, handle, options.logger);
 }
 

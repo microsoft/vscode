@@ -132,13 +132,13 @@ if (testCodePath) {
 	process.env.VSCODE_CLI = '1';
 }
 
-if (!fs.existsSync(electronPath || '')) {
-	fail(`Can't find Code at ${electronPath}.`);
-}
-
-if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
-	fail(`Can't find Stable Code at ${stablePath}.`);
-}
+// if (!fs.existsSync(electronPath || '')) {
+// 	fail(`Can't find Code at ${electronPath}.`);
+// }
+console.log(stablePath);
+// if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
+// 	fail(`Can't find Stable Code at ${stablePath}.`);
+// }
 
 const userDataDir = path.join(testDataPath, 'd');
 
@@ -234,7 +234,7 @@ setupDataMigrationTests(stableCodePath, testDataPath);
 describe('Running Code', () => {
 	before(async function () {
 		const app = new Application(this.defaultOptions);
-		await app!.start();
+		await app!.start(false);
 		this.app = app;
 	});
 
