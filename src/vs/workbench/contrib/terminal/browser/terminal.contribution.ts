@@ -229,7 +229,7 @@ configurationRegistry.registerConfiguration({
 			default: []
 		},
 		'terminal.integrated.inheritEnv': {
-			markdownDescription: nls.localize('terminal.integrated.inheritEnv', "TODO"),
+			markdownDescription: nls.localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code."),
 			type: 'boolean',
 			default: true
 		},
