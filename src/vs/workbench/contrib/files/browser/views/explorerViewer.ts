@@ -593,11 +593,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
-			this.handleExternalDrop(data, target, originalEvent);
+			this.handleExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
 		}
 		// In-Explorer DND (Move/Copy file)
 		else {
-			this.handleExplorerDrop(data, target, originalEvent);
+			this.handleExplorerDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
 		}
 	}
 
