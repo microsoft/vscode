@@ -17,6 +17,20 @@
 		document.head.appendChild(script);
 	}
 
+	function getQueryValue(key) {
+		const queryString = document.location.href.split('?')[1];
+		if (queryString) {
+			const args = queryString.split('&');
+			for (let i = 0; i < args.length; i++) {
+				const split = args[i].split('=');
+				if (split[0] === key) {
+					return split[1];
+				}
+			}
+		}
+		return undefined;
+	}
+
 	loadScript('./out/vs/loader.js', function () {
 
 		// @ts-ignore
@@ -39,6 +53,7 @@
 		],
 			// @ts-ignore
 			function () {
+				self['WINDOW_CONFIGURATION'].folderPath = getQueryValue('folder') || self['WINDOW_CONFIGURATION'].folderPath;
 				// @ts-ignore
 				require('vs/workbench/browser/web.main').main(self['WINDOW_CONFIGURATION']).then(undefined, console.error);
 			});
