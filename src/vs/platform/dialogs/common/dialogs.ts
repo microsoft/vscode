@@ -36,7 +36,7 @@ export interface IConfirmationResult {
 
 	/**
 	 * This will only be defined if the confirmation was created
-	 * with the checkox option defined.
+	 * with the checkbox option defined.
 	 */
 	checkboxChecked?: boolean;
 }

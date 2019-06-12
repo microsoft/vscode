@@ -117,7 +117,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this.create();
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this._applyTheme(themeService.getTheme());
-		themeService.onThemeChange(this._applyTheme, this, this._disposables);
+		this._disposables.add(themeService.onThemeChange(this._applyTheme, this));
 	}
 
 	dispose(): void {
@@ -230,18 +230,18 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			}
 		}, Sizing.Distribute);
 
-		this._splitView.onDidSashChange(() => {
+		this._disposables.add(this._splitView.onDidSashChange(() => {
 			if (this._dim.width) {
 				this._layoutInfo.ratio = this._splitView.getViewSize(0) / this._dim.width;
 			}
-		}, undefined, this._disposables);
+		}));
 
 		// session state
 		let localDispose: IDisposable[] = [];
-		this._disposables.push({ dispose() { dispose(localDispose); } });
+		this._disposables.add({ dispose() { dispose(localDispose); } });
 
 		// update editor
-		this._tree.onDidChangeFocus(e => {
+		this._disposables.add(this._tree.onDidChangeFocus(e => {
 			const [element] = e.elements;
 			if (element && isNonEmptyArray(element.locations)) {
 
@@ -287,9 +287,9 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				}
 				this.setMetaTitle(localize('meta', " – {0}", names.join(' → ')));
 			}
-		}, undefined, this._disposables);
+		}));
 
-		this._editor.onMouseDown(e => {
+		this._disposables.add(this._editor.onMouseDown(e => {
 			const { event, target } = e;
 			if (event.detail !== 2) {
 				return;
@@ -304,9 +304,9 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				options: { selection: target.range! }
 			});
 
-		}, undefined, this._disposables);
+		}));
 
-		this._tree.onMouseDblClick(e => {
+		this._disposables.add(this._tree.onMouseDblClick(e => {
 			if (e.element && isNonEmptyArray(e.element.locations)) {
 				this.dispose();
 				this._editorService.openEditor({
@@ -314,9 +314,9 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 					options: { selection: e.element.locations[0].range }
 				});
 			}
-		}, undefined, this._disposables);
+		}));
 
-		this._tree.onDidChangeSelection(e => {
+		this._disposables.add(this._tree.onDidChangeSelection(e => {
 			const [element] = e.elements;
 			// don't close on click
 			if (element && isNonEmptyArray(element.locations) && e.browserEvent instanceof KeyboardEvent) {
@@ -326,7 +326,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 					options: { selection: element.locations[0].range }
 				});
 			}
-		}, undefined, this._disposables);
+		}));
 	}
 
 	showLoading(): void {
@@ -380,7 +380,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				}
 			};
 			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);
-			this._disposables.push(this._changeDirectionAction);
+			this._disposables.add(this._changeDirectionAction);
 			this._actionbarWidget.push(this._changeDirectionAction, { icon: true, label: false });
 		}
 	}

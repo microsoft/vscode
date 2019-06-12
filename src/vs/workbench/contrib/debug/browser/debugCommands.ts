@@ -53,6 +53,11 @@ function getThreadAndRun(accessor: ServicesAccessor, thread: IThread | undefined
 	const debugService = accessor.get(IDebugService);
 	if (!(thread instanceof Thread)) {
 		thread = debugService.getViewModel().focusedThread;
+		if (!thread) {
+			const focusedSession = debugService.getViewModel().focusedSession;
+			const threads = focusedSession ? focusedSession.getAllThreads() : undefined;
+			thread = threads && threads.length ? threads[0] : undefined;
+		}
 	}
 
 	if (thread) {
@@ -407,24 +412,18 @@ export function registerCommands(): void {
 		const widget = editorService.activeTextEditorWidget;
 		if (isCodeEditor(widget)) {
 			const position = widget.getPosition();
-			if (!position || !widget.hasModel()) {
-				return undefined;
-			}
+			if (position && widget.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
+				const modelUri = widget.getModel().uri;
+				const breakpointAlreadySet = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
+					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
 
-			const modelUri = widget.getModel().uri;
-			const bp = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
-				.filter(bp => (bp.column === position.column || !bp.column && position.column <= 1)).pop();
-
-			if (bp) {
-				return undefined;
-			}
-			if (debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
-				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
+				if (!breakpointAlreadySet) {
+					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
+				}
 			}
 		}
-
-		return undefined;
 	};
+
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyCode.F9,
@@ -436,14 +435,15 @@ export function registerCommands(): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
-			title: { value: nls.localize('inlineBreakpoint', "Inline Breakpoint"), original: 'Debug: Inline Breakpoint' },
-			category: nls.localize('debug', "Debug")
+			title: { value: nls.localize('inlineBreakpoint', "Inline Breakpoint"), original: 'Inline Breakpoint' },
+			category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 		command: {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
-			title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint")
+			title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint"),
+			category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
 		},
 		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
 		group: 'debug',

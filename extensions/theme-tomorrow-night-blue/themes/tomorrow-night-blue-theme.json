@@ -101,7 +101,7 @@
 		},
 		{
 			"name": "Class, Support",
-			"scope": "entity.name.class, entity.name.type, support.type, support.class",
+			"scope": "entity.name.class, entity.name.type, entity.name.namespace, entity.name.scope-resolution, support.type, support.class",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#FFEEAD"

@@ -5,7 +5,6 @@
 
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -48,7 +47,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	private _process: ITerminalChildProcess | null = null;
 	private _preLaunchInputQueue: string[] = [];
-	private _disposables: IDisposable[] = [];
 	private _latency: number = -1;
 	private _latencyRequest: Promise<number>;
 	private _latencyLastMeasured: number = 0;
@@ -96,12 +94,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			this._process.shutdown(immediate);
 			this._process = null;
 		}
-		this._disposables.forEach(d => d.dispose());
-		this._disposables.length = 0;
-	}
-
-	public addDisposable(disposable: IDisposable) {
-		this._disposables.push(disposable);
 	}
 
 	public createProcess(

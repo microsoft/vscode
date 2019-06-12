@@ -8,13 +8,11 @@ import * as nativeKeymap from 'native-keymap';
 import { release } from 'os';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { ConfigWatcher } from 'vs/base/node/config';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -28,7 +26,6 @@ import { IKeybindingItem, IKeybindingRule2, KeybindingWeight, KeybindingsRegistr
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -41,6 +38,14 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { commandsExtensionPoint } from 'vs/workbench/api/common/menusExtensionPoint';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { URI } from 'vs/base/common/uri';
+import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { dirname, isEqual } from 'vs/base/common/resources';
+import { parse } from 'vs/base/common/json';
+import * as objects from 'vs/base/common/objects';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -215,7 +220,7 @@ let keybindingType: IJSONSchema = {
 			description: nls.localize('vscode.extension.contributes.keybindings.args', "Arguments to pass to the command to execute.")
 		},
 		key: {
-			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g Ctrl+O and Ctrl+L L for a chord).'),
+			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g. Ctrl+O and Ctrl+L L for a chord).'),
 			type: 'string'
 		},
 		mac: {
@@ -239,6 +244,7 @@ let keybindingType: IJSONSchema = {
 
 const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>({
 	extensionPoint: 'keybindings',
+	deps: [commandsExtensionPoint],
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
 		oneOf: [
@@ -266,8 +272,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _keyboardMapper: IKeyboardMapper;
 	private _cachedResolver: KeybindingResolver | null;
-	private _firstTimeComputingResolver: boolean;
-	private userKeybindings: ConfigWatcher<IUserFriendlyKeybinding[]>;
+	private userKeybindings: UserKeybindings;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -275,12 +280,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWindowService private readonly windowService: IWindowService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IFileService fileService: IFileService
 	) {
-		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
+		super(contextKeyService, commandService, telemetryService, notificationService);
 
 		updateSchema();
 
@@ -303,9 +308,27 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		});
 
 		this._cachedResolver = null;
-		this._firstTimeComputingResolver = true;
 
-		this.userKeybindings = this._register(new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) }));
+		this.userKeybindings = this._register(new UserKeybindings(environmentService.keybindingsResource, fileService));
+		this.userKeybindings.initialize().then(() => {
+			if (this.userKeybindings.keybindings.length) {
+				this.updateResolver({ source: KeybindingSource.User });
+			}
+		});
+		this._register(this.userKeybindings.onDidChange(() => {
+			/* __GDPR__
+				"customKeybindingsChanged" : {
+					"keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				}
+			*/
+			this._telemetryService.publicLog('customKeybindingsChanged', {
+				keyCount: this.userKeybindings.keybindings.length
+			});
+			this.updateResolver({
+				source: KeybindingSource.User,
+				keybindings: this.userKeybindings.keybindings
+			});
+		}));
 
 		keybindingsExtPoint.setHandler((extensions) => {
 
@@ -320,11 +343,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		updateSchema();
 		this._register(extensionService.onDidRegisterExtensions(() => updateSchema()));
-
-		this._register(this.userKeybindings.onDidUpdateConfiguration(event => this.updateResolver({
-			source: KeybindingSource.User,
-			keybindings: event.config
-		})));
 
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
@@ -353,18 +371,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return `Layout info:\n${layoutInfo}\n${mapperInfo}\n\nRaw mapping:\n${rawMapping}`;
 	}
 
-	private _safeGetConfig(): IUserFriendlyKeybinding[] {
-		let rawConfig = this.userKeybindings.getConfig();
-		if (Array.isArray(rawConfig)) {
-			return rawConfig;
-		}
-		return [];
-	}
-
 	public customKeybindingsCount(): number {
-		let userKeybindings = this._safeGetConfig();
-
-		return userKeybindings.length;
+		return this.userKeybindings.keybindings.length;
 	}
 
 	private updateResolver(event: IKeybindingEvent): void {
@@ -375,9 +383,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	protected _getResolver(): KeybindingResolver {
 		if (!this._cachedResolver) {
 			const defaults = this._resolveKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
-			const overrides = this._resolveUserKeybindingItems(this._getExtraKeybindings(this._firstTimeComputingResolver), false);
+			const overrides = this._resolveUserKeybindingItems(this.userKeybindings.keybindings.map((k) => KeybindingIO.readUserKeybindingItem(k)), false);
 			this._cachedResolver = new KeybindingResolver(defaults, overrides);
-			this._firstTimeComputingResolver = false;
 		}
 		return this._cachedResolver;
 	}
@@ -425,24 +432,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}
 
 		return result;
-	}
-
-	private _getExtraKeybindings(isFirstTime: boolean): IUserKeybindingItem[] {
-		let extraUserKeybindings: IUserFriendlyKeybinding[] = this._safeGetConfig();
-		if (!isFirstTime) {
-			let cnt = extraUserKeybindings.length;
-
-			/* __GDPR__
-				"customKeybindingsChanged" : {
-					"keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			*/
-			this._telemetryService.publicLog('customKeybindingsChanged', {
-				keyCount: cnt
-			});
-		}
-
-		return extraUserKeybindings.map((k) => KeybindingIO.readUserKeybindingItem(k));
 	}
 
 	public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
@@ -500,10 +489,21 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			weight = KeybindingWeight.ExternalExtension + idx;
 		}
 
+		let commandAction = MenuRegistry.getCommand(command);
+		let precondition = commandAction && commandAction.precondition;
+		let fullWhen: ContextKeyExpr | undefined;
+		if (when && precondition) {
+			fullWhen = ContextKeyExpr.and(precondition, ContextKeyExpr.deserialize(when));
+		} else if (when) {
+			fullWhen = ContextKeyExpr.deserialize(when);
+		} else if (precondition) {
+			fullWhen = precondition;
+		}
+
 		let desc: IKeybindingRule2 = {
 			id: command,
 			args,
-			when: ContextKeyExpr.deserialize(when),
+			when: fullWhen,
 			weight: weight,
 			primary: KeybindingParser.parseKeybinding(key, OS),
 			mac: mac ? { primary: KeybindingParser.parseKeybinding(mac, OS) } : null,
@@ -571,6 +571,105 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return false;
 		}
 		return true;
+	}
+}
+
+class UserKeybindings extends Disposable {
+
+	private _keybindings: IUserFriendlyKeybinding[] = [];
+	get keybindings(): IUserFriendlyKeybinding[] { return this._keybindings; }
+	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private fileWatcherDisposable: IDisposable = Disposable.None;
+	private directoryWatcherDisposable: IDisposable = Disposable.None;
+
+	constructor(
+		private readonly keybindingsResource: URI,
+		private readonly fileService: IFileService
+	) {
+		super();
+
+		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
+		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
+			if (changed) {
+				this._onDidChange.fire();
+			}
+		}), 50));
+		this._register(toDisposable(() => {
+			this.stopWatchingResource();
+			this.stopWatchingDirectory();
+		}));
+	}
+
+	private watchResource(): void {
+		this.fileWatcherDisposable = this.fileService.watch(this.keybindingsResource);
+	}
+
+	private stopWatchingResource(): void {
+		this.fileWatcherDisposable.dispose();
+		this.fileWatcherDisposable = Disposable.None;
+	}
+
+	private watchDirectory(): void {
+		const directory = dirname(this.keybindingsResource);
+		this.directoryWatcherDisposable = this.fileService.watch(directory);
+	}
+
+	private stopWatchingDirectory(): void {
+		this.directoryWatcherDisposable.dispose();
+		this.directoryWatcherDisposable = Disposable.None;
+	}
+
+	async initialize(): Promise<void> {
+		const exists = await this.fileService.exists(this.keybindingsResource);
+		this.onResourceExists(exists);
+		await this.reload();
+	}
+
+	private async reload(): Promise<boolean> {
+		const existing = this._keybindings;
+		try {
+			const content = await this.fileService.readFile(this.keybindingsResource);
+			this._keybindings = parse(content.value.toString());
+		} catch (e) {
+			this._keybindings = [];
+		}
+		return existing ? !objects.equals(existing, this._keybindings) : true;
+	}
+
+	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
+		const events = event.changes;
+
+		let affectedByChanges = false;
+
+		// Find changes that affect the resource
+		for (const event of events) {
+			affectedByChanges = isEqual(this.keybindingsResource, event.resource);
+			if (affectedByChanges) {
+				if (event.type === FileChangeType.ADDED) {
+					this.onResourceExists(true);
+				} else if (event.type === FileChangeType.DELETED) {
+					this.onResourceExists(false);
+				}
+				break;
+			}
+		}
+
+		if (affectedByChanges) {
+			this.reloadConfigurationScheduler.schedule();
+		}
+	}
+
+	private onResourceExists(exists: boolean): void {
+		if (exists) {
+			this.stopWatchingDirectory();
+			this.watchResource();
+		} else {
+			this.stopWatchingResource();
+			this.watchDirectory();
+		}
 	}
 }
 

@@ -113,7 +113,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stubPromise(IExtensionTipsService, 'getOtherRecommendations', [
 			{ extensionId: otherRecommendationA.identifier.id }
 		]);
-		const reasons = {};
+		const reasons: { [key: string]: any } = {};
 		reasons[workspaceRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
 		reasons[workspaceRecommendationB.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
 		reasons[fileBasedRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.File };

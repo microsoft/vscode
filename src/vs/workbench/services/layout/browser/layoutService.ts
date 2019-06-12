@@ -46,6 +46,21 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onZenModeChange: Event<boolean>;
 
 	/**
+	 * Emits when fullscreen is enabled or disabled.
+	 */
+	readonly onFullscreenChange: Event<boolean>;
+
+	/**
+	 * Emits when centered layout is enabled or disabled.
+	 */
+	readonly onCenteredLayoutChange: Event<boolean>;
+
+	/**
+	 * Emit when panel position changes.
+	 */
+	readonly onPanelPositionChange: Event<string>;
+
+	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
 	 * this means that the contents of editors have loaded.
 	 */

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -14,9 +14,10 @@ import { ITerminalService, ITerminalProcessManager } from 'vs/workbench/contrib/
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILinkMatcherOptions } from 'vscode-xterm';
+import { ILinkMatcherOptions } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -64,13 +65,14 @@ interface IPath {
 }
 
 export class TerminalLinkHandler {
-	private _hoverDisposables: IDisposable[] = [];
+	private readonly _hoverDisposables = new DisposableStore();
 	private _mouseMoveDisposable: IDisposable;
 	private _widgetManager: TerminalWidgetManager;
 	private _processCwd: string;
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string) => boolean | void;
+	private readonly _leaveCallback: () => void;
 
 	constructor(
 		private _xterm: any,
@@ -80,6 +82,7 @@ export class TerminalLinkHandler {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		// Matches '--- a/src/file1', capturing 'src/file1' in group 1
@@ -96,6 +99,11 @@ export class TerminalLinkHandler {
 				this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
 			} else {
 				this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString());
+			}
+		};
+		this._leaveCallback = () => {
+			if (this._widgetManager) {
+				this._widgetManager.closeMessage();
 			}
 		};
 
@@ -118,11 +126,7 @@ export class TerminalLinkHandler {
 		const options: ILinkMatcherOptions = {
 			matchIndex,
 			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => {
-				if (this._widgetManager) {
-					this._widgetManager.closeMessage();
-				}
-			},
+			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: CUSTOM_LINK_PRIORITY
 		};
@@ -133,14 +137,16 @@ export class TerminalLinkHandler {
 	}
 
 	public registerWebLinkHandler(): void {
-		const wrappedHandler = this._wrapLinkHandler(uri => {
-			this._handleHypertextLink(uri);
-		});
-		this._xterm.webLinksInit(wrappedHandler, {
-			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
-			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => this._widgetManager.closeMessage(),
-			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
+		this._terminalInstanceService.getXtermWebLinksConstructor().then((WebLinksAddon) => {
+			const wrappedHandler = this._wrapLinkHandler(uri => {
+				this._handleHypertextLink(uri);
+			});
+			this._xterm.loadAddon(new WebLinksAddon(wrappedHandler, {
+				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
+				tooltipCallback: this._tooltipCallback,
+				leaveCallback: this._leaveCallback,
+				willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
+			}));
 		});
 	}
 
@@ -151,7 +157,7 @@ export class TerminalLinkHandler {
 		this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => this._widgetManager.closeMessage(),
+			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		});
@@ -165,7 +171,7 @@ export class TerminalLinkHandler {
 			matchIndex: 1,
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback: this._tooltipCallback,
-			leaveCallback: () => this._widgetManager.closeMessage(),
+			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		};
@@ -175,7 +181,8 @@ export class TerminalLinkHandler {
 
 	public dispose(): void {
 		this._xterm = null;
-		this._hoverDisposables = dispose(this._hoverDisposables);
+
+		this._hoverDisposables.dispose();
 		this._mouseMoveDisposable = dispose(this._mouseMoveDisposable);
 	}
 
@@ -250,15 +257,15 @@ export class TerminalLinkHandler {
 		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			if (platform.isMacintosh) {
-				return nls.localize('terminalLinkHandler.followLinkAlt.mac', 'Option + click to follow link');
+				return nls.localize('terminalLinkHandler.followLinkAlt.mac', "Option + click to follow link");
 			} else {
-				return nls.localize('terminalLinkHandler.followLinkAlt', 'Alt + click to follow link');
+				return nls.localize('terminalLinkHandler.followLinkAlt', "Alt + click to follow link");
 			}
 		}
 		if (platform.isMacintosh) {
-			return nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
+			return nls.localize('terminalLinkHandler.followLinkCmd', "Cmd + click to follow link");
 		}
-		return nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
+		return nls.localize('terminalLinkHandler.followLinkCtrl', "Ctrl + click to follow link");
 	}
 
 	private get osPath(): IPath {

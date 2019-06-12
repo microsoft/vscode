@@ -618,21 +618,19 @@ export class ViewsService extends Disposable implements IViewsService {
 		return viewDescriptorCollectionItem ? viewDescriptorCollectionItem.viewDescriptorCollection : null;
 	}
 
-	openView(id: string, focus: boolean): Promise<IView | null> {
+	async openView(id: string, focus: boolean): Promise<IView | null> {
 		const viewContainer = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(id);
 		if (viewContainer) {
 			const viewletDescriptor = this.viewletService.getViewlet(viewContainer.id);
 			if (viewletDescriptor) {
-				return this.viewletService.openViewlet(viewletDescriptor.id, focus)
-					.then((viewlet: IViewsViewlet) => {
-						if (viewlet && viewlet.openView) {
-							return viewlet.openView(id, focus);
-						}
-						return null;
-					});
+				const viewlet = await this.viewletService.openViewlet(viewletDescriptor.id, focus) as IViewsViewlet | null;
+				if (viewlet && viewlet.openView) {
+					return viewlet.openView(id, focus);
+				}
 			}
 		}
-		return Promise.resolve(null);
+
+		return null;
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {
@@ -669,7 +667,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			};
 			const when = ContextKeyExpr.has(`${viewDescriptor.id}.active`);
 
-			disposables.push(CommandsRegistry.registerCommand(command.id, () => this.openView(viewDescriptor.id, true).then(() => null)));
+			disposables.push(CommandsRegistry.registerCommand(command.id, () => this.openView(viewDescriptor.id, true)));
 
 			disposables.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 				command,

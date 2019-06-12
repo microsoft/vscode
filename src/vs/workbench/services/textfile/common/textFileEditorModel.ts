@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { guessMimeTypes } from 'vs/base/common/mime';
@@ -28,7 +27,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { isLinux } from 'vs/base/common/platform';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, isEqualOrParent, extname, basename } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 
@@ -144,7 +143,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private onFileChanges(e: FileChangesEvent): void {
+	private async onFileChanges(e: FileChangesEvent): Promise<void> {
 		let fileEventImpactsModel = false;
 		let newInOrphanModeGuess: boolean | undefined;
 
@@ -167,28 +166,25 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		if (fileEventImpactsModel && this.inOrphanMode !== newInOrphanModeGuess) {
-			let checkOrphanedPromise: Promise<boolean>;
+			let newInOrphanModeValidated: boolean = false;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
 				// Since we do not want to mark the model as orphaned, we have to check if the
 				// file is really gone and not just a faulty file event.
-				checkOrphanedPromise = timeout(100).then(() => {
-					if (this.disposed) {
-						return true;
-					}
+				await timeout(100);
 
-					return this.fileService.exists(this.resource).then(exists => !exists);
-				});
-			} else {
-				checkOrphanedPromise = Promise.resolve(false);
+				if (this.disposed) {
+					newInOrphanModeValidated = true;
+				} else {
+					const exists = await this.fileService.exists(this.resource);
+					newInOrphanModeValidated = !exists;
+				}
 			}
 
-			checkOrphanedPromise.then(newInOrphanModeValidated => {
-				if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
-					this.setOrphaned(newInOrphanModeValidated);
-				}
-			});
+			if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
+				this.setOrphaned(newInOrphanModeValidated);
+			}
 		}
 	}
 
@@ -239,13 +235,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			return this.backupFileService.backupResource<IBackupMetaData>(target, this.createSnapshot(), this.versionId, meta);
 		}
-
-		return Promise.resolve();
 	}
 
 	async revert(soft?: boolean): Promise<void> {
 		if (!this.isResolved()) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		// Cancel any running auto-save
@@ -254,25 +248,21 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Unset flags
 		const undo = this.setDirty(false);
 
-		let loadPromise: Promise<unknown>;
-		if (soft) {
-			loadPromise = Promise.resolve();
-		} else {
-			loadPromise = this.load({ forceReadFromDisk: true });
+		// Force read from disk unless reverting soft
+		if (!soft) {
+			try {
+				await this.load({ forceReadFromDisk: true });
+			} catch (error) {
+
+				// Set flags back to previous values, we are still dirty if revert failed
+				undo();
+
+				throw error;
+			}
 		}
 
-		try {
-			await loadPromise;
-
-			// Emit file change event
-			this._onDidStateChange.fire(StateChange.REVERTED);
-		} catch (error) {
-
-			// Set flags back to previous values, we are still dirty if revert failed
-			undo();
-
-			return Promise.reject(error);
-		}
+		// Emit file change event
+		this._onDidStateChange.fire(StateChange.REVERTED);
 	}
 
 	async load(options?: ILoadOptions): Promise<ITextFileEditorModel> {
@@ -600,7 +590,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	save(options: ISaveOptions = Object.create(null)): Promise<void> {
 		if (!this.isResolved()) {
-			return Promise.resolve(undefined);
+			return Promise.resolve();
 		}
 
 		this.logService.trace('save() - enter', this.resource);
@@ -626,7 +616,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (this.saveSequentializer.hasPendingSave(versionId)) {
 			this.logService.trace(`doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`, this.resource);
 
-			return this.saveSequentializer.pendingSave || Promise.resolve(undefined);
+			return this.saveSequentializer.pendingSave || Promise.resolve();
 		}
 
 		// Return early if not dirty (unless forced) or version changed meanwhile
@@ -639,7 +629,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if ((!options.force && !this.dirty) || versionId !== this.versionId) {
 			this.logService.trace(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource);
 
-			return Promise.resolve(undefined);
+			return Promise.resolve();
 		}
 
 		// Return if currently saving by storing this save request as the next save that should happen.
@@ -792,22 +782,22 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for global settings file
-		if (isEqual(this.resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
+		if (isEqual(this.resource, this.environmentService.settingsResource, !isLinux)) {
 			return 'global-settings';
 		}
 
 		// Check for keybindings file
-		if (isEqual(this.resource, URI.file(this.environmentService.appKeybindingsPath), !isLinux)) {
+		if (isEqual(this.resource, this.environmentService.keybindingsResource, !isLinux)) {
 			return 'keybindings';
 		}
 
 		// Check for locale file
-		if (isEqual(this.resource, URI.file(join(this.environmentService.appSettingsHome, 'locale.json')), !isLinux)) {
+		if (isEqual(this.resource, joinPath(this.environmentService.appSettingsHome, 'locale.json'), !isLinux)) {
 			return 'locale';
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(this.resource, URI.file(join(this.environmentService.appSettingsHome, 'snippets')))) {
+		if (isEqualOrParent(this.resource, joinPath(this.environmentService.appSettingsHome, 'snippets'))) {
 			return 'snippets';
 		}
 
@@ -830,7 +820,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const fileName = basename(this.resource);
 		const path = this.resource.scheme === Schemas.file ? this.resource.fsPath : this.resource.path;
 		const telemetryData = {
-			mimeType: guessMimeTypes(path).join(', '),
+			mimeType: guessMimeTypes(this.resource).join(', '),
 			ext,
 			path: hash(path),
 			reason

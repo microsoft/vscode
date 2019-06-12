@@ -194,7 +194,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
+		assert.equal(value.lenses.length, 1);
 	});
 
 	test('CodeLens, do not resolve a resolved lens', async () => {
@@ -212,8 +212,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		const data = value[0];
+		assert.equal(value.lenses.length, 1);
+		const [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
 		assert.equal(symbol!.command!.id, 'id');
 		assert.equal(symbol!.command!.title, 'Title');
@@ -229,8 +229,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		let data = value[0];
+		assert.equal(value.lenses.length, 1);
+		let [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
 		assert.equal(symbol!.command!.id, 'missing');
 		assert.equal(symbol!.command!.title, '!!MISSING: command!!');
@@ -1041,7 +1041,9 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentLinkProvider {
 			provideDocumentLinks() {
-				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
+				const link = new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'));
+				link.tooltip = 'tooltip';
+				return [link];
 			}
 		}));
 
@@ -1051,6 +1053,7 @@ suite('ExtHostLanguageFeatures', function () {
 		let [first] = links;
 		assert.equal(first.url, 'foo:bar#3');
 		assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+		assert.equal(first.tooltip, 'tooltip');
 	});
 
 	test('Links, evil provider', async () => {

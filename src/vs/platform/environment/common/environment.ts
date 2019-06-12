@@ -27,7 +27,6 @@ export interface ParsedArgs {
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
-	'prof-modules'?: string;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -69,6 +68,7 @@ export interface ParsedArgs {
 	'driver'?: string;
 	'driver-verbose'?: boolean;
 	remote?: string;
+	'disable-user-env-probe'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -96,12 +96,12 @@ export interface IEnvironmentService {
 
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
+	appSettingsHome: URI;
+	settingsResource: URI;
+	keybindingsResource: URI;
 
-	machineSettingsHome: string;
-	machineSettingsPath: string;
+	machineSettingsHome: URI;
+	machineSettingsResource: URI;
 
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;

@@ -35,13 +35,7 @@ bootstrapWindow.load([
 			showPartsSplash(windowConfig);
 		},
 		beforeLoaderConfig: function (windowConfig, loaderConfig) {
-			loaderConfig.recordStats = !!windowConfig['prof-modules'];
-			if (loaderConfig.nodeCachedData) {
-				const onNodeCachedData = window['MonacoEnvironment'].onNodeCachedData = [];
-				loaderConfig.nodeCachedData.onData = function () {
-					onNodeCachedData.push(arguments);
-				};
-			}
+			loaderConfig.recordStats = true;
 		},
 		beforeRequire: function () {
 			perf.mark('willLoadWorkbenchMain');
@@ -70,7 +64,7 @@ function showPartsSplash(configuration) {
 		}
 	}
 
-	// high contrast mode has been turned on from the outside, e.g OS -> ignore stored colors and layouts
+	// high contrast mode has been turned on from the outside, e.g. OS -> ignore stored colors and layouts
 	if (data && configuration.highContrast && data.baseTheme !== 'hc-black') {
 		data = undefined;
 	}

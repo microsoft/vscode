@@ -362,6 +362,31 @@ export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
 	return score ? createMatches(score) : null;
 }
 
+export function anyScore(pattern: string, lowPattern: string, _patternPos: number, word: string, lowWord: string, _wordPos: number): FuzzyScore {
+	const result = fuzzyScore(pattern, lowPattern, 0, word, lowWord, 0, true);
+	if (result) {
+		return result;
+	}
+	let matches = 0;
+	let score = 0;
+	let idx = _wordPos;
+	for (let patternPos = 0; patternPos < lowPattern.length && patternPos < _maxLen; ++patternPos) {
+		const wordPos = lowWord.indexOf(lowPattern.charAt(patternPos), idx);
+		if (wordPos >= 0) {
+			score += 1;
+			matches += 2 ** wordPos;
+			idx = wordPos + 1;
+
+		} else if (matches !== 0) {
+			// once we have started matching things
+			// we need to match the remaining pattern
+			// characters
+			break;
+		}
+	}
+	return [score, matches, _wordPos];
+}
+
 //#region --- fuzzyScore ---
 
 export function createMatches(score: undefined | FuzzyScore): IMatch[] {
@@ -491,7 +516,7 @@ export namespace FuzzyScore {
 	/**
 	 * No matches and value `-100`
 	 */
-	export const Default: [-100, 0, 0] = [-100, 0, 0];
+	export const Default: [-100, 0, 0] = <[-100, 0, 0]>Object.freeze([-100, 0, 0]);
 
 	export function isDefault(score?: FuzzyScore): score is [-100, 0, 0] {
 		return !score || (score[0] === -100 && score[1] === 0 && score[2] === 0);

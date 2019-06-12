@@ -35,6 +35,20 @@ suite('SettingsTree', () => {
 				category: '',
 				label: 'Foo'
 			});
+
+		assert.deepEqual(
+			settingKeyToDisplayFormat('foo.1leading.number'),
+			{
+				category: 'Foo › 1leading',
+				label: 'Number'
+			});
+
+		assert.deepEqual(
+			settingKeyToDisplayFormat('foo.1Leading.number'),
+			{
+				category: 'Foo › 1 Leading',
+				label: 'Number'
+			});
 	});
 
 	test('settingKeyToDisplayFormat - with category', () => {
@@ -101,19 +115,21 @@ suite('SettingsTree', () => {
 				category: 'Something Else',
 				label: 'Etc'
 			});
+	});
 
+	test('settingKeyToDisplayFormat - known acronym/term', () => {
 		assert.deepEqual(
-			settingKeyToDisplayFormat('foo.1leading.number'),
+			settingKeyToDisplayFormat('css.someCssSetting'),
 			{
-				category: 'Foo › 1leading',
-				label: 'Number'
+				category: 'CSS',
+				label: 'Some CSS Setting'
 			});
 
 		assert.deepEqual(
-			settingKeyToDisplayFormat('foo.1Leading.number'),
+			settingKeyToDisplayFormat('powershell.somePowerShellSetting'),
 			{
-				category: 'Foo › 1 Leading',
-				label: 'Number'
+				category: 'PowerShell',
+				label: 'Some PowerShell Setting'
 			});
 	});
 

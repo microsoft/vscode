@@ -271,3 +271,21 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	},
 	order: 2
 });
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '4_themes',
+	command: {
+		id: SelectColorThemeAction.ID,
+		title: localize('selectTheme.label', "Color Theme")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '4_themes',
+	command: {
+		id: SelectIconThemeAction.ID,
+		title: localize('themes.selectIconTheme.label', "File Icon Theme")
+	},
+	order: 2
+});

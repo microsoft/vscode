@@ -54,21 +54,15 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 
 		this._initialCwd = cwd;
 
-		// Only use ConPTY when the client is non WoW64 (see #72190) and the Windows build number is at least 18309 (for
-		// stability/performance reasons)
-		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-		const useConpty = windowsEnableConpty &&
-			process.platform === 'win32' &&
-			!is32ProcessOn64Windows &&
-			getWindowsBuildNumber() >= 18309;
-
-		const options: pty.IPtyForkOptions = {
+		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		const options: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions = {
 			name: shellName,
 			cwd,
 			env,
 			cols,
 			rows,
-			experimentalUseConpty: useConpty
+			experimentalUseConpty: useConpty,
+			conptyInheritCursor: true
 		};
 
 		// TODO: Need to verify whether executable is on $PATH, otherwise things like cmd.exe will break
@@ -91,14 +85,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessIdReady(() => c());
 		});
-		ptyProcess.on('data', (data) => {
+		ptyProcess.on('data', data => {
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
 		});
-		ptyProcess.on('exit', (code) => {
+		ptyProcess.on('exit', code => {
 			this._exitCode = code;
 			this._queueProcessExit();
 		});
@@ -126,12 +120,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		setTimeout(() => {
 			this._sendProcessTitle(ptyProcess);
 		}, 0);
-		// Setup polling
-		this._titleInterval = setInterval(() => {
-			if (this._currentTitle !== ptyProcess.process) {
-				this._sendProcessTitle(ptyProcess);
-			}
-		}, 200);
+		// Setup polling for non-Windows, for Windows `process` doesn't change
+		if (!platform.isWindows) {
+			this._titleInterval = setInterval(() => {
+				if (this._currentTitle !== ptyProcess.process) {
+					this._sendProcessTitle(ptyProcess);
+				}
+			}, 200);
+		}
 	}
 
 	// Allow any trailing data events to be sent before the exit event is sent.
@@ -195,6 +191,9 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 
 	public resize(cols: number, rows: number): void {
 		if (this._isDisposed) {
+			return;
+		}
+		if (typeof cols !== 'number' || typeof rows !== 'number' || isNaN(cols) || isNaN(rows)) {
 			return;
 		}
 		// Ensure that cols and rows are always >= 1, this prevents a native

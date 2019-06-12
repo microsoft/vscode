@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAction, IActionViewItem, ActionRunner, Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -17,7 +17,7 @@ import { IViewsService, ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeVie
 import { IViewletViewOptions, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProgressService2 } from 'vs/platform/progress/common/progress';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -60,9 +60,9 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
-		this.treeView.onDidChangeActions(() => this.updateActions(), this, this.disposables);
-		this.disposables.push(toDisposable(() => this.treeView.setVisibility(false)));
-		this.disposables.push(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
+		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
+		this._register(toDisposable(() => this.treeView.setVisibility(false)));
+		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this.updateTreeVisibility();
 	}
 
@@ -97,11 +97,6 @@ export class CustomTreeViewPanel extends ViewletPanel {
 
 	private updateTreeVisibility(): void {
 		this.treeView.setVisibility(this.isBodyVisible());
-	}
-
-	dispose(): void {
-		dispose(this.disposables);
-		super.dispose();
 	}
 }
 
@@ -216,7 +211,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProgressService2 private readonly progressService: IProgressService2
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
 		this.root = new Root();
@@ -251,15 +246,13 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	set dataProvider(dataProvider: ITreeViewDataProvider | null) {
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
-				getChildren(node: ITreeItem): Promise<ITreeItem[]> {
+				async getChildren(node: ITreeItem): Promise<ITreeItem[]> {
 					if (node && node.children) {
 						return Promise.resolve(node.children);
 					}
-					const promise = node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node);
-					return promise.then(children => {
-						node.children = children;
-						return children;
-					});
+					const children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
+					node.children = children;
+					return children;
 				}
 			};
 			this.updateMessage();
@@ -524,19 +517,16 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	private refreshing: boolean = false;
-	private doRefresh(elements: ITreeItem[]): Promise<void> {
+	private async doRefresh(elements: ITreeItem[]): Promise<void> {
 		if (this.tree) {
 			this.refreshing = true;
-			return Promise.all(elements.map(e => this.tree.refresh(e)))
-				.then(() => {
-					this.refreshing = false;
-					this.updateContentAreas();
-					if (this.focused) {
-						this.focus();
-					}
-				});
+			await Promise.all(elements.map(e => this.tree.refresh(e)));
+			this.refreshing = false;
+			this.updateContentAreas();
+			if (this.focused) {
+				this.focus();
+			}
 		}
-		return Promise.resolve(undefined);
 	}
 
 	private updateContentAreas(): void {
@@ -898,7 +888,7 @@ class MarkdownRenderer {
 	) {
 	}
 
-	private getOptions(disposeables: IDisposable[]): RenderOptions {
+	private getOptions(disposeables: DisposableStore): RenderOptions {
 		return {
 			actionHandler: {
 				callback: (content) => {
@@ -918,11 +908,11 @@ class MarkdownRenderer {
 	}
 
 	render(markdown: IMarkdownString): IMarkdownRenderResult {
-		let disposeables: IDisposable[] = [];
+		const disposeables = new DisposableStore();
 		const element: HTMLElement = markdown ? renderMarkdown(markdown, this.getOptions(disposeables)) : document.createElement('span');
 		return {
 			element,
-			dispose: () => dispose(disposeables)
+			dispose: () => disposeables.dispose()
 		};
 	}
 }

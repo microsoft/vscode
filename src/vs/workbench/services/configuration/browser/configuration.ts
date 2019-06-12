@@ -12,7 +12,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, IConfigurationFileService, MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, IConfigurationFileService, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -21,8 +21,8 @@ import { extname, join } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationModel, compare } from 'vs/platform/configuration/common/configuration';
-import { createSHA1 } from 'vs/base/browser/hash';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { hash } from 'vs/base/common/hash';
 
 export class RemoteUserConfiguration extends Disposable {
 
@@ -45,7 +45,7 @@ export class RemoteUserConfiguration extends Disposable {
 		this._userConfiguration = this._cachedConfiguration = new CachedUserConfiguration(remoteAuthority, configurationCache);
 		remoteAgentService.getEnvironment().then(async environment => {
 			if (environment) {
-				const userConfiguration = this._register(new UserConfiguration(environment.settingsPath, MACHINE_SCOPES, this._configurationFileService));
+				const userConfiguration = this._register(new UserConfiguration(environment.settingsPath, REMOTE_MACHINE_SCOPES, this._configurationFileService));
 				this._register(userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
 				this._userConfigurationInitializationPromise = userConfiguration.initialize();
 				const configurationModel = await this._userConfigurationInitializationPromise;
@@ -672,7 +672,7 @@ class CachedFolderConfiguration extends Disposable implements IFolderConfigurati
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private configurationModel: ConfigurationModel;
-	private readonly key: Thenable<ConfigurationKey>;
+	private readonly key: ConfigurationKey;
 
 	constructor(
 		folder: URI,
@@ -680,14 +680,13 @@ class CachedFolderConfiguration extends Disposable implements IFolderConfigurati
 		private readonly configurationCache: IConfigurationCache
 	) {
 		super();
-		this.key = createSHA1(join(folder.path, configFolderRelativePath)).then(key => ({ type: 'folder', key }));
+		this.key = { type: 'folder', key: hash(join(folder.path, configFolderRelativePath)).toString(16) };
 		this.configurationModel = new ConfigurationModel();
 	}
 
 	async loadConfiguration(): Promise<ConfigurationModel> {
 		try {
-			const key = await this.key;
-			const contents = await this.configurationCache.read(key);
+			const contents = await this.configurationCache.read(this.key);
 			const parsed: IConfigurationModel = JSON.parse(contents.toString());
 			this.configurationModel = new ConfigurationModel(parsed.contents, parsed.keys, parsed.overrides);
 		} catch (e) {
@@ -696,11 +695,10 @@ class CachedFolderConfiguration extends Disposable implements IFolderConfigurati
 	}
 
 	async updateConfiguration(configurationModel: ConfigurationModel): Promise<void> {
-		const key = await this.key;
 		if (configurationModel.keys.length) {
-			await this.configurationCache.write(key, JSON.stringify(configurationModel.toJSON()));
+			await this.configurationCache.write(this.key, JSON.stringify(configurationModel.toJSON()));
 		} else {
-			await this.configurationCache.remove(key);
+			await this.configurationCache.remove(this.key);
 		}
 	}
 

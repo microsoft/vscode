@@ -7,10 +7,10 @@ import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { illegalArgument } from 'vs/base/common/errors';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
+import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
@@ -25,7 +25,7 @@ import { Dimension, addClass } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ToggleCompositePinnedAction, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -60,12 +60,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	//#endregion
 
-	private globalActionBar: ActionBar;
-	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; } = Object.create(null);
+	private globalActivityAction: ActivityAction;
+	private globalActivityActionBar: ActionBar;
 
 	private cachedViewlets: ICachedViewlet[] = [];
+
 	private compositeBar: CompositeBar;
-	private compositeActions: { [compositeId: string]: { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
+	private compositeActions: Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
+
 	private readonly viewletDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
 	constructor(
@@ -161,34 +163,29 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz, priority);
 		}
 
-		return this.showGlobalActivity(viewletOrActionId, badge, clazz);
+		if (viewletOrActionId === GLOBAL_ACTIVITY_ID) {
+			return this.showGlobalActivity(badge, clazz);
+		}
+
+		throw illegalArgument('globalActivityId');
 	}
 
-	private showGlobalActivity(globalActivityId: string, badge: IBadge, clazz?: string): IDisposable {
-		if (!badge) {
-			throw illegalArgument('badge');
-		}
-
-		const action = this.globalActivityIdToActions[globalActivityId];
-		if (!action) {
-			throw illegalArgument('globalActivityId');
-		}
-
-		action.setBadge(badge, clazz);
-
-		return toDisposable(() => action.setBadge(undefined));
+	private showGlobalActivity(badge: IBadge, clazz?: string): IDisposable {
+		this.globalActivityAction.setBadge(badge, clazz);
+		return toDisposable(() => this.globalActivityAction.setBadge(undefined));
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
+
 		const content = document.createElement('div');
 		addClass(content, 'content');
 		parent.appendChild(content);
 
-		// Top Actionbar with action items for each viewlet action
+		// Viewlets action bar
 		this.compositeBar.create(content);
 
-		// Top Actionbar with action items for each viewlet action
+		// Global action bar
 		const globalActivities = document.createElement('div');
 		addClass(globalActivities, 'global-activity');
 		content.appendChild(globalActivities);
@@ -208,7 +205,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : null;
+		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : '';
 		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
 		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
 		container.style.borderRightColor = isPositionLeft ? borderColor : null;
@@ -229,27 +226,23 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private createGlobalActivityActionBar(container: HTMLElement): void {
-		const activityRegistry = Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions);
-		const descriptors = activityRegistry.getActivities();
-		const actions = descriptors
-			.map(d => this.instantiationService.createInstance(d))
-			.map(a => new GlobalActivityAction(a));
-
-		this.globalActionBar = this._register(new ActionBar(container, {
+		this.globalActivityActionBar = this._register(new ActionBar(container, {
 			actionViewItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionViewItem, a, (theme: ITheme) => this.getActivitybarItemColors(theme)),
 			orientation: ActionsOrientation.VERTICAL,
-			ariaLabel: nls.localize('globalActions', "Global Actions"),
+			ariaLabel: nls.localize('manage', "Manage"),
 			animated: false
 		}));
 
-		actions.forEach(a => {
-			this.globalActivityIdToActions[a.id] = a;
-			this.globalActionBar.push(a);
+		this.globalActivityAction = new ActivityAction({
+			id: 'workbench.actions.manage',
+			name: nls.localize('manage', "Manage"),
+			cssClass: 'update-activity'
 		});
+		this.globalActivityActionBar.push(this.globalActivityAction);
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } {
-		let compositeActions = this.compositeActions[compositeId];
+		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			const viewlet = this.viewletService.getViewlet(compositeId);
 			if (viewlet) {
@@ -265,7 +258,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				};
 			}
 
-			this.compositeActions[compositeId] = compositeActions;
+			this.compositeActions.set(compositeId, compositeActions);
 		}
 
 		return compositeActions;
@@ -341,11 +334,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private hideComposite(compositeId: string): void {
 		this.compositeBar.hideComposite(compositeId);
-		const compositeActions = this.compositeActions[compositeId];
+		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();
 			compositeActions.pinnedAction.dispose();
-			delete this.compositeActions[compositeId];
+			this.compositeActions.delete(compositeId);
 		}
 	}
 
@@ -379,8 +372,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Layout composite bar
 		let availableHeight = contentAreaSize.height;
-		if (this.globalActionBar) {
-			availableHeight -= (this.globalActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
+		if (this.globalActivityActionBar) {
+			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
 		}
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}

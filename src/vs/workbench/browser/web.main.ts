@@ -21,36 +21,62 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/workbench/services/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
+import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
+import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
+import { ConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
+import { WebResources } from 'vs/workbench/browser/web.resources';
+import { ISignService } from 'vs/platform/sign/common/sign';
+import { SignService } from 'vs/platform/sign/browser/signService';
+import { hash } from 'vs/base/common/hash';
+
+interface IWindowConfiguration {
+	settingsUri: URI;
+	keybindingsUri: URI;
+	remoteAuthority: string;
+	folderUri?: URI;
+	workspaceUri?: URI;
+}
 
 class CodeRendererMain extends Disposable {
 
 	private workbench: Workbench;
 
-	open(): Promise<void> {
-		const services = this.initServices();
-
-		return domContentLoaded().then(() => {
-			mark('willStartWorkbench');
-
-			// Create Workbench
-			this.workbench = new Workbench(
-				document.body,
-				services.serviceCollection,
-				services.logService
-			);
-
-			// Layout
-			this._register(addDisposableListener(window, EventType.RESIZE, () => this.workbench.layout()));
-
-			// Workbench Lifecycle
-			this._register(this.workbench.onShutdown(() => this.dispose()));
-
-			// Startup
-			this.workbench.startup();
-		});
+	constructor(private readonly configuration: IWindowConfiguration) {
+		super();
 	}
 
-	private initServices(): { serviceCollection: ServiceCollection, logService: ILogService } {
+	async open(): Promise<void> {
+		const services = await this.initServices();
+
+		await domContentLoaded();
+		mark('willStartWorkbench');
+
+		// Create Workbench
+		this.workbench = new Workbench(
+			document.body,
+			services.serviceCollection,
+			services.logService
+		);
+
+		// Layout
+		this._register(addDisposableListener(window, EventType.RESIZE, () => this.workbench.layout()));
+
+		// Resource Loading
+		this._register(new WebResources(<IFileService>services.serviceCollection.get(IFileService)));
+
+		// Workbench Lifecycle
+		this._register(this.workbench.onShutdown(() => this.dispose()));
+
+		// Startup
+		this.workbench.startup();
+	}
+
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -63,7 +89,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// Environment
-		const environmentService = new SimpleWorkbenchEnvironmentService();
+		const environmentService = this.createEnvironmentService();
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
@@ -74,7 +100,11 @@ class CodeRendererMain extends Disposable {
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
-		const remoteAgentService = this._register(new RemoteAgentService(environmentService, productService, remoteAuthorityResolverService));
+		// Sign
+		const signService = new SignService();
+		serviceCollection.set(ISignService, signService);
+
+		const remoteAgentService = this._register(new RemoteAgentService(environmentService, productService, remoteAuthorityResolverService, signService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files
@@ -88,12 +118,94 @@ class CodeRendererMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
+		const payload = await this.resolveWorkspaceInitializationPayload();
+
+		await Promise.all([
+			this.createWorkspaceService(payload, fileService, remoteAgentService, logService).then(service => {
+
+				// Workspace
+				serviceCollection.set(IWorkspaceContextService, service);
+
+				// Configuration
+				serviceCollection.set(IConfigurationService, service);
+
+				return service;
+			}),
+		]);
+
 		return { serviceCollection, logService };
+	}
+
+	private createEnvironmentService(): IWorkbenchEnvironmentService {
+		const environmentService = new SimpleWorkbenchEnvironmentService();
+		environmentService.appRoot = '/web/';
+		environmentService.args = { _: [] };
+		environmentService.appSettingsHome = toResource('/web/settings');
+		environmentService.settingsResource = this.configuration.settingsUri;
+		environmentService.keybindingsResource = this.configuration.keybindingsUri;
+		environmentService.logsPath = '/web/logs';
+		environmentService.debugExtensionHost = {
+			port: null,
+			break: false
+		};
+		return environmentService;
+	}
+
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+
+		const workspaceService = new WorkspaceService({ userSettingsResource: this.configuration.settingsUri, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, new ConfigurationFileService(fileService), remoteAgentService);
+
+		try {
+			await workspaceService.initialize(payload);
+
+			return workspaceService;
+		} catch (error) {
+			onUnexpectedError(error);
+			logService.error(error);
+
+			return workspaceService;
+		}
+	}
+
+	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
+
+		// Multi-root workspace
+		if (this.configuration.workspaceUri) {
+			return { id: hash(this.configuration.workspaceUri.toString()).toString(16), configPath: this.configuration.workspaceUri };
+		}
+
+		// Single-folder workspace
+		if (this.configuration.folderUri) {
+			return { id: hash(this.configuration.folderUri.toString()).toString(16), folder: this.configuration.folderUri };
+		}
+
+		return { id: 'empty-window' };
 	}
 }
 
-export function main(): Promise<void> {
-	const renderer = new CodeRendererMain();
+export interface IWindowConfigurationContents {
+	settingsPath: string;
+	keybindingsPath: string;
+	folderPath?: string;
+	workspacePath?: string;
+}
 
+export function main(windowConfigurationContents: IWindowConfigurationContents): Promise<void> {
+	const windowConfiguration: IWindowConfiguration = {
+		settingsUri: toResource(windowConfigurationContents.settingsPath),
+		keybindingsUri: toResource(windowConfigurationContents.keybindingsPath),
+		folderUri: windowConfigurationContents.folderPath ? toResource(windowConfigurationContents.folderPath) : undefined,
+		workspaceUri: windowConfigurationContents.workspacePath ? toResource(windowConfigurationContents.workspacePath) : undefined,
+		remoteAuthority: document.location.host
+	};
+	const renderer = new CodeRendererMain(windowConfiguration);
 	return renderer.open();
+}
+
+function toResource(path: string): URI {
+	return URI.from({
+		scheme: Schemas.vscodeRemote,
+		authority: document.location.host,
+		path
+	});
 }

@@ -95,6 +95,11 @@ export const enum MenuId {
 	TouchBarContext,
 	ViewItemContext,
 	ViewTitle,
+	CommentThreadTitle,
+	CommentThreadActions,
+	CommentTitle,
+	CommentActions,
+	GlobalActivity
 }
 
 export interface IMenuActionOptions {
