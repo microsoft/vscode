@@ -219,7 +219,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (this.environmentService.configuration.remoteAuthority) {
 			// Do not allow workspace folders with scheme different than the current remote scheme
 			const schemas = this.contextService.getWorkspace().folders.map(f => f.uri.scheme);
-			foldersToAdd = foldersToAdd.filter(f => schemas.indexOf(f.uri.scheme) >= 0);
+			if (schemas.length && foldersToAdd.some(f => schemas.indexOf(f.uri.scheme) === -1)) {
+				return Promise.reject(new Error(nls.localize('differentSchemeRoots', "Workspace folders from different providers are not allowed in the same workspace.")));
+			}
 		}
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
