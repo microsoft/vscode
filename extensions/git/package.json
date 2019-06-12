@@ -319,12 +319,12 @@
       },
       {
         "command": "git.pushWithTags",
-        "title": "%command.pushWithTags%",
+        "title": "%command.pushFollowTags%",
         "category": "Git"
       },
       {
         "command": "git.pushWithTagsForce",
-        "title": "%command.pushWithTagsForce%",
+        "title": "%command.pushFollowTagsForce%",
         "category": "Git"
       },
       {

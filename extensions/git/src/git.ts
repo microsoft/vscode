@@ -1425,7 +1425,7 @@ export class Repository {
 		}
 
 		if (tags) {
-			args.push('--tags');
+			args.push('--follow-tags');
 		}
 
 		if (remote) {

@@ -1013,7 +1013,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream, undefined, forcePushMode));
 	}
 
-	async pushTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
+	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true, forcePushMode));
 	}
 

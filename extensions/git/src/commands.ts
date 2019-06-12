@@ -202,7 +202,7 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 enum PushType {
 	Push,
 	PushTo,
-	PushTags,
+	PushFollowTags,
 }
 
 interface PushOptions {
@@ -1759,10 +1759,8 @@ export class CommandCenter {
 			}
 		}
 
-		if (pushOptions.pushType === PushType.PushTags) {
-			await repository.pushTags(undefined, forcePushMode);
-
-			window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
+		if (pushOptions.pushType === PushType.PushFollowTags) {
+			await repository.pushFollowTags(undefined, forcePushMode);
 			return;
 		}
 
@@ -1819,13 +1817,13 @@ export class CommandCenter {
 	}
 
 	@command('git.pushWithTags', { repository: true })
-	async pushWithTags(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTags });
+	async pushFollowTags(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushFollowTags });
 	}
 
 	@command('git.pushWithTagsForce', { repository: true })
-	async pushWithTagsForce(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTags, forcePush: true });
+	async pushFollowTagsForce(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushFollowTags, forcePush: true });
 	}
 
 	@command('git.pushTo', { repository: true })
