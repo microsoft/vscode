@@ -39,14 +39,14 @@ if (selfhost) {
 	executable = path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh');
 }
 
-const proc = path.extname(executable) === '.cmd' ? cp.exec(executable, process.argv) : cp.execFile(executable, process.argv);
+const proc = path.extname(executable) === '.cmd' || path.extname(executable) === '.bat' ? cp.spawn(executable, process.argv, { shell: true }) : cp.execFile(executable, process.argv);
 
 let launched = false;
 proc.stdout.on("data", data => {
 
 	// Respect --verbose
 	if (verbose) {
-		console.log(data);
+		console.log(data.toString());
 	}
 
 	// Bring up web URL when we detect the server is ready
@@ -56,9 +56,7 @@ proc.stdout.on("data", data => {
 		setTimeout(() => {
 			const url = 'http://127.0.0.1:8000';
 
-			if (verbose) {
-				console.log(`Opening ${url} in your browser...`);
-			}
+			console.log(`Opening ${url} in your browser...`);
 
 			opn(url).catch(() => { console.error(`Failed to open ${url} in your browser. Please do so manually.`); });
 		}, 100);
