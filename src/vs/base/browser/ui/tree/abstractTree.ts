@@ -216,6 +216,22 @@ function getLastVisibleChild<T, TFilterData>(node: ITreeNode<T, TFilterData>): I
 	return undefined;
 }
 
+function getLastVisibleDescendant<T, TFilterData>(node: ITreeNode<T, TFilterData>): ITreeNode<T, TFilterData> | undefined {
+	if (node.collapsed) {
+		return node;
+	}
+
+	for (let i = 0; i < node.children.length; i++) {
+		const child = node.children[node.children.length - i - 1];
+
+		if (child.visible) {
+			return getLastVisibleDescendant(child);
+		}
+	}
+
+	return undefined;
+}
+
 function hasVisibleChildren<T, TFilterData>(node: ITreeNode<T, TFilterData>): boolean {
 	for (let i = 0; i < node.children.length; i++) {
 		if (node.children[i].visible) {
@@ -230,6 +246,16 @@ interface IRenderData<TTemplateData> {
 	templateData: ITreeListTemplateData<TTemplateData>;
 	height: number;
 }
+
+//********************************************* DEMO *************************
+enum Mode {
+	Brackets,
+	SubtreeBrackets,
+	Editor
+}
+
+const mode: Mode = Mode.Editor;
+//********************************************* DEMO *************************
 
 class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
@@ -264,11 +290,6 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		if (typeof options.indent !== 'undefined') {
 			this.indent = clamp(options.indent, 0, 40);
 		}
-
-		// TODO
-		this.renderedNodes.forEach((data, node) => {
-			data.templateData.indent.style.width = `${node.depth * this.indent}px`;
-		});
 	}
 
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
@@ -289,7 +310,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
 		templateData.twistie.style.marginLeft = `${indent}px`;
-		templateData.indent.style.width = `${indent + this.indent}px`;
+		templateData.indent.style.width = `${indent + this.indent - 16}px`;
 
 		this.renderTwistie(node, templateData);
 
@@ -371,14 +392,28 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 				break;
 			}
 
-			if (getLastVisibleChild(parent) === node) {
-				if (node === target) {
-					guides.push(IndentGuide.Last);
-				} else {
-					guides.push(IndentGuide.None);
-				}
-			} else {
-				guides.push(IndentGuide.Middle);
+			switch (mode) {
+				case Mode.Brackets:
+					if (getLastVisibleChild(parent) === node) {
+						if (node === target) {
+							guides.push(IndentGuide.Last);
+						} else {
+							guides.push(IndentGuide.None);
+						}
+					} else {
+						guides.push(IndentGuide.Middle);
+					}
+					break;
+				case Mode.SubtreeBrackets:
+					if (getLastVisibleDescendant(parent) === target) {
+						guides.push(IndentGuide.Last);
+					} else {
+						guides.push(IndentGuide.Middle);
+					}
+					break;
+				case Mode.Editor:
+					guides.push(IndentGuide.Middle);
+					break;
 			}
 
 			node = parent;
@@ -388,13 +423,17 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		const halfHeight = Math.floor(height / 2);
 
 		for (let i = 0; i < guides.length; i++) {
-			const x1 = Math.floor((guides.length - i - 1) * this.indent);
+			const x1 = Math.floor((guides.length - i - 1) * this.indent) + (mode === Mode.Editor ? 6 : 0);
 			const x2 = x1 + this.indent - Math.min(Math.floor(this.indent * 0.5), 4);
 
 			switch (guides[i]) {
 				case IndentGuide.First:
-					lines.push(`<line x1="${x1}" y1="${halfHeight}" x2="${x1}" y2="${height}" />`);
-					lines.push(`<line x1="${x1}" y1="${halfHeight}" x2="${x1 + 4}" y2="${halfHeight}" />`);
+					if (mode === Mode.Editor) {
+						lines.push(`<line x1="${x1}" y1="${halfHeight + 2}" x2="${x1}" y2="${height}" />`);
+					} else {
+						lines.push(`<line x1="${x1}" y1="${halfHeight}" x2="${x1}" y2="${height}" />`);
+						lines.push(`<line x1="${x1}" y1="${halfHeight}" x2="${x1 + 4}" y2="${halfHeight}" />`);
+					}
 					break;
 				case IndentGuide.Middle:
 					lines.push(`<line x1="${x1}" y1="0" x2="${x1}" y2="${height}" />`);

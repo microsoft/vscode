@@ -14,6 +14,7 @@
 	position: absolute;
 	top: 0;
 	left: 16px;
+	pointer-events: none;
 }
 
 .monaco-tl-indent > svg {
