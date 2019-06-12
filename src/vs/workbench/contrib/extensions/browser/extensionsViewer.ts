@@ -5,19 +5,22 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IDataSource, ITree, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { Action } from 'vs/base/common/actions';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { WorkbenchTreeController, WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { IListService, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 export interface IExtensionTemplateData {
 	icon: HTMLImageElement;
@@ -39,49 +42,40 @@ export interface IExtensionData {
 	parent: IExtensionData | null;
 }
 
-export class DataSource implements IDataSource {
+export class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
 
-	public getId(tree: ITree, { extension, parent }: IExtensionData): string {
-		return parent ? this.getId(tree, parent) + '/' + extension.identifier.id : extension.identifier.id;
-	}
-
-	public hasChildren(tree: ITree, { hasChildren }: IExtensionData): boolean {
+	public hasChildren({ hasChildren }: IExtensionData): boolean {
 		return hasChildren;
 	}
 
-	public getChildren(tree: ITree, extensionData: IExtensionData): Promise<any> {
+	public getChildren(extensionData: IExtensionData): Promise<any> {
 		return extensionData.getChildren();
 	}
 
-	public getParent(tree: ITree, { parent }: IExtensionData): Promise<any> {
-		return Promise.resolve(parent);
+}
+
+export class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
+
+	public getHeight(element: IExtensionData): number {
+		return 62;
+	}
+	public getTemplateId({ extension }: IExtensionData): string {
+		return extension ? ExtensionRenderer.TEMPLATE_ID : UnknownExtensionRenderer.TEMPLATE_ID;
 	}
 }
 
-export class Renderer implements IRenderer {
+export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExtensionTemplateData> {
 
-	private static readonly EXTENSION_TEMPLATE_ID = 'extension-template';
-	private static readonly UNKNOWN_EXTENSION_TEMPLATE_ID = 'unknown-extension-template';
+	static readonly TEMPLATE_ID = 'extension-template';
 
 	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
 	}
 
-	public getHeight(tree: ITree, element: IExtensionData): number {
-		return 62;
+	public get templateId(): string {
+		return ExtensionRenderer.TEMPLATE_ID;
 	}
 
-	public getTemplateId(tree: ITree, { extension }: IExtensionData): string {
-		return extension ? Renderer.EXTENSION_TEMPLATE_ID : Renderer.UNKNOWN_EXTENSION_TEMPLATE_ID;
-	}
-
-	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
-		if (Renderer.EXTENSION_TEMPLATE_ID === templateId) {
-			return this.renderExtensionTemplate(tree, container);
-		}
-		return this.renderUnknownExtensionTemplate(tree, container);
-	}
-
-	private renderExtensionTemplate(tree: ITree, container: HTMLElement): IExtensionTemplateData {
+	public renderTemplate(container: HTMLElement): IExtensionTemplateData {
 		dom.addClass(container, 'extension');
 
 		const icon = dom.append(container, dom.$<HTMLImageElement>('img.icon'));
@@ -91,8 +85,6 @@ export class Renderer implements IRenderer {
 		const name = dom.append(header, dom.$('span.name'));
 		const openExtensionAction = this.instantiationService.createInstance(OpenExtensionAction);
 		const extensionDisposables = [dom.addDisposableListener(name, 'click', (e: MouseEvent) => {
-			tree.setFocus(openExtensionAction.extensionData);
-			tree.setSelection([openExtensionAction.extensionData]);
 			openExtensionAction.run(e.ctrlKey || e.metaKey);
 			e.stopPropagation();
 			e.preventDefault();
@@ -113,25 +105,8 @@ export class Renderer implements IRenderer {
 		};
 	}
 
-	private renderUnknownExtensionTemplate(tree: ITree, container: HTMLElement): IUnknownExtensionTemplateData {
-		const messageContainer = dom.append(container, dom.$('div.unknown-extension'));
-		dom.append(messageContainer, dom.$('span.error-marker')).textContent = localize('error', "Error");
-		dom.append(messageContainer, dom.$('span.message')).textContent = localize('Unknown Extension', "Unknown Extension:");
-
-		const identifier = dom.append(messageContainer, dom.$('span.message'));
-		return { identifier };
-	}
-
-	public renderElement(tree: ITree, element: IExtensionData, templateId: string, templateData: any): void {
-		if (templateId === Renderer.EXTENSION_TEMPLATE_ID) {
-			this.renderExtension(tree, element, templateData);
-			return;
-		}
-		this.renderUnknownExtension(tree, element, templateData);
-	}
-
-	private renderExtension(tree: ITree, extensionData: IExtensionData, data: IExtensionTemplateData): void {
-		const extension = extensionData.extension;
+	public renderElement(node: ITreeNode<IExtensionData>, index: number, data: IExtensionTemplateData): void {
+		const extension = node.element.extension;
 		const onError = Event.once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
 		data.icon.src = extension.iconUrl;
@@ -146,54 +121,36 @@ export class Renderer implements IRenderer {
 		data.name.textContent = extension.displayName;
 		data.identifier.textContent = extension.identifier.id;
 		data.author.textContent = extension.publisherDisplayName;
-		data.extensionData = extensionData;
+		data.extensionData = node.element;
 	}
 
-	private renderUnknownExtension(tree: ITree, { extension }: IExtensionData, data: IUnknownExtensionTemplateData): void {
-		data.identifier.textContent = extension.identifier.id;
-	}
-
-	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
-		if (templateId === Renderer.EXTENSION_TEMPLATE_ID) {
-			templateData.extensionDisposables = dispose((<IExtensionTemplateData>templateData).extensionDisposables);
-		}
+	public disposeTemplate(templateData: IExtensionTemplateData): void {
+		templateData.extensionDisposables = dispose((<IExtensionTemplateData>templateData).extensionDisposables);
 	}
 }
 
-export class Controller extends WorkbenchTreeController {
+export class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IUnknownExtensionTemplateData> {
 
-	constructor(
-		@IExtensionsWorkbenchService private readonly extensionsWorkdbenchService: IExtensionsWorkbenchService,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super({}, configurationService);
+	static readonly TEMPLATE_ID = 'unknown-extension-template';
 
-		// TODO@Sandeep this should be a command
-		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, (tree: ITree, event: any) => this.openExtension(tree, true));
+	public get templateId(): string {
+		return UnknownExtensionRenderer.TEMPLATE_ID;
 	}
 
-	protected onLeftClick(tree: ITree, element: IExtensionData, event: IMouseEvent): boolean {
-		let currentFocused = tree.getFocus();
-		if (super.onLeftClick(tree, element, event)) {
-			if (element.parent === null) {
-				if (currentFocused) {
-					tree.setFocus(currentFocused);
-				} else {
-					tree.focusFirst();
-				}
-				return true;
-			}
-		}
-		return false;
+	public renderTemplate(container: HTMLElement): IUnknownExtensionTemplateData {
+		const messageContainer = dom.append(container, dom.$('div.unknown-extension'));
+		dom.append(messageContainer, dom.$('span.error-marker')).textContent = localize('error', "Error");
+		dom.append(messageContainer, dom.$('span.message')).textContent = localize('Unknown Extension', "Unknown Extension:");
+
+		const identifier = dom.append(messageContainer, dom.$('span.message'));
+		return { identifier };
 	}
 
-	public openExtension(tree: ITree, sideByside: boolean): boolean {
-		const element: IExtensionData = tree.getFocus();
-		if (element.extension) {
-			this.extensionsWorkdbenchService.open(element.extension, sideByside);
-			return true;
-		}
-		return false;
+	public renderElement(node: ITreeNode<IExtensionData>, index: number, data: IUnknownExtensionTemplateData): void {
+		data.identifier.textContent = node.element.extension.identifier.id;
+	}
+
+	public disposeTemplate(data: IUnknownExtensionTemplateData): void {
 	}
 }
 
@@ -218,7 +175,7 @@ class OpenExtensionAction extends Action {
 	}
 }
 
-export class ExtensionsTree extends WorkbenchTree {
+export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExtensionData> {
 
 	constructor(
 		input: IExtensionData,
@@ -227,30 +184,81 @@ export class ExtensionsTree extends WorkbenchTree {
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IExtensionsWorkbenchService extensionsWorkdbenchService: IExtensionsWorkbenchService
 	) {
-		const renderer = instantiationService.createInstance(Renderer);
-		const controller = instantiationService.createInstance(Controller);
+		const delegate = new VirualDelegate();
+		const dataSource = new AsyncDataSource();
+		const renderers = [instantiationService.createInstance(ExtensionRenderer), instantiationService.createInstance(UnknownExtensionRenderer)];
+		const identityProvider = {
+			getId({ extension, parent }: IExtensionData): string {
+				return parent ? this.getId(parent) + '/' + extension.identifier.id : extension.identifier.id;
+			}
+		};
 
 		super(
 			container,
+			delegate,
+			renderers,
+			dataSource,
 			{
-				dataSource: new DataSource(),
-				renderer,
-				controller
-			}, {
-				indentPixels: 40,
-				twistiePixels: 20
+				indent: 40,
+				identityProvider,
+				multipleSelectionSupport: false
 			},
-			contextKeyService, listService, themeService, instantiationService, configurationService
+			contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService
 		);
 
 		this.setInput(input);
 
 		this.disposables.push(this.onDidChangeSelection(event => {
-			if (event && event.payload && event.payload.origin === 'keyboard') {
-				controller.openExtension(this, false);
+			if (event.browserEvent && event.browserEvent instanceof KeyboardEvent) {
+				extensionsWorkdbenchService.open(event.elements[0].extension, false);
 			}
 		}));
+	}
+}
+
+export class ExtensionData implements IExtensionData {
+
+	readonly extension: IExtension;
+	readonly parent: IExtensionData | null;
+	private readonly getChildrenExtensionIds: (extension: IExtension) => string[];
+	private readonly childrenExtensionIds: string[];
+	private readonly extensionsWorkbenchService: IExtensionsWorkbenchService;
+
+	constructor(extension: IExtension, parent: IExtensionData | null, getChildrenExtensionIds: (extension: IExtension) => string[], extensionsWorkbenchService: IExtensionsWorkbenchService) {
+		this.extension = extension;
+		this.parent = parent;
+		this.getChildrenExtensionIds = getChildrenExtensionIds;
+		this.extensionsWorkbenchService = extensionsWorkbenchService;
+		this.childrenExtensionIds = this.getChildrenExtensionIds(extension);
+	}
+
+	get hasChildren(): boolean {
+		return isNonEmptyArray(this.childrenExtensionIds);
+	}
+
+	async getChildren(): Promise<IExtensionData[] | null> {
+		if (this.hasChildren) {
+			const localById = this.extensionsWorkbenchService.local.reduce((result, e) => { result.set(e.identifier.id.toLowerCase(), e); return result; }, new Map<string, IExtension>());
+			const result: IExtension[] = [];
+			const toQuery: string[] = [];
+			for (const extensionId of this.childrenExtensionIds) {
+				const id = extensionId.toLowerCase();
+				const local = localById.get(id);
+				if (local) {
+					result.push(local);
+				} else {
+					toQuery.push(id);
+				}
+			}
+			const galleryResult = await this.extensionsWorkbenchService.queryGallery({ names: toQuery, pageSize: toQuery.length }, CancellationToken.None);
+			result.push(...galleryResult.firstPage);
+			return result.map(extension => new ExtensionData(extension, this, this.getChildrenExtensionIds, this.extensionsWorkbenchService));
+		}
+		return null;
 	}
 }

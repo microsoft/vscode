@@ -26,6 +26,7 @@ import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/color
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class Match {
 
@@ -389,7 +390,7 @@ export class FileMatch extends Disposable {
 }
 
 export interface IChangeEvent {
-	elements: (FileMatch | FolderMatch | SearchResult | null)[];
+	elements: (FileMatch | FolderMatch | SearchResult)[];
 	added?: boolean;
 	removed?: boolean;
 }
@@ -440,7 +441,7 @@ export class BaseFolderMatch extends Disposable {
 	}
 
 	name(): string {
-		return getBaseLabel(this.resource() || undefined) || '';
+		return getBaseLabel(withNullAsUndefined(this.resource())) || '';
 	}
 
 	parent(): SearchResult {

@@ -39,11 +39,6 @@
 	border: 1px solid white;
 }
 
-.vs-dark .monaco-workbench .debug-action.start,
-.hc-black .monaco-workbench .debug-action.start {
-	background: url('continue-inverse.svg') center center no-repeat;
-}
-
 .vs-dark .monaco-workbench .debug-action.configure,
 .hc-black .monaco-workbench .debug-action.configure {
 	background: url('configure-inverse.svg') center center no-repeat;
@@ -163,9 +158,15 @@
 	display: flex;
 }
 
+.debug-viewlet .debug-call-stack .thread > .name,
+.debug-viewlet .debug-call-stack .session > .name {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .debug-viewlet .debug-call-stack .thread > .state,
 .debug-viewlet .debug-call-stack .session > .state {
-	flex: 1;
 	text-align: right;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -243,10 +244,6 @@
 .debug-viewlet .debug-call-stack .show-more {
 	font-style: italic;
 	opacity: 0.35;
-}
-
-.monaco-workbench .debug-viewlet .monaco-list-row .expression {
-	white-space: pre;
 }
 
 .debug-viewlet .debug-call-stack .error {

@@ -16,8 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { LOG_SCHEME, IOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
+import { LOG_SCHEME, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -26,11 +25,10 @@ export class LogViewerInput extends ResourceEditorInput {
 
 	public static readonly ID = 'workbench.editorinputs.output';
 
-	constructor(private outputChannelDescriptor: IOutputChannelDescriptor,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IHashService hashService: IHashService
+	constructor(private outputChannelDescriptor: IFileOutputChannelDescriptor,
+		@ITextModelService textModelResolverService: ITextModelService
 	) {
-		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), textModelResolverService, hashService);
+		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), undefined, textModelResolverService);
 	}
 
 	public getTypeId(): string {

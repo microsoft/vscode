@@ -74,8 +74,8 @@ export class GotoLineAction extends QuickOpenAction {
 }
 
 class GotoLineEntry extends EditorQuickOpenEntry {
-	private line: number;
-	private column: number;
+	private line!: number;
+	private column!: number;
 	private handler: GotoLineHandler;
 
 	constructor(line: string, editorService: IEditorService, handler: GotoLineHandler) {
@@ -139,8 +139,8 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return this.runPreview();
 	}
 
-	getInput(): IEditorInput | null {
-		return this.editorService.activeEditor || null;
+	getInput(): IEditorInput | undefined {
+		return this.editorService.activeEditor;
 	}
 
 	getOptions(pinned?: boolean): ITextEditorOptions {
@@ -218,8 +218,8 @@ export class GotoLineHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.line';
 
-	private rangeHighlightDecorationId: IEditorLineDecoration | null;
-	private lastKnownEditorViewState: IEditorViewState | null;
+	private rangeHighlightDecorationId: IEditorLineDecoration | null = null;
+	private lastKnownEditorViewState: IEditorViewState | null = null;
 
 	constructor(@IEditorService private readonly editorService: IEditorService) {
 		super();

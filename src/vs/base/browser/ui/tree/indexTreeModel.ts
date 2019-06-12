@@ -278,6 +278,21 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return result;
 	}
 
+	expandTo(location: number[]): void {
+		this.eventBufferer.bufferEvents(() => {
+			let node = this.getTreeNode(location);
+
+			while (node.parent) {
+				node = node.parent;
+				location = location.slice(0, location.length - 1);
+
+				if (node.collapsed) {
+					this._setCollapsed(location, false);
+				}
+			}
+		});
+	}
+
 	refilter(): void {
 		const previousRenderNodeCount = this.root.renderNodeCount;
 		const toInsert = this.updateNodeAfterFilterChange(this.root);

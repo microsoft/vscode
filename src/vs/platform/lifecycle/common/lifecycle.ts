@@ -29,7 +29,7 @@ export interface BeforeShutdownEvent {
 	/**
 	 * The reason why the application will be shutting down.
 	 */
-	reason: ShutdownReason;
+	readonly reason: ShutdownReason;
 }
 
 /**
@@ -51,7 +51,7 @@ export interface WillShutdownEvent {
 	/**
 	 * The reason why the application is shutting down.
 	 */
-	reason: ShutdownReason;
+	readonly reason: ShutdownReason;
 }
 
 export const enum ShutdownReason {
@@ -133,7 +133,7 @@ export interface ILifecycleService {
 	/**
 	 * A flag indicating in what phase of the lifecycle we currently are.
 	 */
-	readonly phase: LifecyclePhase;
+	phase: LifecyclePhase;
 
 	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the

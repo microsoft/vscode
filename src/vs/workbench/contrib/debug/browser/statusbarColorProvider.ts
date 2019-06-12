@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
@@ -40,7 +40,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 		@IThemeService themeService: IThemeService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IPartService private readonly partService: IPartService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(themeService);
 
@@ -56,10 +56,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 	protected updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.partService.getContainer(Parts.STATUSBAR_PART);
-		if (!container) {
-			return;
-		}
+		const container = this.layoutService.getContainer(Parts.STATUSBAR_PART);
 		if (isStatusbarInDebugMode(this.debugService)) {
 			addClass(container, 'debugging');
 		} else {
@@ -82,7 +79,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 			this.styleElement = createStyleSheet(container);
 		}
 
-		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
+		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
 	}
 
 	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
@@ -114,10 +111,3 @@ export function isStatusbarInDebugMode(debugService: IDebugService): boolean {
 
 	return true;
 }
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const statusBarItemDebuggingForeground = theme.getColor(STATUS_BAR_DEBUGGING_FOREGROUND);
-	if (statusBarItemDebuggingForeground) {
-		collector.addRule(`.monaco-workbench .part.statusbar.debugging > .statusbar-item .mask-icon { background-color: ${statusBarItemDebuggingForeground} !important; }`);
-	}
-});

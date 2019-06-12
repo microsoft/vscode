@@ -7,31 +7,7 @@ import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as processes from 'vs/base/node/processes';
 import { readFile, fileExists } from 'vs/base/node/pfs';
-import { Event } from 'vs/base/common/event';
-
-/**
- * An interface representing a raw terminal child process, this contains a subset of the
- * child_process.ChildProcess node.js interface.
- */
-export interface ITerminalChildProcess {
-	onProcessData: Event<string>;
-	onProcessExit: Event<number>;
-	onProcessIdReady: Event<number>;
-	onProcessTitleChanged: Event<string>;
-
-	/**
-	 * Shutdown the terminal process.
-	 *
-	 * @param immediate When true the process will be killed immediately, otherwise the process will
-	 * be given some time to make sure no additional data comes through.
-	 */
-	shutdown(immediate: boolean): void;
-	input(data: string): void;
-	resize(cols: number, rows: number): void;
-
-	getInitialCwd(): Promise<string>;
-	getCwd(): Promise<string>;
-}
+import { LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export function getDefaultShell(p: platform.Platform): string {
 	if (p === platform.Platform.Windows) {
@@ -78,6 +54,7 @@ function getTerminalDefaultShellWindows(): string {
 	return _TERMINAL_DEFAULT_SHELL_WINDOWS;
 }
 
+let detectedDistro = LinuxDistro.Unknown;
 if (platform.isLinux) {
 	const file = '/etc/os-release';
 	fileExists(file).then(exists => {
@@ -87,13 +64,21 @@ if (platform.isLinux) {
 		readFile(file).then(b => {
 			const contents = b.toString();
 			if (/NAME="?Fedora"?/.test(contents)) {
-				isFedora = true;
+				detectedDistro = LinuxDistro.Fedora;
 			} else if (/NAME="?Ubuntu"?/.test(contents)) {
-				isUbuntu = true;
+				detectedDistro = LinuxDistro.Ubuntu;
 			}
 		});
 	});
 }
 
-export let isFedora = false;
-export let isUbuntu = false;
+export const linuxDistro = detectedDistro;
+
+export function getWindowsBuildNumber(): number {
+	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
+	let buildNumber: number = 0;
+	if (osVersion && osVersion.length === 4) {
+		buildNumber = parseInt(osVersion[3]);
+	}
+	return buildNumber;
+}

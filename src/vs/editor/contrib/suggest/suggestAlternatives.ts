@@ -18,8 +18,8 @@ export class SuggestAlternatives {
 	private _index: number;
 	private _model: CompletionModel | undefined;
 	private _acceptNext: ((selected: ISelectedSuggestion) => any) | undefined;
-	private _listener: IDisposable;
-	private _ignore: boolean;
+	private _listener: IDisposable | undefined;
+	private _ignore: boolean | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,

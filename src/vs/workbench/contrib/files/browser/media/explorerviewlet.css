@@ -18,8 +18,8 @@
 	padding-left: 4px; /* align top level twistie with `Explorer` title label */
 }
 
-.explorer-viewlet .monaco-list.highlight .explorer-item:not(.explorer-item-edited),
-.explorer-viewlet .monaco-list.highlight .monaco-tl-twistie {
+.explorer-viewlet .explorer-folders-view.highlight .monaco-list .explorer-item:not(.explorer-item-edited),
+.explorer-viewlet .explorer-folders-view.highlight .monaco-list .monaco-tl-twistie {
 	opacity: 0.3;
 }
 

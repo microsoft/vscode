@@ -12,6 +12,7 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { isObject } from 'vs/base/common/types';
 
 /**
  * Configuration options for editor scrollbars
@@ -199,11 +200,29 @@ export interface ISuggestOptions {
 	 * Favours words that appear close to the cursor.
 	 */
 	localityBonus?: boolean;
-
 	/**
 	 * Enable using global storage for remembering suggestions.
 	 */
 	shareSuggestSelections?: boolean;
+	/**
+	 * Enable or disable icons in suggestions. Defaults to true.
+	 */
+	showIcons?: boolean;
+	/**
+	 * Max suggestions to show in suggestions. Defaults to 12.
+	 */
+	maxVisibleSuggestions?: boolean;
+	/**
+	 * Names of suggestion types to filter.
+	 */
+	filteredTypes?: Record<string, boolean>;
+}
+
+export interface IGotoLocationOptions {
+	/**
+	 * Control how goto-command work when having multiple results.
+	 */
+	multiple?: 'peek' | 'gotoAndPeek' | 'goto';
 }
 
 /**
@@ -251,7 +270,7 @@ export interface IEditorOptions {
 	lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 	/**
 	 * Render last line number when the file ends with a newline.
-	 * Defaults to true on Windows/Mac and to false on Linux.
+	 * Defaults to true.
 	*/
 	renderFinalNewline?: boolean;
 	/**
@@ -493,6 +512,10 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	/**
+	 *
+	 */
+	gotoLocation?: IGotoLocationOptions;
+	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
@@ -506,11 +529,6 @@ export interface IEditorOptions {
 	 * Parameter hint options.
 	 */
 	parameterHints?: IEditorParameterHintOptions;
-	/**
-	 * Render icons in suggestions box.
-	 * Defaults to true.
-	 */
-	iconsInSuggestions?: boolean;
 	/**
 	 * Options for auto closing brackets.
 	 * Defaults to language defined behavior.
@@ -917,12 +935,19 @@ export interface InternalEditorHoverOptions {
 	readonly sticky: boolean;
 }
 
+export interface InternalGoToLocationOptions {
+	readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
+}
+
 export interface InternalSuggestOptions {
 	readonly filterGraceful: boolean;
 	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 	readonly snippetsPreventQuickSuggestions: boolean;
 	readonly localityBonus: boolean;
 	readonly shareSuggestSelections: boolean;
+	readonly showIcons: boolean;
+	readonly maxVisibleSuggestions: number;
+	readonly filteredTypes: Record<string, boolean>;
 }
 
 export interface InternalParameterHintOptions {
@@ -993,7 +1018,6 @@ export interface EditorContribOptions {
 	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 	readonly quickSuggestionsDelay: number;
 	readonly parameterHints: InternalParameterHintOptions;
-	readonly iconsInSuggestions: boolean;
 	readonly formatOnType: boolean;
 	readonly formatOnPaste: boolean;
 	readonly suggestOnTriggerCharacters: boolean;
@@ -1005,6 +1029,7 @@ export interface EditorContribOptions {
 	readonly suggestLineHeight: number;
 	readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 	readonly suggest: InternalSuggestOptions;
+	readonly gotoLocation: InternalGoToLocationOptions;
 	readonly selectionHighlight: boolean;
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
@@ -1374,7 +1399,20 @@ export class InternalEditorOptions {
 				&& a.snippets === b.snippets
 				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions
 				&& a.localityBonus === b.localityBonus
-				&& a.shareSuggestSelections === b.shareSuggestSelections;
+				&& a.shareSuggestSelections === b.shareSuggestSelections
+				&& a.showIcons === b.showIcons
+				&& a.maxVisibleSuggestions === b.maxVisibleSuggestions
+				&& objects.equals(a.filteredTypes, b.filteredTypes);
+		}
+	}
+
+	private static _equalsGotoLocationOptions(a: InternalGoToLocationOptions | undefined, b: InternalGoToLocationOptions | undefined): boolean {
+		if (a === b) {
+			return true;
+		} else if (!a || !b) {
+			return false;
+		} else {
+			return a.multiple === b.multiple;
 		}
 	}
 
@@ -1407,7 +1445,6 @@ export class InternalEditorOptions {
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
 			&& a.quickSuggestionsDelay === b.quickSuggestionsDelay
 			&& this._equalsParameterHintOptions(a.parameterHints, b.parameterHints)
-			&& a.iconsInSuggestions === b.iconsInSuggestions
 			&& a.formatOnType === b.formatOnType
 			&& a.formatOnPaste === b.formatOnPaste
 			&& a.suggestOnTriggerCharacters === b.suggestOnTriggerCharacters
@@ -1419,6 +1456,7 @@ export class InternalEditorOptions {
 			&& a.suggestLineHeight === b.suggestLineHeight
 			&& a.tabCompletion === b.tabCompletion
 			&& this._equalsSuggestOptions(a.suggest, b.suggest)
+			&& InternalEditorOptions._equalsGotoLocationOptions(a.gotoLocation, b.gotoLocation)
 			&& a.selectionHighlight === b.selectionHighlight
 			&& a.occurrencesHighlight === b.occurrencesHighlight
 			&& a.codeLens === b.codeLens
@@ -1907,7 +1945,17 @@ export class EditorOptionsValidator {
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
 			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
-			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections)
+			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
+			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
+			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 15),
+			filteredTypes: isObject(suggestOpts.filteredTypes) ? suggestOpts.filteredTypes : Object.create(null)
+		};
+	}
+
+	private static _sanitizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
+		const gotoOpts = opts.gotoLocation || {};
+		return {
+			multiple: _stringSet<'peek' | 'gotoAndPeek' | 'goto'>(gotoOpts.multiple, defaults.multiple, ['peek', 'gotoAndPeek', 'goto'])
 		};
 	}
 
@@ -2052,7 +2100,6 @@ export class EditorOptionsValidator {
 			quickSuggestions: quickSuggestions,
 			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
 			parameterHints: this._sanitizeParameterHintOpts(opts.parameterHints, defaults.parameterHints),
-			iconsInSuggestions: _boolean(opts.iconsInSuggestions, defaults.iconsInSuggestions),
 			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
 			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
 			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
@@ -2064,6 +2111,7 @@ export class EditorOptionsValidator {
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			tabCompletion: this._sanitizeTabCompletionOpts(opts.tabCompletion, defaults.tabCompletion),
 			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
+			gotoLocation: this._sanitizeGotoLocationOpts(opts, defaults.gotoLocation),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens),
@@ -2166,7 +2214,6 @@ export class InternalEditorOptionsFactory {
 				quickSuggestions: opts.contribInfo.quickSuggestions,
 				quickSuggestionsDelay: opts.contribInfo.quickSuggestionsDelay,
 				parameterHints: opts.contribInfo.parameterHints,
-				iconsInSuggestions: opts.contribInfo.iconsInSuggestions,
 				formatOnType: opts.contribInfo.formatOnType,
 				formatOnPaste: opts.contribInfo.formatOnPaste,
 				suggestOnTriggerCharacters: opts.contribInfo.suggestOnTriggerCharacters,
@@ -2178,6 +2225,7 @@ export class InternalEditorOptionsFactory {
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
 				tabCompletion: opts.contribInfo.tabCompletion,
 				suggest: opts.contribInfo.suggest,
+				gotoLocation: opts.contribInfo.gotoLocation,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2588,7 +2636,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 		renderLineNumbers: RenderLineNumbersType.On,
 		renderCustomLineNumbers: null,
-		renderFinalNewline: (platform.isLinux ? false : true),
+		renderFinalNewline: true,
 		selectOnLineNumbers: true,
 		glyphMargin: true,
 		revealHorizontalRightPadding: 30,
@@ -2651,7 +2699,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			enabled: true,
 			cycle: false
 		},
-		iconsInSuggestions: true,
 		formatOnType: false,
 		formatOnPaste: false,
 		suggestOnTriggerCharacters: true,
@@ -2667,7 +2714,13 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			snippets: 'inline',
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
-			shareSuggestSelections: false
+			shareSuggestSelections: false,
+			showIcons: true,
+			maxVisibleSuggestions: 12,
+			filteredTypes: Object.create(null)
+		},
+		gotoLocation: {
+			multiple: 'peek'
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

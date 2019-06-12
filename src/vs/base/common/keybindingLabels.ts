@@ -41,7 +41,7 @@ export class ModifierLabelProvider {
 			return null;
 		}
 
-		let result: string[] = [];
+		const result: string[] = [];
 		for (let i = 0, len = parts.length; i < len; i++) {
 			const part = parts[i];
 			const keyLabel = keyLabelProvider(part);
@@ -162,7 +162,7 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 		return '';
 	}
 
-	let result: string[] = [];
+	const result: string[] = [];
 
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
 	if (modifiers.ctrlKey) {

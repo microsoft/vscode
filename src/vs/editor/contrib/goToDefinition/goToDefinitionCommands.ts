@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { createCancelablePromise } from 'vs/base/common/async';
+import { createCancelablePromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
@@ -25,9 +25,11 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ILocalProgressService } from 'vs/platform/progress/common/progress';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from './goToDefinition';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
+import { ISymbolNavigationService } from 'vs/editor/contrib/goToDefinition/goToDefinitionResultsNavigation';
 
 export class DefinitionActionConfig {
 
@@ -56,14 +58,17 @@ export class DefinitionAction extends EditorAction {
 		}
 		const notificationService = accessor.get(INotificationService);
 		const editorService = accessor.get(ICodeEditorService);
-		const progressService = accessor.get(IProgressService);
+		const progressService = accessor.get(ILocalProgressService);
+		const symbolNavService = accessor.get(ISymbolNavigationService);
 
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
-		const definitionPromise = this._getTargetLocationForPosition(model, pos, CancellationToken.None).then(async references => {
+		const cts = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
-			if (model.isDisposed() || editor.getModel() !== model) {
+		const definitionPromise = raceCancellation(this._getTargetLocationForPosition(model, pos, cts.token), cts.token).then(async references => {
+
+			if (!references || model.isDisposed()) {
 				// new model, no more model
 				return;
 			}
@@ -99,12 +104,14 @@ export class DefinitionAction extends EditorAction {
 
 			} else {
 				// handle multile results
-				return this._onResult(editorService, editor, new ReferencesModel(result));
+				return this._onResult(editorService, symbolNavService, editor, new ReferencesModel(result));
 			}
 
 		}, (err) => {
 			// report an error
 			notificationService.error(err);
+		}).finally(() => {
+			cts.dispose();
 		});
 
 		progressService.showWhile(definitionPromise, 250);
@@ -125,18 +132,31 @@ export class DefinitionAction extends EditorAction {
 		return model.references.length > 1 ? nls.localize('meta.title', " – {0} definitions", model.references.length) : '';
 	}
 
-	private async _onResult(editorService: ICodeEditorService, editor: ICodeEditor, model: ReferencesModel): Promise<void> {
+	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: ICodeEditor, model: ReferencesModel): Promise<void> {
 
 		const msg = model.getAriaMessage();
 		alert(msg);
 
-		if (this._configuration.openInPeek || model.references.length > 1) {
+		const { gotoLocation } = editor.getConfiguration().contribInfo;
+		if (this._configuration.openInPeek || (gotoLocation.multiple === 'peek' && model.references.length > 1)) {
 			this._openInPeek(editorService, editor, model);
+
 		} else if (editor.hasModel()) {
-			const next = model.nearestReference(editor.getModel().uri, editor.getPosition());
-			if (next) {
-				await this._openReference(editor, editorService, next, this._configuration.openToSide);
+			const next = model.firstReference();
+			if (!next) {
+				return;
+			}
+			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
+			if (targetEditor && model.references.length > 1 && gotoLocation.multiple === 'gotoAndPeek') {
+				this._openInPeek(editorService, targetEditor, model);
+			} else {
 				model.dispose();
+			}
+
+			// keep remaining locations around when using
+			// 'goto'-mode
+			if (gotoLocation.multiple === 'goto') {
+				symbolNavService.put(next);
 			}
 		}
 	}
@@ -156,7 +176,6 @@ export class DefinitionAction extends EditorAction {
 			resource: reference.uri,
 			options: {
 				selection: Range.collapseToStart(range),
-				revealIfOpened: true,
 				revealInCenterIfOutsideViewport: true
 			}
 		}, editor, sideBySide);

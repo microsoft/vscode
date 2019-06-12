@@ -33,7 +33,7 @@
 
 .vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
 	height: 25px;
-	border: 1px solid #ddd;
+	border: 1px solid transparent;
 }
 
 .markers-panel-action-filter > .markers-panel-filter-controls {
@@ -160,31 +160,6 @@
 
 .markers-panel .monaco-tl-contents .marker-icon {
 	height: 22px;
-	flex: 0 0 16px;
-}
-
-.markers-panel .marker-icon.warning {
-	background: url('status-warning.svg') center center no-repeat;
-}
-
-.markers-panel .marker-icon.error {
-	background: url('status-error.svg') center center no-repeat;
-}
-
-.markers-panel .marker-icon.info {
-	background: url('status-info.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel .marker-icon.warning {
-	background: url('status-warning-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel .marker-icon.error {
-	background: url('status-error-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel .marker-icon.info {
-	background: url('status-info-inverse.svg') center center no-repeat;
 }
 
 .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
@@ -192,8 +167,17 @@
 	margin-right: 0px;
 }
 
+.markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
+	background: url('lightbulb-autofix.svg') center center no-repeat;
+}
+
 .vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
 	background: url('lightbulb-dark.svg') center/80% no-repeat;
+}
+
+.vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable,
+.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
+	background: url('lightbulb-autofix-dark.svg') center center no-repeat;
 }
 
 .markers-panel .monaco-tl-contents .actions .monaco-action-bar {

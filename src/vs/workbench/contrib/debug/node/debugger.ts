@@ -11,12 +11,8 @@ import { isObject } from 'vs/base/common/types';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IDebugAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings, IDebugger, IDebugSession, IAdapterDescriptor, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IConfig, IDebuggerContribution, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, ITerminalSettings, IDebugger, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
@@ -28,20 +24,21 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/resour
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class Debugger implements IDebugger {
 
-	private debuggerContribution: IDebuggerContribution = {};
+	private debuggerContribution: IDebuggerContribution;
 	private mergedExtensionDescriptions: IExtensionDescription[] = [];
 	private mainExtensionDescription: IExtensionDescription | undefined;
 
 	constructor(private configurationManager: IConfigurationManager, dbgContribution: IDebuggerContribution, extensionDescription: IExtensionDescription,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
+		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
 	}
 
@@ -96,97 +93,25 @@ export class Debugger implements IDebugger {
 		}
 	}
 
-	public createDebugAdapter(session: IDebugSession, outputService: IOutputService): Promise<IDebugAdapter> {
+	public createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
 		return this.configurationManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
-			if (this.inExtHost()) {
-				const da = this.configurationManager.createDebugAdapter(session);
-				if (da) {
-					return Promise.resolve(da);
-				}
-				throw new Error(nls.localize('cannot.find.da', "Cannot find debug adapter for type '{0}'.", this.type));
-			} else {
-				return this.getAdapterDescriptor(session).then(adapterDescriptor => {
-					switch (adapterDescriptor.type) {
-						case 'executable':
-							return new ExecutableDebugAdapter(adapterDescriptor, this.type, outputService);
-						case 'server':
-							return new SocketDebugAdapter(adapterDescriptor);
-						case 'implementation':
-							// TODO@AW: this.inExtHost() should now return true
-							return Promise.resolve(this.configurationManager.createDebugAdapter(session));
-						default:
-							throw new Error('unknown descriptor type');
-					}
-				}).catch(err => {
-					if (err && err.message) {
-						throw new Error(nls.localize('cannot.create.da.with.err', "Cannot create debug adapter ({0}).", err.message));
-					} else {
-						throw new Error(nls.localize('cannot.create.da', "Cannot create debug adapter."));
-					}
-				});
+			const da = this.configurationManager.createDebugAdapter(session);
+			if (da) {
+				return Promise.resolve(da);
 			}
+			throw new Error(nls.localize('cannot.find.da', "Cannot find debug adapter for type '{0}'.", this.type));
 		});
 	}
 
-	private getAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor> {
-
-		// a "debugServer" attribute in the launch config takes precedence
-		if (typeof session.configuration.debugServer === 'number') {
-			return Promise.resolve(<IDebugAdapterServer>{
-				type: 'server',
-				port: session.configuration.debugServer
-			});
-		}
-
-		// try the new "createDebugAdapterDescriptor" and the deprecated "provideDebugAdapter" API
-		return this.configurationManager.getDebugAdapterDescriptor(session).then(adapter => {
-
-			if (adapter) {
-				return adapter;
-			}
-
-			// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
-			if (this.debuggerContribution.adapterExecutableCommand) {
-				console.info('debugAdapterExecutable attribute in package.json is deprecated and support for it will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
-				const rootFolder = session.root ? session.root.uri.toString() : undefined;
-				return this.commandService.executeCommand<IDebugAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, rootFolder).then((ae: { command: string, args: string[] }) => {
-					return <IAdapterDescriptor>{
-						type: 'executable',
-						command: ae.command,
-						args: ae.args || []
-					};
-				});
-			}
-
-			// fallback: use executable information from package.json
-			const ae = ExecutableDebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
-			if (ae === undefined) {
-				throw new Error('no executable specified in package.json');
-			}
-			return ae;
-		});
-	}
-
-	substituteVariables(folder: IWorkspaceFolder, config: IConfig): Promise<IConfig> {
-		if (this.inExtHost()) {
-			return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
-				return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
-			});
-		} else {
+	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
+		return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
 			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
-		}
+		});
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
 		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
-		return this.configurationManager.runInTerminal(this.inExtHost() ? this.type : '*', args, config);
-	}
-
-	private inExtHost(): boolean {
-		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-		return !!debugConfigs.extensionHostDebugAdapter
-			|| this.configurationManager.needsToRunInExtHost(this.type)
-			|| (!!this.mainExtensionDescription && this.mainExtensionDescription.extensionLocation.scheme !== 'file');
+		return this.configurationManager.runInTerminal(this.type, args, config);
 	}
 
 	get label(): string {
@@ -197,15 +122,15 @@ export class Debugger implements IDebugger {
 		return this.debuggerContribution.type;
 	}
 
-	get variables(): { [key: string]: string } {
+	get variables(): { [key: string]: string } | undefined {
 		return this.debuggerContribution.variables;
 	}
 
-	get configurationSnippets(): IJSONSchemaSnippet[] {
+	get configurationSnippets(): IJSONSchemaSnippet[] | undefined {
 		return this.debuggerContribution.configurationSnippets;
 	}
 
-	get languages(): string[] {
+	get languages(): string[] | undefined {
 		return this.debuggerContribution.languages;
 	}
 
@@ -254,8 +179,11 @@ export class Debugger implements IDebugger {
 	}
 
 	@memoize
-	getCustomTelemetryService(): Promise<TelemetryService> {
-		if (!this.debuggerContribution.aiKey) {
+	getCustomTelemetryService(): Promise<TelemetryService | undefined> {
+
+		const aiKey = this.debuggerContribution.aiKey;
+
+		if (!aiKey) {
 			return Promise.resolve(undefined);
 		}
 
@@ -270,7 +198,7 @@ export class Debugger implements IDebugger {
 				{
 					serverName: 'Debug Telemetry',
 					timeout: 1000 * 60 * 5,
-					args: [`${this.getMainExtensionDescriptor().publisher}.${this.type}`, JSON.stringify(data), this.debuggerContribution.aiKey],
+					args: [`${this.getMainExtensionDescriptor().publisher}.${this.type}`, JSON.stringify(data), aiKey],
 					env: {
 						ELECTRON_RUN_AS_NODE: 1,
 						PIPE_LOGGING: 'true',
@@ -286,10 +214,12 @@ export class Debugger implements IDebugger {
 		});
 	}
 
-	getSchemaAttributes(): IJSONSchema[] {
+	getSchemaAttributes(): IJSONSchema[] | null {
+
 		if (!this.debuggerContribution.configurationAttributes) {
 			return null;
 		}
+
 		// fill in the default configuration attributes shared by all adapters.
 		const taskSchema = TaskDefinitionRegistry.getJsonSchema();
 		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
@@ -339,9 +269,9 @@ export class Debugger implements IDebugger {
 			};
 			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
 			// Clear out windows, linux and osx fields to not have cycles inside the properties object
-			properties['windows'] = undefined;
-			properties['osx'] = undefined;
-			properties['linux'] = undefined;
+			delete properties['windows'];
+			delete properties['osx'];
+			delete properties['linux'];
 
 			const osProperties = objects.deepClone(properties);
 			properties['windows'] = {
@@ -359,11 +289,10 @@ export class Debugger implements IDebugger {
 				description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
 				properties: osProperties
 			};
-			Object.keys(attributes.properties).forEach(name => {
+			Object.keys(properties).forEach(name => {
 				// Use schema allOf property to get independent error reporting #21113
-				ConfigurationResolverUtils.applyDeprecatedVariableMessage(attributes.properties[name]);
+				ConfigurationResolverUtils.applyDeprecatedVariableMessage(properties[name]);
 			});
-
 			return attributes;
 		});
 	}

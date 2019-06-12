@@ -5,39 +5,74 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
-import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically } from 'vs/workbench/common/editor';
-import { IsMacContext, IsLinuxContext, IsWindowsContext, HasMacNativeTabsContext, IsDevelopmentContext, SupportsWorkspacesContext, SupportsOpenFileFolderContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
+import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
 import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+import { PanelPositionContext } from 'vs/workbench/common/panel';
+
+export const IsMacContext = new RawContextKey<boolean>('isMac', isMacintosh);
+export const IsLinuxContext = new RawContextKey<boolean>('isLinux', isLinux);
+export const IsWindowsContext = new RawContextKey<boolean>('isWindows', isWindows);
+
+export const RemoteAuthorityContext = new RawContextKey<string>('remoteAuthority', '');
+
+export const RemoteConnectionState = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '');
+
+export const HasMacNativeTabsContext = new RawContextKey<boolean>('hasMacNativeTabs', false);
+
+export const SupportsWorkspacesContext = new RawContextKey<boolean>('supportsWorkspaces', true);
+
+export const IsDevelopmentContext = new RawContextKey<boolean>('isDevelopment', false);
+
+export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined);
+
+export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0);
+
+export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
+
+export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false);
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
+
 	private activeEditorContext: IContextKey<string | null>;
 	private editorsVisibleContext: IContextKey<boolean>;
 	private textCompareEditorVisibleContext: IContextKey<boolean>;
 	private textCompareEditorActiveContext: IContextKey<boolean>;
 	private activeEditorGroupEmpty: IContextKey<boolean>;
 	private multipleEditorGroupsContext: IContextKey<boolean>;
+	private splitEditorsVerticallyContext: IContextKey<boolean>;
+
 	private workbenchStateContext: IContextKey<string>;
 	private workspaceFolderCountContext: IContextKey<number>;
-	private splitEditorsVerticallyContext: IContextKey<boolean>;
+
+
+	private inZenModeContext: IContextKey<boolean>;
+	private isFullscreenContext: IContextKey<boolean>;
+	private isCenteredLayoutContext: IContextKey<boolean>;
+	private sideBarVisibleContext: IContextKey<boolean>;
+	private panelPositionContext: IContextKey<string>;
 
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowService private windowService: IWindowService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IWorkbenchLayoutService private layoutService: IWorkbenchLayoutService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super();
 
@@ -63,6 +98,14 @@ export class WorkbenchContextKeysHandler extends Disposable {
 				this.updateSplitEditorsVerticallyContext();
 			}
 		}));
+
+		this._register(this.layoutService.onZenModeChange(enabled => this.inZenModeContext.set(enabled)));
+		this._register(this.layoutService.onFullscreenChange(fullscreen => this.isFullscreenContext.set(fullscreen)));
+		this._register(this.layoutService.onCenteredLayoutChange(centered => this.isCenteredLayoutContext.set(centered)));
+		this._register(this.layoutService.onPanelPositionChange(position => this.panelPositionContext.set(position)));
+
+		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
+		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
 	}
 
 	private initContextKeys(): void {
@@ -72,8 +115,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		IsLinuxContext.bindTo(this.contextKeyService);
 		IsWindowsContext.bindTo(this.contextKeyService);
 
+		RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.environmentService.configuration.remoteAuthority || '');
+
 		// macOS Native Tabs
-		const windowConfig = this.configurationService.getValue<IWindowConfiguration>();
+		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 		HasMacNativeTabsContext.bindTo(this.contextKeyService).set(windowConfig && windowConfig.window && windowConfig.window.nativeTabs);
 
 		// Development
@@ -81,7 +126,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// File Pickers
 		SupportsWorkspacesContext.bindTo(this.contextKeyService);
-		SupportsOpenFileFolderContext.bindTo(this.contextKeyService).set(!!this.windowService.getConfiguration().remoteAuthority);
 
 		// Editors
 		this.activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);
@@ -105,6 +149,22 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Editor Layout
 		this.splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);
 		this.updateSplitEditorsVerticallyContext();
+
+		// Fullscreen
+		this.isFullscreenContext = IsFullscreenContext.bindTo(this.contextKeyService);
+
+		// Zen Mode
+		this.inZenModeContext = InEditorZenModeContext.bindTo(this.contextKeyService);
+
+		// Centered Layout
+		this.isCenteredLayoutContext = IsCenteredLayoutContext.bindTo(this.contextKeyService);
+
+		// Sidebar
+		this.sideBarVisibleContext = SideBarVisibleContext.bindTo(this.contextKeyService);
+
+		// Panel Position
+		this.panelPositionContext = PanelPositionContext.bindTo(this.contextKeyService);
+		this.panelPositionContext.set(this.layoutService.getPanelPosition() === Position.RIGHT ? 'right' : 'bottom');
 	}
 
 	private updateEditorContextKeys(): void {
@@ -177,5 +237,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			case WorkbenchState.FOLDER: return 'folder';
 			case WorkbenchState.WORKSPACE: return 'workspace';
 		}
+	}
+
+	private updateSideBarContextKeys(): void {
+		this.sideBarVisibleContext.set(this.layoutService.isVisible(Parts.SIDEBAR_PART));
 	}
 }

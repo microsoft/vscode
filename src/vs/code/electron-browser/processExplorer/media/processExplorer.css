@@ -85,6 +85,20 @@ td {
 	height: 22px;
 }
 
+.error {
+	padding-left: 20px;
+	white-space: nowrap;
+}
+
 tbody > tr:hover {
 	background-color: #2A2D2E;
+}
+
+.hidden {
+	display: none;
+}
+
+img {
+	width: 16px;
+	margin-right: 4px;
 }

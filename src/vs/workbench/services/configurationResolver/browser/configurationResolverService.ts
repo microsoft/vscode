@@ -6,12 +6,11 @@
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { toResource } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -21,32 +20,33 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
-export class ConfigurationResolverService extends AbstractVariableResolverService {
+export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
 	static INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
 
 	constructor(
-		envVariables: platform.IProcessEnvironment,
-		@IEditorService editorService: IEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		envVariables: IProcessEnvironment,
+		editorService: IEditorService,
+		environmentService: IWorkbenchEnvironmentService,
+		private readonly configurationService: IConfigurationService,
+		private readonly commandService: ICommandService,
+		private readonly workspaceContextService: IWorkspaceContextService,
+		private readonly quickInputService: IQuickInputService
 	) {
 		super({
-			getFolderUri: (folderName: string): uri => {
+			getFolderUri: (folderName: string): uri | undefined => {
 				const folder = workspaceContextService.getWorkspace().folders.filter(f => f.name === folderName).pop();
 				return folder ? folder.uri : undefined;
 			},
 			getWorkspaceFolderCount: (): number => {
 				return workspaceContextService.getWorkspace().folders.length;
 			},
-			getConfigurationValue: (folderUri: uri, suffix: string) => {
-				return configurationService.getValue<string>(suffix, folderUri ? { resource: folderUri } : undefined);
+			getConfigurationValue: (folderUri: uri, suffix: string): string | undefined => {
+				return configurationService.getValue<string>(suffix, folderUri ? { resource: folderUri } : {});
 			},
-			getExecPath: () => {
+			getExecPath: (): string | undefined => {
 				return environmentService['execPath'];
 			},
 			getFilePath: (): string | undefined => {
@@ -54,7 +54,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				if (activeEditor instanceof DiffEditorInput) {
 					activeEditor = activeEditor.modifiedInput;
 				}
-				const fileResource = toResource(activeEditor, { filter: Schemas.file });
+				const fileResource = toResource(activeEditor, { filterByScheme: Schemas.file });
 				if (!fileResource) {
 					return undefined;
 				}
@@ -71,18 +71,21 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 				}
 				return undefined;
 			},
-			getLineNumber: (): string => {
+			getLineNumber: (): string | undefined => {
 				const activeTextEditorWidget = editorService.activeTextEditorWidget;
 				if (isCodeEditor(activeTextEditorWidget)) {
-					const lineNumber = activeTextEditorWidget.getSelection().positionLineNumber;
-					return String(lineNumber);
+					const selection = activeTextEditorWidget.getSelection();
+					if (selection) {
+						const lineNumber = selection.positionLineNumber;
+						return String(lineNumber);
+					}
 				}
 				return undefined;
 			}
 		}, envVariables);
 	}
 
-	public resolveWithInteractionReplace(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
+	public resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
 		// resolve any non-interactive variables
 		config = this.resolveAny(folder, config);
 
@@ -99,7 +102,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 		});
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string>> {
+	public resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
 		// resolve any non-interactive variables
 		const resolved = this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
@@ -117,7 +120,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	/**
 	 * Add all items from newMapping to fullMapping. Returns false if newMapping is undefined.
 	 */
-	private updateMapping(newMapping: IStringDictionary<string>, fullMapping: Map<string, string>): boolean {
+	private updateMapping(newMapping: IStringDictionary<string> | undefined, fullMapping: Map<string, string>): boolean {
 		if (!newMapping) {
 			return false;
 		}
@@ -135,15 +138,15 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	 *
 	 * @param variableToCommandMap Aliases for commands
 	 */
-	private async resolveWithInputAndCommands(folder: IWorkspaceFolder, configuration: any, variableToCommandMap: IStringDictionary<string>, section: string): Promise<IStringDictionary<string>> {
+	private async resolveWithInputAndCommands(folder: IWorkspaceFolder | undefined, configuration: any, variableToCommandMap?: IStringDictionary<string>, section?: string): Promise<IStringDictionary<string> | undefined> {
 
 		if (!configuration) {
 			return Promise.resolve(undefined);
 		}
 
 		// get all "inputs"
-		let inputs: ConfiguredInput[] = undefined;
-		if (folder && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+		let inputs: ConfiguredInput[] = [];
+		if (folder && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
 			let result = this.configurationService.getValue<any>(section, { resource: folder.uri });
 			if (result) {
 				inputs = result.inputs;
@@ -160,7 +163,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 
 			const [type, name] = variable.split(':', 2);
 
-			let result: string | undefined | null;
+			let result: string | undefined;
 
 			switch (type) {
 
@@ -196,7 +199,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	private findVariables(object: any, variables: string[]) {
 		if (typeof object === 'string') {
 			let matches;
-			while ((matches = ConfigurationResolverService.INPUT_OR_COMMAND_VARIABLES_PATTERN.exec(object)) !== null) {
+			while ((matches = BaseConfigurationResolverService.INPUT_OR_COMMAND_VARIABLES_PATTERN.exec(object)) !== null) {
 				if (matches.length === 4) {
 					const command = matches[1];
 					if (variables.indexOf(command) < 0) {
@@ -221,7 +224,7 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 	 * @param variable Name of the input variable.
 	 * @param inputInfos Information about each possible input variable.
 	 */
-	private showUserInput(variable: string, inputInfos: ConfiguredInput[]): Promise<string> {
+	private showUserInput(variable: string, inputInfos: ConfiguredInput[]): Promise<string | undefined> {
 
 		// find info for the given input variable
 		const info = inputInfos.filter(item => item.id === variable).pop();
@@ -286,5 +289,19 @@ export class ConfigurationResolverService extends AbstractVariableResolverServic
 			}
 		}
 		return Promise.reject(new Error(nls.localize('inputVariable.undefinedVariable', "Undefined input variable '{0}' encountered. Remove or define '{0}' to continue.", variable)));
+	}
+}
+
+export class ConfigurationResolverService extends BaseConfigurationResolverService {
+
+	constructor(
+		@IEditorService editorService: IEditorService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ICommandService commandService: ICommandService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IQuickInputService quickInputService: IQuickInputService
+	) {
+		super(environmentService.configuration.userEnv, editorService, environmentService, configurationService, commandService, workspaceContextService, quickInputService);
 	}
 }

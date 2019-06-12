@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, SelectionRange, SelectionRangeKind } from 'vscode';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, SelectionRange } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
@@ -47,7 +47,7 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
-	let documentSelector = ['html', 'handlebars', 'razor'];
+	let documentSelector = ['html', 'handlebars'];
 	let embeddedLanguages = { css: true, javascript: true };
 
 	let dataPaths = [
@@ -78,7 +78,7 @@ export function activate(context: ExtensionContext) {
 			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
 			return client.sendRequest(TagCloseRequest.type, param);
 		};
-		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true, razor: true }, 'html.autoClosingTags');
+		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true }, 'html.autoClosingTags');
 		toDispose.push(disposable);
 
 		disposable = client.onTelemetry(e => {
@@ -90,20 +90,20 @@ export function activate(context: ExtensionContext) {
 
 		documentSelector.forEach(selector => {
 			context.subscriptions.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[][]> {
+				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[]> {
 					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					return Promise.all(positions.map(async position => {
-						const rawRanges = await client.sendRequest<Range[]>('$/textDocument/selectionRange', { textDocument, position });
-						if (Array.isArray(rawRanges)) {
-							return rawRanges.map(r => {
+					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
+					if (Array.isArray(rawResult)) {
+						return rawResult.map(rawSelectionRanges => {
+							return rawSelectionRanges.reduceRight((parent: SelectionRange | undefined, selectionRange: SelectionRange) => {
 								return {
-									range: client.protocol2CodeConverter.asRange(r),
-									kind: SelectionRangeKind.Declaration
+									range: client.protocol2CodeConverter.asRange(selectionRange.range),
+									parent
 								};
-							});
-						}
-						return [];
-					}));
+							}, undefined)!;
+						});
+					}
+					return [];
 				}
 			}));
 		});
@@ -143,24 +143,11 @@ export function activate(context: ExtensionContext) {
 		],
 	});
 
-	languages.setLanguageConfiguration('razor', {
-		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
-		onEnterRules: [
-			{
-				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>/i,
-				action: { indentAction: IndentAction.IndentOutdent }
-			},
-			{
-				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				action: { indentAction: IndentAction.Indent }
-			}
-		],
-	});
-
 	const regionCompletionRegExpr = /^(\s*)(<(!(-(-\s*(#\w*)?)?)?)?)?$/;
+	const htmlSnippetCompletionRegExpr = /^(\s*)(<(h(t(m(l)?)?)?)?)?$/;
 	languages.registerCompletionItemProvider(documentSelector, {
 		provideCompletionItems(doc, pos) {
+			const results: CompletionItem[] = [];
 			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
 			let match = lineUntilPos.match(regionCompletionRegExpr);
 			if (match) {
@@ -171,15 +158,41 @@ export function activate(context: ExtensionContext) {
 				beginProposal.documentation = localize('folding.start', 'Folding Region Start');
 				beginProposal.filterText = match[2];
 				beginProposal.sortText = 'za';
+				results.push(beginProposal);
 				let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
 				endProposal.range = range;
 				endProposal.insertText = new SnippetString('<!-- #endregion -->');
 				endProposal.documentation = localize('folding.end', 'Folding Region End');
 				endProposal.filterText = match[2];
 				endProposal.sortText = 'zb';
-				return [beginProposal, endProposal];
+				results.push(endProposal);
 			}
-			return null;
+			let match2 = lineUntilPos.match(htmlSnippetCompletionRegExpr);
+			if (match2 && doc.getText(new Range(new Position(0, 0), pos)).match(htmlSnippetCompletionRegExpr)) {
+				let range = new Range(new Position(pos.line, match2[1].length), pos);
+				let snippetProposal = new CompletionItem('HTML sample', CompletionItemKind.Snippet);
+				snippetProposal.range = range;
+				const content = ['<!DOCTYPE html>',
+					'<html>',
+					'<head>',
+					'\t<meta charset=\'utf-8\'>',
+					'\t<meta http-equiv=\'X-UA-Compatible\' content=\'IE=edge\'>',
+					'\t<title>${1:Page Title}</title>',
+					'\t<meta name=\'viewport\' content=\'width=device-width, initial-scale=1\'>',
+					'\t<link rel=\'stylesheet\' type=\'text/css\' media=\'screen\' href=\'${2:main.css}\'>',
+					'\t<script src=\'${3:main.js}\'></script>',
+					'</head>',
+					'<body>',
+					'\t$0',
+					'</body>',
+					'</html>'].join('\n');
+				snippetProposal.insertText = new SnippetString(content);
+				snippetProposal.documentation = localize('folding.html', 'Simple HTML5 starting point');
+				snippetProposal.filterText = match2[2];
+				snippetProposal.sortText = 'za';
+				results.push(snippetProposal);
+			}
+			return results;
 		}
 	});
 }

@@ -11,6 +11,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -25,13 +26,13 @@ const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next mat
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 export abstract class SimpleFindWidget extends Widget {
-	private _findInput: FindInput;
-	private _domNode?: HTMLElement;
-	private _innerDomNode: HTMLElement;
+	private readonly _findInput: FindInput;
+	private readonly _domNode: HTMLElement;
+	private readonly _innerDomNode: HTMLElement;
 	private _isVisible: boolean = false;
-	private _focusTracker: dom.IFocusTracker;
-	private _findInputFocusTracker: dom.IFocusTracker;
-	private _updateHistoryDelayer: Delayer<void>;
+	private readonly _focusTracker: dom.IFocusTracker;
+	private readonly _findInputFocusTracker: dom.IFocusTracker;
+	private readonly _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -44,6 +45,18 @@ export abstract class SimpleFindWidget extends Widget {
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
+			validation: (value: string): InputBoxMessage | null => {
+				if (value.length === 0 || !this._findInput.getRegex()) {
+					return null;
+				}
+				try {
+					/* tslint:disable-next-line:no-unused-expression */
+					new RegExp(value);
+					return null;
+				} catch (e) {
+					return { content: e.message };
+				}
+			}
 		}, contextKeyService, showOptionButtons));
 
 		// Find History with update delayer
@@ -86,29 +99,29 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 		}));
 
-		const prevBtn = new SimpleButton({
+		const prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
 			className: 'previous',
 			onTrigger: () => {
 				this.find(true);
 			}
-		});
+		}));
 
-		const nextBtn = new SimpleButton({
+		const nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
 			className: 'next',
 			onTrigger: () => {
 				this.find(false);
 			}
-		});
+		}));
 
-		const closeBtn = new SimpleButton({
+		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
 			className: 'close-fw',
 			onTrigger: () => {
 				this.hide();
 			}
-		});
+		}));
 
 		this._innerDomNode = document.createElement('div');
 		this._innerDomNode.classList.add('simple-find-part');
@@ -182,7 +195,6 @@ export abstract class SimpleFindWidget extends Widget {
 
 		if (this._domNode && this._domNode.parentElement) {
 			this._domNode.parentElement.removeChild(this._domNode);
-			this._domNode = undefined;
 		}
 	}
 

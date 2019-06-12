@@ -31,6 +31,7 @@
 		"statusBar.debuggingBackground": "#505050",
 		"statusBar.noFolderBackground": "#505050",
 		"titleBar.activeBackground": "#505050",
+		"statusBarItem.remoteBackground": "#3655b5",
 		"activityBar.background": "#353535",
 		"activityBar.foreground": "#ffffff",
 		"activityBarBadge.background": "#3655b5",
@@ -142,7 +143,7 @@
 		},
 		{
 			"name": "Class name",
-			"scope": "entity.name.class, entity.name.type",
+			"scope": "entity.name.class, entity.name.type, entity.name.namespace, entity.name.scope-resolution",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#9B0000",
@@ -254,8 +255,14 @@
 			}
 		},
 		{
-			"name": "Keyword Control",
-			"scope": "keyword.control",
+			"name": "Keyword Control / Special",
+			"scope": [
+				"keyword.control",
+				"keyword.operator.new.cpp",
+				"keyword.operator.delete.cpp",
+				"keyword.other.using",
+				"keyword.other.operator"
+			],
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#9872A2"

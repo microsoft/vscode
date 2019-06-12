@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IRawFileQuery, IRawTextQuery } from 'vs/workbench/services/search/common/search';
-import { IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from './search';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IRawFileQuery, IRawTextQuery, IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from 'vs/workbench/services/search/common/search';
 
 export class SearchChannel implements IServerChannel {
 
 	constructor(private service: IRawSearchService) { }
 
-	listen<T>(_, event: string, arg?: any): Event<any> {
+	listen(_: unknown, event: string, arg?: any): Event<any> {
 		switch (event) {
 			case 'fileSearch': return this.service.fileSearch(arg);
 			case 'textSearch': return this.service.textSearch(arg);
@@ -20,7 +19,7 @@ export class SearchChannel implements IServerChannel {
 		throw new Error('Event not found');
 	}
 
-	call(_, command: string, arg?: any): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'clearCache': return this.service.clearCache(arg);
 		}

@@ -24,8 +24,8 @@ function log(message: any, ...rest: any[]): void {
 }
 
 export interface Language {
-	id: string; // laguage id, e.g. zh-tw, de
-	transifexId?: string; // language id used in transifex, e.g zh-hant, de (optional, if not set, the id is used)
+	id: string; // language id, e.g. zh-tw, de
+	translationId?: string; // language id used in translation tools, e.g. zh-hant, de (optional, if not set, the id is used)
 	folderName?: string; // language specific folder name, e.g. cht, deu  (optional, if not set, the id is used)
 }
 
@@ -38,8 +38,8 @@ export interface InnoSetup {
 }
 
 export const defaultLanguages: Language[] = [
-	{ id: 'zh-tw', folderName: 'cht', transifexId: 'zh-hant' },
-	{ id: 'zh-cn', folderName: 'chs', transifexId: 'zh-hans' },
+	{ id: 'zh-tw', folderName: 'cht', translationId: 'zh-hant' },
+	{ id: 'zh-cn', folderName: 'chs', translationId: 'zh-hans' },
 	{ id: 'ja', folderName: 'jpn' },
 	{ id: 'ko', folderName: 'kor' },
 	{ id: 'de', folderName: 'deu' },
@@ -141,6 +141,15 @@ interface BundledExtensionFormat {
 	[key: string]: {
 		messages: string[];
 		keys: (string | LocalizeInfo)[];
+	};
+}
+
+interface I18nFormat {
+	version: string;
+	contents: {
+		[module: string]: {
+			[messageKey: string]: string;
+		};
 	};
 }
 
@@ -486,7 +495,11 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 		});
 	});
 
-	let languageDirectory = path.join(__dirname, '..', '..', 'i18n');
+	let languageDirectory = path.join(__dirname, '..', '..', '..', 'vscode-loc', 'i18n');
+	if (!fs.existsSync(languageDirectory)) {
+		log(`No VS Code localization repository found. Looking at ${languageDirectory}`);
+		log(`To bundle translations please check out the vscode-loc repository as a sibling of the vscode repository.`);
+	}
 	let sortedLanguages = sortLanguages(languages);
 	sortedLanguages.forEach((language) => {
 		if (process.env['VSCODE_BUILD_VERBOSE']) {
@@ -495,21 +508,25 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 
 		statistics[language.id] = 0;
 		let localizedModules: Map<string[]> = Object.create(null);
-		let languageFolderName = language.folderName || language.id;
-		let cwd = path.join(languageDirectory, languageFolderName, 'src');
+		let languageFolderName = language.translationId || language.id;
+		let i18nFile = path.join(languageDirectory, `vscode-language-pack-${languageFolderName}`, 'translations', 'main.i18n.json');
+		let allMessages: I18nFormat | undefined;
+		if (fs.existsSync(i18nFile)) {
+			let content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
+			allMessages = JSON.parse(content);
+		}
 		modules.forEach((module) => {
 			let order = keysSection[module];
-			let i18nFile = path.join(cwd, module) + '.i18n.json';
-			let messages: Map<string> | null = null;
-			if (fs.existsSync(i18nFile)) {
-				let content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
-				messages = JSON.parse(content);
-			} else {
+			let moduleMessage: { [messageKey: string]: string } | undefined;
+			if (allMessages) {
+				moduleMessage = allMessages.contents[module];
+			}
+			if (!moduleMessage) {
 				if (process.env['VSCODE_BUILD_VERBOSE']) {
 					log(`No localized messages found for module ${module}. Using default messages.`);
 				}
-				messages = defaultMessages[module];
-				statistics[language.id] = statistics[language.id] + Object.keys(messages).length;
+				moduleMessage = defaultMessages[module];
+				statistics[language.id] = statistics[language.id] + Object.keys(moduleMessage).length;
 			}
 			let localizedMessages: string[] = [];
 			order.forEach((keyInfo) => {
@@ -519,7 +536,7 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 				} else {
 					key = keyInfo.key;
 				}
-				let message: string = messages![key];
+				let message: string = moduleMessage![key];
 				if (!message) {
 					if (process.env['VSCODE_BUILD_VERBOSE']) {
 						log(`No localized message found for key ${key} in module ${module}. Using default message.`);
@@ -1085,7 +1102,7 @@ function retrieveResource(language: Language, resource: Resource, apiHostname: s
 	return limiter.queue(() => new Promise<File | null>((resolve, reject) => {
 		const slug = resource.name.replace(/\//g, '_');
 		const project = resource.project;
-		let transifexLanguageId = language.id === 'ps' ? 'en' : language.transifexId || language.id;
+		let transifexLanguageId = language.id === 'ps' ? 'en' : language.translationId || language.id;
 		const options = {
 			hostname: apiHostname,
 			path: `/api/2/project/${project}/resource/${slug}/translation/${transifexLanguageId}?file&mode=onlyreviewed`,

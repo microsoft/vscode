@@ -5,12 +5,256 @@
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/node/ipc';
+import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { ISocket, Protocol, Client, ChunkStream } from 'vs/base/parts/ipc/common/ipc.net';
+
+export class NodeSocket implements ISocket {
+	public readonly socket: Socket;
+
+	constructor(socket: Socket) {
+		this.socket = socket;
+	}
+
+	public dispose(): void {
+		this.socket.destroy();
+	}
+
+	public onData(_listener: (e: VSBuffer) => void): IDisposable {
+		const listener = (buff: Buffer) => _listener(VSBuffer.wrap(buff));
+		this.socket.on('data', listener);
+		return {
+			dispose: () => this.socket.off('data', listener)
+		};
+	}
+
+	public onClose(listener: () => void): IDisposable {
+		this.socket.on('close', listener);
+		return {
+			dispose: () => this.socket.off('close', listener)
+		};
+	}
+
+	public onEnd(listener: () => void): IDisposable {
+		this.socket.on('end', listener);
+		return {
+			dispose: () => this.socket.off('end', listener)
+		};
+	}
+
+	public write(buffer: VSBuffer): void {
+		// return early if socket has been destroyed in the meantime
+		if (this.socket.destroyed) {
+			return;
+		}
+
+		// we ignore the returned value from `write` because we would have to cached the data
+		// anyways and nodejs is already doing that for us:
+		// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
+		// > However, the false return value is only advisory and the writable stream will unconditionally
+		// > accept and buffer chunk even if it has not not been allowed to drain.
+		this.socket.write(<Buffer>buffer.buffer);
+	}
+
+	public end(): void {
+		this.socket.end();
+	}
+}
+
+const enum Constants {
+	MinHeaderByteSize = 2
+}
+
+const enum ReadState {
+	PeekHeader = 1,
+	ReadHeader = 2,
+	ReadBody = 3,
+	Fin = 4
+}
+
+/**
+ * See https://tools.ietf.org/html/rfc6455#section-5.2
+ */
+export class WebSocketNodeSocket extends Disposable implements ISocket {
+
+	public readonly socket: NodeSocket;
+	private readonly _incomingData: ChunkStream;
+	private readonly _onData = this._register(new Emitter<VSBuffer>());
+
+	private readonly _state = {
+		state: ReadState.PeekHeader,
+		readLen: Constants.MinHeaderByteSize,
+		mask: 0
+	};
+
+	constructor(socket: NodeSocket) {
+		super();
+		this.socket = socket;
+		this._incomingData = new ChunkStream();
+		this._register(this.socket.onData(data => this._acceptChunk(data)));
+	}
+
+	public dispose(): void {
+		this.socket.dispose();
+	}
+
+	public onData(listener: (e: VSBuffer) => void): IDisposable {
+		return this._onData.event(listener);
+	}
+
+	public onClose(listener: () => void): IDisposable {
+		return this.socket.onClose(listener);
+	}
+
+	public onEnd(listener: () => void): IDisposable {
+		return this.socket.onEnd(listener);
+	}
+
+	public write(buffer: VSBuffer): void {
+		let headerLen = Constants.MinHeaderByteSize;
+		if (buffer.byteLength < 126) {
+			headerLen += 0;
+		} else if (buffer.byteLength < 2 ** 16) {
+			headerLen += 2;
+		} else {
+			headerLen += 8;
+		}
+		const header = VSBuffer.alloc(headerLen);
+
+		header.writeUInt8(0b10000010, 0);
+		if (buffer.byteLength < 126) {
+			header.writeUInt8(buffer.byteLength, 1);
+		} else if (buffer.byteLength < 2 ** 16) {
+			header.writeUInt8(126, 1);
+			let offset = 1;
+			header.writeUInt8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
+			header.writeUInt8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
+		} else {
+			header.writeUInt8(127, 1);
+			let offset = 1;
+			header.writeUInt8(0, ++offset);
+			header.writeUInt8(0, ++offset);
+			header.writeUInt8(0, ++offset);
+			header.writeUInt8(0, ++offset);
+			header.writeUInt8((buffer.byteLength >>> 24) & 0b11111111, ++offset);
+			header.writeUInt8((buffer.byteLength >>> 16) & 0b11111111, ++offset);
+			header.writeUInt8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
+			header.writeUInt8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
+		}
+
+		this.socket.write(VSBuffer.concat([header, buffer]));
+	}
+
+	public end(): void {
+		this.socket.end();
+	}
+
+	private _acceptChunk(data: VSBuffer): void {
+		if (data.byteLength === 0) {
+			return;
+		}
+
+		this._incomingData.acceptChunk(data);
+
+		while (this._incomingData.byteLength >= this._state.readLen) {
+
+			if (this._state.state === ReadState.PeekHeader) {
+				// peek to see if we can read the entire header
+				const peekHeader = this._incomingData.peek(this._state.readLen);
+				// const firstByte = peekHeader.readUInt8(0);
+				// const finBit = (firstByte & 0b10000000) >>> 7;
+				const secondByte = peekHeader.readUInt8(1);
+				const hasMask = (secondByte & 0b10000000) >>> 7;
+				const len = (secondByte & 0b01111111);
+
+				this._state.state = ReadState.ReadHeader;
+				this._state.readLen = Constants.MinHeaderByteSize + (hasMask ? 4 : 0) + (len === 126 ? 2 : 0) + (len === 127 ? 8 : 0);
+				this._state.mask = 0;
+
+			} else if (this._state.state === ReadState.ReadHeader) {
+				// read entire header
+				const header = this._incomingData.read(this._state.readLen);
+				const secondByte = header.readUInt8(1);
+				const hasMask = (secondByte & 0b10000000) >>> 7;
+				let len = (secondByte & 0b01111111);
+
+				let offset = 1;
+				if (len === 126) {
+					len = (
+						header.readUInt8(++offset) * 2 ** 8
+						+ header.readUInt8(++offset)
+					);
+				} else if (len === 127) {
+					len = (
+						header.readUInt8(++offset) * 0
+						+ header.readUInt8(++offset) * 0
+						+ header.readUInt8(++offset) * 0
+						+ header.readUInt8(++offset) * 0
+						+ header.readUInt8(++offset) * 2 ** 24
+						+ header.readUInt8(++offset) * 2 ** 16
+						+ header.readUInt8(++offset) * 2 ** 8
+						+ header.readUInt8(++offset)
+					);
+				}
+
+				let mask = 0;
+				if (hasMask) {
+					mask = (
+						header.readUInt8(++offset) * 2 ** 24
+						+ header.readUInt8(++offset) * 2 ** 16
+						+ header.readUInt8(++offset) * 2 ** 8
+						+ header.readUInt8(++offset)
+					);
+				}
+
+				this._state.state = ReadState.ReadBody;
+				this._state.readLen = len;
+				this._state.mask = mask;
+
+			} else if (this._state.state === ReadState.ReadBody) {
+				// read body
+
+				const body = this._incomingData.read(this._state.readLen);
+				unmask(body, this._state.mask);
+
+				this._state.state = ReadState.PeekHeader;
+				this._state.readLen = Constants.MinHeaderByteSize;
+				this._state.mask = 0;
+
+				this._onData.fire(body);
+			}
+		}
+	}
+}
+
+function unmask(buffer: VSBuffer, mask: number): void {
+	if (mask === 0) {
+		return;
+	}
+	let cnt = buffer.byteLength >>> 2;
+	for (let i = 0; i < cnt; i++) {
+		const v = buffer.readUInt32BE(i * 4);
+		buffer.writeUInt32BE(v ^ mask, i * 4);
+	}
+	let offset = cnt * 4;
+	let bytesLeft = buffer.byteLength - offset;
+	const m3 = (mask >>> 24) & 0b11111111;
+	const m2 = (mask >>> 16) & 0b11111111;
+	const m1 = (mask >>> 8) & 0b11111111;
+	if (bytesLeft >= 1) {
+		buffer.writeUInt8(buffer.readUInt8(offset) ^ m3, offset);
+	}
+	if (bytesLeft >= 2) {
+		buffer.writeUInt8(buffer.readUInt8(offset + 1) ^ m2, offset + 1);
+	}
+	if (bytesLeft >= 3) {
+		buffer.writeUInt8(buffer.readUInt8(offset + 2) ^ m1, offset + 2);
+	}
+}
 
 export function generateRandomPipeName(): string {
 	const randomSuffix = generateUuid();
@@ -22,195 +266,13 @@ export function generateRandomPipeName(): string {
 	}
 }
 
-/**
- * A message has the following format:
- *
- * 		[bodyLen|message]
- * 		[header^|data^^^]
- * 		[u32be^^|buffer^]
- */
-
-export class Protocol implements IDisposable, IMessagePassingProtocol {
-
-	private static readonly _headerLen = 4;
-
-	private _isDisposed: boolean;
-	private _chunks: Buffer[];
-
-	private _firstChunkTimer: TimeoutTimer;
-	private _socketDataListener: (data: Buffer) => void;
-	private _socketEndListener: () => void;
-	private _socketCloseListener: () => void;
-
-	private _onMessage = new Emitter<Buffer>();
-	readonly onMessage: Event<Buffer> = this._onMessage.event;
-
-	private _onClose = new Emitter<void>();
-	readonly onClose: Event<void> = this._onClose.event;
-
-	constructor(private _socket: Socket, firstDataChunk?: Buffer) {
-		this._isDisposed = false;
-		this._chunks = [];
-
-		let totalLength = 0;
-
-		const state = {
-			readHead: true,
-			bodyLen: -1,
-		};
-
-		const acceptChunk = (data: Buffer) => {
-
-			this._chunks.push(data);
-			totalLength += data.length;
-
-			while (totalLength > 0) {
-
-				if (state.readHead) {
-					// expecting header -> read 5bytes for header
-					// information: `bodyIsJson` and `bodyLen`
-					if (totalLength >= Protocol._headerLen) {
-						const all = Buffer.concat(this._chunks);
-
-						state.bodyLen = all.readUInt32BE(0);
-						state.readHead = false;
-
-						const rest = all.slice(Protocol._headerLen);
-						totalLength = rest.length;
-						this._chunks = [rest];
-
-					} else {
-						break;
-					}
-				}
-
-				if (!state.readHead) {
-					// expecting body -> read bodyLen-bytes for
-					// the actual message or wait for more data
-					if (totalLength >= state.bodyLen) {
-
-						const all = Buffer.concat(this._chunks);
-						const buffer = all.slice(0, state.bodyLen);
-
-						// ensure the getBuffer returns a valid value if invoked from the event listeners
-						const rest = all.slice(state.bodyLen);
-						totalLength = rest.length;
-						this._chunks = [rest];
-
-						state.bodyLen = -1;
-						state.readHead = true;
-
-						this._onMessage.fire(buffer);
-
-						if (this._isDisposed) {
-							// check if an event listener lead to our disposal
-							break;
-						}
-					} else {
-						break;
-					}
-				}
-			}
-		};
-
-		const acceptFirstDataChunk = () => {
-			if (firstDataChunk && firstDataChunk.length > 0) {
-				let tmp = firstDataChunk;
-				firstDataChunk = undefined;
-				acceptChunk(tmp);
-			}
-		};
-
-		// Make sure to always handle the firstDataChunk if no more `data` event comes in
-		this._firstChunkTimer = new TimeoutTimer();
-		this._firstChunkTimer.setIfNotSet(() => {
-			acceptFirstDataChunk();
-		}, 0);
-
-		this._socketDataListener = (data: Buffer) => {
-			acceptFirstDataChunk();
-			acceptChunk(data);
-		};
-		_socket.on('data', this._socketDataListener);
-
-		this._socketEndListener = () => {
-			acceptFirstDataChunk();
-		};
-		_socket.on('end', this._socketEndListener);
-
-		this._socketCloseListener = () => {
-			this._onClose.fire();
-		};
-		_socket.once('close', this._socketCloseListener);
-	}
-
-	dispose(): void {
-		this._isDisposed = true;
-		this._firstChunkTimer.dispose();
-		this._socket.removeListener('data', this._socketDataListener);
-		this._socket.removeListener('end', this._socketEndListener);
-		this._socket.removeListener('close', this._socketCloseListener);
-	}
-
-	end(): void {
-		this._socket.end();
-	}
-
-	getBuffer(): Buffer {
-		return Buffer.concat(this._chunks);
-	}
-
-	send(buffer: Buffer): void {
-		const header = Buffer.allocUnsafe(Protocol._headerLen);
-		header.writeUInt32BE(buffer.length, 0, true);
-		this._writeSoon(header, buffer);
-	}
-
-	private _writeBuffer = new class {
-
-		private _data: Buffer[] = [];
-		private _totalLength = 0;
-
-		add(head: Buffer, body: Buffer): boolean {
-			const wasEmpty = this._totalLength === 0;
-			this._data.push(head, body);
-			this._totalLength += head.length + body.length;
-			return wasEmpty;
-		}
-
-		take(): Buffer {
-			const ret = Buffer.concat(this._data, this._totalLength);
-			this._data.length = 0;
-			this._totalLength = 0;
-			return ret;
-		}
-	};
-
-	private _writeSoon(header: Buffer, data: Buffer): void {
-		if (this._writeBuffer.add(header, data)) {
-			setImmediate(() => {
-				// return early if socket has been destroyed in the meantime
-				if (this._socket.destroyed) {
-					return;
-				}
-				// we ignore the returned value from `write` because we would have to cached the data
-				// anyways and nodejs is already doing that for us:
-				// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
-				// > However, the false return value is only advisory and the writable stream will unconditionally
-				// > accept and buffer chunk even if it has not not been allowed to drain.
-				this._socket.write(this._writeBuffer.take());
-			});
-		}
-	}
-}
-
 export class Server extends IPCServer {
 
 	private static toClientConnectionEvent(server: NetServer): Event<ClientConnectionEvent> {
 		const onConnection = Event.fromNodeEventEmitter<Socket>(server, 'connection');
 
 		return Event.map(onConnection, socket => ({
-			protocol: new Protocol(socket),
+			protocol: new Protocol(new NodeSocket(socket)),
 			onDidClientDisconnect: Event.once(Event.fromNodeEventEmitter<void>(socket, 'close'))
 		}));
 	}
@@ -228,24 +290,6 @@ export class Server extends IPCServer {
 			this.server.close();
 			this.server = null;
 		}
-	}
-}
-
-export class Client<TContext = string> extends IPCClient<TContext> {
-
-	static fromSocket<TContext = string>(socket: Socket, id: TContext): Client<TContext> {
-		return new Client(new Protocol(socket), id);
-	}
-
-	get onClose(): Event<void> { return this.protocol.onClose; }
-
-	constructor(private protocol: Protocol | BufferedProtocol, id: TContext) {
-		super(protocol, id);
-	}
-
-	dispose(): void {
-		super.dispose();
-		this.protocol.end();
 	}
 }
 
@@ -270,74 +314,9 @@ export function connect(hook: any, clientId: string): Promise<Client> {
 	return new Promise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
-			c(Client.fromSocket(socket, clientId));
+			c(Client.fromSocket(new NodeSocket(socket), clientId));
 		});
 
 		socket.once('error', e);
 	});
-}
-
-/**
- * Will ensure no messages are lost if there are no event listeners.
- */
-function createBufferedEvent<T>(source: Event<T>): Event<T> {
-	let emitter: Emitter<T>;
-	let hasListeners = false;
-	let isDeliveringMessages = false;
-	let bufferedMessages: T[] = [];
-
-	const deliverMessages = () => {
-		if (isDeliveringMessages) {
-			return;
-		}
-		isDeliveringMessages = true;
-		while (hasListeners && bufferedMessages.length > 0) {
-			emitter.fire(bufferedMessages.shift()!);
-		}
-		isDeliveringMessages = false;
-	};
-
-	source((e: T) => {
-		bufferedMessages.push(e);
-		deliverMessages();
-	});
-
-	emitter = new Emitter<T>({
-		onFirstListenerAdd: () => {
-			hasListeners = true;
-			// it is important to deliver these messages after this call, but before
-			// other messages have a chance to be received (to guarantee in order delivery)
-			// that's why we're using here nextTick and not other types of timeouts
-			process.nextTick(deliverMessages);
-		},
-		onLastListenerRemove: () => {
-			hasListeners = false;
-		}
-	});
-
-	return emitter.event;
-}
-
-/**
- * Will ensure no messages are lost if there are no event listeners.
- */
-export class BufferedProtocol implements IMessagePassingProtocol {
-
-	private readonly _actual: Protocol;
-	public readonly onMessage: Event<Buffer>;
-	public readonly onClose: Event<void>;
-
-	constructor(actual: Protocol) {
-		this._actual = actual;
-		this.onMessage = createBufferedEvent(this._actual.onMessage);
-		this.onClose = createBufferedEvent(this._actual.onClose);
-	}
-
-	public send(buffer: Buffer): void {
-		this._actual.send(buffer);
-	}
-
-	public end(): void {
-		this._actual.end();
-	}
 }

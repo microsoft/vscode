@@ -56,12 +56,16 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getColorTheme(): IColorTheme;
 	getColorThemes(): Promise<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
-	restoreColorTheme();
+	restoreColorTheme(): void;
 
 	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
 	getFileIconThemes(): Promise<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
+}
+
+export interface IColorCustomizations {
+	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
 }
 
 export interface ITokenColorCustomizations {

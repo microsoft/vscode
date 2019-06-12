@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
@@ -23,7 +23,7 @@ import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService, INotificationHandle, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -223,7 +223,7 @@ class CommandAction extends Action {
 	}
 }
 
-export class UpdateContribution implements IGlobalActivity {
+export class UpdateContribution extends Disposable implements IGlobalActivity {
 
 	private static readonly showCommandsId = 'workbench.action.showCommands';
 	private static readonly openSettingsId = 'workbench.action.openSettings';
@@ -232,6 +232,7 @@ export class UpdateContribution implements IGlobalActivity {
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
 	private static readonly selectIconThemeId = 'workbench.action.selectIconTheme';
 	private static readonly showExtensionsId = 'workbench.view.extensions';
+	private static readonly showOnlineSettingsId = 'settings.filterByOnline';
 
 	get id() { return 'vs.update'; }
 	get name() { return nls.localize('manage', "Manage"); }
@@ -239,7 +240,6 @@ export class UpdateContribution implements IGlobalActivity {
 
 	private state: UpdateState;
 	private badgeDisposable: IDisposable = Disposable.None;
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -249,11 +249,12 @@ export class UpdateContribution implements IGlobalActivity {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IWindowService private readonly windowService: IWindowService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
+		super();
 		this.state = updateService.state;
 
-		updateService.onStateChange(this.onUpdateStateChange, this, this.disposables);
+		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
 		this.onUpdateStateChange(this.updateService.state);
 
 		/*
@@ -279,7 +280,7 @@ export class UpdateContribution implements IGlobalActivity {
 			case StateType.Idle:
 				if (state.error) {
 					this.onError(state.error);
-				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.windowService.getCurrentWindowId()) {
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.environmentService.configuration.windowId) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -465,7 +466,7 @@ export class UpdateContribution implements IGlobalActivity {
 			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL);
 		}
 
-		const updateNotificationMillis = this.storageService.getInteger('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
+		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
 		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
 
 		return diffDays > 5;
@@ -476,6 +477,7 @@ export class UpdateContribution implements IGlobalActivity {
 			new CommandAction(UpdateContribution.showCommandsId, nls.localize('commandPalette', "Command Palette..."), this.commandService),
 			new Separator(),
 			new CommandAction(UpdateContribution.openSettingsId, nls.localize('settings', "Settings"), this.commandService),
+			new CommandAction(UpdateContribution.showOnlineSettingsId, nls.localize('onlineServices', "Online Services Settings"), this.commandService),
 			new CommandAction(UpdateContribution.showExtensionsId, nls.localize('showExtensions', "Extensions"), this.commandService),
 			new CommandAction(UpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), this.commandService),
 			new Separator(),
@@ -502,7 +504,7 @@ export class UpdateContribution implements IGlobalActivity {
 				return null;
 
 			case StateType.Idle:
-				const windowId = this.windowService.getCurrentWindowId();
+				const windowId = this.environmentService.configuration.windowId;
 				return new Action('update.check', nls.localize('checkForUpdates', "Check for Updates..."), undefined, true, () =>
 					this.updateService.checkForUpdates({ windowId }));
 
@@ -524,12 +526,8 @@ export class UpdateContribution implements IGlobalActivity {
 				return new Action('update.updating', nls.localize('installingUpdate', "Installing Update..."), undefined, false);
 
 			case StateType.Ready:
-				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update..."), undefined, true, () =>
+				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update"), undefined, true, () =>
 					this.updateService.quitAndInstall());
 		}
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }

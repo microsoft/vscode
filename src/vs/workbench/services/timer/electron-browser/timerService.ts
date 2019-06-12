@@ -7,11 +7,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { virtualMachineHint } from 'vs/base/node/id';
 import * as perf from 'vs/base/common/performance';
 import * as os from 'os';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -19,18 +19,15 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
-
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
 		"workingSetSize" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"peakWorkingSetSize": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"privateBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"sharedBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 	}
 */
 export interface IMemoryInfo {
 	readonly workingSetSize: number;
-	readonly peakWorkingSetSize: number;
 	readonly privateBytes: number;
 	readonly sharedBytes: number;
 }
@@ -211,7 +208,7 @@ export interface IStartupMetrics {
 		readonly ellapsedWorkspaceServiceInit: number;
 
 		/**
-		 * The time it took to load the main-bundle of the workbench, e.g `workbench.main.js`.
+		 * The time it took to load the main-bundle of the workbench, e.g. `workbench.main.js`.
 		 *
 		 * * Happens in the renderer-process
 		 * * Measured with the `willLoadWorkbenchMain` and `didLoadWorkbenchMain` performance marks.
@@ -312,7 +309,7 @@ class TimerService implements ITimerService {
 
 	constructor(
 		@IWindowsService private readonly _windowsService: IWindowsService,
-		@IWindowService private readonly _windowService: IWindowService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -335,7 +332,7 @@ class TimerService implements ITimerService {
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
 
 		const now = Date.now();
-		const initialStartup = !!this._windowService.getConfiguration().isInitialStartup;
+		const initialStartup = !!this._environmentService.configuration.isInitialStartup;
 		const startMark = initialStartup ? 'main:started' : 'main:loadWindow';
 
 		let totalmem: number | undefined;
@@ -355,7 +352,13 @@ class TimerService implements ITimerService {
 			release = os.release();
 			arch = os.arch();
 			loadavg = os.loadavg();
-			meminfo = process.getProcessMemoryInfo();
+
+			const processMemoryInfo = await process.getProcessMemoryInfo();
+			meminfo = {
+				workingSetSize: processMemoryInfo.residentSet,
+				privateBytes: processMemoryInfo.private,
+				sharedBytes: processMemoryInfo.shared
+			};
 
 			isVMLikelyhood = Math.round((virtualMachineHint.value() * 100));
 
@@ -428,16 +431,19 @@ export function didUseCachedData(): boolean {
 	if (!Boolean((<any>global).require.getConfig().nodeCachedData)) {
 		return false;
 	}
-	// whenever cached data is produced or rejected a onNodeCachedData-callback is invoked. That callback
-	// stores data in the `MonacoEnvironment.onNodeCachedData` global. See:
-	// https://github.com/Microsoft/vscode/blob/efe424dfe76a492eab032343e2fa4cfe639939f0/src/vs/workbench/electron-browser/bootstrap/index.js#L299
-	if (isNonEmptyArray(MonacoEnvironment.onNodeCachedData)) {
-		return false;
+	// There are loader events that signal if cached data was missing, rejected,
+	// or used. The former two mean no cached data.
+	let cachedDataFound = 0;
+	for (const event of require.getStats()) {
+		switch (event.type) {
+			case LoaderEventType.CachedDataRejected:
+				return false;
+			case LoaderEventType.CachedDataFound:
+				cachedDataFound += 1;
+				break;
+		}
 	}
-	return true;
+	return cachedDataFound > 0;
 }
-
-declare type OnNodeCachedDataArgs = [{ errorCode: string, path: string, detail?: string }, { path: string, length: number }];
-declare const MonacoEnvironment: { onNodeCachedData: OnNodeCachedDataArgs[] };
 
 //#endregion

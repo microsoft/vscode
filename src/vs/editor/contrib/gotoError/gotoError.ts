@@ -29,7 +29,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 class MarkerModel {
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 	private _markers: IMarker[];
 	private _nextIdx: number;
 	private _toUnbind: IDisposable[];
@@ -202,10 +202,10 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		return editor.getContribution<MarkerController>(MarkerController.ID);
 	}
 
-	private _editor: ICodeEditor;
-	private _model: MarkerModel | null;
-	private _widget: MarkerNavigationWidget | null;
-	private _widgetVisible: IContextKey<boolean>;
+	private readonly _editor: ICodeEditor;
+	private _model: MarkerModel | null = null;
+	private _widget: MarkerNavigationWidget | null = null;
+	private readonly _widgetVisible: IContextKey<boolean>;
 	private _disposeOnClose: IDisposable[] = [];
 
 	constructor(
@@ -253,6 +253,7 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		];
 		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);
+		this._widget.onDidClose(() => this._cleanUp(), this, this._disposeOnClose);
 
 		this._disposeOnClose.push(this._model);
 		this._disposeOnClose.push(this._widget);
@@ -337,9 +338,9 @@ export class MarkerController implements editorCommon.IEditorContribution {
 
 class MarkerNavigationAction extends EditorAction {
 
-	private _isNext: boolean;
+	private readonly _isNext: boolean;
 
-	private _multiFile: boolean;
+	private readonly _multiFile: boolean;
 
 	constructor(next: boolean, multiFile: boolean, opts: IActionOptions) {
 		super(opts);
@@ -427,7 +428,7 @@ export class NextMarkerAction extends MarkerNavigationAction {
 		super(true, false, {
 			id: NextMarkerAction.ID,
 			label: NextMarkerAction.LABEL,
-			alias: 'Go to Next Error or Warning',
+			alias: 'Go to Next Problem (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
@@ -441,7 +442,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 		super(false, false, {
 			id: PrevMarkerAction.ID,
 			label: PrevMarkerAction.LABEL,
-			alias: 'Go to Previous Error or Warning',
+			alias: 'Go to Previous Problem (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
@@ -453,7 +454,7 @@ class NextMarkerInFilesAction extends MarkerNavigationAction {
 		super(true, true, {
 			id: 'editor.action.marker.nextInFiles',
 			label: nls.localize('markerAction.nextInFiles.label', "Go to Next Problem in Files (Error, Warning, Info)"),
-			alias: 'Go to Next Error or Warning in Files',
+			alias: 'Go to Next Problem in Files (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -469,7 +470,7 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 		super(false, true, {
 			id: 'editor.action.marker.prevInFiles',
 			label: nls.localize('markerAction.previousInFiles.label', "Go to Previous Problem in Files (Error, Warning, Info)"),
-			alias: 'Go to Previous Error or Warning in Files',
+			alias: 'Go to Previous Problem in Files (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,

@@ -9,7 +9,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId, PreferencesLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId, PreferencesLabel, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionTipsService';
@@ -33,7 +33,7 @@ import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonCo
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeymapExtensions } from 'vs/workbench/contrib/extensions/electron-browser/extensionsUtils';
+import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -42,10 +42,14 @@ import { RuntimeExtensionsEditor, ShowRuntimeExtensionsAction, IExtensionHostPro
 import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-browser/extensionProfileService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActivationProgress';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/electron-browser/extensionsDependencyChecker';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -60,6 +64,7 @@ workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
@@ -70,7 +75,7 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 		ExtensionsHandler,
 		ExtensionsHandler.ID,
 		'ext ',
-		null,
+		undefined,
 		localize('extensionsCommands', "Manage Extensions"),
 		true
 	)
@@ -81,7 +86,7 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 		GalleryExtensionsHandler,
 		GalleryExtensionsHandler.ID,
 		'ext install ',
-		null,
+		undefined,
 		localize('galleryExtensionsCommands', "Install Gallery Extensions"),
 		true
 	)
@@ -187,13 +192,13 @@ const disableAllWorkspaceAction = new SyncActionDescriptor(DisableAllWorkpsaceAc
 actionRegistry.registerWorkbenchAction(disableAllWorkspaceAction, 'Extensions: Disable All Installed Extensions for this Workspace', ExtensionsLabel);
 
 const enableAllAction = new SyncActionDescriptor(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL);
-actionRegistry.registerWorkbenchAction(enableAllAction, 'Extensions: Enable All Installed Extensions', ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(enableAllAction, 'Extensions: Enable All Extensions', ExtensionsLabel);
 
 const enableAllWorkspaceAction = new SyncActionDescriptor(EnableAllWorkpsaceAction, EnableAllWorkpsaceAction.ID, EnableAllWorkpsaceAction.LABEL);
-actionRegistry.registerWorkbenchAction(enableAllWorkspaceAction, 'Extensions: Enable All Installed Extensions for this Workspace', ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(enableAllWorkspaceAction, 'Extensions: Enable All Extensions for this Workspace', ExtensionsLabel);
 
 const checkForUpdatesAction = new SyncActionDescriptor(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL);
-actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: Check for Updates`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: Check for Extension Updates`, ExtensionsLabel);
 
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL), `Extensions: Enable Auto Updating Extensions`, ExtensionsLabel);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL), `Extensions: Disable Auto Updating Extensions`, ExtensionsLabel);
@@ -256,7 +261,7 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 CommandsRegistry.registerCommand('extension.open', (accessor: ServicesAccessor, extensionId: string) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 
-	return extensionService.queryGallery({ names: [extensionId], pageSize: 1 }).then(pager => {
+	return extensionService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None).then(pager => {
 		if (pager.total !== 1) {
 			return;
 		}
@@ -266,23 +271,23 @@ CommandsRegistry.registerCommand('extension.open', (accessor: ServicesAccessor, 
 });
 
 CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(DebugExtensionHostAction).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(DebugExtensionHostAction).run();
 });
 
 CommandsRegistry.registerCommand(StartExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL).run();
 });
 
 CommandsRegistry.registerCommand(StopExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL).run();
 });
 
 CommandsRegistry.registerCommand(SaveExtensionHostProfileAction.ID, (accessor: ServicesAccessor) => {
-	const instantationService = accessor.get(IInstantiationService);
-	instantationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL).run();
+	const instantiationService = accessor.get(IInstantiationService);
+	instantiationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL).run();
 });
 
 // File menu registration
@@ -302,7 +307,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 		id: VIEWLET_ID,
 		title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 	},
-	order: 2
+	order: 3
 });
 
 // View menu
@@ -369,4 +374,69 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	group: 'navigation',
 	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID))
+});
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.extensions.installExtension',
+	description: {
+		description: localize('workbench.extensions.installExtension.description', "Install the given extension"),
+		args: [
+			{
+				name: localize('workbench.extensions.installExtension.arg.name', "Extension id or VSIX resource uri"),
+				schema: {
+					'type': ['object', 'string']
+				}
+			}
+		]
+	},
+	handler: async (accessor, arg: string | UriComponents) => {
+		const extensionManagementService = accessor.get(IExtensionManagementService);
+		const extensionGalleryService = accessor.get(IExtensionGalleryService);
+		try {
+			if (typeof arg === 'string') {
+				const extension = await extensionGalleryService.getCompatibleExtension({ id: arg });
+				if (extension) {
+					await extensionManagementService.installFromGallery(extension);
+				} else {
+					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
+				}
+			} else {
+				const vsix = URI.revive(arg);
+				await extensionManagementService.install(vsix);
+			}
+		} catch (e) {
+			onUnexpectedError(e);
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.extensions.uninstallExtension',
+	description: {
+		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
+		args: [
+			{
+				name: localize('workbench.extensions.uninstallExtension.arg.name', "Id of the extension to uninstall"),
+				schema: {
+					'type': 'string'
+				}
+			}
+		]
+	},
+	handler: async (accessor, id: string) => {
+		if (!id) {
+			throw new Error(localize('id required', "Extension id required."));
+		}
+		const extensionManagementService = accessor.get(IExtensionManagementService);
+		try {
+			const installed = await extensionManagementService.getInstalled(ExtensionType.User);
+			const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
+			if (!extensionToUninstall) {
+				return Promise.reject(new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-vscode.csharp.", id)));
+			}
+			await extensionManagementService.uninstall(extensionToUninstall, true);
+		} catch (e) {
+			onUnexpectedError(e);
+		}
+	}
 });

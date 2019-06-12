@@ -11,7 +11,6 @@ const lp = require('./vs/base/node/languagePacks');
 
 perf.mark('main:started');
 
-const fs = require('fs');
 const path = require('path');
 const bootstrap = require('./bootstrap');
 const paths = require('./paths');
@@ -29,21 +28,6 @@ bootstrap.enableASARSupport();
 // Set userData path before app 'ready' event and call to process.chdir
 const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
-
-// global storage migration needs to happen very early before app.on("ready")
-// TODO@Ben remove after a while
-try {
-	const globalStorageHome = path.join(userDataPath, 'User', 'globalStorage', 'state.vscdb');
-	const localStorageHome = path.join(userDataPath, 'Local Storage');
-	const localStorageDB = path.join(localStorageHome, 'file__0.localstorage');
-	const localStorageDBBackup = path.join(localStorageHome, 'file__0.vscmig');
-	if (!fs.existsSync(globalStorageHome) && fs.existsSync(localStorageDB)) {
-		fs.renameSync(localStorageDB, localStorageDBBackup);
-	}
-} catch (error) {
-	console.error(error);
-}
-
 app.setPath('userData', userDataPath);
 
 // Update cwd based on environment and platform
@@ -162,6 +146,11 @@ function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 	if (jsFlags) {
 		app.commandLine.appendSwitch('--js-flags', jsFlags);
 	}
+
+	// Disable smooth scrolling for Webviews
+	if (cliArgs['disable-smooth-scrolling']) {
+		app.commandLine.appendSwitch('disable-smooth-scrolling');
+	}
 }
 
 /**
@@ -216,7 +205,7 @@ function parseCLIArgs() {
 function setCurrentWorkingDirectory() {
 	try {
 		if (process.platform === 'win32') {
-			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment letiable
+			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
 			process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
 		} else if (process.env['VSCODE_CWD']) {
 			process.chdir(process.env['VSCODE_CWD']);

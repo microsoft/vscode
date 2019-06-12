@@ -21,8 +21,8 @@ function log(message, ...rest) {
     fancyLog(ansiColors.green('[i18n]'), message, ...rest);
 }
 exports.defaultLanguages = [
-    { id: 'zh-tw', folderName: 'cht', transifexId: 'zh-hant' },
-    { id: 'zh-cn', folderName: 'chs', transifexId: 'zh-hans' },
+    { id: 'zh-tw', folderName: 'cht', translationId: 'zh-hant' },
+    { id: 'zh-cn', folderName: 'chs', translationId: 'zh-hans' },
     { id: 'ja', folderName: 'jpn' },
     { id: 'ko', folderName: 'kor' },
     { id: 'de', folderName: 'deu' },
@@ -372,7 +372,11 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
             }
         });
     });
-    let languageDirectory = path.join(__dirname, '..', '..', 'i18n');
+    let languageDirectory = path.join(__dirname, '..', '..', '..', 'vscode-loc', 'i18n');
+    if (!fs.existsSync(languageDirectory)) {
+        log(`No VS Code localization repository found. Looking at ${languageDirectory}`);
+        log(`To bundle translations please check out the vscode-loc repository as a sibling of the vscode repository.`);
+    }
     let sortedLanguages = sortLanguages(languages);
     sortedLanguages.forEach((language) => {
         if (process.env['VSCODE_BUILD_VERBOSE']) {
@@ -380,22 +384,25 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
         }
         statistics[language.id] = 0;
         let localizedModules = Object.create(null);
-        let languageFolderName = language.folderName || language.id;
-        let cwd = path.join(languageDirectory, languageFolderName, 'src');
+        let languageFolderName = language.translationId || language.id;
+        let i18nFile = path.join(languageDirectory, `vscode-language-pack-${languageFolderName}`, 'translations', 'main.i18n.json');
+        let allMessages;
+        if (fs.existsSync(i18nFile)) {
+            let content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
+            allMessages = JSON.parse(content);
+        }
         modules.forEach((module) => {
             let order = keysSection[module];
-            let i18nFile = path.join(cwd, module) + '.i18n.json';
-            let messages = null;
-            if (fs.existsSync(i18nFile)) {
-                let content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
-                messages = JSON.parse(content);
+            let moduleMessage;
+            if (allMessages) {
+                moduleMessage = allMessages.contents[module];
             }
-            else {
+            if (!moduleMessage) {
                 if (process.env['VSCODE_BUILD_VERBOSE']) {
                     log(`No localized messages found for module ${module}. Using default messages.`);
                 }
-                messages = defaultMessages[module];
-                statistics[language.id] = statistics[language.id] + Object.keys(messages).length;
+                moduleMessage = defaultMessages[module];
+                statistics[language.id] = statistics[language.id] + Object.keys(moduleMessage).length;
             }
             let localizedMessages = [];
             order.forEach((keyInfo) => {
@@ -406,7 +413,7 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
                 else {
                     key = keyInfo.key;
                 }
-                let message = messages[key];
+                let message = moduleMessage[key];
                 if (!message) {
                     if (process.env['VSCODE_BUILD_VERBOSE']) {
                         log(`No localized message found for key ${key} in module ${module}. Using default message.`);
@@ -950,7 +957,7 @@ function retrieveResource(language, resource, apiHostname, credentials) {
     return limiter.queue(() => new Promise((resolve, reject) => {
         const slug = resource.name.replace(/\//g, '_');
         const project = resource.project;
-        let transifexLanguageId = language.id === 'ps' ? 'en' : language.transifexId || language.id;
+        let transifexLanguageId = language.id === 'ps' ? 'en' : language.translationId || language.id;
         const options = {
             hostname: apiHostname,
             path: `/api/2/project/${project}/resource/${slug}/translation/${transifexLanguageId}?file&mode=onlyreviewed`,

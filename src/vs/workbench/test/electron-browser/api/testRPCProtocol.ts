@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
-import { IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { isThenable } from 'vs/base/common/async';
 
 export function SingleProxyRPCProtocol(thing: any): IExtHostContext {

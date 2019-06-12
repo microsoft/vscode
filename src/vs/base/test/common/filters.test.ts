@@ -7,7 +7,7 @@ import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matc
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
-	assert(r);
+	assert(r, `${word} didn't match ${wordToMatchAgainst}`);
 	if (highlights) {
 		assert.deepEqual(r, highlights);
 	}
@@ -202,6 +202,17 @@ suite('Filters', () => {
 
 		assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
 		assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+
+		filterOk(matchesWords, 'bar', 'foo-bar');
+		filterOk(matchesWords, 'bar test', 'foo-bar test');
+		filterOk(matchesWords, 'fbt', 'foo-bar test');
+		filterOk(matchesWords, 'bar test', 'foo-bar (test)');
+		filterOk(matchesWords, 'foo bar', 'foo (bar)');
+
+		filterNotOk(matchesWords, 'bar est', 'foo-bar test');
+		filterNotOk(matchesWords, 'fo ar', 'foo-bar test');
+		filterNotOk(matchesWords, 'for', 'foo-bar test');
+		filterNotOk(matchesWords, 'foo bar', 'foo-bar');
 	});
 
 	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number, wordPos?: number, firstMatchCanBeWeak?: boolean } = {}) {

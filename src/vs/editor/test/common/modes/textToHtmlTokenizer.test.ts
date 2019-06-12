@@ -18,7 +18,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 1', () => {
 		let mode = new Mode();
-		let support = TokenizationRegistry.get(mode.getId());
+		let support = TokenizationRegistry.get(mode.getId())!;
 
 		let actual = tokenizeToString('.abc..def...gh', support);
 		let expected = [
@@ -38,7 +38,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 2', () => {
 		let mode = new Mode();
-		let support = TokenizationRegistry.get(mode.getId());
+		let support = TokenizationRegistry.get(mode.getId())!;
 
 		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', support);
 		let expected1 = [

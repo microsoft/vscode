@@ -86,7 +86,7 @@ class MyResourceInput extends ResourceEditorInput { }
 
 suite('Workbench base editor', () => {
 
-	test('BaseEditor API', function () {
+	test('BaseEditor API', async () => {
 		let e = new MyEditor(NullTelemetryService);
 		let input = new MyOtherInput();
 		let options = new EditorOptions();
@@ -94,25 +94,24 @@ suite('Workbench base editor', () => {
 		assert(!e.isVisible());
 		assert(!e.input);
 		assert(!e.options);
-		return e.setInput(input, options, CancellationToken.None).then(() => {
-			assert.strictEqual(input, e.input);
-			assert.strictEqual(options, e.options);
 
-			const group = new TestEditorGroup(1);
-			e.setVisible(true, group);
-			assert(e.isVisible());
-			assert.equal(e.group, group);
-			input.onDispose(() => {
-				assert(false);
-			});
-			e.dispose();
-			e.clearInput();
-			e.setVisible(false, group);
-			assert(!e.isVisible());
-			assert(!e.input);
-			assert(!e.options);
-			assert(!e.getControl());
+		await e.setInput(input, options, CancellationToken.None);
+		assert.strictEqual(input, e.input);
+		assert.strictEqual(options, e.options);
+		const group = new TestEditorGroup(1);
+		e.setVisible(true, group);
+		assert(e.isVisible());
+		assert.equal(e.group, group);
+		input.onDispose(() => {
+			assert(false);
 		});
+		e.dispose();
+		e.clearInput();
+		e.setVisible(false, group);
+		assert(!e.isVisible());
+		assert(!e.input);
+		assert(!e.options);
+		assert(!e.getControl());
 	});
 
 	test('EditorDescriptor', () => {
@@ -154,10 +153,10 @@ suite('Workbench base editor', () => {
 
 		let inst = new TestInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake')))!.instantiate(inst);
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'myEditor');
 
-		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake')))!.instantiate(inst);
+		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'myOtherEditor');
 
 		(<any>EditorRegistry).setEditors(oldEditors);
@@ -173,14 +172,14 @@ suite('Workbench base editor', () => {
 
 		let inst = new TestInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake')))!.instantiate(inst);
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual('myOtherEditor', editor.getId());
 
 		(<any>EditorRegistry).setEditors(oldEditors);
 	});
 
 	test('Editor Input Factory', function () {
-		EditorInputRegistry.setInstantiationService(workbenchInstantiationService());
+		workbenchInstantiationService().invokeFunction(accessor => EditorInputRegistry.start(accessor));
 		EditorInputRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
 
 		let factory = EditorInputRegistry.getEditorInputFactory('myInputId');

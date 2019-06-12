@@ -18,14 +18,13 @@ import { isEqual } from 'vs/base/common/resources';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { equals } from 'vs/base/common/objects';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
 	workbench: { list: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
-	files: { useExperimentalFileWatcher: boolean, watcherExclude: object };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -38,8 +37,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private enableCrashReporter: boolean;
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
-	private experimentalFileWatcher: boolean;
-	private fileWatcherExclude: object;
 	private useGridLayout: boolean;
 
 	constructor(
@@ -47,8 +44,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly envService: IEnvironmentService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 
@@ -93,20 +89,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 			this.enableCrashReporter = config.telemetry.enableCrashReporter;
 			changed = true;
-		}
-
-		// Experimental File Watcher
-		if (config.files && typeof config.files.useExperimentalFileWatcher === 'boolean' && config.files.useExperimentalFileWatcher !== this.experimentalFileWatcher) {
-			this.experimentalFileWatcher = config.files.useExperimentalFileWatcher;
-			changed = true;
-		}
-
-		// File Watcher Excludes (only if in folder workspace mode)
-		if (!this.experimentalFileWatcher && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			if (config.files && typeof config.files.watcherExclude === 'object' && !equals(config.files.watcherExclude, this.fileWatcherExclude)) {
-				this.fileWatcherExclude = config.files.watcherExclude;
-				changed = true;
-			}
 		}
 
 		// macOS: Touchbar config
@@ -163,13 +145,13 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 	private firstFolderResource?: URI;
 	private extensionHostRestarter: RunOnceScheduler;
 
-	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
+	private onDidChangeWorkspaceFoldersUnbind: IDisposable | undefined;
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService,
 		@IWindowService windowSevice: IWindowService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -177,7 +159,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			if (!!environmentService.extensionTestsLocationURI) {
 				return; // no restart when in tests: see https://github.com/Microsoft/vscode/issues/66936
 			}
-			if (windowSevice.getConfiguration().remoteAuthority) {
+			if (environmentService.configuration.remoteAuthority) {
 				windowSevice.reloadWindow(); // TODO aeschli, workaround
 			} else {
 				extensionService.restartExtensionHost();
@@ -215,7 +197,8 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 
 		// Ignore the workspace folder changes in EMPTY or FOLDER state
 		else {
-			this.onDidChangeWorkspaceFoldersUnbind = dispose(this.onDidChangeWorkspaceFoldersUnbind);
+			dispose(this.onDidChangeWorkspaceFoldersUnbind);
+			this.onDidChangeWorkspaceFoldersUnbind = undefined;
 		}
 	}
 

@@ -16,6 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 export class ExplorerModel implements IDisposable {
 
@@ -69,7 +70,7 @@ export class ExplorerModel implements IDisposable {
 	}
 
 	dispose(): void {
-		this._listener = dispose(this._listener);
+		dispose(this._listener);
 	}
 }
 
@@ -85,7 +86,6 @@ export class ExplorerItem {
 		private _isReadonly?: boolean,
 		private _name: string = resources.basenameOrAuthority(resource),
 		private _mtime?: number,
-		private _etag?: string,
 	) {
 		this._isDirectoryResolved = false;
 	}
@@ -104,10 +104,6 @@ export class ExplorerItem {
 
 	get isReadonly(): boolean {
 		return !!this._isReadonly;
-	}
-
-	get etag(): string | undefined {
-		return this._etag;
 	}
 
 	get mtime(): number | undefined {
@@ -154,7 +150,7 @@ export class ExplorerItem {
 	}
 
 	static create(raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime, raw.etag);
+		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -247,24 +243,23 @@ export class ExplorerItem {
 		return this.children.get(this.getPlatformAwareName(name));
 	}
 
-	fetchChildren(fileService: IFileService): Promise<ExplorerItem[]> {
-		let promise: Promise<any> = Promise.resolve(undefined);
+	async fetchChildren(fileService: IFileService, explorerService: IExplorerService): Promise<ExplorerItem[]> {
 		if (!this._isDirectoryResolved) {
-			promise = fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true }).then(stat => {
-				const resolved = ExplorerItem.create(stat, this);
-				ExplorerItem.mergeLocalWithDisk(resolved, this);
-				this._isDirectoryResolved = true;
-			});
+			// Resolve metadata only when the mtime is needed since this can be expensive
+			// Mtime is only used when the sort order is 'modified'
+			const resolveMetadata = explorerService.sortOrder === 'modified';
+			const stat = await fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
+			const resolved = ExplorerItem.create(stat, this);
+			ExplorerItem.mergeLocalWithDisk(resolved, this);
+			this._isDirectoryResolved = true;
 		}
 
-		return promise.then(() => {
-			const items: ExplorerItem[] = [];
-			this.children.forEach(child => {
-				items.push(child);
-			});
-
-			return items;
+		const items: ExplorerItem[] = [];
+		this.children.forEach(child => {
+			items.push(child);
 		});
+
+		return items;
 	}
 
 	/**
@@ -366,5 +361,11 @@ export class ExplorerItem {
 		}
 
 		return null;
+	}
+}
+
+export class NewExplorerItem extends ExplorerItem {
+	constructor(parent: ExplorerItem, isDirectory: boolean) {
+		super(URI.file(''), parent, isDirectory);
 	}
 }

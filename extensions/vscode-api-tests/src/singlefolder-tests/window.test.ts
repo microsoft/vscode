@@ -380,13 +380,13 @@ suite('window namespace tests', () => {
 		assert.equal(await two, 'notempty');
 	});
 
-
-	test('showQuickPick, accept first', async function () {
-		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
-		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		assert.equal(await pick, 'eins');
-	});
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showQuickPick, accept first', async function () {
+	// 	const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
+	// 	await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	assert.equal(await pick, 'eins');
+	// });
 
 	test('showQuickPick, accept second', async function () {
 		const resolves: ((value: string) => void)[] = [];
@@ -435,18 +435,19 @@ suite('window namespace tests', () => {
 		return unexpected;
 	});
 
-	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
-		const picks = window.showQuickPick([
-			{ label: 'eins' },
-			{ label: 'zwei', picked: true },
-			{ label: 'drei', picked: true }
-		], {
-				canPickMany: true
-			});
-		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
-	});
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
+	// 	const picks = window.showQuickPick([
+	// 		{ label: 'eins' },
+	// 		{ label: 'zwei', picked: true },
+	// 		{ label: 'drei', picked: true }
+	// 	], {
+	// 			canPickMany: true
+	// 		});
+	// 	await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
+	// });
 
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
@@ -517,19 +518,20 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
-	test('showWorkspaceFolderPick', async function () {
-		const p = window.showWorkspaceFolderPick(undefined);
+	// TODO@chrmarti Disabled due to flaky behaviour (https://github.com/Microsoft/vscode/issues/70887)
+	// test('showWorkspaceFolderPick', async function () {
+	// 	const p = window.showWorkspaceFolderPick(undefined);
 
-		await timeout(10);
-		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		try {
-			await p;
-			assert.ok(true);
-		}
-		catch (_error) {
-			assert.ok(false);
-		}
-	});
+	// 	await timeout(10);
+	// 	await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+	// 	try {
+	// 		await p;
+	// 		assert.ok(true);
+	// 	}
+	// 	catch (_error) {
+	// 		assert.ok(false);
+	// 	}
+	// });
 
 	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
 		const result = window.showInputBox({
@@ -697,7 +699,7 @@ suite('window namespace tests', () => {
 		});
 
 		test('onDidChangeTerminalDimensions should fire when new terminals are created', (done) => {
-			const reg1 = window.onDidChangeTerminalDimensions((event: TerminalDimensionsChangeEvent) => {
+			const reg1 = window.onDidChangeTerminalDimensions(async (event: TerminalDimensionsChangeEvent) => {
 				assert.equal(event.terminal, terminal1);
 				assert.equal(typeof event.dimensions.columns, 'number');
 				assert.equal(typeof event.dimensions.rows, 'number');
@@ -706,7 +708,7 @@ suite('window namespace tests', () => {
 				reg1.dispose();
 				let terminal2: Terminal;
 				const reg2 = window.onDidOpenTerminal((newTerminal) => {
-					// THis is guarentees to fire before dimensions change event
+					// This is guarantees to fire before dimensions change event
 					if (newTerminal !== terminal1) {
 						terminal2 = newTerminal;
 						reg2.dispose();
@@ -729,10 +731,34 @@ suite('window namespace tests', () => {
 						done();
 					}
 				});
+				await timeout(500);
 				commands.executeCommand('workbench.action.terminal.split');
 			});
 			const terminal1 = window.createTerminal({ name: 'test' });
 			terminal1.show();
+		});
+
+		test('runInBackground terminal: onDidWriteData should work', done => {
+			const terminal = window.createTerminal({ name: 'bg', runInBackground: true });
+			let data = '';
+			terminal.onDidWriteData(e => {
+				data += e;
+				if (data.indexOf('foo') !== -1) {
+					terminal.dispose();
+					done();
+				}
+			});
+			terminal.sendText('foo');
+		});
+
+		test('runInBackground terminal: should be available to terminals API', done => {
+			const terminal = window.createTerminal({ name: 'bg', runInBackground: true });
+			window.onDidOpenTerminal(t => {
+				assert.equal(t, terminal);
+				assert.equal(t.name, 'bg');
+				assert.ok(window.terminals.indexOf(terminal) !== -1);
+				done();
+			});
 		});
 	});
 });

@@ -33,7 +33,7 @@ export const enum TreeVisibility {
 export interface ITreeFilterDataResult<TFilterData> {
 
 	/**
-	 * Whether the node should be visibile.
+	 * Whether the node should be visible.
 	 */
 	visibility: boolean | TreeVisibility;
 
@@ -122,6 +122,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	isCollapsible(location: TRef): boolean;
 	isCollapsed(location: TRef): boolean;
 	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
+	expandTo(location: TRef): void;
 
 	refilter(): void;
 }
@@ -144,7 +145,7 @@ export interface ITreeMouseEvent<T> {
 export interface ITreeContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | null;
-	anchor: HTMLElement | { x: number; y: number; } | undefined;
+	anchor: HTMLElement | { x: number; y: number; };
 }
 
 export interface ITreeNavigator<T> {

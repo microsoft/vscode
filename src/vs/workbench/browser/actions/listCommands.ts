@@ -28,7 +28,7 @@ function ensureDOMFocus(widget: ListWidget | undefined): void {
 	}
 }
 
-function focusDown(accessor: ServicesAccessor, arg2?: number, loop: boolean = true): void {
+function focusDown(accessor: ServicesAccessor, arg2?: number, loop: boolean = false): void {
 	const focused = accessor.get(IListService).lastFocusedList;
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
@@ -80,7 +80,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, arg2) => focusDown(accessor, arg2)
 });
 
-function expandMultiSelection(focused: List<any> | PagedList<any> | ITree | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any>, previousFocus: any): void {
+function expandMultiSelection(focused: List<unknown> | PagedList<unknown> | ITree | ObjectTree<unknown, unknown> | DataTree<unknown, unknown, unknown> | AsyncDataTree<unknown, unknown, unknown>, previousFocus: unknown): void {
 
 	// List
 	if (focused instanceof List || focused instanceof PagedList) {
@@ -88,10 +88,12 @@ function expandMultiSelection(focused: List<any> | PagedList<any> | ITree | Obje
 
 		const focus = list.getFocus() ? list.getFocus()[0] : undefined;
 		const selection = list.getSelection();
-		if (selection && selection.indexOf(focus) >= 0) {
+		if (selection && typeof focus === 'number' && selection.indexOf(focus) >= 0) {
 			list.setSelection(selection.filter(s => s !== previousFocus));
 		} else {
-			list.setSelection(selection.concat(focus));
+			if (typeof focus === 'number') {
+				list.setSelection(selection.concat(focus));
+			}
 		}
 	}
 
@@ -163,7 +165,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-function focusUp(accessor: ServicesAccessor, arg2?: number, loop: boolean = true): void {
+function focusUp(accessor: ServicesAccessor, arg2?: number, loop: boolean = false): void {
 	const focused = accessor.get(IListService).lastFocusedList;
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
@@ -296,6 +298,24 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					return undefined;
 				});
 			}
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.collapseAll',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow]
+	},
+	handler: (accessor) => {
+		const focusedTree = accessor.get(IListService).lastFocusedList;
+
+		if (focusedTree && !(focusedTree instanceof List || focusedTree instanceof PagedList)) {
+			focusedTree.collapseAll();
 		}
 	}
 });
@@ -580,8 +600,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
 			const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', false);
-			list.setSelection(list.getFocus(), fakeKeyboardEvent);
-			list.open(list.getFocus());
+			const focus = list.getFocus();
+
+			if (focus.length > 0) {
+				list.toggleCollapsed(focus[0]);
+			}
+
+			list.setSelection(focus, fakeKeyboardEvent);
+			list.open(focus, fakeKeyboardEvent);
 		}
 
 		// Tree
@@ -617,7 +643,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const selection = tree.getSelection();
 
 			// Which element should be considered to start selecting all?
-			let start: any | undefined = undefined;
+			let start: unknown | undefined = undefined;
 
 			if (focus.length > 0 && (selection.length === 0 || selection.indexOf(focus[0]) === -1)) {
 				start = focus[0];
@@ -628,7 +654,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			}
 
 			// What is the scope of select all?
-			let scope: any | undefined = undefined;
+			let scope: unknown | undefined = undefined;
 
 			if (!start) {
 				scope = undefined;
@@ -636,15 +662,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				const selectedNode = tree.getNode(start);
 				const parentNode = selectedNode.parent;
 
-				if (!parentNode.parent) { // root
+				if (!parentNode || !parentNode.parent) { // root
 					scope = undefined;
 				} else {
 					scope = parentNode.element;
 				}
 			}
 
-			const newSelection: any[] = [];
-			const visit = (node: ITreeNode<any, any>) => {
+			const newSelection: unknown[] = [];
+			const visit = (node: ITreeNode<unknown, unknown>) => {
 				for (const child of node.children) {
 					if (child.visible) {
 						newSelection.push(child.element);

@@ -376,6 +376,21 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/api/common/**",
+				"restrictions": [
+					"vscode",
+					"vs/nls",
+					"**/vs/base/common/**",
+					"**/vs/platform/*/common/**",
+					"**/vs/editor/common/**",
+					"**/vs/editor/contrib/*/common/**",
+					"**/vs/workbench/api/common/**",
+					"**/vs/workbench/common/**",
+					"**/vs/workbench/services/*/common/**",
+					"**/vs/workbench/contrib/*/common/**"
+				]
+			},
+			{
 				"target": "**/vs/workbench/electron-browser/**",
 				"restrictions": [
 					"vs/nls",
@@ -413,7 +428,8 @@
 					"**/vs/platform/**/common/**",
 					"**/vs/editor/common/**",
 					"**/vs/workbench/common/**",
-					"**/vs/workbench/services/**/common/**"
+					"**/vs/workbench/services/**/common/**",
+					"**/vs/workbench/api/**/common/**"
 				]
 			},
 			{
@@ -425,7 +441,9 @@
 					"**/vs/platform/**/{common,browser}/**",
 					"**/vs/editor/{common,browser}/**",
 					"**/vs/workbench/{common,browser}/**",
-					"**/vs/workbench/services/**/{common,browser}/**"
+					"**/vs/workbench/services/**/{common,browser}/**",
+					"vscode-textmate",
+					"onigasm-umd"
 				]
 			},
 			{
@@ -486,6 +504,15 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/contrib/terminal/browser/**",
+				"restrictions": [
+					// xterm and its addons are strictly browser-only components
+					"xterm",
+					"xterm-addon-*",
+					"**/vs/**"
+				]
+			},
+			{
 				"target": "**/vs/code/node/**",
 				"restrictions": [
 					"vs/nls",
@@ -516,7 +543,19 @@
 					"**/vs/base/parts/**/{common,browser,node,electron-main}/**",
 					"**/vs/platform/**/{common,browser,node,electron-main}/**",
 					"**/vs/code/**/{common,browser,node,electron-main}/**",
-					"**/vs/code/code.main",
+					"*" // node modules
+				]
+			},
+			{
+				"target": "**/vs/server/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/**/{common,node}/**",
+					"**/vs/base/parts/**/{common,node}/**",
+					"**/vs/platform/**/{common,node}/**",
+					"**/vs/workbench/**/{common,node}/**",
+					"**/vs/server/**",
+					"**/vs/code/**/{common,node}/**",
 					"*" // node modules
 				]
 			},
@@ -550,7 +589,8 @@
 		"duplicate-imports": true,
 		"no-new-buffer": true,
 		"translation-remind": true,
-		"no-standalone-editor": true
+		"no-standalone-editor": true,
+		"no-nls-in-standalone-editor": true
 	},
 	"defaultSeverity": "warning"
 }

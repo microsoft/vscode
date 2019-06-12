@@ -25,13 +25,14 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/textModelTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { IState, LanguageId, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
+import { IState, LanguageId, LanguageIdentifier, TokenizationRegistry, FormattingOptions } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { withUndefinedAsNull } from 'vs/base/common/types';
+import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 
 const CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048;
 
@@ -45,36 +46,54 @@ export function createTextBufferFactory(text: string): model.ITextBufferFactory 
 	return builder.finish();
 }
 
-export function createTextBufferFactoryFromStream(stream: IStringStream, filter?: (chunk: string) => string): Promise<model.ITextBufferFactory> {
-	return new Promise<model.ITextBufferFactory>((c, e) => {
-		let done = false;
-		let builder = createTextBufferBuilder();
+interface ITextStream {
+	on(event: 'data', callback: (data: string) => void): void;
+	on(event: 'error', callback: (err: Error) => void): void;
+	on(event: 'end', callback: () => void): void;
+	on(event: string, callback: any): void;
+}
 
-		stream.on('data', (chunk) => {
+export function createTextBufferFactoryFromStream(stream: ITextStream, filter?: (chunk: string) => string, validator?: (chunk: string) => Error | undefined): Promise<model.ITextBufferFactory>;
+export function createTextBufferFactoryFromStream(stream: VSBufferReadableStream, filter?: (chunk: VSBuffer) => VSBuffer, validator?: (chunk: VSBuffer) => Error | undefined): Promise<model.ITextBufferFactory>;
+export function createTextBufferFactoryFromStream(stream: ITextStream | VSBufferReadableStream, filter?: (chunk: any) => string | VSBuffer, validator?: (chunk: any) => Error | undefined): Promise<model.ITextBufferFactory> {
+	return new Promise<model.ITextBufferFactory>((resolve, reject) => {
+		const builder = createTextBufferBuilder();
+
+		let done = false;
+
+		stream.on('data', (chunk: string | VSBuffer) => {
+			if (validator) {
+				const error = validator(chunk);
+				if (error) {
+					done = true;
+					reject(error);
+				}
+			}
+
 			if (filter) {
 				chunk = filter(chunk);
 			}
 
-			builder.acceptChunk(chunk);
+			builder.acceptChunk((typeof chunk === 'string') ? chunk : chunk.toString());
 		});
 
 		stream.on('error', (error) => {
 			if (!done) {
 				done = true;
-				e(error);
+				reject(error);
 			}
 		});
 
 		stream.on('end', () => {
 			if (!done) {
 				done = true;
-				c(builder.finish());
+				resolve(builder.finish());
 			}
 		});
 	});
 }
 
-export function createTextBufferFactoryFromSnapshot(snapshot: ITextSnapshot): model.ITextBufferFactory {
+export function createTextBufferFactoryFromSnapshot(snapshot: model.ITextSnapshot): model.ITextBufferFactory {
 	let builder = createTextBufferBuilder();
 
 	let chunk: string | null;
@@ -110,12 +129,12 @@ function singleLetter(result: number): string {
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
 
-class TextModelSnapshot implements ITextSnapshot {
+class TextModelSnapshot implements model.ITextSnapshot {
 
-	private readonly _source: ITextSnapshot;
+	private readonly _source: model.ITextSnapshot;
 	private _eos: boolean;
 
-	constructor(source: ITextSnapshot) {
+	constructor(source: model.ITextSnapshot) {
 		this._source = source;
 		this._eos = false;
 	}
@@ -265,8 +284,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	//#region Tokenization
 	private _languageIdentifier: LanguageIdentifier;
-	private _tokenizationListener: IDisposable;
-	private _languageRegistryListener: IDisposable;
+	private readonly _tokenizationListener: IDisposable;
+	private readonly _languageRegistryListener: IDisposable;
 	private _revalidateTokensTimeout: any;
 	/*private*/_tokens: ModelLinesTokens;
 	//#endregion
@@ -590,6 +609,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._options;
 	}
 
+	public getFormattingOptions(): FormattingOptions {
+		return {
+			tabSize: this._options.indentSize,
+			insertSpaces: this._options.insertSpaces
+		};
+	}
+
 	public updateOptions(_newOpts: model.ITextModelUpdateOptions): void {
 		this._assertNotDisposed();
 		let tabSize = (typeof _newOpts.tabSize !== 'undefined') ? _newOpts.tabSize : this._options.tabSize;
@@ -723,7 +749,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return fullModelValue;
 	}
 
-	public createSnapshot(preserveBOM: boolean = false): ITextSnapshot {
+	public createSnapshot(preserveBOM: boolean = false): model.ITextSnapshot {
 		return new TextModelSnapshot(this._buffer.createSnapshot(preserveBOM));
 	}
 
@@ -886,24 +912,24 @@ export class TextModel extends Disposable implements model.ITextModel {
 	 * @param strict Do NOT allow a position inside a high-low surrogate pair
 	 */
 	private _isValidPosition(lineNumber: number, column: number, strict: boolean): boolean {
-		if (isNaN(lineNumber)) {
+		if (typeof lineNumber !== 'number' || typeof column !== 'number') {
 			return false;
 		}
 
-		if (lineNumber < 1) {
+		if (isNaN(lineNumber) || isNaN(column)) {
+			return false;
+		}
+
+		if (lineNumber < 1 || column < 1) {
+			return false;
+		}
+
+		if ((lineNumber | 0) !== lineNumber || (column | 0) !== column) {
 			return false;
 		}
 
 		const lineCount = this._buffer.getLineCount();
 		if (lineNumber > lineCount) {
-			return false;
-		}
-
-		if (isNaN(column)) {
-			return false;
-		}
-
-		if (column < 1) {
 			return false;
 		}
 
@@ -2723,12 +2749,12 @@ class DecorationsTrees {
 	/**
 	 * This tree holds decorations that do not show up in the overview ruler.
 	 */
-	private _decorationsTree0: IntervalTree;
+	private readonly _decorationsTree0: IntervalTree;
 
 	/**
 	 * This tree holds decorations that show up in the overview ruler.
 	 */
-	private _decorationsTree1: IntervalTree;
+	private readonly _decorationsTree1: IntervalTree;
 
 	constructor() {
 		this._decorationsTree0 = new IntervalTree();
@@ -2870,8 +2896,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
-		this.hoverMessage = options.hoverMessage || null;
-		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
+		this.hoverMessage = withUndefinedAsNull(options.hoverMessage);
+		this.glyphMarginHoverMessage = withUndefinedAsNull(options.glyphMarginHoverMessage);
 		this.isWholeLine = options.isWholeLine || false;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;

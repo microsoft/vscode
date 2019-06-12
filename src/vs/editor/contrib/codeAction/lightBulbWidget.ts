@@ -11,9 +11,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionsState } from './codeActionModel';
-import { CodeAction } from 'vs/editor/common/modes';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 
 export class LightBulbWidget extends Disposable implements IContentWidget {
 
@@ -46,13 +45,14 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				this._futureFixes.cancel();
 			}
 		}));
-		this._register(dom.addStandardDisposableListener(this._domNode, 'click', e => {
+		this._register(dom.addStandardDisposableListener(this._domNode, 'mousedown', e => {
 			if (this._state.type !== CodeActionsState.Type.Triggered) {
 				return;
 			}
 
 			// Make sure that focus / cursor location is not lost when clicking widget icon
 			this._editor.focus();
+			dom.EventHelper.stop(e, true);
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
 			const { top, height } = dom.getDomNodePagePosition(this._domNode);
@@ -107,9 +107,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		return this._position;
 	}
 
-	tryShow(newState: CodeActionsState.State) {
-
-		if (newState.type !== CodeActionsState.Type.Triggered || this._position && (!newState.position || this._position.position && this._position.position.lineNumber !== newState.position.lineNumber)) {
+	tryShow(newState: CodeActionsState.Triggered) {
+		if (this._position && (!newState.position || this._position.position && this._position.position.lineNumber !== newState.position.lineNumber)) {
 			// hide when getting a 'hide'-request or when currently
 			// showing on another line
 			this.hide();
@@ -122,13 +121,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		const { token } = this._futureFixes;
 		this._state = newState;
 
-		if (this._state.type === CodeActionsState.Empty.type) {
-			return;
-		}
-
 		const selection = this._state.rangeOrSelection;
 		this._state.actions.then(fixes => {
-			if (!token.isCancellationRequested && fixes && fixes.length > 0 && selection) {
+			if (!token.isCancellationRequested && fixes.actions.length > 0 && selection) {
 				this._show(fixes);
 			} else {
 				this.hide();
@@ -146,7 +141,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		return this._domNode.title;
 	}
 
-	private _show(codeActions: CodeAction[]): void {
+	private _show(codeActions: CodeActionSet): void {
 		const config = this._editor.getConfiguration();
 		if (!config.contribInfo.lightbulbEnabled) {
 			return;
@@ -164,7 +159,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = TextModel.computeIndentLevel(lineContent, tabSize);
 		const lineHasSpace = config.fontInfo.spaceWidth * indent > 22;
-		const isFolded = (lineNumber) => {
+		const isFolded = (lineNumber: number) => {
 			return lineNumber > 2 && this._editor.getTopForLineNumber(lineNumber) === this._editor.getTopForLineNumber(lineNumber - 1);
 		};
 
@@ -186,7 +181,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			position: { lineNumber: effectiveLineNumber, column: 1 },
 			preference: LightBulbWidget._posPref
 		};
-		dom.toggleClass(this._domNode, 'autofixable', codeActions.some(fix => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred));
+		dom.toggleClass(this._domNode, 'autofixable', codeActions.hasAutoFix);
 		this._editor.layoutContentWidget(this);
 	}
 

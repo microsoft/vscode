@@ -9,15 +9,15 @@ import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { domEvent } from 'vs/base/browser/event';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class ToggleDevToolsAction extends Action {
 
@@ -62,10 +62,10 @@ export class InspectContextKeysAction extends Action {
 	}
 
 	run(): Promise<void> {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const stylesheet = createStyleSheet();
-		disposables.push(toDisposable(() => {
+		disposables.add(toDisposable(() => {
 			if (stylesheet.parentNode) {
 				stylesheet.parentNode.removeChild(stylesheet);
 			}
@@ -74,7 +74,7 @@ export class InspectContextKeysAction extends Action {
 
 		const hoverFeedback = document.createElement('div');
 		document.body.appendChild(hoverFeedback);
-		disposables.push(toDisposable(() => document.body.removeChild(hoverFeedback)));
+		disposables.add(toDisposable(() => document.body.removeChild(hoverFeedback)));
 
 		hoverFeedback.style.position = 'absolute';
 		hoverFeedback.style.pointerEvents = 'none';
@@ -82,7 +82,7 @@ export class InspectContextKeysAction extends Action {
 		hoverFeedback.style.zIndex = '1000';
 
 		const onMouseMove = domEvent(document.body, 'mousemove', true);
-		disposables.push(onMouseMove(e => {
+		disposables.add(onMouseMove(e => {
 			const target = e.target as HTMLElement;
 			const position = getDomNodePagePosition(target);
 
@@ -114,7 +114,7 @@ export class InspectContextKeysAction extends Action {
 export class ToggleScreencastModeAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleScreencastMode';
-	static LABEL = nls.localize('toggle mouse clicks', "Toggle Screencast Mode");
+	static LABEL = nls.localize('toggle screencast mode', "Toggle Screencast Mode");
 
 	static disposable: IDisposable | undefined;
 
@@ -122,8 +122,8 @@ export class ToggleScreencastModeAction extends Action {
 		id: string,
 		label: string,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IPartService private readonly partService: IPartService,
 		@IConfigurationService private readonly configurationService: ConfigurationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
 	}
@@ -135,7 +135,7 @@ export class ToggleScreencastModeAction extends Action {
 			return;
 		}
 
-		const container = this.partService.getWorkbenchElement();
+		const container = this.layoutService.getWorkbenchElement();
 
 		const mouseMarker = append(container, $('div'));
 		mouseMarker.style.position = 'absolute';

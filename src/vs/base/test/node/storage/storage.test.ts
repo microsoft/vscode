@@ -8,7 +8,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { mkdirp, del, writeFile, exists, unlink } from 'vs/base/node/pfs';
+import { mkdirp, writeFile, exists, unlink, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
@@ -31,7 +31,7 @@ suite('Storage Library', () => {
 
 		// Empty fallbacks
 		equal(storage.get('foo', 'bar'), 'bar');
-		equal(storage.getInteger('foo', 55), 55);
+		equal(storage.getNumber('foo', 55), 55);
 		equal(storage.getBoolean('foo', true), true);
 
 		let changes = new Set<string>();
@@ -45,7 +45,7 @@ suite('Storage Library', () => {
 		const set3Promise = storage.set('barBoolean', true);
 
 		equal(storage.get('bar'), 'foo');
-		equal(storage.getInteger('barNumber'), 55);
+		equal(storage.getNumber('barNumber'), 55);
 		equal(storage.getBoolean('barBoolean'), true);
 
 		equal(changes.size, 3);
@@ -71,7 +71,7 @@ suite('Storage Library', () => {
 		const delete3Promise = storage.delete('barBoolean');
 
 		ok(!storage.get('bar'));
-		ok(!storage.getInteger('barNumber'));
+		ok(!storage.getNumber('barNumber'));
 		ok(!storage.getBoolean('barBoolean'));
 
 		equal(changes.size, 3);
@@ -92,7 +92,7 @@ suite('Storage Library', () => {
 		equal(deletePromiseResolved, true);
 
 		await storage.close();
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('external changes', async () => {
@@ -148,7 +148,7 @@ suite('Storage Library', () => {
 		equal(changes.size, 0);
 
 		await storage.close();
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('close flushes data', async () => {
@@ -202,7 +202,7 @@ suite('Storage Library', () => {
 		ok(!storage.get('bar'));
 
 		await storage.close();
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('conflicting updates', async () => {
@@ -244,7 +244,7 @@ suite('Storage Library', () => {
 		ok(setAndDeletePromiseResolved);
 
 		await storage.close();
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('corrupt DB recovers', async () => {
@@ -274,7 +274,7 @@ suite('Storage Library', () => {
 		equal(storage.get('foo'), 'bar');
 
 		await storage.close();
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 });
 
@@ -293,7 +293,7 @@ suite('SQLite Storage Library', () => {
 		return set;
 	}
 
-	async function testDBBasics(path, logError?: (error) => void) {
+	async function testDBBasics(path: string, logError?: (error: Error) => void) {
 		let options!: ISQLiteStorageDatabaseOptions;
 		if (logError) {
 			options = {
@@ -372,7 +372,7 @@ suite('SQLite Storage Library', () => {
 
 		await testDBBasics(join(storageDir, 'storage.db'));
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (open multiple times)', async () => {
@@ -383,7 +383,7 @@ suite('SQLite Storage Library', () => {
 		await testDBBasics(join(storageDir, 'storage.db'));
 		await testDBBasics(join(storageDir, 'storage.db'));
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB falls back to empty DB)', async () => {
@@ -401,7 +401,7 @@ suite('SQLite Storage Library', () => {
 
 		ok(expectedError);
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB restores from previous backup)', async () => {
@@ -439,7 +439,7 @@ suite('SQLite Storage Library', () => {
 
 		equal(recoveryCalled, false);
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB falls back to empty DB if backup is corrupt)', async () => {
@@ -468,7 +468,7 @@ suite('SQLite Storage Library', () => {
 
 		await testDBBasics(storagePath);
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
@@ -536,7 +536,7 @@ suite('SQLite Storage Library', () => {
 
 		equal(recoveryCalled, false);
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('real world example', async function () {
@@ -627,7 +627,7 @@ suite('SQLite Storage Library', () => {
 
 		await storage.close();
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('very large item value', async function () {
@@ -682,7 +682,7 @@ suite('SQLite Storage Library', () => {
 
 		await storage.close();
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('multiple concurrent writes execute in sequence', async () => {
@@ -739,7 +739,7 @@ suite('SQLite Storage Library', () => {
 
 		await storage.close();
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('lots of INSERT & DELETE (below inline max)', async () => {
@@ -771,7 +771,7 @@ suite('SQLite Storage Library', () => {
 
 		await storage.close();
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('lots of INSERT & DELETE (above inline max)', async () => {
@@ -803,6 +803,6 @@ suite('SQLite Storage Library', () => {
 
 		await storage.close();
 
-		await del(storageDir, tmpdir());
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 });

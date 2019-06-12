@@ -39,7 +39,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/codeinset",
+			"name": "vs/workbench/contrib/callHierarchy",
 			"project": "vscode-workbench"
 		},
 		{
@@ -55,11 +55,11 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/execution",
+			"name": "vs/workbench/contrib/extensions",
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/extensions",
+			"name": "vs/workbench/contrib/externalTerminal",
 			"project": "vscode-workbench"
 		},
 		{
@@ -104,6 +104,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/quickopen",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/remote",
 			"project": "vscode-workbench"
 		},
 		{

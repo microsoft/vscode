@@ -407,7 +407,7 @@ export const enum KeyMod {
 }
 
 export function KeyChord(firstPart: number, secondPart: number): number {
-	let chordPart = ((secondPart & 0x0000FFFF) << 16) >>> 0;
+	const chordPart = ((secondPart & 0x0000FFFF) << 16) >>> 0;
 	return (firstPart | chordPart) >>> 0;
 }
 
@@ -466,10 +466,10 @@ export class SimpleKeybinding {
 	}
 
 	public getHashCode(): string {
-		let ctrl = this.ctrlKey ? '1' : '0';
-		let shift = this.shiftKey ? '1' : '0';
-		let alt = this.altKey ? '1' : '0';
-		let meta = this.metaKey ? '1' : '0';
+		const ctrl = this.ctrlKey ? '1' : '0';
+		const shift = this.shiftKey ? '1' : '0';
+		const alt = this.altKey ? '1' : '0';
+		const meta = this.metaKey ? '1' : '0';
 		return `${ctrl}${shift}${alt}${meta}${this.keyCode}`;
 	}
 

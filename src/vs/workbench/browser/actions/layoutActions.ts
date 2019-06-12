@@ -11,7 +11,7 @@ import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -19,10 +19,11 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { IsMacContext } from 'vs/workbench/common/contextkeys';
+import { IsMacContext } from 'vs/workbench/browser/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InEditorZenModeContext } from 'vs/workbench/common/editor';
+import { InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
@@ -39,16 +40,16 @@ export class ToggleActivityBarVisibilityAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 
-		this.enabled = !!this.partService;
+		this.enabled = !!this.layoutService;
 	}
 
 	run(): Promise<any> {
-		const visibility = this.partService.isVisible(Parts.ACTIVITYBAR_PART);
+		const visibility = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART);
 		const newVisibilityValue = !visibility;
 
 		return this.configurationService.updateValue(ToggleActivityBarVisibilityAction.activityBarVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
@@ -61,7 +62,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleActivityBarVisibilityAction.ID,
-		title: nls.localize({ key: 'miToggleActivityBar', comment: ['&& denotes a mnemonic'] }, "Toggle &&Activity Bar")
+		title: nls.localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar"),
+		toggled: ContextKeyExpr.equals('config.workbench.activityBar.visible', true)
 	},
 	order: 4
 });
@@ -76,14 +78,14 @@ class ToggleCenteredLayout extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private readonly partService: IPartService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
-		this.enabled = !!this.partService;
+		this.enabled = !!this.layoutService;
 	}
 
 	run(): Promise<any> {
-		this.partService.centerEditorLayout(!this.partService.isEditorLayoutCentered());
+		this.layoutService.centerEditorLayout(!this.layoutService.isEditorLayoutCentered());
 
 		return Promise.resolve();
 	}
@@ -95,7 +97,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
 	command: {
 		id: ToggleCenteredLayout.ID,
-		title: nls.localize('miToggleCenteredLayout', "Toggle Centered Layout")
+		title: nls.localize('miToggleCenteredLayout', "Centered Layout"),
+		toggled: IsCenteredLayoutContext
 	},
 	order: 3
 });
@@ -157,7 +160,7 @@ CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', functi
 });
 
 const group = viewCategory;
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Flip Editor Group Layout', group);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', group);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: 'z_flip',
@@ -180,34 +183,45 @@ export class ToggleSidebarPositionAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 
-		this.enabled = !!this.partService && !!this.configurationService;
+		this.enabled = !!this.layoutService && !!this.configurationService;
 	}
 
 	run(): Promise<any> {
-		const position = this.partService.getSideBarPosition();
+		const position = this.layoutService.getSideBarPosition();
 		const newPositionValue = (position === Position.LEFT) ? 'right' : 'left';
 
 		return this.configurationService.updateValue(ToggleSidebarPositionAction.sidebarPositionConfigurationKey, newPositionValue, ConfigurationTarget.USER);
 	}
 
-	static getLabel(partService: IPartService): string {
-		return partService.getSideBarPosition() === Position.LEFT ? nls.localize('moveSidebarRight', "Move Side Bar Right") : nls.localize('moveSidebarLeft', "Move Side Bar Left");
+	static getLabel(layoutService: IWorkbenchLayoutService): string {
+		return layoutService.getSideBarPosition() === Position.LEFT ? nls.localize('moveSidebarRight', "Move Side Bar Right") : nls.localize('moveSidebarLeft', "Move Side Bar Left");
 	}
 }
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.LABEL), 'View: Toggle Side Bar Position', viewCategory);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
+	group: '3_workbench_layout_move',
 	command: {
 		id: ToggleSidebarPositionAction.ID,
-		title: nls.localize({ key: 'miMoveSidebarLeftRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left/Right")
+		title: nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right")
 	},
+	when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '3_workbench_layout_move',
+	command: {
+		id: ToggleSidebarPositionAction.ID,
+		title: nls.localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left")
+	},
+	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
 	order: 2
 });
 
@@ -220,24 +234,22 @@ export class ToggleEditorVisibilityAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private readonly partService: IPartService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
 
-		this.enabled = !!this.partService;
+		this.enabled = !!this.layoutService;
 	}
 
 	run(): Promise<any> {
-		const hideEditor = this.partService.isVisible(Parts.EDITOR_PART);
-		this.partService.setEditorHidden(hideEditor);
+		const hideEditor = this.layoutService.isVisible(Parts.EDITOR_PART);
+		this.layoutService.setEditorHidden(hideEditor);
 
 		return Promise.resolve();
 	}
-
 }
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorVisibilityAction, ToggleEditorVisibilityAction.ID, ToggleEditorVisibilityAction.LABEL), 'View: Toggle Editor Area Visibility', viewCategory, ContextKeyExpr.equals('config.workbench.useExperimentalGridLayout', true));
-
 
 export class ToggleSidebarVisibilityAction extends Action {
 
@@ -247,16 +259,16 @@ export class ToggleSidebarVisibilityAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private readonly partService: IPartService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
 
-		this.enabled = !!this.partService;
+		this.enabled = !!this.layoutService;
 	}
 
 	run(): Promise<any> {
-		const hideSidebar = this.partService.isVisible(Parts.SIDEBAR_PART);
-		this.partService.setSideBarHidden(hideSidebar);
+		const hideSidebar = this.layoutService.isVisible(Parts.SIDEBAR_PART);
+		this.layoutService.setSideBarHidden(hideSidebar);
 
 		return Promise.resolve();
 	}
@@ -268,14 +280,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleSidebarVisibilityAction.ID,
-		title: nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar")
+		title: nls.localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar"),
+		toggled: SideBarVisibleContext
 	},
 	order: 1
 });
 
 // --- Toggle Statusbar Visibility
 
-class ToggleStatusbarVisibilityAction extends Action {
+export class ToggleStatusbarVisibilityAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleStatusbarVisibility';
 	static readonly LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
@@ -285,16 +298,16 @@ class ToggleStatusbarVisibilityAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private readonly partService: IPartService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 
-		this.enabled = !!this.partService;
+		this.enabled = !!this.layoutService;
 	}
 
 	run(): Promise<any> {
-		const visibility = this.partService.isVisible(Parts.STATUSBAR_PART);
+		const visibility = this.layoutService.isVisible(Parts.STATUSBAR_PART);
 		const newVisibilityValue = !visibility;
 
 		return this.configurationService.updateValue(ToggleStatusbarVisibilityAction.statusbarVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
@@ -307,7 +320,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleStatusbarVisibilityAction.ID,
-		title: nls.localize({ key: 'miToggleStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Status Bar")
+		title: nls.localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "Show S&&tatus Bar"),
+		toggled: ContextKeyExpr.equals('config.workbench.statusBar.visible', true)
 	},
 	order: 3
 });
@@ -353,14 +367,14 @@ class ToggleZenMode extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService private readonly partService: IPartService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
-		this.enabled = !!this.partService;
+		this.enabled = !!this.layoutService;
 	}
 
 	run(): Promise<any> {
-		this.partService.toggleZenMode();
+		this.layoutService.toggleZenMode();
 
 		return Promise.resolve();
 	}
@@ -372,7 +386,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
 	command: {
 		id: ToggleZenMode.ID,
-		title: nls.localize('miToggleZenMode', "Toggle Zen Mode")
+		title: nls.localize('miToggleZenMode', "Zen Mode"),
+		toggled: InEditorZenModeContext
 	},
 	order: 2
 });
@@ -381,8 +396,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.exitZenMode',
 	weight: KeybindingWeight.EditorContrib - 1000,
 	handler(accessor: ServicesAccessor) {
-		const partService = accessor.get(IPartService);
-		partService.toggleZenMode();
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.toggleZenMode();
 	},
 	when: InEditorZenModeContext,
 	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
@@ -429,13 +444,14 @@ if (isWindows || isLinux) {
 }
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '1_toggle_view',
+	group: '2_workbench_layout',
 	command: {
 		id: ToggleMenuBarAction.ID,
-		title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
+		title: nls.localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
+		toggled: ContextKeyExpr.and(IsMacContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'))
 	},
 	when: IsMacContext.toNegated(),
-	order: 4
+	order: 0
 });
 
 // --- Resize View
@@ -447,15 +463,15 @@ export abstract class BaseResizeViewAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService protected partService: IPartService
+		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
 	}
 
 	protected resizePart(sizeChange: number): void {
-		const isEditorFocus = this.partService.hasFocus(Parts.EDITOR_PART);
-		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
-		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
+		const isEditorFocus = this.layoutService.hasFocus(Parts.EDITOR_PART);
+		const isSidebarFocus = this.layoutService.hasFocus(Parts.SIDEBAR_PART);
+		const isPanelFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
 
 		let part: Parts | undefined;
 		if (isSidebarFocus) {
@@ -467,7 +483,7 @@ export abstract class BaseResizeViewAction extends Action {
 		}
 
 		if (part) {
-			this.partService.resizePart(part, sizeChange);
+			this.layoutService.resizePart(part, sizeChange);
 		}
 	}
 }
@@ -480,9 +496,9 @@ export class IncreaseViewSizeAction extends BaseResizeViewAction {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService partService: IPartService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, label, partService);
+		super(id, label, layoutService);
 	}
 
 	run(): Promise<boolean> {
@@ -499,10 +515,10 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 	constructor(
 		id: string,
 		label: string,
-		@IPartService partService: IPartService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 
 	) {
-		super(id, label, partService);
+		super(id, label, layoutService);
 	}
 
 	run(): Promise<boolean> {

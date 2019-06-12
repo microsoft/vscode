@@ -92,16 +92,15 @@ export interface IWindowsMainService {
 	readonly onWindowClose: Event<number>;
 
 	// methods
-	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
 	enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string, openConfig: IOpenConfiguration): void;
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): void;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): void;
-	pickFileAndOpen(options: INativeOpenDialogOptions): void;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void;
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string | string[], openConfig: IOpenConfiguration): void;
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Promise<IMessageBoxResult>;
 	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Promise<string>;
 	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Promise<string[]>;
@@ -125,6 +124,7 @@ export interface IOpenConfiguration {
 	readonly cli: ParsedArgs;
 	readonly userEnv?: IProcessEnvironment;
 	readonly urisToOpen?: IURIToOpen[];
+	readonly waitMarkerFileURI?: URI;
 	readonly preferNewWindow?: boolean;
 	readonly forceNewWindow?: boolean;
 	readonly forceNewTabbedWindow?: boolean;
@@ -132,8 +132,8 @@ export interface IOpenConfiguration {
 	readonly forceEmpty?: boolean;
 	readonly diffMode?: boolean;
 	addMode?: boolean;
-	readonly forceOpenWorkspaceAsFile?: boolean;
 	readonly initialStartup?: boolean;
+	readonly noRecentEntry?: boolean;
 }
 
 export interface ISharedProcess {

@@ -16,7 +16,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DropdownMenuActionItem, IContextMenuProvider } from 'vs/base/browser/ui/dropdown/dropdown';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind, INotificationMessage, ChoiceAction } from 'vs/workbench/common/notifications';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -153,7 +153,7 @@ class NotificationMessageRenderer {
 
 				const anchor = document.createElement('a');
 				anchor.textContent = link.name;
-				anchor.title = link.href;
+				anchor.title = link.title;
 				anchor.href = link.href;
 
 				if (actionHandler) {
@@ -219,15 +219,15 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 			toolbarContainer,
 			{
 				ariaLabel: localize('notificationActions', "Notification Actions"),
-				actionItemProvider: action => {
+				actionViewItemProvider: action => {
 					if (action && action instanceof ConfigureNotificationAction) {
-						const item = new DropdownMenuActionItem(action, action.configurationActions, this.contextMenuService as IContextMenuProvider, undefined, this.actionRunner, undefined, action.class as string);
+						const item = new DropdownMenuActionViewItem(action, action.configurationActions, this.contextMenuService, undefined, this.actionRunner, undefined, action.class);
 						data.toDispose.push(item);
 
 						return item;
 					}
 
-					return null;
+					return undefined;
 				},
 				actionRunner: this.actionRunner
 			}
@@ -350,6 +350,9 @@ export class NotificationTemplateRenderer {
 				case NotificationViewItemLabelKind.PROGRESS:
 					this.renderProgress(notification);
 					break;
+				case NotificationViewItemLabelKind.MESSAGE:
+					this.renderMessage(notification);
+					break;
 			}
 		}));
 	}
@@ -417,7 +420,7 @@ export class NotificationTemplateRenderer {
 		actions.forEach(action => this.template.toolbar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) }));
 	}
 
-	private renderSource(notification): void {
+	private renderSource(notification: INotificationViewItem): void {
 		if (notification.expanded && notification.source) {
 			this.template.source.textContent = localize('notificationSource', "Source: {0}", notification.source);
 			this.template.source.title = notification.source;

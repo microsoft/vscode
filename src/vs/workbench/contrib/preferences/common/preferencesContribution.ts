@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
@@ -53,7 +53,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private handleSettingsEditorOverride(): void {
 
 		// dispose any old listener we had
-		this.editorOpeningListener = dispose(this.editorOpeningListener);
+		dispose(this.editorOpeningListener);
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)) {
@@ -61,7 +61,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 	}
 
-	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: IEditorGroup): IOpenEditorOverride {
+	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
 		const resource = editor.getResource();
 		if (
 			!resource ||
@@ -79,7 +79,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 
 		// Global User Settings File
-		if (isEqual(resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
+		if (isEqual(resource, this.environmentService.settingsResource, !isLinux)) {
 			return { override: this.preferencesService.openGlobalSettings(true, options, group) };
 		}
 
@@ -108,7 +108,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private start(): void {
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {
-			provideTextContent: (uri: URI): Promise<ITextModel> => {
+			provideTextContent: (uri: URI): Promise<ITextModel | null> | null => {
 				if (uri.scheme !== 'vscode') {
 					return null;
 				}
@@ -123,20 +123,20 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		});
 	}
 
-	private getSchemaModel(uri: URI): ITextModel {
+	private getSchemaModel(uri: URI): ITextModel | null {
 		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
 		if (schema) {
 			const modelContent = JSON.stringify(schema);
 			const languageSelection = this.modeService.create('jsonc');
 			const model = this.modelService.createModel(modelContent, languageSelection, uri);
-			const disposables: IDisposable[] = [];
-			disposables.push(schemaRegistry.onDidChangeSchema(schemaUri => {
+			const disposables = new DisposableStore();
+			disposables.add(schemaRegistry.onDidChangeSchema(schemaUri => {
 				if (schemaUri === uri.toString()) {
 					schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
 					model.setValue(JSON.stringify(schema));
 				}
 			}));
-			disposables.push(model.onWillDispose(() => dispose(disposables)));
+			disposables.add(model.onWillDispose(() => disposables.dispose()));
 
 			return model;
 		}
@@ -144,7 +144,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	}
 
 	dispose(): void {
-		this.editorOpeningListener = dispose(this.editorOpeningListener);
-		this.settingsListener = dispose(this.settingsListener);
+		dispose(this.editorOpeningListener);
+		dispose(this.settingsListener);
 	}
 }

@@ -203,7 +203,7 @@ export class ExcludeSettingWidget extends Disposable {
 
 	private model = new ExcludeSettingListModel();
 
-	private readonly _onDidChangeExclude = new Emitter<IExcludeChangeEvent>();
+	private readonly _onDidChangeExclude = this._register(new Emitter<IExcludeChangeEvent>());
 	readonly onDidChangeExclude: Event<IExcludeChangeEvent> = this._onDidChangeExclude.event;
 
 	get domNode(): HTMLElement {
@@ -403,7 +403,7 @@ export class ExcludeSettingWidget extends Disposable {
 	private renderEditItem(item: IExcludeViewItem): HTMLElement {
 		const rowElement = $('.setting-exclude-edit-row');
 
-		const onSubmit = edited => {
+		const onSubmit = (edited: boolean) => {
 			this.model.setEditKey(null);
 			const pattern = patternInput.value.trim();
 			if (edited && pattern) {

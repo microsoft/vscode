@@ -3,70 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
+import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
+import { IDiskFileChange } from 'vs/workbench/services/files/node/watcher/watcher';
 import { WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
-import { FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Schemas } from 'vs/base/common/network';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { IWatchError } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { IWatchError, IWatcherRequest } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-export class FileWatcher {
+export class FileWatcher extends Disposable {
 	private static readonly MAX_RESTARTS = 5;
 
 	private isDisposed: boolean;
 	private restartCounter: number;
 	private service: WatcherChannelClient;
-	private toDispose: IDisposable[];
 
 	constructor(
-		private contextService: IWorkspaceContextService,
-		private configurationService: IConfigurationService,
-		private onFileChanges: (changes: FileChangesEvent) => void,
+		private folders: IWatcherRequest[],
+		private onFileChanges: (changes: IDiskFileChange[]) => void,
 		private errorLogger: (msg: string) => void,
 		private verboseLogging: boolean
 	) {
+		super();
+
 		this.isDisposed = false;
 		this.restartCounter = 0;
-		this.toDispose = [];
+
+		this.startWatching();
 	}
 
-	public startWatching(): () => void {
-		const args = ['--type=watcherService'];
-
-		const client = new Client(
+	private startWatching(): void {
+		const client = this._register(new Client(
 			getPathFromAmdModule(require, 'bootstrap-fork'),
 			{
 				serverName: 'File Watcher (chokidar)',
-				args,
+				args: ['--type=watcherService'],
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/unix/watcherApp',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: this.verboseLogging
 				}
 			}
-		);
-		this.toDispose.push(client);
+		));
 
-		client.onDidProcessExit(() => {
+		this._register(client.onDidProcessExit(() => {
 			// our watcher app should never be completed because it keeps on watching. being in here indicates
 			// that the watcher process died and we want to restart it here. we only do it a max number of times
 			if (!this.isDisposed) {
 				if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
-					this.errorLogger('[FileWatcher] terminated unexpectedly and is restarted again...');
+					this.errorLogger('[File Watcher (chokidar)] terminated unexpectedly and is restarted again...');
 					this.restartCounter++;
 					this.startWatching();
 				} else {
-					this.errorLogger('[FileWatcher] failed to start after retrying for some time, giving up. Please report this as a bug report!');
+					this.errorLogger('[File Watcher (chokidar)] failed to start after retrying for some time, giving up. Please report this as a bug report!');
 				}
 			}
-		}, null, this.toDispose);
+		}));
 
+		// Initialize watcher
 		const channel = getNextTickChannel(client.getChannel('watcher'));
 		this.service = new WatcherChannelClient(channel);
 
@@ -74,50 +69,24 @@ export class FileWatcher {
 		const onWatchEvent = Event.filter(this.service.watch(options), () => !this.isDisposed);
 
 		const onError = Event.filter<any, IWatchError>(onWatchEvent, (e): e is IWatchError => typeof e.message === 'string');
-		onError(err => this.errorLogger(err.message), null, this.toDispose);
+		this._register(onError(err => this.errorLogger(`[File Watcher (chokidar)] ${err.message}`)));
 
-		const onFileChanges = Event.filter<any, IRawFileChange[]>(onWatchEvent, (e): e is IRawFileChange[] => Array.isArray(e) && e.length > 0);
-		onFileChanges(e => this.onFileChanges(toFileChangesEvent(e)), null, this.toDispose);
+		const onFileChanges = Event.filter<any, IDiskFileChange[]>(onWatchEvent, (e): e is IDiskFileChange[] => Array.isArray(e) && e.length > 0);
+		this._register(onFileChanges(e => this.onFileChanges(e)));
 
 		// Start watching
-		this.updateFolders();
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateFolders()));
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('files.watcherExclude')) {
-				this.updateFolders();
-			}
-		}));
-
-		return () => this.dispose();
+		this.service.setRoots(this.folders);
 	}
 
-	private updateFolders() {
-		if (this.isDisposed) {
-			return;
-		}
+	setFolders(folders: IWatcherRequest[]): void {
+		this.folders = folders;
 
-		this.service.setRoots(this.contextService.getWorkspace().folders.filter(folder => {
-			// Only workspace folders on disk
-			return folder.uri.scheme === Schemas.file;
-		}).map(folder => {
-			// Fetch the root's watcherExclude setting and return it
-			const configuration = this.configurationService.getValue<IFilesConfiguration>({
-				resource: folder.uri
-			});
-			let ignored: string[] = [];
-			if (configuration.files && configuration.files.watcherExclude) {
-				ignored = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
-			}
-			return {
-				basePath: folder.uri.fsPath,
-				ignored,
-				recursive: false
-			};
-		}));
+		this.service.setRoots(folders);
 	}
 
-	private dispose(): void {
+	dispose(): void {
 		this.isDisposed = true;
-		this.toDispose = dispose(this.toDispose);
+
+		super.dispose();
 	}
 }

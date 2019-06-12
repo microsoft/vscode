@@ -11,20 +11,21 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction } from 'vs/workbench/electron-browser/actions/helpActions';
+import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, OpenNewsletterSignupUrlAction } from 'vs/workbench/electron-browser/actions/helpActions';
 import { ToggleSharedProcessAction, InspectContextKeysAction, ToggleScreencastModeAction, ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
 import { ShowAboutDialogAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, OpenRecentAction, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ReloadWindowAction, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
-import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction, CloseWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction, CloseWorkspaceAction, OpenLocalFileAction, OpenLocalFolderAction, OpenLocalFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
+import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext, RemoteFileDialogContext, IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { LogStorageAction } from 'vs/platform/storage/node/storageService';
+import product from 'vs/platform/product/node/product';
 
 // Actions
 (function registerActions(): void {
@@ -36,9 +37,12 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 
 		if (isMacintosh) {
 			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open...', fileCategory);
+			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFileFolderAction, OpenLocalFileFolderAction.ID, OpenLocalFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, RemoteFileDialogContext), 'File: Open Local...', fileCategory);
 		} else {
 			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open File...', fileCategory);
 			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }), 'File: Open Folder...', fileCategory);
+			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFileAction, OpenLocalFileAction.ID, OpenLocalFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, RemoteFileDialogContext), 'File: Open Local File...', fileCategory);
+			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLocalFolderAction, OpenLocalFolderAction.ID, OpenLocalFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }, RemoteFileDialogContext), 'File: Open Local Folder...', fileCategory);
 		}
 
 		registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
@@ -104,8 +108,8 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 				windowsService.quit();
 			},
 			when: undefined,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
-			win: { primary: undefined }
+			mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q },
+			linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q }
 		});
 	})();
 
@@ -158,9 +162,9 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 		const developerCategory = nls.localize('developer', "Developer");
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(InspectContextKeysAction, InspectContextKeysAction.ID, InspectContextKeysAction.LABEL), 'Developer: Inspect Context Keys', developerCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleScreencastModeAction, ToggleScreencastModeAction.ID, ToggleScreencastModeAction.LABEL), 'Developer: Toggle Mouse Clicks', developerCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Developer: Reload Window Without Extensions', developerCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage', developerCategory);
+		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleScreencastModeAction, ToggleScreencastModeAction.ID, ToggleScreencastModeAction.LABEL), 'Developer: Toggle Screencast Mode', developerCategory);
+		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Developer: Reload Window With Extensions Disabled', developerCategory);
+		registry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage Database Contents', developerCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL), 'Developer: Reload Window', developerCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL), 'Developer: Toggle Developer Tools', developerCategory);
 
@@ -200,11 +204,15 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenTipsAndTricksUrlAction, OpenTipsAndTricksUrlAction.ID, OpenTipsAndTricksUrlAction.LABEL), 'Help: Tips and Tricks', helpCategory);
 		}
 
+		if (OpenNewsletterSignupUrlAction.AVAILABLE) {
+			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNewsletterSignupUrlAction, OpenNewsletterSignupUrlAction.ID, OpenNewsletterSignupUrlAction.LABEL), 'Help: Tips and Tricks', helpCategory);
+		}
+
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenTwitterUrlAction, OpenTwitterUrlAction.ID, OpenTwitterUrlAction.LABEL), 'Help: Join Us on Twitter', helpCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRequestFeatureUrlAction, OpenRequestFeatureUrlAction.ID, OpenRequestFeatureUrlAction.LABEL), 'Help: Search Feature Requests', helpCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLicenseUrlAction, OpenLicenseUrlAction.ID, OpenLicenseUrlAction.LABEL), 'Help: View License', helpCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPrivacyStatementUrlAction, OpenPrivacyStatementUrlAction.ID, OpenPrivacyStatementUrlAction.LABEL), 'Help: Privacy Statement', helpCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAboutDialogAction, ShowAboutDialogAction.ID, ShowAboutDialogAction.LABEL), 'Help: About', helpCategory);
+		registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAboutDialogAction, ShowAboutDialogAction.ID, ShowAboutDialogAction.LABEL), `Help: About ${product.applicationName}`, helpCategory);
 	})();
 })();
 
@@ -355,7 +363,8 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 		group: '1_toggle_view',
 		command: {
 			id: ToggleFullScreenAction.ID,
-			title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")
+			title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
+			toggled: IsFullscreenContext
 		},
 		order: 1
 	});
@@ -590,12 +599,6 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 				'default': 0,
 				'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
 			},
-			'window.title': {
-				'type': 'string',
-				'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
-				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
-					"Controls the window title based on the active editor. Variables are substituted based on the context:\n- `\${activeEditorShort}`: the file name (e.g. myFile.txt).\n- `\${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt).\n- `\${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt).\n- `\${activeFolderShort}`: the name of the folder the file is contained in (e.g. myFileFolder).\n- `\${activeFolderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder).\n- `\${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder).\n- `\${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder).\n- `\${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder).\n- `\${rootName}`: name of the workspace (e.g. myFolder or myWorkspace).\n- `\${rootPath}`: file path of the workspace (e.g. /Users/Development/myWorkspace).\n- `\${appName}`: e.g. VS Code.\n- `\${dirty}`: a dirty indicator if the active editor is dirty.\n- `\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
-			},
 			'window.newWindowDimensions': {
 				'type': 'string',
 				'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
@@ -639,6 +642,7 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 				'type': 'boolean',
 				'default': true,
 				'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
+				'scope': ConfigurationScope.APPLICATION,
 				'included': isWindows
 			},
 			'window.doubleClickIconToClose': {
@@ -665,6 +669,7 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 				'type': 'boolean',
 				'default': true,
 				'description': nls.localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
+				'scope': ConfigurationScope.APPLICATION,
 				'included': isMacintosh
 			},
 			'window.clickThroughInactive': {

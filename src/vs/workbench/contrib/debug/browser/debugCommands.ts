@@ -9,8 +9,8 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, REPL_ID, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
+import { Expression, Variable, Breakpoint, FunctionBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -22,14 +22,214 @@ import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpo
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { PanelFocusContext } from 'vs/workbench/browser/parts/panel/panelPart';
+import { PanelFocusContext } from 'vs/workbench/common/panel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { startDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
+export const COPY_STACK_TRACE_ID = 'debug.copyStackTrace';
+export const REVERSE_CONTINUE_ID = 'workbench.action.debug.reverseContinue';
+export const STEP_BACK_ID = 'workbench.action.debug.stepBack';
+export const RESTART_SESSION_ID = 'workbench.action.debug.restart';
+export const TERMINATE_THREAD_ID = 'workbench.action.debug.terminateThread';
+export const STEP_OVER_ID = 'workbench.action.debug.stepOver';
+export const STEP_INTO_ID = 'workbench.action.debug.stepInto';
+export const STEP_OUT_ID = 'workbench.action.debug.stepOut';
+export const PAUSE_ID = 'workbench.action.debug.pause';
+export const DISCONNECT_ID = 'workbench.action.debug.disconnect';
+export const STOP_ID = 'workbench.action.debug.stop';
+export const RESTART_FRAME_ID = 'workbench.action.debug.restartFrame';
+export const CONTINUE_ID = 'workbench.action.debug.continue';
+export const FOCUS_REPL_ID = 'workbench.debug.action.focusRepl';
+
+function getThreadAndRun(accessor: ServicesAccessor, thread: IThread | undefined, run: (thread: IThread) => Promise<void>, ): void {
+	const debugService = accessor.get(IDebugService);
+	if (!(thread instanceof Thread)) {
+		thread = debugService.getViewModel().focusedThread;
+		if (!thread) {
+			const focusedSession = debugService.getViewModel().focusedSession;
+			const threads = focusedSession ? focusedSession.getAllThreads() : undefined;
+			thread = threads && threads.length ? threads[0] : undefined;
+		}
+	}
+
+	if (thread) {
+		run(thread).then(undefined, onUnexpectedError);
+	}
+}
 
 export function registerCommands(): void {
+
+	CommandsRegistry.registerCommand({
+		id: COPY_STACK_TRACE_ID,
+		handler: (accessor: ServicesAccessor, _: string, frame: IStackFrame) => {
+			const textResourcePropertiesService = accessor.get(ITextResourcePropertiesService);
+			const clipboardService = accessor.get(IClipboardService);
+			const eol = textResourcePropertiesService.getEOL(frame.source.uri);
+			clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: REVERSE_CONTINUE_ID,
+		handler: (accessor: ServicesAccessor, _: string, thread: IThread | undefined) => {
+			getThreadAndRun(accessor, thread, thread => thread.reverseContinue());
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: STEP_BACK_ID,
+		handler: (accessor: ServicesAccessor, _: string, thread: IThread | undefined) => {
+			getThreadAndRun(accessor, thread, thread => thread.stepBack());
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: TERMINATE_THREAD_ID,
+		handler: (accessor: ServicesAccessor, _: string, thread: IThread | undefined) => {
+			getThreadAndRun(accessor, thread, thread => thread.terminate());
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: RESTART_SESSION_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F5,
+		when: CONTEXT_IN_DEBUG_MODE,
+		handler: (accessor: ServicesAccessor, _: string, session: IDebugSession | undefined) => {
+			const debugService = accessor.get(IDebugService);
+			if (!session || !session.getId) {
+				session = debugService.getViewModel().focusedSession;
+			}
+
+			if (!session) {
+				const historyService = accessor.get(IHistoryService);
+				startDebugging(debugService, historyService, false);
+			} else {
+				session.removeReplExpressions();
+				debugService.restartSession(session).then(undefined, onUnexpectedError);
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: STEP_OVER_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyCode.F10,
+		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
+		handler: (accessor: ServicesAccessor, _: string, thread: IThread | undefined) => {
+			getThreadAndRun(accessor, thread, thread => thread.next());
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: STEP_INTO_ID,
+		weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
+		primary: KeyCode.F11,
+		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
+		handler: (accessor: ServicesAccessor, _: string, thread: IThread | undefined) => {
+			getThreadAndRun(accessor, thread, thread => thread.stepIn());
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: STEP_OUT_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.Shift | KeyCode.F11,
+		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
+		handler: (accessor: ServicesAccessor, _: string, thread: IThread | undefined) => {
+			getThreadAndRun(accessor, thread, thread => thread.stepOut());
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: PAUSE_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyCode.F6,
+		when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
+		handler: (accessor: ServicesAccessor, _: string, thread: IThread | undefined) => {
+			const debugService = accessor.get(IDebugService);
+			if (!(thread instanceof Thread)) {
+				thread = debugService.getViewModel().focusedThread;
+				if (!thread) {
+					const session = debugService.getViewModel().focusedSession;
+					const threads = session && session.getAllThreads();
+					thread = threads && threads.length ? threads[0] : undefined;
+				}
+			}
+
+			if (thread) {
+				thread.pause().then(undefined, onUnexpectedError);
+			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: DISCONNECT_ID,
+		handler: (accessor: ServicesAccessor) => {
+			const debugService = accessor.get(IDebugService);
+			const session = debugService.getViewModel().focusedSession;
+			debugService.stopSession(session).then(undefined, onUnexpectedError);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: STOP_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyMod.Shift | KeyCode.F5,
+		when: CONTEXT_IN_DEBUG_MODE,
+		handler: (accessor: ServicesAccessor, _: string, session: IDebugSession | undefined) => {
+			const debugService = accessor.get(IDebugService);
+			if (!session || !session.getId) {
+				session = debugService.getViewModel().focusedSession;
+				const configurationService = accessor.get(IConfigurationService);
+				const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
+				// Stop should be sent to the root parent session
+				while (!showSubSessions && session && session.parentSession) {
+					session = session.parentSession;
+				}
+			}
+
+			debugService.stopSession(session).then(undefined, onUnexpectedError);
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: RESTART_FRAME_ID,
+		handler: (accessor: ServicesAccessor, _: string, frame: IStackFrame | undefined) => {
+			const debugService = accessor.get(IDebugService);
+			if (!frame) {
+				frame = debugService.getViewModel().focusedStackFrame;
+			}
+
+			return frame!.restart();
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: CONTINUE_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyCode.F5,
+		when: CONTEXT_IN_DEBUG_MODE,
+		handler: (accessor: ServicesAccessor, _: string, thread: IThread | undefined) => {
+			getThreadAndRun(accessor, thread, thread => thread.continue());
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: FOCUS_REPL_ID,
+		handler: (accessor) => {
+			const panelService = accessor.get(IPanelService);
+			panelService.openPanel(REPL_ID, true);
+		}
+	});
 
 	CommandsRegistry.registerCommand({
 		id: 'debug.startFromConfig',
@@ -70,9 +270,11 @@ export function registerCommands(): void {
 				const model = widget.getModel();
 				if (model) {
 					const position = widget.getPosition();
-					const bps = debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
-					if (bps.length) {
-						debugService.enableOrDisableBreakpoints(!bps[0].enabled, bps[0]);
+					if (position) {
+						const bps = debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
+						if (bps.length) {
+							debugService.enableOrDisableBreakpoints(!bps[0].enabled, bps[0]);
+						}
 					}
 				}
 			}
@@ -90,11 +292,10 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const focused = listService.lastFocusedList;
 
-			// Tree only
-			if (!(focused instanceof List)) {
-				const element = focused.getFocus();
-				if (element instanceof Expression) {
-					debugService.getViewModel().setSelectedExpression(element);
+			if (focused) {
+				const elements = focused.getFocus();
+				if (Array.isArray(elements) && elements[0] instanceof Expression) {
+					debugService.getViewModel().setSelectedExpression(elements[0]);
 				}
 			}
 		}
@@ -111,11 +312,10 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const focused = listService.lastFocusedList;
 
-			// Tree only
-			if (!(focused instanceof List)) {
-				const element = focused.getFocus();
-				if (element instanceof Variable) {
-					debugService.getViewModel().setSelectedExpression(element);
+			if (focused) {
+				const elements = focused.getFocus();
+				if (Array.isArray(elements) && elements[0] instanceof Variable) {
+					debugService.getViewModel().setSelectedExpression(elements[0]);
 				}
 			}
 		}
@@ -132,11 +332,10 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const focused = listService.lastFocusedList;
 
-			// Tree only
-			if (!(focused instanceof List)) {
-				const element = focused.getFocus();
-				if (element instanceof Expression) {
-					debugService.removeWatchExpressions(element.getId());
+			if (focused) {
+				const elements = focused.getFocus();
+				if (Array.isArray(elements) && elements[0] instanceof Expression) {
+					debugService.removeWatchExpressions(elements[0].getId());
 				}
 			}
 		}
@@ -153,7 +352,6 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const list = listService.lastFocusedList;
 
-			// Tree only
 			if (list instanceof List) {
 				const focused = list.getFocusedElements();
 				const element = focused.length ? focused[0] : undefined;
@@ -195,7 +393,7 @@ export function registerCommands(): void {
 			}
 			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
 
-			return launch.openConfigFile(false, false).then(({ editor, created }) => {
+			return launch!.openConfigFile(false, false).then(({ editor, created }) => {
 				if (editor && !created) {
 					const codeEditor = <ICodeEditor>editor.getControl();
 					if (codeEditor) {
@@ -214,20 +412,18 @@ export function registerCommands(): void {
 		const widget = editorService.activeTextEditorWidget;
 		if (isCodeEditor(widget)) {
 			const position = widget.getPosition();
-			const modelUri = widget.getModel().uri;
-			const bp = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
-				.filter(bp => (bp.column === position.column || !bp.column && position.column <= 1)).pop();
+			if (position && widget.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
+				const modelUri = widget.getModel().uri;
+				const breakpointAlreadySet = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
+					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
 
-			if (bp) {
-				return undefined;
-			}
-			if (debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
-				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
+				if (!breakpointAlreadySet) {
+					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
+				}
 			}
 		}
-
-		return undefined;
 	};
+
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyCode.F9,
@@ -239,14 +435,15 @@ export function registerCommands(): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
-			title: { value: nls.localize('inlineBreakpoint', "Inline Breakpoint"), original: 'Debug: Inline Breakpoint' },
-			category: nls.localize('debug', "Debug")
+			title: { value: nls.localize('inlineBreakpoint', "Inline Breakpoint"), original: 'Inline Breakpoint' },
+			category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 		command: {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
-			title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint")
+			title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint"),
+			category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
 		},
 		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
 		group: 'debug',

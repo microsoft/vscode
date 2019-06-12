@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
@@ -828,7 +827,8 @@ class CommandExecutor {
 		try {
 			command.getEditOperations(ctx.model, editOperationBuilder);
 		} catch (e) {
-			e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
+			// TODO@Alex use notification service if this should be user facing
+			// e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
 			onUnexpectedError(e);
 			return {
 				operations: [],

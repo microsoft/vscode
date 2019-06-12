@@ -65,9 +65,9 @@ suite('FindController', () => {
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		getInteger: (key: string) => undefined,
+		getNumber: (key: string) => undefined,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => undefined
+		remove: () => undefined
 	} as any);
 
 	if (platform.isMacintosh) {
@@ -440,9 +440,9 @@ suite('FindController query options persistence', () => {
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		getInteger: (key: string) => undefined,
+		getNumber: (key: string) => undefined,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => undefined
+		remove: () => undefined
 	} as any);
 
 	test('matchCase', () => {

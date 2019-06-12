@@ -48,7 +48,7 @@ export namespace EditorScroll_ {
 			return false;
 		}
 
-		let scrollArg: RawArguments = arg;
+		const scrollArg: RawArguments = arg;
 
 		if (!types.isString(scrollArg.to)) {
 			return false;
@@ -213,7 +213,7 @@ export namespace RevealLine_ {
 			return false;
 		}
 
-		let reveaLineArg: RawArguments = arg;
+		const reveaLineArg: RawArguments = arg;
 
 		if (!types.isNumber(reveaLineArg.lineNumber)) {
 			return false;
@@ -301,13 +301,13 @@ export namespace CoreNavigationCommands {
 	export const MoveTo: CoreEditorCommand = registerEditorCommand(new BaseMoveToCommand({
 		id: '_moveTo',
 		inSelectionMode: false,
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const MoveToSelect: CoreEditorCommand = registerEditorCommand(new BaseMoveToCommand({
 		id: '_moveToSelect',
 		inSelectionMode: true,
-		precondition: null
+		precondition: undefined
 	}));
 
 	abstract class ColumnSelectCommand extends CoreEditorCommand {
@@ -330,7 +330,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'columnSelect',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -354,7 +354,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'cursorColumnSelectLeft',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -373,7 +373,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'cursorColumnSelectRight',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -405,7 +405,7 @@ export namespace CoreNavigationCommands {
 	export const CursorColumnSelectUp: CoreEditorCommand = registerEditorCommand(new ColumnSelectUpCommand({
 		isPaged: false,
 		id: 'cursorColumnSelectUp',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -417,7 +417,7 @@ export namespace CoreNavigationCommands {
 	export const CursorColumnSelectPageUp: CoreEditorCommand = registerEditorCommand(new ColumnSelectUpCommand({
 		isPaged: true,
 		id: 'cursorColumnSelectPageUp',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -443,7 +443,7 @@ export namespace CoreNavigationCommands {
 	export const CursorColumnSelectDown: CoreEditorCommand = registerEditorCommand(new ColumnSelectDownCommand({
 		isPaged: false,
 		id: 'cursorColumnSelectDown',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -455,7 +455,7 @@ export namespace CoreNavigationCommands {
 	export const CursorColumnSelectPageDown: CoreEditorCommand = registerEditorCommand(new ColumnSelectDownCommand({
 		isPaged: true,
 		id: 'cursorColumnSelectPageDown',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -468,7 +468,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'cursorMove',
-				precondition: null,
+				precondition: undefined,
 				description: CursorMove_.description
 			});
 		}
@@ -531,7 +531,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorLeft',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -548,7 +548,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorLeftSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -564,7 +564,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorRight',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -581,7 +581,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorRightSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -597,7 +597,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorUp',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -614,7 +614,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorUpSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -633,7 +633,7 @@ export namespace CoreNavigationCommands {
 			value: Constants.PAGE_SIZE_MARKER
 		},
 		id: 'cursorPageUp',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -649,7 +649,7 @@ export namespace CoreNavigationCommands {
 			value: Constants.PAGE_SIZE_MARKER
 		},
 		id: 'cursorPageUpSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -665,7 +665,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorDown',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -682,7 +682,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorDownSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -701,7 +701,7 @@ export namespace CoreNavigationCommands {
 			value: Constants.PAGE_SIZE_MARKER
 		},
 		id: 'cursorPageDown',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -717,7 +717,7 @@ export namespace CoreNavigationCommands {
 			value: Constants.PAGE_SIZE_MARKER
 		},
 		id: 'cursorPageDownSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -729,7 +729,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'createCursor',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -790,7 +790,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: '_lastCursorMoveToSelect',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -800,7 +800,7 @@ export namespace CoreNavigationCommands {
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
 			const states = cursors.getAll();
-			let newStates: PartialCursorState[] = states.slice(0);
+			const newStates: PartialCursorState[] = states.slice(0);
 			newStates[lastAddedCursorIndex] = CursorMoveCommands.moveTo(context, states[lastAddedCursorIndex], true, args.position, args.viewPosition);
 
 			cursors.context.model.pushStackElement();
@@ -835,7 +835,7 @@ export namespace CoreNavigationCommands {
 	export const CursorHome: CoreEditorCommand = registerEditorCommand(new HomeCommand({
 		inSelectionMode: false,
 		id: 'cursorHome',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -847,7 +847,7 @@ export namespace CoreNavigationCommands {
 	export const CursorHomeSelect: CoreEditorCommand = registerEditorCommand(new HomeCommand({
 		inSelectionMode: true,
 		id: 'cursorHomeSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -860,7 +860,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'cursorLineStart',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -881,7 +881,7 @@ export namespace CoreNavigationCommands {
 		}
 
 		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
-			let result: PartialCursorState[] = [];
+			const result: PartialCursorState[] = [];
 			for (let i = 0, len = cursors.length; i < len; i++) {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
@@ -914,7 +914,7 @@ export namespace CoreNavigationCommands {
 	export const CursorEnd: CoreEditorCommand = registerEditorCommand(new EndCommand({
 		inSelectionMode: false,
 		id: 'cursorEnd',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -926,7 +926,7 @@ export namespace CoreNavigationCommands {
 	export const CursorEndSelect: CoreEditorCommand = registerEditorCommand(new EndCommand({
 		inSelectionMode: true,
 		id: 'cursorEndSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -939,7 +939,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'cursorLineEnd',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -960,7 +960,7 @@ export namespace CoreNavigationCommands {
 		}
 
 		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
-			let result: PartialCursorState[] = [];
+			const result: PartialCursorState[] = [];
 			for (let i = 0, len = cursors.length; i < len; i++) {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
@@ -994,7 +994,7 @@ export namespace CoreNavigationCommands {
 	export const CursorTop: CoreEditorCommand = registerEditorCommand(new TopCommand({
 		inSelectionMode: false,
 		id: 'cursorTop',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -1006,7 +1006,7 @@ export namespace CoreNavigationCommands {
 	export const CursorTopSelect: CoreEditorCommand = registerEditorCommand(new TopCommand({
 		inSelectionMode: true,
 		id: 'cursorTopSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -1038,7 +1038,7 @@ export namespace CoreNavigationCommands {
 	export const CursorBottom: CoreEditorCommand = registerEditorCommand(new BottomCommand({
 		inSelectionMode: false,
 		id: 'cursorBottom',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -1050,7 +1050,7 @@ export namespace CoreNavigationCommands {
 	export const CursorBottomSelect: CoreEditorCommand = registerEditorCommand(new BottomCommand({
 		inSelectionMode: true,
 		id: 'cursorBottomSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -1063,7 +1063,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'editorScroll',
-				precondition: null,
+				precondition: undefined,
 				description: EditorScroll_.description
 			});
 		}
@@ -1134,7 +1134,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'scrollLineUp',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1159,7 +1159,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'scrollPageUp',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1185,7 +1185,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'scrollLineDown',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1210,7 +1210,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'scrollPageDown',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1257,20 +1257,20 @@ export namespace CoreNavigationCommands {
 	export const WordSelect: CoreEditorCommand = registerEditorCommand(new WordCommand({
 		inSelectionMode: false,
 		id: '_wordSelect',
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const WordSelectDrag: CoreEditorCommand = registerEditorCommand(new WordCommand({
 		inSelectionMode: true,
 		id: '_wordSelectDrag',
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const LastCursorWordSelect: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({
 				id: 'lastCursorWordSelect',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -1280,8 +1280,8 @@ export namespace CoreNavigationCommands {
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
 			const states = cursors.getAll();
-			let newStates: PartialCursorState[] = states.slice(0);
-			let lastAddedState = states[lastAddedCursorIndex];
+			const newStates: PartialCursorState[] = states.slice(0);
+			const lastAddedState = states[lastAddedCursorIndex];
 			newStates[lastAddedCursorIndex] = CursorMoveCommands.word(context, lastAddedState, lastAddedState.modelState.hasSelection(), args.position);
 
 			context.model.pushStackElement();
@@ -1317,13 +1317,13 @@ export namespace CoreNavigationCommands {
 	export const LineSelect: CoreEditorCommand = registerEditorCommand(new LineCommand({
 		inSelectionMode: false,
 		id: '_lineSelect',
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const LineSelectDrag: CoreEditorCommand = registerEditorCommand(new LineCommand({
 		inSelectionMode: true,
 		id: '_lineSelectDrag',
-		precondition: null
+		precondition: undefined
 	}));
 
 	class LastCursorLineCommand extends CoreEditorCommand {
@@ -1338,7 +1338,7 @@ export namespace CoreNavigationCommands {
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
 			const states = cursors.getAll();
-			let newStates: PartialCursorState[] = states.slice(0);
+			const newStates: PartialCursorState[] = states.slice(0);
 			newStates[lastAddedCursorIndex] = CursorMoveCommands.line(cursors.context, states[lastAddedCursorIndex], this._inSelectionMode, args.position, args.viewPosition);
 
 			cursors.context.model.pushStackElement();
@@ -1353,20 +1353,20 @@ export namespace CoreNavigationCommands {
 	export const LastCursorLineSelect: CoreEditorCommand = registerEditorCommand(new LastCursorLineCommand({
 		inSelectionMode: false,
 		id: 'lastCursorLineSelect',
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const LastCursorLineSelectDrag: CoreEditorCommand = registerEditorCommand(new LastCursorLineCommand({
 		inSelectionMode: true,
 		id: 'lastCursorLineSelectDrag',
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const ExpandLineSelection: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({
 				id: 'expandLineSelection',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1445,7 +1445,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'revealLine',
-				precondition: null,
+				precondition: undefined,
 				description: RevealLine_.description
 			});
 		}
@@ -1493,7 +1493,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'selectAll',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -1513,7 +1513,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'setSelection',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -1685,21 +1685,21 @@ class EditorOrNativeTextInputCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 
-		let focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			return this._runEditorHandler(accessor, focusedEditor, args);
 		}
 
 		// Ignore this action when user is focused on an element that allows for entering text
-		let activeElement = <HTMLElement>document.activeElement;
+		const activeElement = <HTMLElement>document.activeElement;
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			document.execCommand(this._inputHandler);
 			return;
 		}
 
 		// Redirecting to active editor
-		let activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
+		const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 		if (activeEditor) {
 			activeEditor.focus();
 			return this._runEditorHandler(accessor, activeEditor, args);
@@ -1707,7 +1707,7 @@ class EditorOrNativeTextInputCommand extends Command {
 	}
 
 	private _runEditorHandler(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		let HANDLER = this._editorHandler;
+		const HANDLER = this._editorHandler;
 		if (typeof HANDLER === 'string') {
 			editor.trigger('keyboard', HANDLER, args);
 		} else {
@@ -1728,7 +1728,7 @@ class EditorHandlerCommand extends Command {
 	constructor(id: string, handlerId: string, description?: ICommandHandlerDescription) {
 		super({
 			id: id,
-			precondition: null,
+			precondition: undefined,
 			description: description
 		});
 		this._handlerId = handlerId;

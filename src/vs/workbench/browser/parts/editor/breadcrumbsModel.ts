@@ -21,6 +21,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { FileKind } from 'vs/platform/files/common/files';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class FileElement {
 	constructor(
@@ -105,7 +106,7 @@ export class EditorBreadcrumbsModel {
 		}
 
 		let info: FileInfo = {
-			folder: workspaceService.getWorkspaceFolder(uri) || undefined,
+			folder: withNullAsUndefined(workspaceService.getWorkspaceFolder(uri)),
 			path: []
 		};
 
@@ -204,7 +205,7 @@ export class EditorBreadcrumbsModel {
 		let chain: Array<OutlineGroup | OutlineElement> = [];
 		while (item) {
 			chain.push(item);
-			let parent = item.parent;
+			let parent: any = item.parent;
 			if (parent instanceof OutlineModel) {
 				break;
 			}

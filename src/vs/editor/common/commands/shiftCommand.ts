@@ -68,8 +68,8 @@ export class ShiftCommand implements ICommand {
 		}
 	}
 
-	private _opts: IShiftCommandOpts;
-	private _selection: Selection;
+	private readonly _opts: IShiftCommandOpts;
+	private readonly _selection: Selection;
 	private _selectionId: string;
 	private _useLastEditRangeForCursorEndPosition: boolean;
 	private _selectionStartColumnStaysPut: boolean;

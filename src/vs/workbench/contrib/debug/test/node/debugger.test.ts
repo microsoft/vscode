@@ -12,8 +12,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { URI } from 'vs/base/common/uri';
 import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 
 suite('Debug - Debugger', () => {
@@ -131,7 +130,7 @@ suite('Debug - Debugger', () => {
 	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 
 	setup(() => {
-		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!);
+		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!);
 	});
 
 	teardown(() => {
@@ -149,7 +148,7 @@ suite('Debug - Debugger', () => {
 	});
 
 	test('schema attributes', () => {
-		const schemaAttribute = _debugger.getSchemaAttributes()[0];
+		const schemaAttribute = _debugger.getSchemaAttributes()![0];
 		assert.notDeepEqual(schemaAttribute, debuggerContribution.configurationAttributes);
 		Object.keys(debuggerContribution.configurationAttributes.launch).forEach(key => {
 			assert.deepEqual(schemaAttribute[key], debuggerContribution.configurationAttributes.launch[key]);

@@ -17,15 +17,19 @@ import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/set
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { localize } from 'vs/nls';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const $ = DOM.$;
 
 export class TOCTreeModel {
 
-	private _currentSearchModel: SearchResultModel;
+	private _currentSearchModel: SearchResultModel | null;
 	private _settingsTreeRoot: SettingsTreeGroupElement;
 
-	constructor(private _viewState: ISettingsEditorViewState) {
+	constructor(
+		private _viewState: ISettingsEditorViewState,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService
+	) {
 	}
 
 	get settingsTreeRoot(): SettingsTreeGroupElement {
@@ -37,7 +41,11 @@ export class TOCTreeModel {
 		this.update();
 	}
 
-	set currentSearchModel(model: SearchResultModel) {
+	get currentSearchModel(): SearchResultModel | null {
+		return this._currentSearchModel;
+	}
+
+	set currentSearchModel(model: SearchResultModel | null) {
 		this._currentSearchModel = model;
 		this.update();
 	}
@@ -61,7 +69,7 @@ export class TOCTreeModel {
 
 		const childCount = group.children
 			.filter(child => child instanceof SettingsTreeGroupElement)
-			.reduce((acc, cur) => acc + (<SettingsTreeGroupElement>cur).count, 0);
+			.reduce((acc, cur) => acc + (<SettingsTreeGroupElement>cur).count!, 0);
 
 		group.count = childCount + this.getGroupCount(group);
 	}
@@ -77,7 +85,8 @@ export class TOCTreeModel {
 			}
 
 			// Check everything that the SettingsFilter checks except whether it's filtered by a category
-			return child.matchesScope(this._viewState.settingsTarget) && child.matchesAllTags(this._viewState.tagFilters);
+			const isRemote = !!this.environmentService.configuration.remoteAuthority;
+			return child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAllTags(this._viewState.tagFilters) && child.matchesAnyExtension(this._viewState.extensionFilters);
 		}).length;
 	}
 }

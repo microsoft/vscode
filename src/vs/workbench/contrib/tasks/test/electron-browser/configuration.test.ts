@@ -13,7 +13,7 @@ import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'v
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
-import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask } from 'vs/workbench/contrib/tasks/node/taskConfiguration';
+import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, CustomTask } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
 
 const workspaceFolder: IWorkspaceFolder = new WorkspaceFolder({
 	uri: URI.file('/workspace/folderOne'),
@@ -83,7 +83,7 @@ class PresentationBuilder {
 	public result: Tasks.PresentationOptions;
 
 	constructor(public parent: CommandConfigurationBuilder) {
-		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false };
+		this.result = { echo: false, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false };
 	}
 
 	public echo(value: boolean): PresentationBuilder {

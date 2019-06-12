@@ -30,6 +30,12 @@ export const TAB_ACTIVE_BACKGROUND = registerColor('tab.activeBackground', {
 	hc: editorBackground
 }, nls.localize('tabActiveBackground', "Active tab background color. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
+export const TAB_UNFOCUSED_ACTIVE_BACKGROUND = registerColor('tab.unfocusedActiveBackground', {
+	dark: TAB_ACTIVE_BACKGROUND,
+	light: TAB_ACTIVE_BACKGROUND,
+	hc: TAB_ACTIVE_BACKGROUND
+}, nls.localize('tabUnfocusedActiveBackground', "Active tab background color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
 export const TAB_INACTIVE_BACKGROUND = registerColor('tab.inactiveBackground', {
 	dark: '#2D2D2D',
 	light: '#ECECEC',
@@ -138,7 +144,6 @@ export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedIna
 	hc: Color.white
 }, nls.localize('tabUnfocusedInactiveForeground', "Inactive tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-
 // < --- Editors --- >
 
 export const EDITOR_PANE_BACKGROUND = registerColor('editorPane.background', {
@@ -235,6 +240,11 @@ export const PANEL_DRAG_AND_DROP_BACKGROUND = registerColor('panel.dropBackgroun
 	hc: Color.white.transparent(0.12)
 }, nls.localize('panelDragAndDropBackground', "Drag and drop feedback color for the panel title items. The color should have transparency so that the panel entries can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
+	dark: null,
+	light: Color.fromHex('#ddd'),
+	hc: null
+}, nls.localize('panelInputBorder', "Input box border for inputs in the panel."));
 
 // < --- Status --- >
 
@@ -286,24 +296,23 @@ export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hov
 	hc: Color.white.transparent(0.12)
 }, nls.localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_PROMINENT_ITEM_FOREGROUND = registerColor('statusBarItem.prominentForeground', {
+	dark: STATUS_BAR_FOREGROUND,
+	light: STATUS_BAR_FOREGROUND,
+	hc: STATUS_BAR_FOREGROUND
+}, nls.localize('statusBarProminentItemForeground', "Status bar prominent items foreground color. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
+
 export const STATUS_BAR_PROMINENT_ITEM_BACKGROUND = registerColor('statusBarItem.prominentBackground', {
-	dark: '#388A34',
-	light: '#388A34',
-	hc: '#3883A4'
+	dark: Color.black.transparent(0.5),
+	light: Color.black.transparent(0.5),
+	hc: Color.black.transparent(0.5),
 }, nls.localize('statusBarProminentItemBackground', "Status bar prominent items background color. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.prominentHoverBackground', {
-	dark: '#369432',
-	light: '#369432',
-	hc: '#369432'
+	dark: Color.black.transparent(0.3),
+	light: Color.black.transparent(0.3),
+	hc: Color.black.transparent(0.3),
 }, nls.localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
-
-export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.hostBackground', {
-	dark: STATUS_BAR_PROMINENT_ITEM_BACKGROUND,
-	light: STATUS_BAR_PROMINENT_ITEM_BACKGROUND,
-	hc: STATUS_BAR_PROMINENT_ITEM_BACKGROUND
-}, nls.localize('statusBarItemHostBackground', "Background color for the remote host name on the status bar."));
-
 
 // < --- Activity Bar --- >
 
@@ -348,6 +357,33 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	light: Color.white,
 	hc: Color.white
 }, nls.localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+
+// < --- Remote --- >
+
+export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.remoteBackground', {
+	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	light: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hc: ACTIVITY_BAR_BADGE_BACKGROUND
+}, nls.localize('statusBarItemHostBackground', "Background color for the remote indicator on the status bar."));
+
+export const STATUS_BAR_HOST_NAME_FOREGROUND = registerColor('statusBarItem.remoteForeground', {
+	dark: ACTIVITY_BAR_BADGE_FOREGROUND,
+	light: ACTIVITY_BAR_BADGE_FOREGROUND,
+	hc: ACTIVITY_BAR_BADGE_FOREGROUND
+}, nls.localize('statusBarItemHostForeground', "Foreground color for the remote indicator on the status bar."));
+
+export const EXTENSION_BADGE_REMOTE_BACKGROUND = registerColor('extensionBadge.remoteBackground', {
+	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	light: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hc: ACTIVITY_BAR_BADGE_BACKGROUND
+}, nls.localize('extensionBadge.remoteBackground', "Background color for the remote badge in the extensions view"));
+
+export const EXTENSION_BADGE_REMOTE_FOREGROUND = registerColor('extensionBadge.remoteForeground', {
+	dark: ACTIVITY_BAR_BADGE_FOREGROUND,
+	light: ACTIVITY_BAR_BADGE_FOREGROUND,
+	hc: ACTIVITY_BAR_BADGE_FOREGROUND
+}, nls.localize('extensionBadge.remoteForeground', "Foreground color for the remote badge in the extensions view"));
 
 
 // < --- Side Bar --- >

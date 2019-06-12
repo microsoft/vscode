@@ -16,19 +16,100 @@
 
 declare module 'vscode' {
 
+	//#region Joh - ExecutionContext
+
+	export enum ExtensionExecutionContext {
+		Local = 1,
+		Remote = 2
+	}
+
+	export interface ExtensionContext {
+		/**
+		 * Describes the context in which this extension is executed, e.g.
+		 * a Node.js-context on the same machine or on a remote machine
+		 */
+		executionContext: ExtensionExecutionContext;
+	}
+
+	//#endregion
+
+
+	//#region Joh - call hierarchy
+
+	export enum CallHierarchyDirection {
+		CallsFrom = 1,
+		CallsTo = 2,
+	}
+
+	export class CallHierarchyItem {
+		kind: SymbolKind;
+		name: string;
+		detail?: string;
+		uri: Uri;
+		range: Range;
+		selectionRange: Range;
+
+		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
+	}
+
+	export interface CallHierarchyItemProvider {
+
+		/**
+		 * Given a document and position compute a call hierarchy item. This is justed as
+		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
+		 */
+		provideCallHierarchyItem(
+			document: TextDocument,
+			postion: Position,
+			token: CancellationToken
+		): ProviderResult<CallHierarchyItem>;
+
+		/**
+		 * Resolve a call hierarchy item, e.g. compute all calls from or to a function.
+		 * The result is an array of item/location-tuples. The location in the returned tuples
+		 * is always relative to the "caller" with the caller either being the provided item or
+		 * the returned item.
+		 *
+		 * @param item A call hierarchy item previously returned from `provideCallHierarchyItem` or `resolveCallHierarchyItem`
+		 * @param direction Resolve calls from a function or calls to a function
+		 * @param token A cancellation token
+		 */
+		resolveCallHierarchyItem(
+			item: CallHierarchyItem,
+			direction: CallHierarchyDirection,
+			token: CancellationToken
+		): ProviderResult<[CallHierarchyItem, Location[]][]>;
+	}
+
+	export namespace languages {
+		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyItemProvider): Disposable;
+	}
+
+	//#endregion
+
+
 	//#region Alex - resolvers
+
+	export interface RemoteAuthorityResolverContext {
+		resolveAttempt: number;
+	}
 
 	export class ResolvedAuthority {
 		readonly host: string;
 		readonly port: number;
-		debugListenPort?: number;
-		debugConnectPort?: number;
 
 		constructor(host: string, port: number);
 	}
 
+	export class RemoteAuthorityResolverError extends Error {
+		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
+		static TemporarilyNotAvailable(message?: string): RemoteAuthorityResolverError;
+
+		constructor(message?: string);
+	}
+
 	export interface RemoteAuthorityResolver {
-		resolve(authority: string): ResolvedAuthority | Thenable<ResolvedAuthority>;
+		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolvedAuthority | Thenable<ResolvedAuthority>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -56,79 +137,16 @@ declare module 'vscode' {
 
 	// #region Joh - code insets
 
-	/**
-	 */
-	export class CodeInset {
-		range: Range;
-		height?: number;
-		constructor(range: Range, height?: number);
+	export interface WebviewEditorInset {
+		readonly editor: TextEditor;
+		readonly range: Range;
+		readonly webview: Webview;
+		readonly onDidDispose: Event<void>;
+		dispose(): void;
 	}
 
-	export interface CodeInsetProvider {
-		onDidChangeCodeInsets?: Event<void>;
-		provideCodeInsets(document: TextDocument, token: CancellationToken): ProviderResult<CodeInset[]>;
-		resolveCodeInset(codeInset: CodeInset, webview: Webview, token: CancellationToken): ProviderResult<CodeInset>;
-	}
-
-	export namespace languages {
-
-		/**
-		 * Register a code inset provider.
-		 *
-		 */
-		export function registerCodeInsetProvider(selector: DocumentSelector, provider: CodeInsetProvider): Disposable;
-	}
-
-	//#endregion
-
-
-	//#region Joh - selection range provider
-
-	export class SelectionRangeKind {
-
-		/**
-		 * Empty Kind.
-		 */
-		static readonly Empty: SelectionRangeKind;
-
-		/**
-		 * The statement kind, its value is `statement`, possible extensions can be
-		 * `statement.if` etc
-		 */
-		static readonly Statement: SelectionRangeKind;
-
-		/**
-		 * The declaration kind, its value is `declaration`, possible extensions can be
-		 * `declaration.function`, `declaration.class` etc.
-		 */
-		static readonly Declaration: SelectionRangeKind;
-
-		readonly value: string;
-
-		private constructor(value: string);
-
-		append(value: string): SelectionRangeKind;
-	}
-
-	export class SelectionRange {
-		kind: SelectionRangeKind;
-		range: Range;
-		constructor(range: Range, kind: SelectionRangeKind);
-	}
-
-	export interface SelectionRangeProvider {
-		/**
-		 * Provide selection ranges for the given positions. Selection ranges should be computed individually and
-		 * independend for each postion. The editor will merge and deduplicate ranges but providers must return sequences
-		 * of ranges (per position) where a range must [contain](#Range.contains) and subsequent ranges.
-		 *
-		 * todo@joh
-		 */
-		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
-	}
-
-	export namespace languages {
-		export function registerSelectionRangeProvider(selector: DocumentSelector, provider: SelectionRangeProvider): Disposable;
+	export namespace window {
+		export function createWebviewTextEditorInset(editor: TextEditor, range: Range, options?: WebviewOptions): WebviewEditorInset;
 	}
 
 	//#endregion
@@ -136,7 +154,6 @@ declare module 'vscode' {
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {
-		seperator?: '/' | '\\';
 		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
 		close?(fd: number): void | Thenable<void>;
 		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
@@ -220,7 +237,6 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 		 */
 		useGlobalIgnoreFiles: boolean;
-
 	}
 
 	/**
@@ -317,11 +333,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options that apply to requesting the file index.
-	 */
-	export interface FileIndexOptions extends SearchOptions { }
-
-	/**
 	 * A preview of the text result.
 	 */
 	export interface TextSearchMatchPreview {
@@ -381,26 +392,6 @@ declare module 'vscode' {
 	export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 	/**
-	 * A FileIndexProvider provides a list of files in the given folder. VS Code will filter that list for searching with quickopen or from other extensions.
-	 *
-	 * A FileIndexProvider is the simpler of two ways to implement file search in VS Code. Use a FileIndexProvider if you are able to provide a listing of all files
-	 * in a folder, and want VS Code to filter them according to the user's search query.
-	 *
-	 * The FileIndexProvider will be invoked once when quickopen is opened, and VS Code will filter the returned list. It will also be invoked when
-	 * `workspace.findFiles` is called.
-	 *
-	 * If a [`FileSearchProvider`](#FileSearchProvider) is registered for the scheme, that provider will be used instead.
-	 */
-	export interface FileIndexProvider {
-		/**
-		 * Provide the set of files in the folder.
-		 * @param options A set of options to consider while searching.
-		 * @param token A cancellation token.
-		 */
-		provideFileIndex(options: FileIndexOptions, token: CancellationToken): ProviderResult<Uri[]>;
-	}
-
-	/**
 	 * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
 	 *
 	 * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
@@ -408,15 +399,12 @@ declare module 'vscode' {
 	 *
 	 * The FileSearchProvider will be invoked on every keypress in quickopen. When `workspace.findFiles` is called, it will be invoked with an empty query string,
 	 * and in that case, every file in the folder should be returned.
-	 *
-	 * @see [FileIndexProvider](#FileIndexProvider)
 	 */
 	export interface FileSearchProvider {
 		/**
 		 * Provide the set of files that match a certain file path pattern.
 		 * @param query The parameters for this query.
 		 * @param options A set of options to consider while searching files.
-		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
 		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
@@ -500,22 +488,6 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
-		/**
-		 * DEPRECATED
-		 */
-		export function registerSearchProvider(): Disposable;
-
-		/**
-		 * Register a file index provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFileIndexProvider(scheme: string, provider: FileIndexProvider): Disposable;
-
 		/**
 		 * Register a search provider.
 		 *
@@ -769,80 +741,26 @@ declare module 'vscode' {
 		inDraftMode?: boolean;
 	}
 
-	export enum CommentThreadCollapsibleState {
-		/**
-		 * Determines an item is collapsed
-		 */
-		Collapsed = 0,
-		/**
-		 * Determines an item is expanded
-		 */
-		Expanded = 1
-	}
-
-	interface CommentingRanges {
-		readonly resource: Uri;
-		ranges: Range[];
-		newCommentThreadCommand: Command;
-	}
-
-	/**
-	 * A collection of comments representing a conversation at a particular range in a document.
-	 */
-	interface CommentThread {
-		/**
-		 * A unique identifier of the comment thread.
-		 */
-		threadId: string;
-
-		/**
-		 * The uri of the document the thread has been created on.
-		 */
-		resource: Uri;
-
-		/**
-		 * The range the comment thread is located within the document. The thread icon will be shown
-		 * at the first line of the range.
-		 */
-		range: Range;
-
-		/**
-		 * The ordered comments of the thread.
-		 */
-		comments: Comment[];
-		acceptInputCommands?: Command[];
-
-		/**
-		 * Whether the thread should be collapsed or expanded when opening the document. Defaults to Collapsed.
-		 */
-		collapsibleState?: CommentThreadCollapsibleState;
-		dispose?(): void;
-	}
-
 	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
 	 */
-	interface Comment {
-		/**
-		 * The id of the comment
-		 */
-		commentId: string;
-
-		/**
-		 * The text of the comment
-		 */
-		body: MarkdownString;
-
+	export interface Comment {
 		/**
 		 * The display name of the user who created the comment
 		 */
-		userName: string;
+		readonly userName: string;
 
 		/**
 		 * The icon path for the user who created the comment
 		 */
-		userIconPath?: Uri;
+		readonly userIconPath?: Uri;
 
+		/**
+		 * The id of the comment
+		 *
+		 * @deprecated Use Id instead
+		 */
+		readonly commentId: string;
 
 		/**
 		 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
@@ -870,17 +788,30 @@ declare module 'vscode' {
 		canDelete?: boolean;
 
 		/**
+		 * @deprecated
 		 * The command to be executed if the comment is selected in the Comments Panel
 		 */
 		command?: Command;
 
-		editCommand?: Command;
+		/**
+		 * Deprecated
+		 */
+		isDraft?: boolean;
+
+		/**
+		 * The command to be executed when users try to delete the comment
+		 */
 		deleteCommand?: Command;
 
-		isDraft?: boolean;
+		/**
+		 * Proposed Comment Reaction
+		 */
 		commentReactions?: CommentReaction[];
 	}
 
+	/**
+	 * Deprecated
+	 */
 	export interface CommentThreadChangedEvent {
 		/**
 		 * Added comment threads.
@@ -903,13 +834,17 @@ declare module 'vscode' {
 		readonly inDraftMode: boolean;
 	}
 
+	/**
+	 * Comment Reactions
+	 * Stay in proposed.
+	 */
 	interface CommentReaction {
-		readonly label?: string;
-		readonly iconPath?: string | Uri;
-		count?: number;
 		readonly hasReacted?: boolean;
 	}
 
+	/**
+	 * DEPRECATED
+	 */
 	interface DocumentCommentProvider {
 		/**
 		 * Provide the commenting ranges and comment threads for the given document. The comments are displayed within the editor.
@@ -954,6 +889,9 @@ declare module 'vscode' {
 		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
+	/**
+	 * DEPRECATED
+	 */
 	interface WorkspaceCommentProvider {
 		/**
 		 * Provide all comments for the workspace. Comments are shown within the comments panel. Selecting a comment
@@ -967,47 +905,195 @@ declare module 'vscode' {
 		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
-	export interface CommentWidget {
-		/*
-		 * Comment thread in this Comment Widget
-		 */
-		commentThread: CommentThread;
-
-		/*
-		 * Textarea content in the comment widget.
-		 * There is only one active input box in a comment widget.
-		 */
-		input: string;
+	/**
+	 * Stay in proposed
+	 */
+	export interface CommentReactionProvider {
+		availableReactions: CommentReaction[];
+		toggleReaction?(document: TextDocument, comment: Comment, reaction: CommentReaction): Promise<void>;
 	}
 
-	export interface CommentControl {
+	export interface CommentThread {
+		/**
+		 * The uri of the document the thread has been created on.
+		 */
+		readonly resource: Uri;
+
+		/**
+		 * Optional additonal commands.
+		 *
+		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
+		 */
+		additionalCommands?: Command[];
+
+		/**
+		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
+		 * when the user collapses a comment thread that has no comments in it.
+		 */
+		deleteCommand?: Command;
+	}
+
+
+	export interface CommentController {
+		/**
+		 * Optional reaction provider
+		 * Stay in proposed.
+		 */
+		reactionProvider?: CommentReactionProvider;
+	}
+
+	namespace workspace {
+		/**
+		 * DEPRECATED
+		 * Use vscode.comment.createCommentController instead.
+		 */
+		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
+		/**
+		 * DEPRECATED
+		 * Use vscode.comment.createCommentController instead and we don't differentiate document comments and workspace comments anymore.
+		 */
+		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
+	}
+
+	/**
+	 * A collection of [comments](#Comment) representing a conversation at a particular range in a document.
+	 */
+	export interface CommentThread {
+		/**
+		 * A unique identifier of the comment thread.
+		 */
 		readonly id: string;
-		readonly label: string;
+
 		/**
-		 * The active (focused) comment widget.
+		 * The uri of the document the thread has been created on.
 		 */
-		readonly widget?: CommentWidget;
+		readonly uri: Uri;
+
 		/**
-		 * The active range users attempt to create comments against.
+		 * Optional accept input command
+		 *
+		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
+		 * This command will be invoked when users the user accepts the value in the comment editor.
+		 * This command will disabled when the comment editor is empty.
 		 */
-		readonly activeCommentingRange?: Range;
-		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[], acceptInputCommands: Command[], collapsibleState?: CommentThreadCollapsibleState): CommentThread;
-		createCommentingRanges(resource: Uri, ranges: Range[], newCommentThreadCommand: Command): CommentingRanges;
+		acceptInputCommand?: Command;
+	}
+
+	/**
+	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
+	 */
+	export interface Comment {
+		/**
+		 * The id of the comment
+		 */
+		id: string;
+
+		/**
+		 * The command to be executed if the comment is selected in the Comments Panel
+		 */
+		selectCommand?: Command;
+
+		/**
+		 * The command to be executed when users try to save the edits to the comment
+		 */
+		editCommand?: Command;
+	}
+
+	/**
+	 * The comment input box in Comment Widget.
+	 */
+	export interface CommentInputBox {
+		/**
+		 * Setter and getter for the contents of the comment input box
+		 */
+		value: string;
+	}
+
+	/**
+	 * Commenting range provider for a [comment controller](#CommentController).
+	 */
+	export interface CommentingRangeProvider {
+		/**
+		 * Provide a list of ranges which allow new comment threads creation or null for a given document
+		 */
+		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
+	export interface EmptyCommentThreadFactory {
+		/**
+		 * The method `createEmptyCommentThread` is called when users attempt to create new comment thread from the gutter or command palette.
+		 * Extensions still need to call `createCommentThread` inside this call when appropriate.
+		 */
+		createEmptyCommentThread(document: TextDocument, range: Range): ProviderResult<void>;
+	}
+
+	/**
+	 * A comment controller is able to provide [comments](#CommentThread) support to the editor and
+	 * provide users various ways to interact with comments.
+	 */
+	export interface CommentController {
+
+		/**
+		 * The active [comment input box](#CommentInputBox) or `undefined`. The active `inputBox` is the input box of
+		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any CommentInputBox.
+		 */
+		readonly inputBox?: CommentInputBox;
+
+		/**
+		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
+		 * and Comments Panel once created.
+		 *
+		 * @param id An `id` for the comment thread.
+		 * @param resource The uri of the document the thread has been created on.
+		 * @param range The range the comment thread is located within the document.
+		 * @param comments The ordered comments of the thread.
+		 */
+		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
+
+		/**
+		 * Optional new comment thread factory.
+		 */
+		emptyCommentThreadFactory?: EmptyCommentThreadFactory;
+
+		/**
+		 * Optional reaction provider
+		 */
+		reactionProvider?: CommentReactionProvider;
+
+		/**
+		 * Dispose this comment controller.
+		 *
+		 * Once disposed, all [comment threads](#CommentThread) created by this comment controller will also be removed from the editor
+		 * and Comments Panel.
+		 */
 		dispose(): void;
 	}
 
 	namespace comment {
-		export function createCommentControl(id: string, label: string): CommentControl;
-	}
-
-	namespace workspace {
-		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
-		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
+		/**
+		 * Creates a new [comment controller](#CommentController) instance.
+		 *
+		 * @param id An `id` for the comment controller.
+		 * @param label A human-readable string for the comment controller.
+		 * @return An instance of [comment controller](#CommentController).
+		 */
+		export function createCommentController(id: string, label: string): CommentController;
 	}
 
 	//#endregion
 
 	//#region Terminal
+
+	export interface TerminalOptions {
+		/**
+		 * When enabled the terminal will run the process as normal but not be surfaced to the user
+		 * until `Terminal.show` is called. The typical usage for this is when you need to run
+		 * something that may need interactivity but only want to tell the user about it when
+		 * interaction is needed. Note that the terminals will still be exposed to all extensions
+		 * as normal.
+		 */
+		runInBackground?: boolean;
+	}
 
 	/**
 	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
@@ -1152,7 +1238,7 @@ declare module 'vscode' {
 		readonly onDidAcceptInput: Event<string>;
 
 		/**
-		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
+		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maximumDimensions) of
 		 * the terminal renderer change.
 		 */
 		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
@@ -1247,6 +1333,48 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	/**
+	 * Class used to execute an extension callback as a task.
+	 */
+	export class CustomExecution {
+		/**
+		 * @param callback The callback that will be called when the extension callback task is executed.
+		 */
+		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>);
+
+		/**
+		 * The callback used to execute the task.
+		 * @param terminalRenderer Used by the task to render output and receive input.
+		 * @param cancellationToken Cancellation used to signal a cancel request to the executing task.
+		 * @returns The callback should return '0' for success and a non-zero value for failure.
+		 */
+		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>;
+	}
+
+	/**
+	 * A task to execute
+	 */
+	export class Task2 extends Task {
+		/**
+		 * Creates a new task.
+		 *
+		 * @param definition The task definition as defined in the taskDefinitions extension point.
+		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
+		 * @param name The task's name. Is presented in the user interface.
+		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
+		 * @param execution The process or shell execution.
+		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
+		 *  or '$eslint'. Problem matchers can be contributed by an extension using
+		 *  the `problemMatchers` extension point.
+		 */
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
+
+		/**
+		 * The task's execution engine
+		 */
+		execution2?: ProcessExecution | ShellExecution | CustomExecution;
+	}
+
 	//#region Tasks
 	export interface TaskPresentationOptions {
 		/**
@@ -1255,4 +1383,57 @@ declare module 'vscode' {
 		group?: string;
 	}
 	//#endregion
+
+	//#region Workspace URI Ben
+
+	export namespace workspace {
+
+		/**
+		 * The location of the workspace file, for example:
+		 *
+		 * `file:///Users/name/Development/myProject.code-workspace`
+		 *
+		 * or
+		 *
+		 * `untitled:1555503116870`
+		 *
+		 * for a workspace that is untitled and not yet saved.
+		 *
+		 * Depending on the workspace that is opened, the value will be:
+		 *  * `undefined` when no workspace or  a single folder is opened
+		 *  * the path of the workspace file as `Uri` otherwise. if the workspace
+		 * is untitled, the returned URI will use the `untitled:` scheme
+		 *
+		 * The location can e.g. be used with the `vscode.openFolder` command to
+		 * open the workspace again after it has been closed.
+		 *
+		 * **Example:**
+		 * ```typescript
+		 * vscode.commands.executeCommand('vscode.openFolder', uriOfWorkspace);
+		 * ```
+		 *
+		 * **Note:** it is not advised to use `workspace.workspaceFile` to write
+		 * configuration data into the file. You can use `workspace.getConfiguration().update()`
+		 * for that purpose which will work both when a single folder is opened as
+		 * well as an untitled or saved workspace.
+		 */
+		export const workspaceFile: Uri | undefined;
+	}
+
+	//#endregion
+
+	//#region DocumentLink tooltip mjbvz
+
+	interface DocumentLink {
+		/**
+		 * The tooltip text when you hover over this link.
+		 *
+		 * If a tooltip is provided, is will be displayed in a string that includes instructions on how to
+		 * trigger the link, such as `cmd + click to {0}`. The specific instructions vary depending on OS,
+		 * user settings, and localization.
+		 */
+		tooltip?: string;
+	}
+
+	// #endregion
 }

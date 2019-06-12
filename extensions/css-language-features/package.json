@@ -4,6 +4,7 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.29.0"
   },
@@ -41,6 +42,12 @@
               "type": "string"
             },
             "scope": "resource"
+          },
+          "css.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.completion.triggerPropertyValueCompletion.desc%"
           },
           "css.validate": {
             "type": "boolean",
@@ -726,11 +733,11 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^5.1.0",
+    "vscode-languageclient": "^5.2.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^10.12.21",
+    "@types/node": "^10.14.8",
     "mocha": "^5.2.0"
   }
 }

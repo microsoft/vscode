@@ -122,6 +122,7 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 		const { element } = node;
 		const options = {
 			matches: createMatches(node.filterData),
+			labelEscapeNewLines: true,
 			extraClasses: <string[]>[],
 			title: localize('title.template', "{0} ({1})", element.symbol.name, OutlineElementRenderer._symbolKindNames[element.symbol.kind])
 		};

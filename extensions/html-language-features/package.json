@@ -5,6 +5,7 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "0.10.x"
@@ -12,8 +13,7 @@
   "icon": "icons/html.png",
   "activationEvents": [
     "onLanguage:html",
-    "onLanguage:handlebars",
-    "onLanguage:razor"
+    "onLanguage:handlebars"
   ],
   "main": "./client/out/htmlMain",
   "scripts": {
@@ -177,10 +177,10 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^5.1.0",
+    "vscode-languageclient": "^5.2.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^10.12.21"
+    "@types/node": "^10.14.8"
   }
 }

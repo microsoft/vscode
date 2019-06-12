@@ -7,7 +7,7 @@ import { SplitView, Orientation, ISplitViewStyles, IView as ISplitViewView } fro
 import { $ } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IView } from 'vs/base/browser/ui/grid/gridview';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 
 export interface CenteredViewState {
@@ -48,7 +48,7 @@ export interface ICenteredViewStyles extends ISplitViewStyles {
 	background: Color;
 }
 
-export class CenteredViewLayout {
+export class CenteredViewLayout implements IDisposable {
 
 	private splitView?: SplitView;
 	private width: number = 0;
@@ -56,7 +56,7 @@ export class CenteredViewLayout {
 	private style: ICenteredViewStyles;
 	private didLayout = false;
 	private emptyViews: ISplitViewView[] | undefined;
-	private splitViewDisposables: IDisposable[] = [];
+	private readonly splitViewDisposables = new DisposableStore();
 
 	constructor(private container: HTMLElement, private view: IView, public readonly state: CenteredViewState = { leftMarginRatio: GOLDEN_RATIO.leftMarginRatio, rightMarginRatio: GOLDEN_RATIO.rightMarginRatio }) {
 		this.container.appendChild(this.view.element);
@@ -117,13 +117,13 @@ export class CenteredViewLayout {
 				styles: this.style
 			});
 
-			this.splitViewDisposables.push(this.splitView.onDidSashChange(() => {
+			this.splitViewDisposables.add(this.splitView.onDidSashChange(() => {
 				if (this.splitView) {
 					this.state.leftMarginRatio = this.splitView.getViewSize(0) / this.width;
 					this.state.rightMarginRatio = this.splitView.getViewSize(2) / this.width;
 				}
 			}));
-			this.splitViewDisposables.push(this.splitView.onDidSashReset(() => {
+			this.splitViewDisposables.add(this.splitView.onDidSashReset(() => {
 				this.state.leftMarginRatio = GOLDEN_RATIO.leftMarginRatio;
 				this.state.rightMarginRatio = GOLDEN_RATIO.rightMarginRatio;
 				this.resizeMargins();
@@ -138,7 +138,7 @@ export class CenteredViewLayout {
 			if (this.splitView) {
 				this.container.removeChild(this.splitView.el);
 			}
-			this.splitViewDisposables = dispose(this.splitViewDisposables);
+			this.splitViewDisposables.clear();
 			if (this.splitView) {
 				this.splitView.dispose();
 			}
@@ -153,7 +153,7 @@ export class CenteredViewLayout {
 	}
 
 	dispose(): void {
-		this.splitViewDisposables = dispose(this.splitViewDisposables);
+		this.splitViewDisposables.dispose();
 
 		if (this.splitView) {
 			this.splitView.dispose();

@@ -5,8 +5,8 @@
 
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { ITerminalInstance, IWindowsShellHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Terminal as XTermTerminal } from 'xterm';
 import WindowsProcessTreeType = require('windows-process-tree');
 
 const SHELL_EXECUTABLES = [
@@ -24,7 +24,7 @@ const SHELL_EXECUTABLES = [
 
 let windowsProcessTree: typeof WindowsProcessTreeType;
 
-export class WindowsShellHelper {
+export class WindowsShellHelper implements IWindowsShellHelper {
 	private _onCheckShell: Emitter<Promise<string> | undefined>;
 	private _isDisposed: boolean;
 	private _currentRequest: Promise<string> | null;
@@ -61,15 +61,15 @@ export class WindowsShellHelper {
 			// If this is done on every linefeed, parsing ends up taking
 			// significantly longer due to resetting timers. Note that this is
 			// private API.
-			this._xterm.on('linefeed', () => this._newLineFeed = true);
-			this._xterm.on('cursormove', () => {
+			this._xterm.onLineFeed(() => this._newLineFeed = true);
+			this._xterm.onCursorMove(() => {
 				if (this._newLineFeed) {
 					this._onCheckShell.fire(undefined);
 				}
 			});
 
 			// Fire a new check for the shell when any key is pressed.
-			this._xterm.on('keypress', () => this._onCheckShell.fire(undefined));
+			this._xterm.onKey(() => this._onCheckShell.fire(undefined));
 		});
 	}
 

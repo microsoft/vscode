@@ -10,14 +10,12 @@ import { ParsedArgs } from '../common/environment';
 import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 
-
 function validate(args: ParsedArgs): ParsedArgs {
 	if (args.goto) {
 		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
 	}
 
 	if (args['max-memory']) {
-		console.log(parseInt(args['max-memory']));
 		assert(parseInt(args['max-memory']) >= MIN_MAX_MEMORY_SIZE_MB, `The max-memory argument cannot be specified lower than ${MIN_MAX_MEMORY_SIZE_MB} MB.`);
 	}
 

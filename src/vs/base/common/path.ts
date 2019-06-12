@@ -6,28 +6,30 @@
 // NOTE: VSCode's copy of nodejs path library to be usable in common (non-node) namespace
 // Copied from: https://github.com/nodejs/node/tree/43dd49c9782848c25e5b03448c8a0f923f13c158
 
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
+/**
+ * Copyright Joyent, Inc. and other Node contributors.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to permit
+ * persons to whom the Software is furnished to do so, subject to the
+ * following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+ * NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+ * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
-import { isWindows } from 'vs/base/common/platform';
+import * as process from 'vs/base/common/process';
 
 const CHAR_UPPERCASE_A = 65;/* A */
 const CHAR_LOWERCASE_A = 97; /* a */
@@ -39,22 +41,9 @@ const CHAR_BACKWARD_SLASH = 92; /* \ */
 const CHAR_COLON = 58; /* : */
 const CHAR_QUESTION_MARK = 63; /* ? */
 
-interface IProcess {
-	cwd(): string;
-	platform: string;
-	env: object;
-}
-
-declare let process: IProcess;
-const safeProcess: IProcess = (typeof process === 'undefined') ? {
-	cwd() { return '/'; },
-	env: {},
-	get platform() { return isWindows ? 'win32' : 'posix'; }
-} : process;
-
 class ErrorInvalidArgType extends Error {
 	code: 'ERR_INVALID_ARG_TYPE';
-	constructor(name: string, expected: string, actual: string) {
+	constructor(name: string, expected: string, actual: any) {
 		// determiner: 'must be' or 'must not be'
 		let determiner;
 		if (typeof expected === 'string' && expected.indexOf('not ') === 0) {
@@ -64,36 +53,35 @@ class ErrorInvalidArgType extends Error {
 			determiner = 'must be';
 		}
 
-		let msg;
 		const type = name.indexOf('.') !== -1 ? 'property' : 'argument';
-		msg = `The "${name}" ${type} ${determiner} of type ${expected}`;
+		let msg = `The "${name}" ${type} ${determiner} of type ${expected}`;
 
 		msg += `. Received type ${typeof actual}`;
 		super(msg);
 	}
 }
 
-function validateString(value: string, name) {
+function validateString(value: string, name: string) {
 	if (typeof value !== 'string') {
 		throw new ErrorInvalidArgType(name, 'string', value);
 	}
 }
 
-function isPathSeparator(code) {
+function isPathSeparator(code: number) {
 	return code === CHAR_FORWARD_SLASH || code === CHAR_BACKWARD_SLASH;
 }
 
-function isPosixPathSeparator(code) {
+function isPosixPathSeparator(code: number) {
 	return code === CHAR_FORWARD_SLASH;
 }
 
-function isWindowsDeviceRoot(code) {
+function isWindowsDeviceRoot(code: number) {
 	return code >= CHAR_UPPERCASE_A && code <= CHAR_UPPERCASE_Z ||
 		code >= CHAR_LOWERCASE_A && code <= CHAR_LOWERCASE_Z;
 }
 
 // Resolves . and .. elements in a path with directory names
-function normalizeString(path, allowAboveRoot, separator, isPathSeparator) {
+function normalizeString(path: string, allowAboveRoot: boolean, separator: string, isPathSeparator: (code?: number) => boolean) {
 	let res = '';
 	let lastSegmentLength = 0;
 	let lastSlash = -1;
@@ -166,7 +154,7 @@ function normalizeString(path, allowAboveRoot, separator, isPathSeparator) {
 	return res;
 }
 
-function _format(sep, pathObject) {
+function _format(sep: string, pathObject: ParsedPath) {
 	const dir = pathObject.dir || pathObject.root;
 	const base = pathObject.base ||
 		((pathObject.name || '') + (pathObject.ext || ''));
@@ -196,7 +184,7 @@ interface IPath {
 	dirname(path: string): string;
 	basename(path: string, ext?: string): string;
 	extname(path: string): string;
-	format(pathObject): string;
+	format(pathObject: ParsedPath): string;
 	parse(path: string): ParsedPath;
 	toNamespacedPath(path: string): string;
 	sep: '\\' | '/';
@@ -205,12 +193,7 @@ interface IPath {
 	posix: IPath | null;
 }
 
-interface IExportedPath extends IPath {
-	win32: IPath;
-	posix: IPath;
-}
-
-const win32: IPath = {
+export const win32: IPath = {
 	// path.resolve([from ...], to)
 	resolve(...pathSegments: string[]): string {
 		let resolvedDevice = '';
@@ -222,14 +205,14 @@ const win32: IPath = {
 			if (i >= 0) {
 				path = pathSegments[i];
 			} else if (!resolvedDevice) {
-				path = safeProcess.cwd();
+				path = process.cwd();
 			} else {
 				// Windows has the concept of drive-specific current working
 				// directories. If we've resolved a drive letter but not yet an
 				// absolute path, get cwd for that drive, or the process cwd if
 				// the drive cwd is not available. We're sure the device is not
 				// a UNC path at this points, because UNC paths are always absolute.
-				path = safeProcess.env['=' + resolvedDevice] || safeProcess.cwd();
+				path = process.env['=' + resolvedDevice] || process.cwd();
 
 				// Verify that a cwd was found and that it actually points
 				// to our drive. If not, default to the drive's root.
@@ -247,7 +230,7 @@ const win32: IPath = {
 				continue;
 			}
 
-			let len = path.length;
+			const len = path.length;
 			let rootEnd = 0;
 			let device = '';
 			let isAbsolute = false;
@@ -517,9 +500,9 @@ const win32: IPath = {
 		}
 
 		let joined;
-		let firstPart;
+		let firstPart: string | undefined;
 		for (let i = 0; i < paths.length; ++i) {
-			let arg = paths[i];
+			const arg = paths[i];
 			validateString(arg, 'path');
 			if (arg.length > 0) {
 				if (joined === undefined) {
@@ -550,7 +533,7 @@ const win32: IPath = {
 		//   path.join('//server', 'share') -> '\\\\server\\share\\')
 		let needsReplace = true;
 		let slashCount = 0;
-		if (isPathSeparator(firstPart.charCodeAt(0))) {
+		if (typeof firstPart === 'string' && isPathSeparator(firstPart.charCodeAt(0))) {
 			++slashCount;
 			const firstLen = firstPart.length;
 			if (firstLen > 1) {
@@ -598,8 +581,8 @@ const win32: IPath = {
 			return '';
 		}
 
-		let fromOrig = win32.resolve(from);
-		let toOrig = win32.resolve(to);
+		const fromOrig = win32.resolve(from);
+		const toOrig = win32.resolve(to);
 
 		if (fromOrig === toOrig) {
 			return '';
@@ -626,7 +609,7 @@ const win32: IPath = {
 				break;
 			}
 		}
-		let fromLen = (fromEnd - fromStart);
+		const fromLen = (fromEnd - fromStart);
 
 		// Trim any leading backslashes
 		let toStart = 0;
@@ -642,10 +625,10 @@ const win32: IPath = {
 				break;
 			}
 		}
-		let toLen = (toEnd - toStart);
+		const toLen = (toEnd - toStart);
 
 		// Compare paths to find the longest common path from root
-		let length = (fromLen < toLen ? fromLen : toLen);
+		const length = (fromLen < toLen ? fromLen : toLen);
 		let lastCommonSep = -1;
 		let i = 0;
 		for (; i <= length; ++i) {
@@ -674,8 +657,8 @@ const win32: IPath = {
 				}
 				break;
 			}
-			let fromCode = from.charCodeAt(fromStart + i);
-			let toCode = to.charCodeAt(toStart + i);
+			const fromCode = from.charCodeAt(fromStart + i);
+			const toCode = to.charCodeAt(toStart + i);
 			if (fromCode !== toCode) {
 				break;
 			}
@@ -1031,12 +1014,12 @@ const win32: IPath = {
 	parse(path) {
 		validateString(path, 'path');
 
-		let ret = { root: '', dir: '', base: '', ext: '', name: '' };
+		const ret = { root: '', dir: '', base: '', ext: '', name: '' };
 		if (path.length === 0) {
 			return ret;
 		}
 
-		let len = path.length;
+		const len = path.length;
 		let rootEnd = 0;
 		let code = path.charCodeAt(0);
 
@@ -1199,7 +1182,7 @@ const win32: IPath = {
 	posix: null
 };
 
-const posix: IPath = {
+export const posix: IPath = {
 	// path.resolve([from ...], to)
 	resolve(...pathSegments: string[]): string {
 		let resolvedPath = '';
@@ -1211,7 +1194,7 @@ const posix: IPath = {
 				path = pathSegments[i];
 			}
 			else {
-				path = safeProcess.cwd();
+				path = process.cwd();
 			}
 
 			validateString(path, 'path');
@@ -1284,7 +1267,7 @@ const posix: IPath = {
 		}
 		let joined;
 		for (let i = 0; i < paths.length; ++i) {
-			let arg = arguments[i];
+			const arg = arguments[i];
 			validateString(arg, 'path');
 			if (arg.length > 0) {
 				if (joined === undefined) {
@@ -1323,8 +1306,8 @@ const posix: IPath = {
 				break;
 			}
 		}
-		let fromEnd = from.length;
-		let fromLen = (fromEnd - fromStart);
+		const fromEnd = from.length;
+		const fromLen = (fromEnd - fromStart);
 
 		// Trim any leading backslashes
 		let toStart = 1;
@@ -1333,11 +1316,11 @@ const posix: IPath = {
 				break;
 			}
 		}
-		let toEnd = to.length;
-		let toLen = (toEnd - toStart);
+		const toEnd = to.length;
+		const toLen = (toEnd - toStart);
 
 		// Compare paths to find the longest common path from root
-		let length = (fromLen < toLen ? fromLen : toLen);
+		const length = (fromLen < toLen ? fromLen : toLen);
 		let lastCommonSep = -1;
 		let i = 0;
 		for (; i <= length; ++i) {
@@ -1365,8 +1348,8 @@ const posix: IPath = {
 				}
 				break;
 			}
-			let fromCode = from.charCodeAt(fromStart + i);
-			let toCode = to.charCodeAt(toStart + i);
+			const fromCode = from.charCodeAt(fromStart + i);
+			const toCode = to.charCodeAt(toStart + i);
 			if (fromCode !== toCode) {
 				break;
 			}
@@ -1584,11 +1567,11 @@ const posix: IPath = {
 	parse(path: string): ParsedPath {
 		validateString(path, 'path');
 
-		let ret = { root: '', dir: '', base: '', ext: '', name: '' };
+		const ret = { root: '', dir: '', base: '', ext: '', name: '' };
 		if (path.length === 0) {
 			return ret;
 		}
-		let isAbsolute = path.charCodeAt(0) === CHAR_FORWARD_SLASH;
+		const isAbsolute = path.charCodeAt(0) === CHAR_FORWARD_SLASH;
 		let start;
 		if (isAbsolute) {
 			ret.root = '/';
@@ -1685,5 +1668,16 @@ const posix: IPath = {
 posix.win32 = win32.win32 = win32;
 posix.posix = win32.posix = posix;
 
-const impl = (safeProcess.platform === 'win32' ? win32 : posix) as IExportedPath;
-export = impl;
+export const normalize = (process.platform === 'win32' ? win32.normalize : posix.normalize);
+export const isAbsolute = (process.platform === 'win32' ? win32.isAbsolute : posix.isAbsolute);
+export const join = (process.platform === 'win32' ? win32.join : posix.join);
+export const resolve = (process.platform === 'win32' ? win32.resolve : posix.resolve);
+export const relative = (process.platform === 'win32' ? win32.relative : posix.relative);
+export const dirname = (process.platform === 'win32' ? win32.dirname : posix.dirname);
+export const basename = (process.platform === 'win32' ? win32.basename : posix.basename);
+export const extname = (process.platform === 'win32' ? win32.extname : posix.extname);
+export const format = (process.platform === 'win32' ? win32.format : posix.format);
+export const parse = (process.platform === 'win32' ? win32.parse : posix.parse);
+export const toNamespacedPath = (process.platform === 'win32' ? win32.toNamespacedPath : posix.toNamespacedPath);
+export const sep = (process.platform === 'win32' ? win32.sep : posix.sep);
+export const delimiter = (process.platform === 'win32' ? win32.delimiter : posix.delimiter);

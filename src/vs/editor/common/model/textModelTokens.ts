@@ -472,7 +472,7 @@ export class ModelLinesTokens {
 
 export class ModelTokensChangedEventBuilder {
 
-	private _ranges: { fromLineNumber: number; toLineNumber: number; }[];
+	private readonly _ranges: { fromLineNumber: number; toLineNumber: number; }[];
 
 	constructor() {
 		this._ranges = [];

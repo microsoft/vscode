@@ -7,7 +7,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, EnablementState, ILocalExtension, IGalleryExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, EnablementState, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -32,46 +32,39 @@ export const enum ExtensionState {
 }
 
 export interface IExtension {
-	type?: ExtensionType;
-	state: ExtensionState;
-	name: string;
-	displayName: string;
-	identifier: IExtensionIdentifier;
-	publisher: string;
-	publisherDisplayName: string;
-	version: string;
-	latestVersion: string;
-	description: string;
-	url?: string;
-	repository?: string;
-	iconUrl: string;
-	iconUrlFallback: string;
-	licenseUrl?: string;
-	installCount?: number;
-	rating?: number;
-	ratingCount?: number;
-	outdated: boolean;
-	enablementState: EnablementState;
-	dependencies: string[];
-	extensionPack: string[];
-	telemetryData: any;
-	preview: boolean;
+	readonly type?: ExtensionType;
+	readonly state: ExtensionState;
+	readonly name: string;
+	readonly displayName: string;
+	readonly identifier: IExtensionIdentifier;
+	readonly publisher: string;
+	readonly publisherDisplayName: string;
+	readonly version: string;
+	readonly latestVersion: string;
+	readonly description: string;
+	readonly url?: string;
+	readonly repository?: string;
+	readonly iconUrl: string;
+	readonly iconUrlFallback: string;
+	readonly licenseUrl?: string;
+	readonly installCount?: number;
+	readonly rating?: number;
+	readonly ratingCount?: number;
+	readonly outdated: boolean;
+	readonly enablementState: EnablementState;
+	readonly dependencies: string[];
+	readonly extensionPack: string[];
+	readonly telemetryData: any;
+	readonly preview: boolean;
 	getManifest(token: CancellationToken): Promise<IExtensionManifest | null>;
 	getReadme(token: CancellationToken): Promise<string>;
 	hasReadme(): boolean;
 	getChangelog(token: CancellationToken): Promise<string>;
 	hasChangelog(): boolean;
-	local?: ILocalExtension;
+	readonly server?: IExtensionManagementServer;
+	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
-	isMalicious: boolean;
-}
-
-export interface IExtensionDependencies {
-	dependencies: IExtensionDependencies[];
-	hasDependencies: boolean;
-	identifier: string;
-	extension: IExtension;
-	dependent: IExtensionDependencies | null;
+	readonly isMalicious: boolean;
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';
@@ -82,8 +75,11 @@ export interface IExtensionsWorkbenchService {
 	_serviceBrand: any;
 	onChange: Event<IExtension | undefined>;
 	local: IExtension[];
-	queryLocal(): Promise<IExtension[]>;
-	queryGallery(options?: IQueryOptions): Promise<IPager<IExtension>>;
+	installed: IExtension[];
+	outdated: IExtension[];
+	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
+	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
+	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	canInstall(extension: IExtension): boolean;
 	install(vsix: string): Promise<IExtension>;
 	install(extension: IExtension, promptToInstallDependencies?: boolean): Promise<IExtension>;
@@ -91,7 +87,6 @@ export interface IExtensionsWorkbenchService {
 	installVersion(extension: IExtension, version: string): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	loadDependencies(extension: IExtension, token: CancellationToken): Promise<IExtensionDependencies | null>;
 	open(extension: IExtension, sideByside?: boolean): Promise<any>;
 	checkForUpdates(): Promise<void>;
 	allowedBadgeProviders: string[];
@@ -113,6 +108,7 @@ export interface IExtensionsConfiguration {
 
 export interface IExtensionContainer {
 	extension: IExtension | null;
+	updateWhenCounterExtensionChanges?: boolean;
 	update(): void;
 }
 
@@ -134,7 +130,11 @@ export class ExtensionContainers extends Disposable {
 		for (const container of this.containers) {
 			if (extension && container.extension) {
 				if (areSameExtensions(container.extension.identifier, extension.identifier)) {
-					container.extension = extension;
+					if (!container.extension.server || container.extension.server === extension.server) {
+						container.extension = extension;
+					} else if (container.updateWhenCounterExtensionChanges) {
+						container.update();
+					}
 				}
 			} else {
 				container.update();

@@ -13,6 +13,7 @@ import { QuickOpenWidget } from './vs/base/parts/quickopen/browser/quickOpenWidg
 import { WorkbenchAsyncDataTree } from './vs/platform/list/browser/listService';
 import { SyncDescriptor0, SyncDescriptor1, SyncDescriptor2, SyncDescriptor3, SyncDescriptor4, SyncDescriptor5, SyncDescriptor6, SyncDescriptor7, SyncDescriptor8 } from './vs/platform/instantiation/common/descriptors';
 import { DiffNavigator } from './vs/editor/browser/widget/diffNavigator';
+import { DocumentRangeFormattingEditProvider } from './vs/editor/common/modes';
 import * as editorAPI from './vs/editor/editor.api';
 
 (function () {
@@ -32,6 +33,7 @@ import * as editorAPI from './vs/editor/editor.api';
 	a = (<SimpleWorkerClient<any>>b).getProxyObject; // IWorkerClient
 	a = create1;
 	a = create2;
+	a = (<DocumentRangeFormattingEditProvider>b).extensionId;
 
 	// injection madness
 	a = (<SyncDescriptor0<any>>b).ctor;

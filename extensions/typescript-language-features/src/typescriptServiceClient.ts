@@ -20,7 +20,7 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
-import TelemetryReporter from './utils/telemetry';
+import TelemetryReporter, { VSCodeTelemetryReporter } from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectConfig } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
@@ -152,7 +152,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 		}, this, this._disposables);
 
-		this.telemetryReporter = this._register(new TelemetryReporter(() => {
+		this.telemetryReporter = this._register(new VSCodeTelemetryReporter(() => {
 			if (this.serverState.type === ServerState.Type.Running) {
 				if (this.serverState.tsserverVersion) {
 					return this.serverState.tsserverVersion;
@@ -414,6 +414,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		try {
+			const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(this.serverState.server.tsServerLogFile));
+			await vscode.window.showTextDocument(doc);
+			return true;
+		} catch {
+			// noop
+		}
+
+		try {
 			await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(this.serverState.server.tsServerLogFile));
 			return true;
 		} catch {
@@ -626,6 +634,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean }): undefined;
 	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
 	private executeImpl(command: string, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
+		this.bufferSyncSupport.beforeCommand(command);
 		const runningServerState = this.service();
 		return runningServerState.server.executeImpl(command, args, executeInfo);
 	}
@@ -639,8 +648,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case 'syntaxDiag':
 			case 'semanticDiag':
 			case 'suggestionDiag':
-				// This event also roughly signals that the global project has been loaded successfully
-				this.loadingIndicator.finishedLoadingProject(undefined /* projectName */);
+				// This event also roughly signals that projects have been loaded successfully (since the TS server is synchronous)
+				this.loadingIndicator.reset();
 
 				const diagnosticEvent = event as Proto.DiagnosticEvent;
 				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {

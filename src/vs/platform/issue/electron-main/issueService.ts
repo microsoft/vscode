@@ -9,12 +9,14 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, Event, dialog } from 'electron';
 import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
-import { PerformanceInfo, SystemInfo, IDiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
+import { PerformanceInfo, IDiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
+import { listProcesses } from 'vs/base/node/ps';
+import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -39,9 +41,55 @@ export class IssueService implements IIssueService {
 
 	private registerListeners(): void {
 		ipcMain.on('vscode:issueSystemInfoRequest', (event: Event) => {
-			this.getSystemInformation().then(msg => {
+			this.diagnosticsService.getSystemInfo(this.launchService).then(msg => {
 				event.sender.send('vscode:issueSystemInfoResponse', msg);
 			});
+		});
+
+		ipcMain.on('vscode:listProcesses', async (event: Event) => {
+			const processes = [];
+
+			try {
+				const mainPid = await this.launchService.getMainProcessId();
+				processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(mainPid) });
+				(await this.launchService.getRemoteDiagnostics({ includeProcesses: true }))
+					.forEach(data => {
+						if (isRemoteDiagnosticError(data)) {
+							processes.push({
+								name: data.hostName,
+								rootProcess: data
+							});
+						} else {
+							if (data.processes) {
+								processes.push({
+									name: data.hostName,
+									rootProcess: data.processes
+								});
+							}
+						}
+					});
+			} catch (e) {
+				this.logService.error(`Listing processes failed: ${e}`);
+			}
+
+			event.sender.send('vscode:listProcessesResponse', processes);
+		});
+
+		ipcMain.on('vscode:issueReporterClipboard', (event: Event) => {
+			const messageOptions = {
+				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub. Would you like to write the information to the clipboard so that it can be pasted?"),
+				type: 'warning',
+				buttons: [
+					localize('yes', "Yes"),
+					localize('cancel', "Cancel")
+				]
+			};
+
+			if (this._issueWindow) {
+				dialog.showMessageBox(this._issueWindow, messageOptions, response => {
+					event.sender.send('vscode:issueReporterClipboardResponse', response === 0);
+				});
+			}
 		});
 
 		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Event) => {
@@ -50,7 +98,7 @@ export class IssueService implements IIssueService {
 			});
 		});
 
-		ipcMain.on('vscode:issueReporterConfirmClose', (_) => {
+		ipcMain.on('vscode:issueReporterConfirmClose', () => {
 			const messageOptions = {
 				message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
 				type: 'warning',
@@ -72,7 +120,7 @@ export class IssueService implements IIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:workbenchCommand', (_, commandInfo) => {
+		ipcMain.on('vscode:workbenchCommand', (_: unknown, commandInfo: { id: any; from: any; args: any; }) => {
 			const { id, from, args } = commandInfo;
 
 			let parentWindow: BrowserWindow | null;
@@ -92,7 +140,7 @@ export class IssueService implements IIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:openExternal', (_, arg) => {
+		ipcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
 			this.windowsService.openExternal(arg);
 		});
 
@@ -214,6 +262,10 @@ export class IssueService implements IIssueService {
 		});
 	}
 
+	public getSystemStatus(): Promise<string> {
+		return this.diagnosticsService.getDiagnostics(this.launchService);
+	}
+
 	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
 		// We want the new window to open on the same display that the parent is in
 		let displayToUse: Electron.Display | undefined;
@@ -282,26 +334,16 @@ export class IssueService implements IIssueService {
 		return state;
 	}
 
-	private getSystemInformation(): Promise<SystemInfo> {
-		return new Promise((resolve, reject) => {
-			this.launchService.getMainProcessInfo().then(info => {
-				resolve(this.diagnosticsService.getSystemInfo(info));
-			});
-		});
-	}
-
 	private getPerformanceInfo(): Promise<PerformanceInfo> {
 		return new Promise((resolve, reject) => {
-			this.launchService.getMainProcessInfo().then(info => {
-				this.diagnosticsService.getPerformanceInfo(info)
-					.then(diagnosticInfo => {
-						resolve(diagnosticInfo);
-					})
-					.catch(err => {
-						this.logService.warn('issueService#getPerformanceInfo ', err.message);
-						reject(err);
-					});
-			});
+			this.diagnosticsService.getPerformanceInfo(this.launchService)
+				.then(diagnosticInfo => {
+					resolve(diagnosticInfo);
+				})
+				.catch(err => {
+					this.logService.warn('issueService#getPerformanceInfo ', err.message);
+					reject(err);
+				});
 		});
 	}
 

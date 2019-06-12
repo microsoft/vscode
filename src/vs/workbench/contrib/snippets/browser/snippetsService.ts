@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
 import { endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -114,20 +113,16 @@ namespace snippetExt {
 }
 
 function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
-	let listener = service.onFileChanges(e => {
-		for (const change of e.changes) {
-			if (resources.isEqualOrParent(change.resource, resource)) {
-				callback(change.type, change.resource);
+	return combinedDisposable(
+		service.watch(resource),
+		service.onFileChanges(e => {
+			for (const change of e.changes) {
+				if (resources.isEqualOrParent(change.resource, resource)) {
+					callback(change.type, change.resource);
+				}
 			}
-		}
-	});
-	service.watchFileChanges(resource);
-	return {
-		dispose() {
-			listener.dispose();
-			service.unwatchFileChanges(resource);
-		}
-	};
+		})
+	);
 }
 
 class SnippetsService implements ISnippetsService {
@@ -277,7 +272,7 @@ class SnippetsService implements ISnippetsService {
 	private _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: IDisposable[]): Promise<any> {
 		let promises = workspace.folders.map(folder => {
 			const snippetFolder = folder.toResource('.vscode');
-			return this._fileService.existsFile(snippetFolder).then(value => {
+			return this._fileService.exists(snippetFolder).then(value => {
 				if (value) {
 					this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
 				} else {
@@ -294,20 +289,21 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = URI.file(join(this._environmentService.appSettingsHome, 'snippets'));
+		const userSnippetsFolder = resources.joinPath(this._environmentService.appSettingsHome, 'snippets');
 		return this._fileService.createFolder(userSnippetsFolder).then(() => this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables));
 	}
 
 	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: IDisposable[]): Promise<any> {
-		let disposables: IDisposable[] = [];
-		let addFolderSnippets = (type?: FileChangeType) => {
-			disposables = dispose(disposables);
+		const disposables = new DisposableStore();
+		const addFolderSnippets = (type?: FileChangeType) => {
+			disposables.clear();
+
 			if (type === FileChangeType.DELETED) {
 				return Promise.resolve();
 			}
-			return this._fileService.resolveFile(folder).then(stat => {
+			return this._fileService.resolve(folder).then(stat => {
 				for (const entry of stat.children || []) {
-					disposables.push(this._addSnippetFile(entry.resource, source));
+					disposables.add(this._addSnippetFile(entry.resource, source));
 				}
 			}, err => {
 				this._logService.error(`Failed snippets from folder '${folder.toString()}'`, err);
@@ -315,7 +311,7 @@ class SnippetsService implements ISnippetsService {
 		};
 
 		bucket.push(watch(this._fileService, folder, addFolderSnippets));
-		bucket.push(combinedDisposable(disposables));
+		bucket.push(disposables);
 		return addFolderSnippets();
 	}
 

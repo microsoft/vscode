@@ -5,10 +5,12 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IDimension } from 'vs/editor/common/editorCommon';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -165,6 +167,21 @@ export interface IEditorGroupsService {
 	readonly onDidMoveGroup: Event<IEditorGroup>;
 
 	/**
+	 * An event for when a group gets activated.
+	 */
+	readonly onDidActivateGroup: Event<IEditorGroup>;
+
+	/**
+	 * An event for when the group container is layed out.
+	 */
+	readonly onDidLayout: Event<IDimension>;
+
+	/**
+	 * The size of the editor groups area.
+	 */
+	readonly dimension: IDimension;
+
+	/**
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: IEditorGroup;
@@ -186,6 +203,16 @@ export interface IEditorGroupsService {
 	readonly orientation: GroupOrientation;
 
 	/**
+	 * A promise that resolves when groups have been restored.
+	 */
+	readonly whenRestored: Promise<void>;
+
+	/**
+	 * Find out if the editor group service has editors to restore from a previous session.
+	 */
+	readonly willRestoreEditors: boolean;
+
+	/**
 	 * Get all groups that are currently visible in the editor area optionally
 	 * sorted by being most recent active or grid order. Will sort by creation
 	 * time by default (oldest group first).
@@ -195,7 +222,7 @@ export interface IEditorGroupsService {
 	/**
 	 * Allows to convert a group identifier to a group.
 	 */
-	getGroup(identifier: GroupIdentifier): IEditorGroup;
+	getGroup(identifier: GroupIdentifier): IEditorGroup | undefined;
 
 	/**
 	 * Set a group as active. An active group is the default location for new editors to open.
@@ -221,6 +248,16 @@ export interface IEditorGroupsService {
 	 * Applies the provided layout by either moving existing groups or creating new groups.
 	 */
 	applyLayout(layout: EditorGroupLayout): void;
+
+	/**
+	 * Enable or disable centered editor layout.
+	 */
+	centerLayout(active: boolean): void;
+
+	/**
+	 * Find out if the editor layout is currently centered.
+	 */
+	isLayoutCentered(): boolean;
 
 	/**
 	 * Sets the orientation of the root group to be either vertical or horizontal.
@@ -290,6 +327,16 @@ export interface IEditorGroupsService {
 	 * @param direction the direction of where to split to
 	 */
 	copyGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
+
+	/**
+	 * Access the options of the editor part.
+	 */
+	readonly partOptions: IEditorPartOptions;
+
+	/**
+	 * Enforce editor part options temporarily.
+	 */
+	enforcePartOptions(options: IEditorPartOptions): IDisposable;
 }
 
 export const enum GroupChangeKind {
@@ -337,7 +384,7 @@ export interface IEditorGroup {
 	/**
 	 * The active control is the currently visible control of the group.
 	 */
-	readonly activeControl: IActiveEditor | undefined;
+	readonly activeControl: IVisibleEditor | undefined;
 
 	/**
 	 * The active editor is the currently visible editor of the group

@@ -106,7 +106,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 			}
 
 			const collapsible = typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : node.collapsible;
-			const collapsed = typeof treeElement.collapsed !== 'undefined' ? treeElement.collapsed : (collapsible && node.collapsed);
+			const collapsed = typeof treeElement.collapsed !== 'undefined' ? treeElement.collapsed : node.collapsed;
 
 			return {
 				...treeElement,
@@ -188,13 +188,27 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		return this.model.setCollapsed(location, collapsed, recursive);
 	}
 
+	expandTo(element: T): void {
+		const location = this.getElementLocation(element);
+		this.model.expandTo(location);
+	}
+
 	refilter(): void {
 		this.model.refilter();
 	}
 
 	getNode(element: T | null = null): ITreeNode<T | null, TFilterData> {
-		const location = this.getElementLocation(element);
-		return this.model.getNode(location);
+		if (element === null) {
+			return this.model.getNode(this.model.rootRef);
+		}
+
+		const node = this.nodes.get(element);
+
+		if (!node) {
+			throw new Error(`Tree element not found: ${element}`);
+		}
+
+		return node;
 	}
 
 	getNodeLocation(node: ITreeNode<T, TFilterData>): T {

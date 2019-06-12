@@ -15,13 +15,12 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
-import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -61,7 +60,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return new EditorMemento(this.getId(), key, Object.create(null), limit, editorGroupService); // do not persist in storage as diff editors are never persisted
 	}
 
-	getTitle(): string {
+	getTitle(): string | null {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -73,7 +72,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration);
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables = dispose(this.diffNavigatorDisposables);
@@ -82,55 +81,55 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		this.saveTextDiffEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options, token).then(() => {
-			return input.resolve().then(resolvedModel => {
+		await super.setInput(input, options, token);
 
-				// Check for cancellation
-				if (token.isCancellationRequested) {
-					return undefined;
-				}
+		try {
+			const resolvedModel = await input.resolve();
 
-				// Assert Model Instance
-				if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
-					return undefined;
-				}
+			// Check for cancellation
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
 
-				// Set Editor Model
-				const diffEditor = this.getControl();
-				const resolvedDiffEditorModel = <TextDiffEditorModel>resolvedModel;
-				diffEditor.setModel(resolvedDiffEditorModel.textDiffEditorModel);
+			// Assert Model Instance
+			if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
+				return undefined;
+			}
 
-				// Apply Options from TextOptions
-				let optionsGotApplied = false;
-				if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-					optionsGotApplied = (<TextEditorOptions>options).apply(diffEditor, ScrollType.Immediate);
-				}
+			// Set Editor Model
+			const diffEditor = this.getControl();
+			const resolvedDiffEditorModel = <TextDiffEditorModel>resolvedModel;
+			diffEditor.setModel(resolvedDiffEditorModel.textDiffEditorModel);
 
-				// Otherwise restore View State
-				let hasPreviousViewState = false;
-				if (!optionsGotApplied) {
-					hasPreviousViewState = this.restoreTextDiffEditorViewState(input);
-				}
+			// Apply Options from TextOptions
+			let optionsGotApplied = false;
+			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+				optionsGotApplied = (<TextEditorOptions>options).apply(diffEditor, ScrollType.Immediate);
+			}
 
-				// Diff navigator
-				this.diffNavigator = new DiffNavigator(diffEditor, {
-					alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
-				});
-				this.diffNavigatorDisposables.push(this.diffNavigator);
+			// Otherwise restore View State
+			let hasPreviousViewState = false;
+			if (!optionsGotApplied) {
+				hasPreviousViewState = this.restoreTextDiffEditorViewState(input);
+			}
 
-				// Readonly flag
-				diffEditor.updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
-			}, error => {
-
-				// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
-				if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
-					return null;
-				}
-
-				// Otherwise make sure the error bubbles up
-				return Promise.reject(error);
+			// Diff navigator
+			this.diffNavigator = new DiffNavigator(diffEditor, {
+				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
 			});
-		});
+			this.diffNavigatorDisposables.push(this.diffNavigator);
+
+			// Readonly flag
+			diffEditor.updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
+		} catch (error) {
+
+			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
+			if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
+				return;
+			}
+
+			throw error;
+		}
 	}
 
 	setOptions(options: EditorOptions): void {
@@ -226,13 +225,14 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 	private isFileBinaryError(error: Error[]): boolean;
 	private isFileBinaryError(error: Error): boolean;
-	private isFileBinaryError(error: any): boolean {
+	private isFileBinaryError(error: Error | Error[]): boolean {
 		if (types.isArray(error)) {
 			const errors = <Error[]>error;
+
 			return errors.some(e => this.isFileBinaryError(e));
 		}
 
-		return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY;
+		return (<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY;
 	}
 
 	clearInput(): void {
@@ -262,7 +262,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return super.loadTextEditorViewState(resource) as IDiffEditorViewState;  // overridden for text diff editor support
 	}
 
-	private saveTextDiffEditorViewState(input: EditorInput): void {
+	private saveTextDiffEditorViewState(input: EditorInput | null): void {
 		if (!(input instanceof DiffEditorInput)) {
 			return; // only supported for diff editor inputs
 		}
@@ -288,11 +288,11 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		}
 	}
 
-	protected retrieveTextEditorViewState(resource: URI): IDiffEditorViewState {
+	protected retrieveTextEditorViewState(resource: URI): IDiffEditorViewState | null {
 		return this.retrieveTextDiffEditorViewState(resource); // overridden for text diff editor support
 	}
 
-	private retrieveTextDiffEditorViewState(resource: URI): IDiffEditorViewState {
+	private retrieveTextDiffEditorViewState(resource: URI): IDiffEditorViewState | null {
 		const control = this.getControl();
 		const model = control.getModel();
 		if (!model || !model.modified || !model.original) {
@@ -311,9 +311,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return control.saveViewState();
 	}
 
-	private toDiffEditorViewStateResource(modelOrInput: IDiffEditorModel | DiffEditorInput): URI {
-		let original: URI;
-		let modified: URI;
+	private toDiffEditorViewStateResource(modelOrInput: IDiffEditorModel | DiffEditorInput): URI | undefined {
+		let original: URI | undefined;
+		let modified: URI | undefined;
 
 		if (modelOrInput instanceof DiffEditorInput) {
 			original = modelOrInput.originalInput.getResource();
@@ -324,7 +324,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		}
 
 		if (!original || !modified) {
-			return null;
+			return undefined;
 		}
 
 		// create a URI that is the Base64 concatenation of original + modified resource

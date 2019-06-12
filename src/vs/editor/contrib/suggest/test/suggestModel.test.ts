@@ -671,8 +671,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				_onDidSelectItem(item: ISelectedSuggestion) {
-					super._onDidSelectItem(item, false, true);
+				_insertSuggestion(item: ISelectedSuggestion) {
+					super._insertSuggestion(item, false, true);
 				}
 			}
 			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl);
@@ -687,7 +687,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 				assert.equal(first.completion.label, 'bar');
 
-				ctrl._onDidSelectItem({ item: first, index: 0, model: event.completionModel });
+				ctrl._insertSuggestion({ item: first, index: 0, model: event.completionModel });
 			});
 
 			assert.equal(

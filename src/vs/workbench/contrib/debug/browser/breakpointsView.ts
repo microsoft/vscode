@@ -61,7 +61,7 @@ export class BreakpointsView extends ViewletPanel {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
-		this.disposables.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
+		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -74,16 +74,16 @@ export class BreakpointsView extends ViewletPanel {
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer),
 			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService)
 		], {
-				identityProvider: { getId: element => element.getId() },
+				identityProvider: { getId: (element: IEnablement) => element.getId() },
 				multipleSelectionSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: e => e }
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e }
 			}) as WorkbenchList<IEnablement>;
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 
-		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
+		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
-		this.disposables.push(this.list.onDidOpen(e => {
+		this._register(this.list.onDidOpen(e => {
 			let isSingleClick = false;
 			let isDoubleClick = false;
 			let isMiddleClick = false;
@@ -120,7 +120,7 @@ export class BreakpointsView extends ViewletPanel {
 
 		this.list.splice(0, this.list.length, this.elements);
 
-		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
 				this.onBreakpointsChange();
 			}
@@ -150,7 +150,7 @@ export class BreakpointsView extends ViewletPanel {
 
 		const breakpointType = element instanceof Breakpoint && element.logMessage ? nls.localize('Logpoint', "Logpoint") : nls.localize('Breakpoint', "Breakpoint");
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
-			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), undefined, true, () => {
+			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), '', true, () => {
 				if (element instanceof Breakpoint) {
 					return openBreakpointSource(element, false, false, this.debugService, this.editorService).then(editor => {
 						if (editor) {
@@ -164,7 +164,7 @@ export class BreakpointsView extends ViewletPanel {
 
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 				this.onBreakpointsChange();
-				return undefined;
+				return Promise.resolve(undefined);
 			}));
 			actions.push(new Separator());
 		}
@@ -252,7 +252,7 @@ class BreakpointsDelegate implements IListVirtualDelegate<IEnablement> {
 			return ExceptionBreakpointsRenderer.ID;
 		}
 
-		return undefined;
+		return '';
 	}
 }
 
@@ -535,7 +535,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 	}
 }
 
-export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): Promise<IEditor> {
+export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): Promise<IEditor | null> {
 	if (breakpoint.uri.scheme === DEBUG_SCHEME && debugService.state === State.Inactive) {
 		return Promise.resolve(null);
 	}
@@ -543,8 +543,8 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	const selection = breakpoint.endLineNumber ? {
 		startLineNumber: breakpoint.lineNumber,
 		endLineNumber: breakpoint.endLineNumber,
-		startColumn: breakpoint.column,
-		endColumn: breakpoint.endColumn
+		startColumn: breakpoint.column || 1,
+		endColumn: breakpoint.endColumn || Constants.MAX_SAFE_SMALL_INTEGER
 	} : {
 			startLineNumber: breakpoint.lineNumber,
 			startColumn: breakpoint.column || 1,
@@ -557,7 +557,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 		options: {
 			preserveFocus,
 			selection,
-			revealIfVisible: true,
+			revealIfOpened: true,
 			revealInCenterIfOutsideViewport: true,
 			pinned: !preserveFocus
 		}

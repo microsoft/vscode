@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, INewWindowOptions, IURIToOpen } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IWindowsService, IURIToOpen, IOpenSettings, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
+import { reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 
 export class WindowsChannel implements IServerChannel {
 
@@ -30,7 +28,7 @@ export class WindowsChannel implements IServerChannel {
 		this.onRecentlyOpenedChange = Event.buffer(service.onRecentlyOpenedChange, true);
 	}
 
-	listen(_, event: string): Event<any> {
+	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onWindowOpen': return this.onWindowOpen;
 			case 'onWindowFocus': return this.onWindowFocus;
@@ -43,7 +41,7 @@ export class WindowsChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_, command: string, arg?: any): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
@@ -59,14 +57,17 @@ export class WindowsChannel implements IServerChannel {
 			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
-			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map(URI.revive));
-			case 'removeFromRecentlyOpened': {
-				let paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string> = arg;
-				if (Array.isArray(paths)) {
-					paths = paths.map(path => isChanneledWorkspaceIdentifier(path) ? reviveWorkspaceIdentifier(path) : typeof path === 'string' ? path : URI.revive(path));
+			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map((recent: IRecent) => {
+				if (isRecentFile(recent)) {
+					recent.fileUri = URI.revive(recent.fileUri);
+				} else if (isRecentFolder(recent)) {
+					recent.folderUri = URI.revive(recent.folderUri);
+				} else {
+					recent.workspace = reviveWorkspaceIdentifier(recent.workspace);
 				}
-				return this.service.removeFromRecentlyOpened(paths);
-			}
+				return recent;
+			}));
+			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(arg.map(URI.revive));
 			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
 			case 'newWindowTab': return this.service.newWindowTab();
 			case 'showPreviousWindowTab': return this.service.showPreviousWindowTab();
@@ -85,9 +86,22 @@ export class WindowsChannel implements IServerChannel {
 			case 'minimizeWindow': return this.service.minimizeWindow(arg);
 			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
 			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
-			case 'openWindow': return this.service.openWindow(arg[0], arg[1] ? (<IURIToOpen[]>arg[1]).map(r => ({ uri: URI.revive(r.uri), typeHint: r.typeHint })) : arg[1], arg[2]);
+			case 'openWindow': {
+				const urisToOpen: IURIToOpen[] = arg[1];
+				const options: IOpenSettings = arg[2];
+				urisToOpen.forEach(r => {
+					if (isWorkspaceToOpen(r)) {
+						r.workspaceUri = URI.revive(r.workspaceUri);
+					} else if (isFolderToOpen(r)) {
+						r.folderUri = URI.revive(r.folderUri);
+					} else {
+						r.fileUri = URI.revive(r.fileUri);
+					}
+				});
+				options.waitMarkerFileURI = options.waitMarkerFileURI && URI.revive(options.waitMarkerFileURI);
+				return this.service.openWindow(arg[0], urisToOpen, options);
+			}
 			case 'openNewWindow': return this.service.openNewWindow(arg);
-			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();
 			case 'getWindowCount': return this.service.getWindowCount();
 			case 'relaunch': return this.service.relaunch(arg[0]);
@@ -95,7 +109,7 @@ export class WindowsChannel implements IServerChannel {
 			case 'toggleSharedProcess': return this.service.toggleSharedProcess();
 			case 'quit': return this.service.quit();
 			case 'log': return this.service.log(arg[0], arg[1]);
-			case 'showItemInFolder': return this.service.showItemInFolder(arg);
+			case 'showItemInFolder': return this.service.showItemInFolder(URI.revive(arg));
 			case 'getActiveWindowId': return this.service.getActiveWindowId();
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
@@ -105,239 +119,4 @@ export class WindowsChannel implements IServerChannel {
 
 		throw new Error(`Call not found: ${command}`);
 	}
-}
-
-export class WindowsChannelClient implements IWindowsService {
-
-	_serviceBrand: any;
-
-	constructor(private channel: IChannel) { }
-
-	get onWindowOpen(): Event<number> { return this.channel.listen('onWindowOpen'); }
-	get onWindowFocus(): Event<number> { return this.channel.listen('onWindowFocus'); }
-	get onWindowBlur(): Event<number> { return this.channel.listen('onWindowBlur'); }
-	get onWindowMaximize(): Event<number> { return this.channel.listen('onWindowMaximize'); }
-	get onWindowUnmaximize(): Event<number> { return this.channel.listen('onWindowUnmaximize'); }
-	get onRecentlyOpenedChange(): Event<void> { return this.channel.listen('onRecentlyOpenedChange'); }
-
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickFileFolderAndOpen', options);
-	}
-
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickFileAndOpen', options);
-	}
-
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickFolderAndOpen', options);
-	}
-
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickWorkspaceAndOpen', options);
-	}
-
-	showMessageBox(windowId: number, options: MessageBoxOptions): Promise<IMessageBoxResult> {
-		return this.channel.call('showMessageBox', [windowId, options]);
-	}
-
-	showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<string> {
-		return this.channel.call('showSaveDialog', [windowId, options]);
-	}
-
-	showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<string[]> {
-		return this.channel.call('showOpenDialog', [windowId, options]);
-	}
-
-	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void> {
-		return this.channel.call('reloadWindow', [windowId, args]);
-	}
-
-	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void> {
-		return this.channel.call('openDevTools', [windowId, options]);
-	}
-
-	toggleDevTools(windowId: number): Promise<void> {
-		return this.channel.call('toggleDevTools', windowId);
-	}
-
-	closeWorkspace(windowId: number): Promise<void> {
-		return this.channel.call('closeWorkspace', windowId);
-	}
-
-	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult> {
-		return this.channel.call('enterWorkspace', [windowId, path]).then((result: IEnterWorkspaceResult) => {
-			return { backupPath: result.backupPath, workspace: reviveWorkspaceIdentifier(result.workspace) };
-		});
-	}
-
-	toggleFullScreen(windowId: number): Promise<void> {
-		return this.channel.call('toggleFullScreen', windowId);
-	}
-
-	setRepresentedFilename(windowId: number, fileName: string): Promise<void> {
-		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
-	}
-
-	addRecentlyOpened(files: URI[]): Promise<void> {
-		return this.channel.call('addRecentlyOpened', files);
-	}
-
-	removeFromRecentlyOpened(paths: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI>): Promise<void> {
-		return this.channel.call('removeFromRecentlyOpened', paths);
-	}
-
-	clearRecentlyOpened(): Promise<void> {
-		return this.channel.call('clearRecentlyOpened');
-	}
-
-	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
-		return this.channel.call('getRecentlyOpened', windowId)
-			.then((recentlyOpened: IRecentlyOpened) => {
-				recentlyOpened.workspaces = recentlyOpened.workspaces.map(workspace => isChanneledWorkspaceIdentifier(workspace) ? reviveWorkspaceIdentifier(workspace) : URI.revive(workspace));
-				recentlyOpened.files = recentlyOpened.files.map(URI.revive);
-				return recentlyOpened;
-			});
-	}
-
-	newWindowTab(): Promise<void> {
-		return this.channel.call('newWindowTab');
-	}
-
-	showPreviousWindowTab(): Promise<void> {
-		return this.channel.call('showPreviousWindowTab');
-	}
-
-	showNextWindowTab(): Promise<void> {
-		return this.channel.call('showNextWindowTab');
-	}
-
-	moveWindowTabToNewWindow(): Promise<void> {
-		return this.channel.call('moveWindowTabToNewWindow');
-	}
-
-	mergeAllWindowTabs(): Promise<void> {
-		return this.channel.call('mergeAllWindowTabs');
-	}
-
-	toggleWindowTabsBar(): Promise<void> {
-		return this.channel.call('toggleWindowTabsBar');
-	}
-
-	focusWindow(windowId: number): Promise<void> {
-		return this.channel.call('focusWindow', windowId);
-	}
-
-	closeWindow(windowId: number): Promise<void> {
-		return this.channel.call('closeWindow', windowId);
-	}
-
-	isFocused(windowId: number): Promise<boolean> {
-		return this.channel.call('isFocused', windowId);
-	}
-
-	isMaximized(windowId: number): Promise<boolean> {
-		return this.channel.call('isMaximized', windowId);
-	}
-
-	maximizeWindow(windowId: number): Promise<void> {
-		return this.channel.call('maximizeWindow', windowId);
-	}
-
-	unmaximizeWindow(windowId: number): Promise<void> {
-		return this.channel.call('unmaximizeWindow', windowId);
-	}
-
-	minimizeWindow(windowId: number): Promise<void> {
-		return this.channel.call('minimizeWindow', windowId);
-	}
-
-	onWindowTitleDoubleClick(windowId: number): Promise<void> {
-		return this.channel.call('onWindowTitleDoubleClick', windowId);
-	}
-
-	setDocumentEdited(windowId: number, flag: boolean): Promise<void> {
-		return this.channel.call('setDocumentEdited', [windowId, flag]);
-	}
-
-	quit(): Promise<void> {
-		return this.channel.call('quit');
-	}
-
-	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
-		return this.channel.call('relaunch', [options]);
-	}
-
-	whenSharedProcessReady(): Promise<void> {
-		return this.channel.call('whenSharedProcessReady');
-	}
-
-	toggleSharedProcess(): Promise<void> {
-		return this.channel.call('toggleSharedProcess');
-	}
-
-	openWindow(windowId: number, uris: IURIToOpen[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): Promise<void> {
-		return this.channel.call('openWindow', [windowId, uris, options]);
-	}
-
-	openNewWindow(options?: INewWindowOptions): Promise<void> {
-		return this.channel.call('openNewWindow', options);
-	}
-
-	showWindow(windowId: number): Promise<void> {
-		return this.channel.call('showWindow', windowId);
-	}
-
-	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
-		return this.channel.call<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>('getWindows').then(result => {
-			for (const win of result) {
-				if (win.folderUri) {
-					win.folderUri = URI.revive(win.folderUri);
-				}
-				if (win.workspace) {
-					win.workspace = reviveWorkspaceIdentifier(win.workspace);
-				}
-			}
-			return result;
-		});
-	}
-
-	getWindowCount(): Promise<number> {
-		return this.channel.call('getWindowCount');
-	}
-
-	log(severity: string, ...messages: string[]): Promise<void> {
-		return this.channel.call('log', [severity, messages]);
-	}
-
-	showItemInFolder(path: string): Promise<void> {
-		return this.channel.call('showItemInFolder', path);
-	}
-
-	getActiveWindowId(): Promise<number | undefined> {
-		return this.channel.call('getActiveWindowId');
-	}
-
-	openExternal(url: string): Promise<boolean> {
-		return this.channel.call('openExternal', url);
-	}
-
-	startCrashReporter(config: CrashReporterStartOptions): Promise<void> {
-		return this.channel.call('startCrashReporter', config);
-	}
-
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
-		return this.channel.call('updateTouchBar', [windowId, items]);
-	}
-
-	openAboutDialog(): Promise<void> {
-		return this.channel.call('openAboutDialog');
-	}
-
-	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
-		return Promise.resolve(this.channel.call('resolveProxy', [windowId, url]));
-	}
-}
-
-function isChanneledWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
-	return obj && obj['configPath'];
 }

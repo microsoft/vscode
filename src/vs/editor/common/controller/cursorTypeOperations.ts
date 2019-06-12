@@ -526,7 +526,7 @@ export class TypeOperations {
 			const lineText = model.getLineContent(position.lineNumber);
 
 			// Do not auto-close ' or " after a word character
-			if (chIsQuote && position.column > 1) {
+			if ((chIsQuote && position.column > 1) && autoCloseConfig !== 'always') {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 				const characterBeforeCode = lineText.charCodeAt(position.column - 2);
 				const characterBeforeType = wordSeparators.get(characterBeforeCode);

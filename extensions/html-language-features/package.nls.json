@@ -1,6 +1,6 @@
 {
 	"displayName": "HTML Language Features",
-	"description": "Provides rich language support for HTML, Razor, and Handlebar files",
+	"description": "Provides rich language support for HTML and Handlebar files",
 	"html.format.enable.desc": "Enable/disable default HTML formatter.",
 	"html.format.wrapLineLength.desc": "Maximum amount of characters per line (0 = disable).",
 	"html.format.unformatted.desc": "List of tags, comma separated, that shouldn't be reformatted. `null` defaults to all tags listed at https://www.w3.org/TR/html5/dom.html#phrasing-content.",

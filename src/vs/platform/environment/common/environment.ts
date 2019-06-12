@@ -7,7 +7,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
-	[arg: string]: any;
 	_: string[];
 	'folder-uri'?: string | string[];
 	'file-uri'?: string | string[];
@@ -28,7 +27,6 @@ export interface ParsedArgs {
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
-	'prof-modules'?: string;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -37,7 +35,7 @@ export interface ParsedArgs {
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
 	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string; // either a local path or a URI
+	extensionDevelopmentPath?: string | string[]; // one or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
@@ -50,6 +48,7 @@ export interface ParsedArgs {
 	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
+	'locate-extension'?: string | string[];
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
@@ -69,6 +68,7 @@ export interface ParsedArgs {
 	'driver'?: string;
 	'driver-verbose'?: boolean;
 	remote?: string;
+	'disable-user-env-probe'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -96,9 +96,12 @@ export interface IEnvironmentService {
 
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
+	appSettingsHome: URI;
+	settingsResource: URI;
+	keybindingsResource: URI;
+
+	machineSettingsHome: URI;
+	machineSettingsResource: URI;
 
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;
@@ -115,7 +118,7 @@ export interface IEnvironmentService {
 	disableExtensions: boolean | string[];
 	builtinExtensionsPath: string;
 	extensionsPath: string;
-	extensionDevelopmentLocationURI?: URI;
+	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;

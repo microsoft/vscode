@@ -9,8 +9,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
-import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode } from 'vs/workbench/services/search/common/search';
-import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
+import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode, ISerializedFileMatch } from 'vs/workbench/services/search/common/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));

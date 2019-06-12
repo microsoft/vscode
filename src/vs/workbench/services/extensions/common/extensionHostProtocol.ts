@@ -3,14 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
+
+export interface IExtHostReadyMessage {
+	type: 'VSCODE_EXTHOST_IPC_READY';
+}
+
+export interface IExtHostSocketMessage {
+	type: 'VSCODE_EXTHOST_IPC_SOCKET';
+	initialDataChunk: string;
+	skipWebSocketFrames: boolean;
+}
+
 export const enum MessageType {
 	Initialized,
 	Ready,
 	Terminate
 }
 
-export function createMessageOfType(type: MessageType): Buffer {
-	const result = Buffer.allocUnsafe(1);
+export function createMessageOfType(type: MessageType): VSBuffer {
+	const result = VSBuffer.alloc(1);
 
 	switch (type) {
 		case MessageType.Initialized: result.writeUInt8(1, 0); break;
@@ -21,8 +33,8 @@ export function createMessageOfType(type: MessageType): Buffer {
 	return result;
 }
 
-export function isMessageOfType(message: Buffer, type: MessageType): boolean {
-	if (message.length !== 1) {
+export function isMessageOfType(message: VSBuffer, type: MessageType): boolean {
+	if (message.byteLength !== 1) {
 		return false;
 	}
 

@@ -5,6 +5,7 @@
 
 import { ResolvedAuthority, IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ipcRenderer as ipc } from 'electron';
+import * as errors from 'vs/base/common/errors';
 
 class PendingResolveAuthorityRequest {
 	constructor(
@@ -36,6 +37,13 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 			this._resolveAuthorityRequests[authority] = new PendingResolveAuthorityRequest(resolve!, reject!, promise);
 		}
 		return this._resolveAuthorityRequests[authority].promise;
+	}
+
+	clearResolvedAuthority(authority: string): void {
+		if (this._resolveAuthorityRequests[authority]) {
+			this._resolveAuthorityRequests[authority].reject(errors.canceled());
+			delete this._resolveAuthorityRequests[authority];
+		}
 	}
 
 	setResolvedAuthority(resolvedAuthority: ResolvedAuthority) {

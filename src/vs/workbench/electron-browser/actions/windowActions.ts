@@ -7,26 +7,25 @@ import 'vs/css!./media/actions';
 
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, IURIToOpen } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { webFrame } from 'electron';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { FileKind } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname } from 'vs/base/common/resources';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IQuickInputService, IQuickPickItem, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickInputButton, IQuickPickSeparator, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import product from 'vs/platform/product/node/product';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IRecentFolder, IRecentFile, IRecentWorkspace, IRecent, isRecentFolder, isRecentWorkspace } from 'vs/platform/history/common/history';
+import { splitName } from 'vs/base/common/labels';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -82,12 +81,12 @@ export abstract class BaseZoomAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
-	protected setConfiguredZoomLevel(level: number): void {
+	protected async setConfiguredZoomLevel(level: number): Promise<void> {
 		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
 
 		const applyZoom = () => {
@@ -99,7 +98,9 @@ export abstract class BaseZoomAction extends Action {
 			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 		};
 
-		this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level).then(() => applyZoom());
+		await this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
+
+		applyZoom();
 	}
 }
 
@@ -111,7 +112,7 @@ export class ZoomInAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(id, label, configurationService);
 	}
@@ -131,7 +132,7 @@ export class ZoomOutAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(id, label, configurationService);
 	}
@@ -151,7 +152,7 @@ export class ZoomResetAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(id, label, configurationService);
 	}
@@ -176,8 +177,10 @@ export class ReloadWindowAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
-		return this.windowService.reloadWindow().then(() => true);
+	async run(): Promise<boolean> {
+		await this.windowService.reloadWindow();
+
+		return true;
 	}
 }
 
@@ -194,8 +197,10 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
-		return this.windowService.reloadWindow({ _: [], 'disable-extensions': true }).then(() => true);
+	async run(): Promise<boolean> {
+		await this.windowService.reloadWindow({ _: [], 'disable-extensions': true });
+
+		return true;
 	}
 }
 
@@ -222,41 +227,38 @@ export abstract class BaseSwitchWindow extends Action {
 
 	protected abstract isQuickNavigate(): boolean;
 
-	run(): Promise<void> {
-		const currentWindowId = this.windowService.getCurrentWindowId();
+	async run(): Promise<void> {
+		const currentWindowId = this.windowService.windowId;
 
-		return this.windowsService.getWindows().then(windows => {
-			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
-			const picks = windows.map(win => {
-				const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? win.workspace.configPath : undefined;
-				const fileKind = win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE;
-				return {
-					payload: win.id,
-					label: win.title,
-					iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
-					description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : undefined,
-					buttons: (!this.isQuickNavigate() && currentWindowId !== win.id) ? [this.closeWindowAction] : undefined
-				} as (IQuickPickItem & { payload: number });
-			});
+		const windows = await this.windowsService.getWindows();
+		const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
+		const picks = windows.map(win => {
+			const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? win.workspace.configPath : undefined;
+			const fileKind = win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderUri ? FileKind.FOLDER : FileKind.FILE;
+			return {
+				payload: win.id,
+				label: win.title,
+				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
+				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : undefined,
+				buttons: (!this.isQuickNavigate() && currentWindowId !== win.id) ? [this.closeWindowAction] : undefined
+			};
+		});
+		const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
 
-			const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
-
-			return this.quickInputService.pick(picks, {
-				contextKey: 'inWindowsPicker',
-				activeItem: picks[autoFocusIndex],
-				placeHolder,
-				quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
-				onDidTriggerItemButton: context => {
-					this.windowsService.closeWindow(context.item.payload).then(() => {
-						context.removeItem();
-					});
-				}
-			});
-		}).then(pick => {
-			if (pick) {
-				this.windowsService.showWindow(pick.payload);
+		const pick = await this.quickInputService.pick(picks, {
+			contextKey: 'inWindowsPicker',
+			activeItem: picks[autoFocusIndex],
+			placeHolder,
+			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
+			onDidTriggerItemButton: async context => {
+				await this.windowsService.closeWindow(context.item.payload);
+				context.removeItem();
 			}
 		});
+
+		if (pick) {
+			this.windowsService.focusWindow(pick.payload);
+		}
 	}
 }
 
@@ -332,73 +334,72 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	protected abstract isQuickNavigate(): boolean;
 
-	run(): Promise<void> {
-		return this.windowService.getRecentlyOpened()
-			.then(({ workspaces, files }) => this.openRecent(workspaces, files));
+	async run(): Promise<void> {
+		const { workspaces, files } = await this.windowService.getRecentlyOpened();
+
+		this.openRecent(workspaces, files);
 	}
 
-	private openRecent(recentWorkspaces: Array<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier>, recentFiles: URI[]): void {
+	private async openRecent(recentWorkspaces: Array<IRecentWorkspace | IRecentFolder>, recentFiles: IRecentFile[]): Promise<void> {
 
-		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, labelService: ILabelService, buttons: IQuickInputButton[] | undefined) => {
-			let resource: URI;
-			let label: string;
-			let description: string;
-			if (isSingleFolderWorkspaceIdentifier(workspace) && fileKind !== FileKind.FILE) {
-				resource = workspace;
-				label = labelService.getWorkspaceLabel(workspace);
-				description = labelService.getUriLabel(dirname(resource)!);
-			} else if (isWorkspaceIdentifier(workspace)) {
-				resource = workspace.configPath;
-				label = labelService.getWorkspaceLabel(workspace);
-				description = labelService.getUriLabel(dirname(resource)!);
+		const toPick = (recent: IRecent, labelService: ILabelService, buttons: IQuickInputButton[] | undefined) => {
+			let uriToOpen: IURIToOpen | undefined;
+			let iconClasses: string[];
+			let fullLabel: string | undefined;
+			let resource: URI | undefined;
+			if (isRecentFolder(recent)) {
+				resource = recent.folderUri;
+				iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.FOLDER);
+				uriToOpen = { folderUri: resource };
+				fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: true });
+			} else if (isRecentWorkspace(recent)) {
+				resource = recent.workspace.configPath;
+				iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.ROOT_FOLDER);
+				uriToOpen = { workspaceUri: resource };
+				fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 			} else {
-				resource = workspace;
-				label = getBaseLabel(workspace);
-				description = labelService.getUriLabel(dirname(resource)!);
+				resource = recent.fileUri;
+				iconClasses = getIconClasses(this.modelService, this.modeService, resource, FileKind.FILE);
+				uriToOpen = { fileUri: resource };
+				fullLabel = recent.label || labelService.getUriLabel(resource);
 			}
-
+			const { name, parentPath } = splitName(fullLabel);
 			return {
-				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
-				label,
-				description,
+				iconClasses,
+				label: name,
+				description: parentPath,
 				buttons,
-				workspace,
-				resource,
-				fileKind,
+				uriToOpen,
+				resource
 			};
 		};
-
-		const runPick = (uri: URI, isFile: boolean, keyMods: IKeyMods) => {
-			const forceNewWindow = keyMods.ctrlCmd;
-			return this.windowService.openWindow([{ uri, typeHint: isFile ? 'file' : 'folder' }], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
-		};
-
-		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
-		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
+		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
+		const filePicks = recentFiles.map(p => toPick(p, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : undefined));
 
 		// focus second entry if the first recent workspace is the current workspace
-		let autoFocusSecondEntry: boolean = recentWorkspaces[0] && this.contextService.isCurrentWorkspace(recentWorkspaces[0]);
+		const firstEntry = recentWorkspaces[0];
+		let autoFocusSecondEntry: boolean = firstEntry && this.contextService.isCurrentWorkspace(isRecentWorkspace(firstEntry) ? firstEntry.workspace : firstEntry.folderUri);
 
-		let keyMods: IKeyMods;
+		let keyMods: IKeyMods | undefined;
 		const workspaceSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('workspaces', "workspaces") };
 		const fileSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('files', "files") };
 		const picks = [workspaceSeparator, ...workspacePicks, fileSeparator, ...filePicks];
-		this.quickInputService.pick(picks, {
+		const pick = await this.quickInputService.pick(picks, {
 			contextKey: inRecentFilesPickerContextKey,
 			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true,
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
-			onDidTriggerItemButton: context => {
-				this.windowsService.removeFromRecentlyOpened([context.item.workspace]).then(() => context.removeItem());
+			onDidTriggerItemButton: async context => {
+				await this.windowsService.removeFromRecentlyOpened([context.item.resource]);
+				context.removeItem();
 			}
-		})
-			.then((pick): Promise<void> | void => {
-				if (pick) {
-					return runPick(pick.resource, pick.fileKind === FileKind.FILE, keyMods);
-				}
-			});
+		});
+
+		if (pick) {
+			return this.windowService.openWindow([pick.uriToOpen], { forceNewWindow: keyMods && keyMods.ctrlCmd });
+		}
 	}
 }
 

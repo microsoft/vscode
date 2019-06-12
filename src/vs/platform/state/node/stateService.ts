@@ -6,11 +6,10 @@
 import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { writeFileAndFlushSync } from 'vs/base/node/extfs';
+import { writeFileSync, readFile } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { IStateService } from 'vs/platform/state/common/state';
 import { ILogService } from 'vs/platform/log/common/log';
-import { readFile } from 'vs/base/node/pfs';
 
 export class FileStorage {
 
@@ -27,26 +26,37 @@ export class FileStorage {
 		return this._database;
 	}
 
-	init(): Promise<void> {
-		return readFile(this.dbPath).then(contents => {
-			try {
-				this.lastFlushedSerializedDatabase = contents.toString();
-				this._database = JSON.parse(this.lastFlushedSerializedDatabase);
-			} catch (error) {
-				this._database = {};
-			}
-		}, error => {
-			if (error.code !== 'ENOENT') {
-				this.onError(error);
-			}
+	async init(): Promise<void> {
+		if (this._database) {
+			return; // return if database was already loaded
+		}
 
-			this._database = {};
-		});
+		const database = await this.loadAsync();
+
+		if (this._database) {
+			return; // return if database was already loaded
+		}
+
+		this._database = database;
 	}
 
 	private loadSync(): object {
 		try {
 			this.lastFlushedSerializedDatabase = fs.readFileSync(this.dbPath).toString();
+
+			return JSON.parse(this.lastFlushedSerializedDatabase);
+		} catch (error) {
+			if (error.code !== 'ENOENT') {
+				this.onError(error);
+			}
+
+			return {};
+		}
+	}
+
+	private async loadAsync(): Promise<object> {
+		try {
+			this.lastFlushedSerializedDatabase = (await readFile(this.dbPath)).toString();
 
 			return JSON.parse(this.lastFlushedSerializedDatabase);
 		} catch (error) {
@@ -69,7 +79,7 @@ export class FileStorage {
 		return res;
 	}
 
-	setItem(key: string, data: any): void {
+	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
 
 		// Remove an item when it is undefined or null
 		if (isUndefinedOrNull(data)) {
@@ -103,7 +113,7 @@ export class FileStorage {
 		}
 
 		try {
-			writeFileAndFlushSync(this.dbPath, serializedDatabase); // permission issue can happen here
+			writeFileSync(this.dbPath, serializedDatabase); // permission issue can happen here
 			this.lastFlushedSerializedDatabase = serializedDatabase;
 		} catch (error) {
 			this.onError(error);
@@ -136,7 +146,7 @@ export class StateService implements IStateService {
 		return this.fileStorage.getItem(key, defaultValue);
 	}
 
-	setItem(key: string, data: any): void {
+	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
 		this.fileStorage.setItem(key, data);
 	}
 

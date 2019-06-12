@@ -28,6 +28,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const $ = dom.$;
 
@@ -492,9 +493,9 @@ export class QuickInputList {
 		// Filter by value (since we support octicons, use octicon aware fuzzy matching)
 		else {
 			this.elements.forEach(element => {
-				const labelHighlights = this.matchOnLabel ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel)) || undefined : undefined;
-				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) || undefined : undefined;
-				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || '')) || undefined : undefined;
+				const labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel))) : undefined;
+				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || ''))) : undefined;
+				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || ''))) : undefined;
 
 				if (labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;

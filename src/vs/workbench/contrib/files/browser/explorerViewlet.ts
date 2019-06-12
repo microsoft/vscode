@@ -6,7 +6,7 @@
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition, VIEW_CONTAINER } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, VIEW_CONTAINER } from 'vs/workbench/contrib/files/common/files';
 import { ViewContainerViewlet, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ExplorerView } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -18,21 +18,22 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor } from 'vs/workbench/common/editor';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -41,22 +42,26 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IProgressService progressService: IProgressService
 	) {
 		super();
 
-		this.registerViews();
+		progressService.withProgress({ location: ProgressLocation.Explorer }, () => workspaceContextService.getCompleteWorkspace()).finally(() => {
+			this.registerViews();
 
-		this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
-		this.updateOpenEditorsVisibility();
+			this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
+			this.updateOpenEditorsVisibility();
 
-		this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.registerViews()));
-		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+			this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.registerViews()));
+			this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
+			this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+		});
 	}
 
 	private registerViews(): void {
-		const viewDescriptors = ViewsRegistry.getViews(VIEW_CONTAINER);
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		const viewDescriptors = viewsRegistry.getViews(VIEW_CONTAINER);
 
 		let viewDescriptorsToRegister: IViewDescriptor[] = [];
 		let viewDescriptorsToDeregister: IViewDescriptor[] = [];
@@ -88,10 +93,10 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		}
 
 		if (viewDescriptorsToRegister.length) {
-			ViewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
+			viewsRegistry.registerViews(viewDescriptorsToRegister, VIEW_CONTAINER);
 		}
 		if (viewDescriptorsToDeregister.length) {
-			ViewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
+			viewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
 		}
 	}
 
@@ -99,9 +104,9 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: OpenEditorsView.ID,
 			name: OpenEditorsView.NAME,
-			ctor: OpenEditorsView,
+			ctorDescriptor: { ctor: OpenEditorsView },
 			order: 0,
-			when: OpenEditorsVisibleCondition,
+			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,
 			focusCommand: {
 				id: 'workbench.files.action.focusOpenEditorsView',
@@ -114,7 +119,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: EmptyView.ID,
 			name: EmptyView.NAME,
-			ctor: EmptyView,
+			ctorDescriptor: { ctor: EmptyView },
 			order: 1,
 			canToggleVisibility: false
 		};
@@ -124,7 +129,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: ExplorerView.ID,
 			name: localize('folders', "Folders"),
-			ctor: ExplorerView,
+			ctorDescriptor: { ctor: ExplorerView },
 			order: 1,
 			canToggleVisibility: false
 		};
@@ -148,7 +153,7 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 	private viewletVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IStorageService protected storageService: IStorageService,
@@ -161,7 +166,7 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 
@@ -181,7 +186,7 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 			// We try to be smart and only use the delay if we recognize that the user action is likely to cause
 			// a new entry in the opened editors view.
 			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService);
-			delegatingEditorService.setEditorOpenHandler((group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions) => {
+			delegatingEditorService.setEditorOpenHandler(async (group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): Promise<IEditor | null> => {
 				let openEditorsView = this.getOpenEditorsView();
 				if (openEditorsView) {
 					let delay = 0;
@@ -197,16 +202,19 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 					openEditorsView.setStructuralRefreshDelay(delay);
 				}
 
-				const onSuccessOrError = (editor?: BaseEditor) => {
-					let openEditorsView = this.getOpenEditorsView();
+				let openedEditor: IEditor | null = null;
+				try {
+					openedEditor = await this.editorService.openEditor(editor, options, group);
+				} catch (error) {
+					// ignore
+				} finally {
+					const openEditorsView = this.getOpenEditorsView();
 					if (openEditorsView) {
 						openEditorsView.setStructuralRefreshDelay(0);
 					}
+				}
 
-					return editor;
-				};
-
-				return this.editorService.openEditor(editor, options, group).then(onSuccessOrError, onSuccessOrError);
+				return openedEditor;
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));

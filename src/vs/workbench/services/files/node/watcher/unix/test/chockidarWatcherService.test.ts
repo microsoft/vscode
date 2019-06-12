@@ -7,17 +7,15 @@ import * as assert from 'assert';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
-
 import { normalizeRoots, ChokidarWatcherService } from '../chokidarWatcherService';
 import { IWatcherRequest } from '../watcher';
-
 import * as platform from 'vs/base/common/platform';
 import { Delayer } from 'vs/base/common/async';
-import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
+import { IDiskFileChange } from 'vs/workbench/services/files/node/watcher/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
 
 function newRequest(basePath: string, ignored: string[] = []): IWatcherRequest {
-	return { basePath, ignored };
+	return { path: basePath, excludes: ignored };
 }
 
 function assertNormalizedRootPath(inputPaths: string[], expectedPaths: string[]) {
@@ -32,13 +30,13 @@ function assertNormalizedRequests(inputRequests: IWatcherRequest[], expectedRequ
 	const expectedPaths = Object.keys(expectedRequests).sort();
 	assert.deepEqual(actualPath, expectedPaths);
 	for (let path of actualPath) {
-		let a = expectedRequests[path].sort((r1, r2) => r1.basePath.localeCompare(r2.basePath));
-		let e = expectedRequests[path].sort((r1, r2) => r1.basePath.localeCompare(r2.basePath));
+		let a = expectedRequests[path].sort((r1, r2) => r1.path.localeCompare(r2.path));
+		let e = expectedRequests[path].sort((r1, r2) => r1.path.localeCompare(r2.path));
 		assert.deepEqual(a, e);
 	}
 }
 
-function sort(changes: IRawFileChange[]) {
+function sort(changes: IDiskFileChange[]) {
 	return changes.sort((c1, c2) => {
 		return c1.path.localeCompare(c2.path);
 	});
@@ -48,7 +46,7 @@ function wait(time: number) {
 	return new Delayer<void>(time).trigger(() => { });
 }
 
-async function assertFileEvents(actuals: IRawFileChange[], expected: IRawFileChange[]) {
+async function assertFileEvents(actuals: IDiskFileChange[], expected: IDiskFileChange[]) {
 	let repeats = 40;
 	while ((actuals.length < expected.length) && repeats-- > 0) {
 		await wait(50);
@@ -126,7 +124,7 @@ suite.skip('Chockidar watching', () => {
 	const b2Folder = path.join(bFolder, 'b2');
 
 	const service = new ChokidarWatcherService();
-	const result: IRawFileChange[] = [];
+	const result: IDiskFileChange[] = [];
 	let error: string | null = null;
 
 	suiteSetup(async () => {
@@ -147,7 +145,7 @@ suite.skip('Chockidar watching', () => {
 	});
 
 	suiteTeardown(async () => {
-		await pfs.del(testDir);
+		await pfs.rimraf(testDir, pfs.RimRafMode.MOVE);
 		await service.stop();
 	});
 
@@ -161,7 +159,7 @@ suite.skip('Chockidar watching', () => {
 	});
 
 	test('simple file operations, single root, no ignore', async () => {
-		let request: IWatcherRequest = { basePath: testDir, ignored: [] };
+		let request: IWatcherRequest = { path: testDir, excludes: [] };
 		service.setRoots([request]);
 		await wait(300);
 
@@ -185,19 +183,19 @@ suite.skip('Chockidar watching', () => {
 		await assertFileEvents(result, [{ path: copiedFilePath, type: FileChangeType.ADDED }, { path: testFolderPath, type: FileChangeType.ADDED }]);
 
 		// delete a file
-		await pfs.del(copiedFilePath);
+		await pfs.rimraf(copiedFilePath, pfs.RimRafMode.MOVE);
 		let renamedFilePath = path.join(testFolderPath, 'file3.txt');
 		// move a file
 		await pfs.rename(testFilePath, renamedFilePath);
 		await assertFileEvents(result, [{ path: copiedFilePath, type: FileChangeType.DELETED }, { path: testFilePath, type: FileChangeType.DELETED }, { path: renamedFilePath, type: FileChangeType.ADDED }]);
 
 		// delete a folder
-		await pfs.del(testFolderPath);
+		await pfs.rimraf(testFolderPath, pfs.RimRafMode.MOVE);
 		await assertFileEvents(result, [{ path: testFolderPath, type: FileChangeType.DELETED }, { path: renamedFilePath, type: FileChangeType.DELETED }]);
 	});
 
 	test('simple file operations, ignore', async () => {
-		let request: IWatcherRequest = { basePath: testDir, ignored: ['**/b/**', '**/*.js', '.git/**'] };
+		let request: IWatcherRequest = { path: testDir, excludes: ['**/b/**', '**/*.js', '.git/**'] };
 		service.setRoots([request]);
 		await wait(300);
 
@@ -234,21 +232,21 @@ suite.skip('Chockidar watching', () => {
 		await assertFileEvents(result, [{ path: movedFile2, type: FileChangeType.ADDED }, { path: movedFile3, type: FileChangeType.ADDED }]);
 
 		// delete all files
-		await pfs.del(movedFile1); // hidden
-		await pfs.del(movedFile2);
-		await pfs.del(movedFile3);
-		await pfs.del(folder1); // hidden
-		await pfs.del(folder2); // hidden
-		await pfs.del(folder3); // hidden
-		await pfs.del(folder4);
-		await pfs.del(folder5);
-		await pfs.del(file4);
+		await pfs.rimraf(movedFile1); // hidden
+		await pfs.rimraf(movedFile2, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(movedFile3, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(folder1); // hidden
+		await pfs.rimraf(folder2); // hidden
+		await pfs.rimraf(folder3); // hidden
+		await pfs.rimraf(folder4, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(folder5, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(file4, pfs.RimRafMode.MOVE);
 		await assertFileEvents(result, [{ path: movedFile2, type: FileChangeType.DELETED }, { path: movedFile3, type: FileChangeType.DELETED }, { path: file4, type: FileChangeType.DELETED }, { path: folder4, type: FileChangeType.DELETED }, { path: folder5, type: FileChangeType.DELETED }]);
 	});
 
 	test('simple file operations, multiple roots', async () => {
-		let request1: IWatcherRequest = { basePath: aFolder, ignored: ['**/*.js'] };
-		let request2: IWatcherRequest = { basePath: b2Folder, ignored: ['**/*.ts'] };
+		let request1: IWatcherRequest = { path: aFolder, excludes: ['**/*.js'] };
+		let request2: IWatcherRequest = { path: b2Folder, excludes: ['**/*.ts'] };
 		service.setRoots([request1, request2]);
 		await wait(300);
 
@@ -271,23 +269,23 @@ suite.skip('Chockidar watching', () => {
 		await assertFileEvents(result, [{ path: folderPath1, type: FileChangeType.ADDED }, { path: filePath1, type: FileChangeType.ADDED }, { path: folderPath2, type: FileChangeType.ADDED }]);
 
 		// change roots
-		let request3: IWatcherRequest = { basePath: aFolder, ignored: ['**/*.json'] };
+		let request3: IWatcherRequest = { path: aFolder, excludes: ['**/*.json'] };
 		service.setRoots([request3]);
 		await wait(300);
 
 		assert.equal(service.wacherCount, 1);
 
 		// delete all
-		await pfs.del(folderPath1);
-		await pfs.del(folderPath2);
-		await pfs.del(filePath4);
+		await pfs.rimraf(folderPath1, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(folderPath2, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(filePath4, pfs.RimRafMode.MOVE);
 
 		await assertFileEvents(result, [{ path: folderPath1, type: FileChangeType.DELETED }, { path: filePath2, type: FileChangeType.DELETED }]);
 	});
 
 	test('simple file operations, nested roots', async () => {
-		let request1: IWatcherRequest = { basePath: testDir, ignored: ['**/b2/**'] };
-		let request2: IWatcherRequest = { basePath: bFolder, ignored: ['**/b3/**'] };
+		let request1: IWatcherRequest = { path: testDir, excludes: ['**/b2/**'] };
+		let request2: IWatcherRequest = { path: bFolder, excludes: ['**/b3/**'] };
 		service.setRoots([request1, request2]);
 		await wait(300);
 
@@ -311,8 +309,8 @@ suite.skip('Chockidar watching', () => {
 		await assertFileEvents(result, [{ path: filePath2, type: FileChangeType.DELETED }]);
 
 		// delete all
-		await pfs.del(folderPath1);
-		await pfs.del(filePath1);
+		await pfs.rimraf(folderPath1, pfs.RimRafMode.MOVE);
+		await pfs.rimraf(filePath1, pfs.RimRafMode.MOVE);
 
 		await assertFileEvents(result, [{ path: filePath1, type: FileChangeType.DELETED }]);
 	});

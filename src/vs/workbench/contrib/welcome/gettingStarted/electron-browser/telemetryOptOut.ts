@@ -17,6 +17,7 @@ import { IExperimentService, ExperimentState } from 'vs/workbench/contrib/experi
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { language, locale } from 'vs/base/common/platform';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class TelemetryOptOut implements IWorkbenchContribution {
 
@@ -84,7 +85,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 
 		let queryPromise = Promise.resolve(undefined);
 		if (locale && locale !== language && locale !== 'en' && locale.indexOf('en-') === -1) {
-			queryPromise = this.galleryService.query({ text: `tag:lp-${locale}` }).then(tagResult => {
+			queryPromise = this.galleryService.query({ text: `tag:lp-${locale}` }, CancellationToken.None).then(tagResult => {
 				if (!tagResult || !tagResult.total) {
 					return undefined;
 				}

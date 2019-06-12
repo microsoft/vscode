@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
-import { OperatingSystem, language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
+import { OperatingSystem, Language } from 'vs/base/common/platform';
 import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
@@ -43,12 +43,12 @@ export interface IListEntry {
 
 export interface IKeybindingItemEntry extends IListEntry {
 	keybindingItem: IKeybindingItem;
-	commandIdMatches: IMatch[] | null;
-	commandLabelMatches: IMatch[] | null;
-	commandDefaultLabelMatches: IMatch[] | null;
-	sourceMatches: IMatch[] | null;
-	whenMatches: IMatch[] | null;
-	keybindingMatches: KeybindingMatches | null;
+	commandIdMatches?: IMatch[];
+	commandLabelMatches?: IMatch[];
+	commandDefaultLabelMatches?: IMatch[];
+	sourceMatches?: IMatch[];
+	whenMatches?: IMatch[];
+	keybindingMatches?: KeybindingMatches;
 }
 
 export interface IKeybindingItem {
@@ -139,13 +139,13 @@ export class KeybindingsEditorModel extends EditorModel {
 				result.push({
 					id: KeybindingsEditorModel.getId(keybindingItem),
 					templateId: KEYBINDING_ENTRY_TEMPLATE_ID,
-					commandLabelMatches: keybindingMatches.commandLabelMatches,
-					commandDefaultLabelMatches: keybindingMatches.commandDefaultLabelMatches,
+					commandLabelMatches: keybindingMatches.commandLabelMatches || undefined,
+					commandDefaultLabelMatches: keybindingMatches.commandDefaultLabelMatches || undefined,
 					keybindingItem,
-					keybindingMatches: keybindingMatches.keybindingMatches,
-					commandIdMatches: keybindingMatches.commandIdMatches,
-					sourceMatches: keybindingMatches.sourceMatches,
-					whenMatches: keybindingMatches.whenMatches
+					keybindingMatches: keybindingMatches.keybindingMatches || undefined,
+					commandIdMatches: keybindingMatches.commandIdMatches || undefined,
+					sourceMatches: keybindingMatches.sourceMatches || undefined,
+					whenMatches: keybindingMatches.whenMatches || undefined
 				});
 			}
 		}
@@ -174,7 +174,7 @@ export class KeybindingsEditorModel extends EditorModel {
 
 		const commandsWithDefaultKeybindings = this.keybindingsService.getDefaultKeybindings().map(keybinding => keybinding.command);
 		for (const command of KeybindingResolver.getAllUnboundCommands(boundCommands)) {
-			const keybindingItem = new ResolvedKeybindingItem(null, command, null, null, commandsWithDefaultKeybindings.indexOf(command) === -1);
+			const keybindingItem = new ResolvedKeybindingItem(undefined, command, null, undefined, commandsWithDefaultKeybindings.indexOf(command) === -1);
 			this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, editorActionsLabels));
 		}
 		this._keybindingItems = this._keybindingItemsSortedByPrecedence.slice(0).sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
@@ -224,7 +224,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	private static getCommandDefaultLabel(menuCommand: ICommandAction, workbenchActionsRegistry: IWorkbenchActionRegistry): string | null {
-		if (language !== LANGUAGE_DEFAULT) {
+		if (!Language.isDefaultVariant()) {
 			if (menuCommand && menuCommand.title && (<ILocalizedString>menuCommand.title).original) {
 				const category: string | undefined = menuCommand.category ? (<ILocalizedString>menuCommand.category).original : undefined;
 				const title = (<ILocalizedString>menuCommand.title).original;

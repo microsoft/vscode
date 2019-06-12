@@ -6,7 +6,7 @@
 import 'vs/css!./media/output';
 import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -18,7 +18,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/contrib/output/common/output';
-import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOrSetOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/contrib/output/browser/outputActions';
+import { SwitchOutputAction, SwitchOutputActionViewItem, ClearOutputAction, ToggleOrSetOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/contrib/output/browser/outputActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -75,12 +75,12 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return this.actions;
 	}
 
-	public getActionItem(action: Action): IActionItem {
+	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchOutputAction.ID) {
-			return this.instantiationService.createInstance(SwitchOutputActionItem, action);
+			return this.instantiationService.createInstance(SwitchOutputActionViewItem, action);
 		}
 
-		return super.getActionItem(action);
+		return super.getActionViewItem(action);
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
@@ -95,7 +95,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		options.renderLineHighlight = 'none';
 		options.minimap = { enabled: false };
 
-		const outputConfig = this.baseConfigurationService.getValue('[Log]');
+		const outputConfig = this.baseConfigurationService.getValue<{}>('[Log]');
 		if (outputConfig) {
 			if (outputConfig['editor.minimap.enabled']) {
 				options.minimap = { enabled: true };
@@ -141,7 +141,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		// First create the scoped instantation service and only then construct the editor using the scoped service
+		// First create the scoped instantiation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		super.createEditor(parent);
@@ -154,11 +154,14 @@ export class OutputPanel extends AbstractTextResourceEditor {
 				return;
 			}
 
-			const newPositionLine = e.position.lineNumber;
-			const lastLine = codeEditor.getModel().getLineCount();
-			const newLockState = lastLine !== newPositionLine;
-			const lockAction = this.actions.filter((action) => action.id === ToggleOrSetOutputScrollLockAction.ID)[0];
-			lockAction.run(newLockState);
+			const model = codeEditor.getModel();
+			if (model) {
+				const newPositionLine = e.position.lineNumber;
+				const lastLine = model.getLineCount();
+				const newLockState = lastLine !== newPositionLine;
+				const lockAction = this.actions.filter((action) => action.id === ToggleOrSetOutputScrollLockAction.ID)[0];
+				lockAction.run(newLockState);
+			}
 		});
 	}
 

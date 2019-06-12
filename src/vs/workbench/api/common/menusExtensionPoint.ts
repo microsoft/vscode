@@ -34,17 +34,33 @@ namespace schema {
 			case 'explorer/context': return MenuId.ExplorerContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
-			case 'debug/toolbar': return MenuId.DebugToolbar;
+			case 'debug/toolbar': return MenuId.DebugToolBar;
+			case 'debug/toolBar': return MenuId.DebugToolBar;
+			case 'menuBar/file': return MenuId.MenubarFileMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
 			case 'scm/change/title': return MenuId.SCMChangeContext;
+			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
+			case 'comments/commentThread/title': return MenuId.CommentThreadTitle;
+			case 'comments/commentThread/context': return MenuId.CommentThreadActions;
+			case 'comments/comment/title': return MenuId.CommentTitle;
+			case 'comments/comment/context': return MenuId.CommentActions;
 		}
 
 		return undefined;
+	}
+
+	export function isProposedAPI(menuId: MenuId): boolean {
+		switch (menuId) {
+			case MenuId.StatusBarWindowIndicatorMenu:
+			case MenuId.MenubarFileMenu:
+				return true;
+		}
+		return false;
 	}
 
 	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
@@ -97,7 +113,7 @@ namespace schema {
 		}
 	};
 
-	export const menusContribtion: IJSONSchema = {
+	export const menusContribution: IJSONSchema = {
 		description: localize('vscode.extension.contributes.menus', "Contributes menu items to the editor"),
 		type: 'object',
 		properties: {
@@ -136,6 +152,11 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'debug/toolBar': {
+				description: localize('menus.debugToolBar', "The debug toolbar menu"),
+				type: 'array',
+				items: menuItem
+			},
 			'scm/title': {
 				description: localize('menus.scmTitle', "The Source Control title menu"),
 				type: 'array',
@@ -165,7 +186,27 @@ namespace schema {
 				description: localize('view.itemContext', "The contributed view item context menu"),
 				type: 'array',
 				items: menuItem
-			}
+			},
+			'comments/commentThread/title': {
+				description: localize('commentThread.title', "The contributed comment thread title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'comments/commentThread/context': {
+				description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
+				type: 'array',
+				items: menuItem
+			},
+			'comments/comment/title': {
+				description: localize('comment.title', "The contributed comment title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'comments/comment/context': {
+				description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
+				type: 'array',
+				items: menuItem
+			},
 		}
 	};
 
@@ -174,6 +215,7 @@ namespace schema {
 	export interface IUserFriendlyCommand {
 		command: string;
 		title: string | ILocalizedString;
+		enablement?: string;
 		category?: string | ILocalizedString;
 		icon?: IUserFriendlyIcon;
 	}
@@ -190,6 +232,10 @@ namespace schema {
 			return false;
 		}
 		if (!isValidLocalizedString(command.title, collector, 'title')) {
+			return false;
+		}
+		if (command.enablement && typeof command.enablement !== 'string') {
+			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'precondition'));
 			return false;
 		}
 		if (command.category && !isValidLocalizedString(command.category, collector, 'category')) {
@@ -245,6 +291,10 @@ namespace schema {
 				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by the command is grouped in the UI'),
 				type: 'string'
 			},
+			enablement: {
+				description: localize('vscode.extension.contributes.commandType.precondition', '(Optional) Condition which must be true to enable the command'),
+				type: 'string'
+			},
 			icon: {
 				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path or a themable configuration'),
 				anyOf: [{
@@ -281,10 +331,12 @@ namespace schema {
 
 let _commandRegistrations: IDisposable[] = [];
 
-ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
+export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
 	extensionPoint: 'commands',
 	jsonSchema: schema.commandsContribution
-}).setHandler(extensions => {
+});
+
+commandsExtensionPoint.setHandler(extensions => {
 
 	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>, disposables: IDisposable[]) {
 
@@ -292,7 +344,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 			return;
 		}
 
-		const { icon, category, title, command } = userFriendlyCommand;
+		const { icon, enablement, category, title, command } = userFriendlyCommand;
 
 		let absoluteIcon: { dark: URI; light?: URI; } | undefined;
 		if (icon) {
@@ -309,7 +361,13 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 		if (MenuRegistry.getCommand(command)) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
-		const registration = MenuRegistry.addCommand({ id: command, title, category, iconLocation: absoluteIcon });
+		const registration = MenuRegistry.addCommand({
+			id: command,
+			title,
+			category,
+			precondition: ContextKeyExpr.deserialize(enablement),
+			iconLocation: absoluteIcon
+		});
 		disposables.push(registration);
 	}
 
@@ -332,7 +390,7 @@ let _menuRegistrations: IDisposable[] = [];
 
 ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>({
 	extensionPoint: 'menus',
-	jsonSchema: schema.menusContribtion
+	jsonSchema: schema.menusContribution
 }).setHandler(extensions => {
 
 	// remove all previous menu registrations
@@ -349,6 +407,11 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 			const menu = schema.parseMenuId(entry.key);
 			if (typeof menu !== 'number') {
 				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
+				return;
+			}
+
+			if (schema.isProposedAPI(menu) && !extension.description.enableProposedApi) {
+				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier and is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
 				return;
 			}
 

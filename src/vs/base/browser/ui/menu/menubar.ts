@@ -14,20 +14,22 @@ import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MN
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import { KeyCode, KeyCodeUtils, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { asArray } from 'vs/base/common/arrays';
 
 const $ = DOM.$;
 
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
 	visibility?: string;
-	getKeybinding?: (action: IAction) => ResolvedKeybinding;
+	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
 }
 
 export interface MenuBarMenu {
-	actions: IAction[];
+	actions: ReadonlyArray<IAction>;
 	label: string;
 }
 
@@ -46,7 +48,7 @@ export class MenuBar extends Disposable {
 		buttonElement: HTMLElement;
 		titleElement: HTMLElement;
 		label: string;
-		actions?: IAction[];
+		actions?: ReadonlyArray<IAction>;
 	}[];
 
 	private overflowMenu: {
@@ -70,7 +72,7 @@ export class MenuBar extends Disposable {
 	private openedViaKeyboard: boolean;
 	private awaitingAltRelease: boolean;
 	private ignoreNextMouseUp: boolean;
-	private mnemonics: Map<KeyCode, number>;
+	private mnemonics: Map<string, number>;
 
 	private updatePending: boolean;
 	private _focusState: MenubarState;
@@ -86,10 +88,10 @@ export class MenuBar extends Disposable {
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
 
-		this.container.attributes['role'] = 'menubar';
+		this.container.setAttribute('role', 'menubar');
 
 		this.menuCache = [];
-		this.mnemonics = new Map<KeyCode, number>();
+		this.mnemonics = new Map<string, number>();
 
 		this._focusState = MenubarState.VISIBLE;
 
@@ -110,7 +112,7 @@ export class MenuBar extends Disposable {
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
-			const key = !!e.key ? KeyCodeUtils.fromString(e.key) : KeyCode.Unknown;
+			const key = !!e.key ? e.key.toLocaleLowerCase() : '';
 
 			if (event.equals(KeyCode.LeftArrow)) {
 				this.focusPrevious();
@@ -151,7 +153,12 @@ export class MenuBar extends Disposable {
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, (e) => {
 			let event = e as FocusEvent;
 
-			if (!event.relatedTarget || !this.container.contains(event.relatedTarget as HTMLElement)) {
+			// We are losing focus and there is no related target, e.g. webview case
+			if (!event.relatedTarget) {
+				this.setUnfocusedState();
+			}
+			// We are losing focus and there is a target, reset focusToReturn value as not to redirect
+			else if (event.relatedTarget && !this.container.contains(event.relatedTarget as HTMLElement)) {
 				this.focusToReturn = undefined;
 				this.setUnfocusedState();
 			}
@@ -162,7 +169,7 @@ export class MenuBar extends Disposable {
 				return;
 			}
 
-			const key = KeyCodeUtils.fromString(e.key);
+			const key = e.key.toLocaleLowerCase();
 			if (!this.mnemonics.has(key)) {
 				return;
 			}
@@ -178,7 +185,7 @@ export class MenuBar extends Disposable {
 	}
 
 	push(arg: MenuBarMenu | MenuBarMenu[]): void {
-		const menus: MenuBarMenu[] = !Array.isArray(arg) ? [arg] : arg;
+		const menus: MenuBarMenu[] = asArray(arg);
 
 		menus.forEach((menuBarMenu) => {
 			const menuIndex = this.menuCache.length;
@@ -505,7 +512,7 @@ export class MenuBar extends Disposable {
 	}
 
 	private registerMnemonic(menuIndex: number, mnemonic: string): void {
-		this.mnemonics.set(KeyCodeUtils.fromString(mnemonic), menuIndex);
+		this.mnemonics.set(mnemonic.toLocaleLowerCase(), menuIndex);
 	}
 
 	private hideMenubar(): void {
@@ -852,7 +859,7 @@ export class MenuBar extends Disposable {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
-			ariaLabel: customMenu.buttonElement.attributes['aria-label'].value
+			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label'))
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
@@ -889,7 +896,7 @@ interface IModifierKeyStatus {
 
 class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
-	private _subscriptions: IDisposable[] = [];
+	private readonly _subscriptions = new DisposableStore();
 	private _keyStatus: IModifierKeyStatus;
 	private static instance: ModifierKeyEmitter;
 
@@ -902,7 +909,7 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			ctrlKey: false
 		};
 
-		this._subscriptions.push(domEvent(document.body, 'keydown', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
 			const event = new StandardKeyboardEvent(e);
 
 			if (e.altKey && !this._keyStatus.altKey) {
@@ -926,7 +933,7 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			}
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'keyup', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'keyup', true)(e => {
 			if (!e.altKey && this._keyStatus.altKey) {
 				this._keyStatus.lastKeyReleased = 'alt';
 			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
@@ -950,11 +957,21 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			}
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'mousedown', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'mousedown', true)(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
-		this._subscriptions.push(domEvent(window, 'blur')(e => {
+		this._subscriptions.add(domEvent(document.body, 'mouseup', true)(e => {
+			this._keyStatus.lastKeyPressed = undefined;
+		}));
+
+		this._subscriptions.add(domEvent(document.body, 'mousemove', true)(e => {
+			if (e.buttons) {
+				this._keyStatus.lastKeyPressed = undefined;
+			}
+		}));
+
+		this._subscriptions.add(domEvent(window, 'blur')(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 			this._keyStatus.lastKeyReleased = undefined;
 			this._keyStatus.altKey = false;
@@ -975,6 +992,6 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
 	dispose() {
 		super.dispose();
-		this._subscriptions = dispose(this._subscriptions);
+		this._subscriptions.dispose();
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./splitview';
-import { IDisposable, combinedDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
@@ -199,7 +199,7 @@ export class SplitView extends Disposable {
 
 		const onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));
 		const containerDisposable = toDisposable(() => this.viewContainer.removeChild(container));
-		const disposable = combinedDisposable([onChangeDisposable, containerDisposable]);
+		const disposable = combinedDisposable(onChangeDisposable, containerDisposable);
 
 		const layoutContainer = this.orientation === Orientation.VERTICAL
 			? () => item.container.style.height = `${item.size}px`
@@ -226,7 +226,7 @@ export class SplitView extends Disposable {
 		// Add sash
 		if (this.viewItems.length > 1) {
 			const orientation = this.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			const layoutProvider = this.orientation === Orientation.VERTICAL ? { getHorizontalSashTop: sash => this.getSashPosition(sash) } : { getVerticalSashLeft: sash => this.getSashPosition(sash) };
+			const layoutProvider = this.orientation === Orientation.VERTICAL ? { getHorizontalSashTop: (sash: Sash) => this.getSashPosition(sash) } : { getVerticalSashLeft: (sash: Sash) => this.getSashPosition(sash) };
 			const sash = new Sash(this.sashContainer, layoutProvider, {
 				orientation,
 				orthogonalStartSash: this.orthogonalStartSash,
@@ -234,8 +234,8 @@ export class SplitView extends Disposable {
 			});
 
 			const sashEventMapper = this.orientation === Orientation.VERTICAL
-				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY, alt: e.altKey } as ISashEvent)
-				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX, alt: e.altKey } as ISashEvent);
+				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY, alt: e.altKey })
+				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX, alt: e.altKey });
 
 			const onStart = Event.map(sash.onDidStart, sashEventMapper);
 			const onStartDisposable = onStart(this.onSashStart, this);
@@ -245,7 +245,7 @@ export class SplitView extends Disposable {
 			const onEndDisposable = onEnd(this.onSashEnd, this);
 			const onDidResetDisposable = sash.onDidReset(() => this._onDidSashReset.fire(firstIndex(this.sashItems, item => item.sash === sash)));
 
-			const disposable = combinedDisposable([onStartDisposable, onChangeDisposable, onEndDisposable, onDidResetDisposable, sash]);
+			const disposable = combinedDisposable(onStartDisposable, onChangeDisposable, onEndDisposable, onDidResetDisposable, sash);
 			const sashItem: ISashItem = { sash, disposable };
 
 			this.sashItems.splice(index - 1, 0, sashItem);
@@ -369,10 +369,10 @@ export class SplitView extends Disposable {
 		const index = firstIndex(this.sashItems, item => item.sash === sash);
 
 		// This way, we can press Alt while we resize a sash, macOS style!
-		const disposable = combinedDisposable([
+		const disposable = combinedDisposable(
 			domEvent(document.body, 'keydown')(e => resetSashDragState(this.sashDragState.current, e.altKey)),
 			domEvent(document.body, 'keyup')(() => resetSashDragState(this.sashDragState.current, false))
-		]);
+		);
 
 		const resetSashDragState = (start: number, alt: boolean) => {
 			const sizes = this.viewItems.map(i => i.size);

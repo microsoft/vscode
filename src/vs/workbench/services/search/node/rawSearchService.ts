@@ -16,16 +16,15 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
-import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { MAX_FILE_SIZE } from 'vs/base/node/pfs';
+import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery, IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-import { IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
 
 gracefulFs.gracefulify(fs);
 
-type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
-type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
+export type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
+export type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
 
 export class SearchService implements IRawSearchService {
 
@@ -98,7 +97,7 @@ export class SearchService implements IRawSearchService {
 				resultCount++;
 				progressCallback(this.rawMatchToSearchItem(<IRawFileMatch>progress));
 			} else {
-				progressCallback(<IProgress>progress);
+				progressCallback(<IProgressMessage>progress);
 			}
 		};
 
@@ -313,7 +312,7 @@ export class SearchService implements IRawSearchService {
 
 			// Pattern match on results
 			const results: IRawFileMatch[] = [];
-			const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
+			const normalizedSearchValueLowercase = prepareQuery(searchValue).lowercase;
 			for (const entry of cachedEntries) {
 
 				// Check if this entry is a match for the search value
@@ -384,13 +383,13 @@ export class SearchService implements IRawSearchService {
 			cancel() {
 				// Do nothing
 			}
-			then(resolve, reject) {
+			then(resolve: any, reject: any) {
 				return promise.then(resolve, reject);
 			}
-			catch(reject?) {
+			catch(reject?: any) {
 				return this.then(undefined, reject);
 			}
-			finally(onFinally) {
+			finally(onFinally: any) {
 				return promise.finally(onFinally);
 			}
 		};

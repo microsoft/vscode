@@ -149,7 +149,8 @@ export interface ITranslation {
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
-	query(options?: IQueryOptions): Promise<IPager<IGalleryExtension>>;
+	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
+	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension, operation: InstallOperation): Promise<string>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
@@ -157,7 +158,6 @@ export interface IExtensionGalleryService {
 	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null>;
 	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]>;
-	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensionsReport(): Promise<IReportedExtension[]>;
 	getCompatibleExtension(extension: IGalleryExtension): Promise<IGalleryExtension | null>;
 	getCompatibleExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension | null>;
@@ -239,12 +239,6 @@ export interface IExtensionEnablementService {
 	 * Event to listen on for extension enablement changes
 	 */
 	onEnablementChanged: Event<IExtension[]>;
-
-	/**
-	 * Returns all disabled extension identifiers for current workspace
-	 * Returns an empty array if none exist
-	 */
-	getDisabledExtensions(): Promise<IExtensionIdentifier[]>;
 
 	/**
 	 * Returns the enablement state for the given extension

@@ -40,13 +40,13 @@ class LanguageSurvey {
 
 		const date = new Date().toDateString();
 
-		if (storageService.getInteger(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
+		if (storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
 			textFileService.models.onModelsSaved(e => {
 				e.forEach(event => {
 					if (event.kind === StateChange.SAVED) {
 						const model = modelService.getModel(event.resource);
 						if (model && model.getModeId() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
-							const editedCount = storageService.getInteger(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
+							const editedCount = storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
 							storageService.store(EDITED_LANGUAGE_COUNT_KEY, editedCount, StorageScope.GLOBAL);
 							storageService.store(EDITED_LANGUAGE_DATE_KEY, date, StorageScope.GLOBAL);
 						}
@@ -60,7 +60,7 @@ class LanguageSurvey {
 			return;
 		}
 
-		const sessionCount = storageService.getInteger(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
+		const sessionCount = storageService.getNumber(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
 		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL);
 		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL);
 
@@ -68,7 +68,7 @@ class LanguageSurvey {
 			return;
 		}
 
-		if (storageService.getInteger(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
+		if (storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
 			return;
 		}
 

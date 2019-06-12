@@ -8,7 +8,7 @@ import * as path from 'vs/base/common/path';
 
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
-import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, isRecentFolder, IRecentFolder, IRecentWorkspace } from 'vs/platform/history/common/history';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/electron-main/historyStorage';
 
 function toWorkspace(uri: URI): IWorkspaceIdentifier {
@@ -30,18 +30,22 @@ function assertEqualWorkspace(w1: IWorkspaceIdentifier | undefined, w2: IWorkspa
 	assertEqualURI(w1.configPath, w2.configPath, message);
 }
 
-function assertEqualRecentlyOpened(expected: IRecentlyOpened, actual: IRecentlyOpened, message?: string) {
-	assert.equal(expected.files.length, actual.files.length, message);
-	for (let i = 0; i < expected.files.length; i++) {
-		assertEqualURI(expected.files[i], actual.files[i], message);
+function assertEqualRecentlyOpened(actual: IRecentlyOpened, expected: IRecentlyOpened, message?: string) {
+	assert.equal(actual.files.length, expected.files.length, message);
+	for (let i = 0; i < actual.files.length; i++) {
+		assertEqualURI(actual.files[i].fileUri, expected.files[i].fileUri, message);
+		assert.equal(actual.files[i].label, expected.files[i].label);
 	}
-	assert.equal(expected.workspaces.length, actual.workspaces.length, message);
-	for (let i = 0; i < expected.workspaces.length; i++) {
-		if (expected.workspaces[i] instanceof URI) {
-			assertEqualURI(<URI>expected.workspaces[i], <URI>actual.workspaces[i], message);
+	assert.equal(actual.workspaces.length, expected.workspaces.length, message);
+	for (let i = 0; i < actual.workspaces.length; i++) {
+		let expectedRecent = expected.workspaces[i];
+		let actualRecent = actual.workspaces[i];
+		if (isRecentFolder(actualRecent)) {
+			assertEqualURI(actualRecent.folderUri, (<IRecentFolder>expectedRecent).folderUri, message);
 		} else {
-			assertEqualWorkspace(<IWorkspaceIdentifier>expected.workspaces[i], <IWorkspaceIdentifier>actual.workspaces[i], message);
+			assertEqualWorkspace(actualRecent.workspace, (<IRecentWorkspace>expectedRecent).workspace, message);
 		}
+		assert.equal(actualRecent.label, expectedRecent.label);
 	}
 }
 
@@ -68,26 +72,31 @@ suite('History Storage', () => {
 		};
 		assertRestoring(ro, 'empty');
 		ro = {
-			files: [testFileURI],
+			files: [{ fileUri: testFileURI }],
 			workspaces: []
 		};
 		assertRestoring(ro, 'file');
 		ro = {
 			files: [],
-			workspaces: [testFolderURI]
+			workspaces: [{ folderUri: testFolderURI }]
 		};
 		assertRestoring(ro, 'folder');
 		ro = {
 			files: [],
-			workspaces: [toWorkspace(testWSPath), testFolderURI]
+			workspaces: [{ workspace: toWorkspace(testWSPath) }, { folderUri: testFolderURI }]
 		};
 		assertRestoring(ro, 'workspaces and folders');
 
 		ro = {
-			files: [testRemoteFileURI],
-			workspaces: [toWorkspace(testRemoteWSURI), testRemoteFolderURI]
+			files: [{ fileUri: testRemoteFileURI }],
+			workspaces: [{ workspace: toWorkspace(testRemoteWSURI) }, { folderUri: testRemoteFolderURI }]
 		};
 		assertRestoring(ro, 'remote workspaces and folders');
+		ro = {
+			files: [{ label: 'abc', fileUri: testFileURI }],
+			workspaces: [{ label: 'def', workspace: toWorkspace(testWSPath) }, { folderUri: testRemoteFolderURI }]
+		};
+		assertRestoring(ro, 'labels');
 	});
 
 	test('open 1_25', () => {
@@ -111,15 +120,15 @@ suite('History Storage', () => {
 
 		let actual = restoreRecentlyOpened(JSON.parse(v1_25_win));
 		let expected: IRecentlyOpened = {
-			files: [URI.file('C:\\workspaces\\test.code-workspace'), URI.file('C:\\workspaces\\testing\\test-ext\\.gitignore')],
+			files: [{ fileUri: URI.file('C:\\workspaces\\test.code-workspace') }, { fileUri: URI.file('C:\\workspaces\\testing\\test-ext\\.gitignore') }],
 			workspaces: [
-				{ id: '2fa677dbdf5f771e775af84dea9feaea', configPath: URI.file('C:\\workspaces\\testing\\test.code-workspace') },
-				URI.file('C:\\workspaces\\testing\\test-ext'),
-				{ id: 'd87a0241f8abc86b95c4e5481ebcbf56', configPath: URI.file('C:\\workspaces\\test.code-workspace') }
+				{ workspace: { id: '2fa677dbdf5f771e775af84dea9feaea', configPath: URI.file('C:\\workspaces\\testing\\test.code-workspace') } },
+				{ folderUri: URI.file('C:\\workspaces\\testing\\test-ext') },
+				{ workspace: { id: 'd87a0241f8abc86b95c4e5481ebcbf56', configPath: URI.file('C:\\workspaces\\test.code-workspace') } }
 			]
 		};
 
-		assertEqualRecentlyOpened(expected, actual, 'v1_31_win');
+		assertEqualRecentlyOpened(actual, expected, 'v1_31_win');
 	});
 
 	test('open 1_31', () => {
@@ -139,15 +148,15 @@ suite('History Storage', () => {
 
 		let actual = restoreRecentlyOpened(JSON.parse(v1_31_win));
 		let expected: IRecentlyOpened = {
-			files: [URI.parse('file:///c%3A/workspaces/vscode/.yarnrc')],
+			files: [{ fileUri: URI.parse('file:///c%3A/workspaces/vscode/.yarnrc') }],
 			workspaces: [
-				URI.parse('file:///c%3A/workspaces/testing/test-ext'),
-				URI.parse('file:///c%3A/WINDOWS/system32'),
-				{ id: 'd87a0241f8abc86b95c4e5481ebcbf56', configPath: URI.file('c:\\workspaces\\test.code-workspace') }
+				{ folderUri: URI.parse('file:///c%3A/workspaces/testing/test-ext') },
+				{ folderUri: URI.parse('file:///c%3A/WINDOWS/system32') },
+				{ workspace: { id: 'd87a0241f8abc86b95c4e5481ebcbf56', configPath: URI.file('c:\\workspaces\\test.code-workspace') } }
 			]
 		};
 
-		assertEqualRecentlyOpened(expected, actual, 'v1_31_win');
+		assertEqualRecentlyOpened(actual, expected, 'v1_31_win');
 	});
 
 	test('open 1_32', () => {
@@ -166,15 +175,49 @@ suite('History Storage', () => {
 
 		let windowsState = restoreRecentlyOpened(JSON.parse(v1_32));
 		let expected: IRecentlyOpened = {
-			files: [URI.parse('file:///home/user/.config/code-oss-dev/storage.json')],
+			files: [{ fileUri: URI.parse('file:///home/user/.config/code-oss-dev/storage.json') }],
 			workspaces: [
-				{ id: '53b714b46ef1a2d4346568b4f591028c', configPath: URI.parse('file:///home/user/workspaces/testing/custom.code-workspace') },
-				URI.parse('file:///home/user/workspaces/testing/folding')
+				{ workspace: { id: '53b714b46ef1a2d4346568b4f591028c', configPath: URI.parse('file:///home/user/workspaces/testing/custom.code-workspace') } },
+				{ folderUri: URI.parse('file:///home/user/workspaces/testing/folding') }
 			]
 		};
 
-		assertEqualRecentlyOpened(expected, windowsState, 'v1_32');
+		assertEqualRecentlyOpened(windowsState, expected, 'v1_32');
+	});
+
+	test('open 1_33', () => {
+		const v1_33 = `{
+			"workspaces3": [
+				{
+					"id": "53b714b46ef1a2d4346568b4f591028c",
+					"configURIPath": "file:///home/user/workspaces/testing/custom.code-workspace"
+				},
+				"file:///home/user/workspaces/testing/folding"
+			],
+			"files2": [
+				"file:///home/user/.config/code-oss-dev/storage.json"
+			],
+			"workspaceLabels": [
+				null,
+				"abc"
+			],
+			"fileLabels": [
+				"def"
+			]
+		}`;
+
+		let windowsState = restoreRecentlyOpened(JSON.parse(v1_33));
+		let expected: IRecentlyOpened = {
+			files: [{ label: 'def', fileUri: URI.parse('file:///home/user/.config/code-oss-dev/storage.json') }],
+			workspaces: [
+				{ workspace: { id: '53b714b46ef1a2d4346568b4f591028c', configPath: URI.parse('file:///home/user/workspaces/testing/custom.code-workspace') } },
+				{ label: 'abc', folderUri: URI.parse('file:///home/user/workspaces/testing/folding') }
+			]
+		};
+
+		assertEqualRecentlyOpened(windowsState, expected, 'v1_33');
 
 	});
+
 
 });

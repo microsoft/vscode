@@ -17,7 +17,7 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { QuickFixAction, QuickFixActionItem } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
+import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -36,14 +36,14 @@ import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction } from 'vs/editor/common/modes';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -67,7 +67,7 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider<
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
 
-	public getAriaLabel(element: TreeElement): string {
+	public getAriaLabel(element: TreeElement): string | null {
 		if (element instanceof ResourceMarkers) {
 			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
 			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length, element.name, paths.dirname(path));
@@ -254,15 +254,15 @@ class MarkerWidget extends Disposable {
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionItem, action) : null
+			actionViewItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionViewItem, action) : undefined
 		}));
-		this.icon = dom.append(parent, dom.$('.icon'));
+		this.icon = dom.append(parent, dom.$(''));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details'));
 		this._register(toDisposable(() => this.disposables = dispose(this.disposables)));
 	}
 
-	render(element: Marker, filterData: MarkerFilterData): void {
+	render(element: Marker, filterData: MarkerFilterData | undefined): void {
 		this.actionBar.clear();
 		this.multilineActionbar.clear();
 		if (this.disposables.length) {
@@ -270,7 +270,7 @@ class MarkerWidget extends Disposable {
 		}
 		dom.clearNode(this.messageAndDetailsContainer);
 
-		this.icon.className = 'marker-icon ' + MarkerWidget.iconClassNameFor(element.marker);
+		this.icon.className = `marker-icon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
 		this.renderQuickfixActionbar(element);
 		this.renderMultilineActionbar(element);
 
@@ -291,9 +291,9 @@ class MarkerWidget extends Disposable {
 				}
 			}, this, this.disposables);
 			quickFixAction.onShowQuickFixes(() => {
-				const quickFixActionItem = <QuickFixActionItem>this.actionBar.items[0];
-				if (quickFixActionItem) {
-					quickFixActionItem.showQuickFixes();
+				const quickFixActionViewItem = <QuickFixActionViewItem>this.actionBar.viewItems[0];
+				if (quickFixActionViewItem) {
+					quickFixActionViewItem.showQuickFixes();
 				}
 			}, this, this.disposables);
 		}
@@ -310,7 +310,7 @@ class MarkerWidget extends Disposable {
 		this.multilineActionbar.push([action], { icon: true, label: false });
 	}
 
-	private renderMessageAndDetails(element: Marker, filterData: MarkerFilterData) {
+	private renderMessageAndDetails(element: Marker, filterData: MarkerFilterData | undefined) {
 		const { marker, lines } = element;
 		const viewState = this.markersViewModel.getViewModel(element);
 		const multiline = !viewState || viewState.multiline;
@@ -319,7 +319,7 @@ class MarkerWidget extends Disposable {
 		dom.toggleClass(messageContainer, 'multiline', multiline);
 
 		let lastLineElement = messageContainer;
-		for (let index = 0; index < lines.length; index++) {
+		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
 			lastLineElement = dom.append(messageContainer, dom.$('.marker-message-line'));
 			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
 			highlightedLabel.set(lines[index], lineMatches[index]);
@@ -330,7 +330,7 @@ class MarkerWidget extends Disposable {
 		this.renderDetails(marker, filterData, multiline ? lastLineElement : this.messageAndDetailsContainer);
 	}
 
-	private renderDetails(marker: IMarker, filterData: MarkerFilterData, parent: HTMLElement): void {
+	private renderDetails(marker: IMarker, filterData: MarkerFilterData | undefined, parent: HTMLElement): void {
 		dom.addClass(parent, 'details-container');
 		const sourceMatches = filterData && filterData.sourceMatches || [];
 		const codeMatches = filterData && filterData.codeMatches || [];
@@ -345,20 +345,6 @@ class MarkerWidget extends Disposable {
 
 		const lnCol = dom.append(parent, dom.$('span.marker-line'));
 		lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
-	}
-
-	private static iconClassNameFor(element: IMarker): string {
-		switch (element.severity) {
-			case MarkerSeverity.Hint:
-				return 'info';
-			case MarkerSeverity.Info:
-				return 'info';
-			case MarkerSeverity.Warning:
-				return 'warning';
-			case MarkerSeverity.Error:
-				return 'error';
-		}
-		return '';
 	}
 }
 
@@ -493,7 +479,7 @@ export class MarkerViewModel extends Disposable {
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private modelPromise: CancelablePromise<ITextModel> | null = null;
-	private codeActionsPromise: CancelablePromise<CodeAction[]> | null = null;
+	private codeActionsPromise: CancelablePromise<CodeActionSet> | null = null;
 
 	constructor(
 		private readonly marker: Marker,
@@ -548,20 +534,23 @@ export class MarkerViewModel extends Disposable {
 	}
 
 	private async setQuickFixes(waitForModel: boolean): Promise<void> {
-		const quickFixes = await this.getQuickFixes(waitForModel);
-		this.quickFixAction.quickFixes = quickFixes;
+		const codeActions = await this.getCodeActions(waitForModel);
+		this.quickFixAction.quickFixes = codeActions ? this.toActions(codeActions) : [];
+		this.quickFixAction.autoFixable(!!codeActions && codeActions.hasAutoFix);
 	}
 
-	private getCodeActions(waitForModel: boolean): Promise<CodeAction[] | null> {
+	private getCodeActions(waitForModel: boolean): Promise<CodeActionSet | null> {
 		if (this.codeActionsPromise !== null) {
 			return this.codeActionsPromise;
 		}
 		return this.getModel(waitForModel)
-			.then(model => {
+			.then<CodeActionSet | null>(model => {
 				if (model) {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
-							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
+							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken).then(actions => {
+								return this._register(actions);
+							});
 						});
 					}
 					return this.codeActionsPromise;
@@ -570,8 +559,8 @@ export class MarkerViewModel extends Disposable {
 			});
 	}
 
-	private toActions(codeActions: CodeAction[]): IAction[] {
-		return codeActions.map(codeAction => new Action(
+	private toActions(codeActions: CodeActionSet): IAction[] {
+		return codeActions.actions.map(codeAction => new Action(
 			codeAction.command ? codeAction.command.id : codeAction.title,
 			codeAction.title,
 			undefined,
@@ -601,7 +590,7 @@ export class MarkerViewModel extends Disposable {
 			return Promise.resolve(model);
 		}
 		if (waitForModel) {
-			if (this.modelPromise === null) {
+			if (!this.modelPromise) {
 				this.modelPromise = createCancelablePromise(cancellationToken => {
 					return new Promise((c) => {
 						this._register(this.modelService.onModelAdded(model => {
@@ -629,7 +618,7 @@ export class MarkersViewModel extends Disposable {
 
 	private bulkUpdate: boolean = false;
 
-	private hoveredMarker: Marker;
+	private hoveredMarker: Marker | null;
 	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
 
 	constructor(

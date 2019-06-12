@@ -51,7 +51,7 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	public updateBreakpoints(uri: uri, data: { [id: string]: IBreakpointUpdateData }, sendOnResourceSaved: boolean): void { }
+	public updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): void { }
 
 	public enableOrDisableBreakpoints(enabled: boolean): Promise<void> {
 		throw new Error('not implemented');
@@ -123,6 +123,17 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+
+	subId: string | undefined;
+
+	setSubId(subId: string | undefined): void {
+		throw new Error('Method not implemented.');
+	}
+
+	get parentSession(): IDebugSession | undefined {
+		return undefined;
+	}
+
 	getReplElements(): IReplElement[] {
 		return [];
 	}

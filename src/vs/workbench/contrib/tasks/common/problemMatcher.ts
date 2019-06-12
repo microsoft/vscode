@@ -21,11 +21,13 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 
 export enum FileLocationKind {
-	Auto,
+	Default,
 	Relative,
-	Absolute
+	Absolute,
+	AutoDetect
 }
 
 export module FileLocationKind {
@@ -35,6 +37,8 @@ export module FileLocationKind {
 			return FileLocationKind.Absolute;
 		} else if (value === 'relative') {
 			return FileLocationKind.Relative;
+		} else if (value === 'autodetect') {
+			return FileLocationKind.AutoDetect;
 		} else {
 			return undefined;
 		}
@@ -172,7 +176,7 @@ interface ProblemData {
 }
 
 export interface ProblemMatch {
-	resource: URI;
+	resource: Promise<URI>;
 	marker: IMarkerData;
 	description: ProblemMatcher;
 }
@@ -182,13 +186,32 @@ export interface HandleResult {
 	continue: boolean;
 }
 
-export function getResource(filename: string, matcher: ProblemMatcher): URI {
+
+export async function getResource(filename: string, matcher: ProblemMatcher, fileService?: IFileService): Promise<URI> {
 	let kind = matcher.fileLocation;
 	let fullPath: string | undefined;
 	if (kind === FileLocationKind.Absolute) {
 		fullPath = filename;
 	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix) {
 		fullPath = join(matcher.filePrefix, filename);
+	} else if (kind === FileLocationKind.AutoDetect) {
+		const matcherClone = Objects.deepClone(matcher);
+		matcherClone.fileLocation = FileLocationKind.Relative;
+		if (fileService) {
+			const relative = await getResource(filename, matcherClone);
+			let stat: IFileStat | undefined = undefined;
+			try {
+				stat = await fileService.resolve(relative);
+			} catch (ex) {
+				// Do nothing, we just need to catch file resolution errors.
+			}
+			if (stat) {
+				return relative;
+			}
+		}
+
+		matcherClone.fileLocation = FileLocationKind.Absolute;
+		return getResource(filename, matcherClone);
 	}
 	if (fullPath === undefined) {
 		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');
@@ -210,12 +233,12 @@ export interface ILineMatcher {
 	handle(lines: string[], start?: number): HandleResult;
 }
 
-export function createLineMatcher(matcher: ProblemMatcher): ILineMatcher {
+export function createLineMatcher(matcher: ProblemMatcher, fileService?: IFileService): ILineMatcher {
 	let pattern = matcher.pattern;
 	if (Types.isArray(pattern)) {
-		return new MultiLineMatcher(matcher);
+		return new MultiLineMatcher(matcher, fileService);
 	} else {
-		return new SingleLineMatcher(matcher);
+		return new SingleLineMatcher(matcher, fileService);
 	}
 }
 
@@ -223,9 +246,11 @@ const endOfLine: string = Platform.OS === Platform.OperatingSystem.Windows ? '\r
 
 abstract class AbstractLineMatcher implements ILineMatcher {
 	private matcher: ProblemMatcher;
+	private fileService?: IFileService;
 
-	constructor(matcher: ProblemMatcher) {
+	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
 		this.matcher = matcher;
+		this.fileService = fileService;
 	}
 
 	public handle(lines: string[], start: number = 0): HandleResult {
@@ -265,7 +290,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 			if (trim) {
 				value = Strings.trim(value)!;
 			}
-			data[property] += endOfLine + value;
+			(data as any)[property] += endOfLine + value;
 		}
 	}
 
@@ -277,7 +302,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 				if (trim) {
 					value = Strings.trim(value)!;
 				}
-				data[property] = value;
+				(data as any)[property] = value;
 			}
 		}
 	}
@@ -312,8 +337,8 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 		return undefined;
 	}
 
-	protected getResource(filename: string): URI {
-		return getResource(filename, this.matcher);
+	protected getResource(filename: string): Promise<URI> {
+		return getResource(filename, this.matcher, this.fileService);
 	}
 
 	private getLocation(data: ProblemData): Location | null {
@@ -389,8 +414,8 @@ class SingleLineMatcher extends AbstractLineMatcher {
 
 	private pattern: ProblemPattern;
 
-	constructor(matcher: ProblemMatcher) {
-		super(matcher);
+	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
+		super(matcher, fileService);
 		this.pattern = <ProblemPattern>matcher.pattern;
 	}
 
@@ -425,8 +450,8 @@ class MultiLineMatcher extends AbstractLineMatcher {
 	private patterns: ProblemPattern[];
 	private data: ProblemData | null;
 
-	constructor(matcher: ProblemMatcher) {
-		super(matcher);
+	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
+		super(matcher, fileService);
 		this.patterns = <ProblemPattern[]>matcher.pattern;
 	}
 
@@ -841,7 +866,9 @@ export class ProblemPatternParser extends Parser {
 
 	private createSingleProblemPattern(value: Config.CheckedProblemPattern): ProblemPattern | null {
 		let result = this.doCreateSingleProblemPattern(value, true);
-		if (result.kind === undefined) {
+		if (result === undefined) {
+			return null;
+		} else if (result.kind === undefined) {
 			result.kind = ProblemLocationKind.Location;
 		}
 		return this.validateProblemPattern([result]) ? result : null;
@@ -864,6 +891,9 @@ export class ProblemPatternParser extends Parser {
 		let result: MultiLineProblemPattern = [];
 		for (let i = 0; i < values.length; i++) {
 			let pattern = this.doCreateSingleProblemPattern(values[i], false);
+			if (pattern === undefined) {
+				return null;
+			}
 			if (i < values.length - 1) {
 				if (!Types.isUndefined(pattern.loop) && pattern.loop) {
 					pattern.loop = false;
@@ -878,10 +908,10 @@ export class ProblemPatternParser extends Parser {
 		return this.validateProblemPattern(result) ? result : null;
 	}
 
-	private doCreateSingleProblemPattern(value: Config.CheckedProblemPattern, setDefaults: boolean): ProblemPattern {
+	private doCreateSingleProblemPattern(value: Config.CheckedProblemPattern, setDefaults: boolean): ProblemPattern | undefined {
 		const regexp = this.createRegularExpression(value.regexp);
 		if (regexp === undefined) {
-			throw new Error('Invalid regular expression');
+			return undefined;
 		}
 		let result: ProblemPattern = { regexp };
 		if (value.kind) {
@@ -889,9 +919,9 @@ export class ProblemPatternParser extends Parser {
 		}
 
 		function copyProperty(result: ProblemPattern, source: Config.ProblemPattern, resultKey: keyof ProblemPattern, sourceKey: keyof Config.ProblemPattern) {
-			let value = source[sourceKey];
+			const value = source[sourceKey];
 			if (typeof value === 'number') {
-				result[resultKey] = value;
+				(result as any)[resultKey] = value;
 			}
 		}
 		copyProperty(result, value, 'file', 'file');
@@ -1340,7 +1370,7 @@ export class ProblemMatcherParser extends Parser {
 			kind = FileLocationKind.fromString(<string>description.fileLocation);
 			if (kind) {
 				fileLocation = kind;
-				if (kind === FileLocationKind.Relative) {
+				if ((kind === FileLocationKind.Relative) || (kind === FileLocationKind.AutoDetect)) {
 					filePrefix = '${workspaceFolder}';
 				}
 			}
@@ -1350,7 +1380,7 @@ export class ProblemMatcherParser extends Parser {
 				kind = FileLocationKind.fromString(values[0]);
 				if (values.length === 1 && kind === FileLocationKind.Absolute) {
 					fileLocation = kind;
-				} else if (values.length === 2 && kind === FileLocationKind.Relative && values[1]) {
+				} else if (values.length === 2 && (kind === FileLocationKind.Relative || kind === FileLocationKind.AutoDetect) && values[1]) {
 					fileLocation = kind;
 					filePrefix = values[1];
 				}
@@ -1568,7 +1598,7 @@ export namespace Schemas {
 				oneOf: [
 					{
 						type: 'string',
-						enum: ['absolute', 'relative']
+						enum: ['absolute', 'relative', 'autoDetect']
 					},
 					{
 						type: 'array',
@@ -1680,7 +1710,7 @@ export interface IProblemMatcherRegistry {
 	onReady(): Promise<void>;
 	get(name: string): NamedProblemMatcher;
 	keys(): string[];
-	readonly onMatcherChanged;
+	readonly onMatcherChanged: Event<void>;
 }
 
 class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {

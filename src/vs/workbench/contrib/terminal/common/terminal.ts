@@ -5,15 +5,14 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { Platform, OperatingSystem } from 'vs/base/common/platform';
+import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
-
-export const TERMINAL_SERVICE_ID = 'terminalService';
 
 /** A context key that is set when there is at least one opened integrated terminal. */
 export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);
@@ -39,7 +38,6 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED = new RawContextKey
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
-export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
 // The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
@@ -47,7 +45,8 @@ export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverM
 // trying to create the corressponding object on the ext host.
 export const EXT_HOST_CREATION_DELAY = 100;
 
-export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
+export const ITerminalService = createDecorator<ITerminalService>('terminalService');
+export const ITerminalNativeService = createDecorator<ITerminalNativeService>('terminalNativeService');
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
@@ -60,14 +59,15 @@ export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
+export const SHELL_PATH_INVALID_EXIT_CODE = -1;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
 export interface ITerminalConfiguration {
 	shell: {
-		linux: string;
-		osx: string;
-		windows: string;
+		linux: string | null;
+		osx: string | null;
+		windows: string | null;
 	};
 	shellArgs: {
 		linux: string[];
@@ -103,18 +103,20 @@ export interface ITerminalConfiguration {
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
+	experimentalRefreshOnResume: boolean;
 }
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
+	configFontIsMonospace(): boolean;
 	getFont(): ITerminalFont;
 	/**
 	 * Merges the default shell path and args into the provided launch configuration
 	 */
-	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride?: platform.Platform): void;
+	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, platformOverride?: Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	checkWorkspaceShellPermissions(platformOverride?: platform.Platform): boolean;
+	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;
 }
 
 export interface ITerminalFont {
@@ -161,7 +163,7 @@ export interface IShellLaunchConfig {
 	env?: ITerminalEnvironment;
 
 	/**
-	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (eg. if the
+	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (e.g. if the
 	 * shell is being launched by an extension).
 	 */
 	ignoreConfigurationCwd?: boolean;
@@ -191,6 +193,15 @@ export interface IShellLaunchConfig {
 	 * provided as nothing will be inherited from the process or any configuration.
 	 */
 	strictEnv?: boolean;
+
+	/**
+	 * When enabled the terminal will run the process as normal but not be surfaced to the user
+	 * until `Terminal.show` is called. The typical usage for this is when you need to run
+	 * something that may need interactivity but only want to tell the user about it when
+	 * interaction is needed. Note that the terminals will still be exposed to all extensions
+	 * as normal.
+	 */
+	runInBackground?: boolean;
 }
 
 export interface ITerminalService {
@@ -214,16 +225,15 @@ export interface ITerminalService {
 	/**
 	 * Creates a terminal.
 	 * @param shell The shell launch configuration to use.
-	 * @param wasNewTerminalAction Whether this was triggered by a new terminal action, if so a
-	 * default shell selection dialog may display.
 	 */
-	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	createTerminal(shell?: IShellLaunchConfig): ITerminalInstance;
 
 	/**
 	 * Creates a terminal renderer.
 	 * @param name The name of the terminal.
 	 */
 	createTerminalRenderer(name: string): ITerminalInstance;
+
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
@@ -242,6 +252,12 @@ export interface ITerminalService {
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
 
+	/**
+	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
+	 * among other things.
+	 */
+	refreshActiveTab(): void;
+
 	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;
 	focusFindWidget(): Promise<void>;
@@ -251,10 +267,38 @@ export interface ITerminalService {
 	findPrevious(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	selectDefaultWindowsShell(): Promise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
-	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number): void;
+	/**
+	 * Takes a path and returns the properly escaped path to send to the terminal.
+	 * On Windows, this included trying to prepare the path for WSL if needed.
+	 *
+	 * @param executable The executable off the shellLaunchConfig
+	 * @param title The terminal's title
+	 * @param path The path to be escaped and formatted.
+	 * @returns An escaped version of the path to be execuded in the terminal.
+	 */
+	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string): Promise<string>;
+
+	extHostReady(remoteAuthority: string): void;
+	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+}
+
+/**
+ * Provides access to native or electron APIs to other terminal services.
+ */
+export interface ITerminalNativeService {
+	_serviceBrand: any;
+
+	readonly linuxDistro: LinuxDistro;
+
+	readonly onOpenFileRequest: Event<IOpenFileRequest>;
+	readonly onOsResume: Event<void>;
+
+	getWindowsBuildNumber(): number;
+	whenFileDeleted(path: URI): Promise<void>;
+	getWslPath(path: string): Promise<string>;
+	selectDefaultWindowsShell(): Promise<string | undefined>;
 }
 
 export const enum Direction {
@@ -407,7 +451,7 @@ export interface ITerminalInstance {
 
 	/**
 	 * Whether to disable layout for the terminal. This is useful when the size of the terminal is
-	 * being manipulating (eg. adding a split pane) and we want the terminal to ignore particular
+	 * being manipulating (e.g. adding a split pane) and we want the terminal to ignore particular
 	 * resize events.
 	 */
 	disableLayout: boolean;
@@ -427,6 +471,14 @@ export interface ITerminalInstance {
 	 * get cut off. If immediate kill any terminal processes immediately.
 	 */
 	dispose(immediate?: boolean): void;
+
+	/**
+	 * Indicates that a consumer of a renderer only terminal is finished with it.
+	 *
+	 * @param exitCode The exit code of the terminal. Zero indicates success, non-zero indicates
+	 * failure.
+	 */
+	rendererExit(exitCode: number): void;
 
 	/**
 	 * Forces the terminal to redraw its viewport.
@@ -525,15 +577,6 @@ export interface ITerminalInstance {
 	sendText(text: string, addNewLine: boolean): void;
 
 	/**
-	 * Takes a path and returns the properly escaped path to send to the terminal.
-	 * On Windows, this included trying to prepare the path for WSL if needed.
-	 *
-	 * @param path The path to be escaped and formatted.
-	 * @returns An escaped version of the path to be execuded in the terminal.
-	 */
-	preparePathForTerminalAsync(path: string): Promise<string>;
-
-	/**
 	 * Write text directly to the terminal, skipping the process if it exists.
 	 * @param text The text to write.
 	 */
@@ -623,24 +666,36 @@ export interface ITerminalCommandTracker {
 	selectToNextLine(): void;
 }
 
+export interface IBeforeProcessDataEvent {
+	/**
+	 * The data of the event, this can be modified by the event listener to change what gets sent
+	 * to the terminal.
+	 */
+	data: string;
+}
+
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number;
+	readonly remoteAuthority: string | undefined;
+	readonly os: OperatingSystem | undefined;
+	readonly userHome: string | undefined;
 
 	readonly onProcessReady: Event<void>;
+	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<string>;
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number>;
 
-	addDisposable(disposable: IDisposable);
-	dispose(immediate?: boolean);
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
+	dispose(immediate?: boolean): void;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
+	getLatency(): Promise<number>;
 }
 
 export const enum ProcessState {
@@ -662,7 +717,6 @@ export const enum ProcessState {
 	KILLED_BY_PROCESS
 }
 
-
 export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly terminalId: number;
 
@@ -672,12 +726,14 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitExit(exitCode: number): void;
 	emitInitialCwd(initialCwd: string): void;
 	emitCwd(cwd: string): void;
+	emitLatency(latency: number): void;
 
 	onInput: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
 	onShutdown: Event<boolean>;
 	onRequestInitialCwd: Event<void>;
 	onRequestCwd: Event<void>;
+	onRequestLatency: Event<void>;
 }
 
 export interface ITerminalProcessExtHostRequest {
@@ -686,4 +742,40 @@ export interface ITerminalProcessExtHostRequest {
 	activeWorkspaceRootUri: URI;
 	cols: number;
 	rows: number;
+	isWorkspaceShellAllowed: boolean;
+}
+
+export enum LinuxDistro {
+	Fedora,
+	Ubuntu,
+	Unknown
+}
+
+export interface IWindowsShellHelper extends IDisposable {
+	getShellName(): Promise<string>;
+}
+
+/**
+ * An interface representing a raw terminal child process, this contains a subset of the
+ * child_process.ChildProcess node.js interface.
+ */
+export interface ITerminalChildProcess {
+	onProcessData: Event<string>;
+	onProcessExit: Event<number>;
+	onProcessIdReady: Event<number>;
+	onProcessTitleChanged: Event<string>;
+
+	/**
+	 * Shutdown the terminal process.
+	 *
+	 * @param immediate When true the process will be killed immediately, otherwise the process will
+	 * be given some time to make sure no additional data comes through.
+	 */
+	shutdown(immediate: boolean): void;
+	input(data: string): void;
+	resize(cols: number, rows: number): void;
+
+	getInitialCwd(): Promise<string>;
+	getCwd(): Promise<string>;
+	getLatency(): Promise<number>;
 }

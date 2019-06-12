@@ -15,7 +15,7 @@ import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/serv
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
 import * as path from 'vs/base/common/path';
-import { SearchService } from 'vs/workbench/services/search/node/searchService';
+import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -68,7 +68,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)],
+			[ISearchService, createSyncDescriptor(LocalSearchService)],
 			[ILogService, new NullLogService()]
 		));
 
@@ -97,15 +97,15 @@ suite.skip('TextSearch performance (integration)', () => {
 
 					telemetryService.events = [];
 
-					resolve(resultsFinishedEvent);
+					resolve!(resultsFinishedEvent);
 				} catch (e) {
 					// Fail the runSearch() promise
-					error(e);
+					error!(e);
 				}
 			}
 
-			let resolve;
-			let error;
+			let resolve: (result: any) => void;
+			let error: (error: Error) => void;
 			return new Promise((_resolve, _error) => {
 				resolve = _resolve;
 				error = _error;
@@ -122,7 +122,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			.then(() => {
 				if (testWorkspaceArg) { // Don't measure by default
 					let i = n;
-					return (function iterate() {
+					return (function iterate(): Promise<undefined> | undefined {
 						if (!i--) {
 							return;
 						}
@@ -133,11 +133,12 @@ suite.skip('TextSearch performance (integration)', () => {
 								finishedEvents.push(resultsFinishedEvent);
 								return iterate();
 							});
-					})().then(() => {
+					})()!.then(() => {
 						const totalTime = finishedEvents.reduce((sum, e) => sum + e.data.duration, 0);
 						console.log(`Avg duration: ${totalTime / n / 1000}s`);
 					});
 				}
+				return undefined;
 			});
 	});
 });
@@ -152,6 +153,9 @@ class TestTelemetryService implements ITelemetryService {
 
 	public get eventLogged(): Event<any> {
 		return this.emitter.event;
+	}
+
+	public setEnabled(value: boolean): void {
 	}
 
 	public publicLog(eventName: string, data?: any): Promise<void> {

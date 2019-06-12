@@ -93,7 +93,7 @@ export interface ITaskExecuteResult {
 }
 
 export interface ITaskResolver {
-	resolve(workspaceFolder: IWorkspaceFolder, identifier: string | KeyedTaskIdentifier): Task;
+	resolve(workspaceFolder: IWorkspaceFolder, identifier: string | KeyedTaskIdentifier | undefined): Task | undefined;
 }
 
 export interface TaskTerminateResponse extends TerminateResponse {
@@ -121,8 +121,8 @@ export interface TaskSystemInfo {
 	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): Promise<ResolvedVariables>;
 }
 
-export interface TaskSystemInfoResovler {
-	(workspaceFolder: IWorkspaceFolder): TaskSystemInfo;
+export interface TaskSystemInfoResolver {
+	(workspaceFolder: IWorkspaceFolder): TaskSystemInfo | undefined;
 }
 
 export interface ITaskSystem {
@@ -136,4 +136,5 @@ export interface ITaskSystem {
 	terminate(task: Task): Promise<TaskTerminateResponse>;
 	terminateAll(): Promise<TaskTerminateResponse[]>;
 	revealTask(task: Task): boolean;
+	customExecutionComplete(task: Task, result: number): Promise<void>;
 }

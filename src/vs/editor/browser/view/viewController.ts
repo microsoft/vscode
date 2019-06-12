@@ -11,6 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 export interface IMouseDispatchData {
 	position: Position;
@@ -98,7 +99,7 @@ export class ViewController {
 	}
 
 	private _validateViewColumn(viewPosition: Position): Position {
-		let minColumn = this.viewModel.getLineMinColumn(viewPosition.lineNumber);
+		const minColumn = this.viewModel.getLineMinColumn(viewPosition.lineNumber);
 		if (viewPosition.column < minColumn) {
 			return new Position(viewPosition.lineNumber, minColumn);
 		}
@@ -315,5 +316,9 @@ export class ViewController {
 
 	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
 		this.outgoingEvents.emitMouseDrop(e);
+	}
+
+	public emitMouseWheel(e: IMouseWheelEvent): void {
+		this.outgoingEvents.emitMouseWheel(e);
 	}
 }

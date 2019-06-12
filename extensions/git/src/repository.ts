@@ -206,7 +206,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_ADD:
 				return new ThemeColor('gitDecoration.addedResourceForeground');
-			case Status.INDEX_RENAMED: // todo@joh - special color?
+			case Status.INDEX_RENAMED:
 			case Status.UNTRACKED:
 				return new ThemeColor('gitDecoration.untrackedResourceForeground');
 			case Status.IGNORED:
@@ -299,6 +299,7 @@ export const enum Operation {
 	GetObjectDetails = 'GetObjectDetails',
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
+	FindTrackingBranches = 'GetTracking',
 	Apply = 'Apply',
 	Blame = 'Blame',
 	Log = 'Log',
@@ -909,6 +910,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { track: true }));
 	}
 
+	async findTrackingBranches(upstreamRef: string): Promise<Branch[]> {
+		return await this.run(Operation.FindTrackingBranches, () => this.repository.findTrackingBranches(upstreamRef));
+	}
+
 	async getCommit(ref: string): Promise<Commit> {
 		return await this.repository.getCommit(ref);
 	}
@@ -979,11 +984,12 @@ export class Repository implements Disposable {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
+				const tags = config.get<boolean>('pullTags');
 
 				if (fetchOnPull) {
-					await this.repository.pull(rebase, undefined, undefined, { unshallow });
+					await this.repository.pull(rebase, undefined, undefined, { unshallow, tags });
 				} else {
-					await this.repository.pull(rebase, remote, branch, { unshallow });
+					await this.repository.pull(rebase, remote, branch, { unshallow, tags });
 				}
 			});
 		});
@@ -1039,11 +1045,12 @@ export class Repository implements Disposable {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
+				const tags = config.get<boolean>('pullTags');
 
 				if (fetchOnPull) {
-					await this.repository.pull(rebase);
+					await this.repository.pull(rebase, undefined, undefined, { tags });
 				} else {
-					await this.repository.pull(rebase, remoteName, pullBranch);
+					await this.repository.pull(rebase, remoteName, pullBranch, { tags });
 				}
 
 				const remote = this.remotes.find(r => r.name === remoteName);
@@ -1156,7 +1163,7 @@ export class Repository implements Disposable {
 				}
 
 				// https://git-scm.com/docs/git-check-ignore#git-check-ignore--z
-				const child = this.repository.stream(['check-ignore', '-z', '--stdin'], { stdio: [null, null, null] });
+				const child = this.repository.stream(['check-ignore', '-v', '-z', '--stdin'], { stdio: [null, null, null] });
 				child.stdin.end(filePaths.join('\0'), 'utf8');
 
 				const onExit = (exitCode: number) => {
@@ -1164,8 +1171,7 @@ export class Repository implements Disposable {
 						// nothing ignored
 						resolve(new Set<string>());
 					} else if (exitCode === 0) {
-						// paths are separated by the null-character
-						resolve(new Set<string>(data.split('\0')));
+						resolve(new Set<string>(this.parseIgnoreCheck(data)));
 					} else {
 						if (/ is in submodule /.test(stderr)) {
 							reject(new GitError({ stdout: data, stderr, exitCode, gitErrorCode: GitErrorCodes.IsInSubmodule }));
@@ -1191,6 +1197,23 @@ export class Repository implements Disposable {
 				child.on('exit', onExit);
 			});
 		});
+	}
+
+	// Parses output of `git check-ignore -v -z` and returns only those paths
+	// that are actually ignored by git.
+	// Matches to a negative pattern (starting with '!') are filtered out.
+	// See also https://git-scm.com/docs/git-check-ignore#_output.
+	private parseIgnoreCheck(raw: string): string[] {
+		const ignored = [];
+		const elements = raw.split('\0');
+		for (let i = 0; i < elements.length; i += 4) {
+			const pattern = elements[i + 2];
+			const path = elements[i + 3];
+			if (pattern && !pattern.startsWith('!')) {
+				ignored.push(path);
+			}
+		}
+		return ignored;
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {

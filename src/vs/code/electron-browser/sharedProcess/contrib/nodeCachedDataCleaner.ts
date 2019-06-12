@@ -5,7 +5,7 @@
 
 import { basename, dirname, join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/node/product';
@@ -41,13 +41,13 @@ export class NodeCachedDataCleaner {
 		const nodeCachedDataRootDir = dirname(this._environmentService.nodeCachedDataDir);
 		const nodeCachedDataCurrent = basename(this._environmentService.nodeCachedDataDir);
 
-		let handle: any = setTimeout(() => {
+		let handle: NodeJS.Timeout | undefined = setTimeout(() => {
 			handle = undefined;
 
 			readdir(nodeCachedDataRootDir).then(entries => {
 
 				const now = Date.now();
-				const deletes: Promise<any>[] = [];
+				const deletes: Promise<unknown>[] = [];
 
 				entries.forEach(entry => {
 					// name check
@@ -76,8 +76,11 @@ export class NodeCachedDataCleaner {
 
 		}, 30 * 1000);
 
-		this._disposables.push({
-			dispose() { clearTimeout(handle); }
-		});
+		this._disposables.push(toDisposable(() => {
+			if (handle) {
+				clearTimeout(handle);
+				handle = undefined;
+			}
+		}));
 	}
 }

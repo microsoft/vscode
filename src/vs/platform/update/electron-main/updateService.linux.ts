@@ -15,9 +15,6 @@ import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/elect
 import { asJson } from 'vs/base/node/request';
 import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import * as path from 'vs/base/common/path';
-import { spawn } from 'child_process';
-import { realpath } from 'fs';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -45,61 +42,36 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 		this.setState(State.CheckingForUpdates(context));
 
-		if (process.env.SNAP && process.env.SNAP_REVISION) {
-			this.checkForSnapUpdate();
-		} else {
-			this.requestService.request({ url: this.url }, CancellationToken.None)
-				.then<IUpdate>(asJson)
-				.then(update => {
-					if (!update || !update.url || !update.version || !update.productVersion) {
-						/* __GDPR__
-								"update:notAvailable" : {
-									"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-								}
-							*/
-						this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-
-						this.setState(State.Idle(UpdateType.Archive));
-					} else {
-						this.setState(State.AvailableForDownload(update));
-					}
-				})
-				.then(undefined, err => {
-					this.logService.error(err);
-
+		this.requestService.request({ url: this.url }, CancellationToken.None)
+			.then<IUpdate>(asJson)
+			.then(update => {
+				if (!update || !update.url || !update.version || !update.productVersion) {
 					/* __GDPR__
-						"update:notAvailable" : {
-							"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-						}
+							"update:notAvailable" : {
+								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+							}
 						*/
 					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
-					// only show message when explicitly checking for updates
-					const message: string | undefined = !!context ? (err.message || err) : undefined;
-					this.setState(State.Idle(UpdateType.Archive, message));
-				});
-		}
-	}
+					this.setState(State.Idle(UpdateType.Archive));
+				} else {
+					this.setState(State.AvailableForDownload(update));
+				}
+			})
+			.then(undefined, err => {
+				this.logService.error(err);
 
-	private checkForSnapUpdate(): void {
-		// If the application was installed as a snap, updates happen in the
-		// background automatically, we just need to check to see if an update
-		// has already happened.
-		realpath(`${path.dirname(process.env.SNAP!)}/current`, (err, resolvedCurrentSnapPath) => {
-			if (err) {
-				this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
-				return;
-			}
+				/* __GDPR__
+					"update:notAvailable" : {
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+					}
+					*/
+				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
-			const currentRevision = path.basename(resolvedCurrentSnapPath);
-
-			if (process.env.SNAP_REVISION !== currentRevision) {
-				// TODO@joao: snap
-				this.setState(State.Ready({ version: '', productVersion: '' }));
-			} else {
-				this.setState(State.Idle(UpdateType.Archive));
-			}
-		});
+				// only show message when explicitly checking for updates
+				const message: string | undefined = !!context ? (err.message || err) : undefined;
+				this.setState(State.Idle(UpdateType.Archive, message));
+			});
 	}
 
 	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
@@ -112,24 +84,5 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));
-	}
-
-	protected doQuitAndInstall(): void {
-		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
-
-		const snap = process.env.SNAP;
-
-		// TODO@joao what to do?
-		if (!snap) {
-			return;
-		}
-
-		// Allow 3 seconds for VS Code to close
-		spawn('sleep 3 && $SNAP_NAME', {
-			shell: true,
-			detached: true,
-			stdio: 'ignore',
-		});
-
 	}
 }

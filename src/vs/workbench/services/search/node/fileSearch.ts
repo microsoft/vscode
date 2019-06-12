@@ -19,11 +19,10 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import * as extfs from 'vs/base/node/extfs';
-import * as flow from 'vs/base/node/flow';
-import { IFileQuery, IFolderQuery, IProgress, ISearchEngineStats } from 'vs/workbench/services/search/common/search';
-import { IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/node/search';
+import { readdir } from 'vs/base/node/pfs';
+import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess } from 'vs/workbench/services/search/common/search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
+import { prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 
 interface IDirectoryEntry {
 	base: string;
@@ -78,7 +77,7 @@ export class FileWalker {
 		this.errors = [];
 
 		if (this.filePattern) {
-			this.normalizedFilePatternLowercase = strings.stripWildcards(this.filePattern).toLowerCase();
+			this.normalizedFilePatternLowercase = prepareQuery(this.filePattern).lowercase;
 		}
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
@@ -107,7 +106,7 @@ export class FileWalker {
 		this.isCanceled = true;
 	}
 
-	walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
+	walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
 		this.fileWalkSW = StopWatch.create(false);
 
 		// Support that the file pattern is a full path to a file that exists
@@ -129,7 +128,7 @@ export class FileWalker {
 		this.cmdSW = StopWatch.create(false);
 
 		// For each root folder
-		flow.parallel<IFolderQuery, void>(folderQueries, (folderQuery: IFolderQuery, rootFolderDone: (err: Error | null, result: void) => void) => {
+		this.parallel<IFolderQuery, void>(folderQueries, (folderQuery: IFolderQuery, rootFolderDone: (err: Error | null, result: void) => void) => {
 			this.call(this.cmdTraversal, this, folderQuery, onResult, onMessage, (err?: Error) => {
 				if (err) {
 					const errorMessage = toErrorMessage(err);
@@ -147,6 +146,34 @@ export class FileWalker {
 		});
 	}
 
+	private parallel<T, E>(list: T[], fn: (item: T, callback: (err: Error | null, result: E | null) => void) => void, callback: (err: Array<Error | null> | null, result: E[]) => void): void {
+		const results = new Array(list.length);
+		const errors = new Array<Error | null>(list.length);
+		let didErrorOccur = false;
+		let doneCount = 0;
+
+		if (list.length === 0) {
+			return callback(null, []);
+		}
+
+		list.forEach((item, index) => {
+			fn(item, (error, result) => {
+				if (error) {
+					didErrorOccur = true;
+					results[index] = null;
+					errors[index] = error;
+				} else {
+					results[index] = result;
+					errors[index] = null;
+				}
+
+				if (++doneCount === list.length) {
+					return callback(didErrorOccur ? errors : null, results);
+				}
+			});
+		});
+	}
+
 	private call<F extends Function>(fun: F, that: any, ...args: any[]): void {
 		try {
 			fun.apply(that, args);
@@ -155,7 +182,7 @@ export class FileWalker {
 		}
 	}
 
-	private cmdTraversal(folderQuery: IFolderQuery, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, cb: (err?: Error) => void): void {
+	private cmdTraversal(folderQuery: IFolderQuery, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, cb: (err?: Error) => void): void {
 		const rootFolder = folderQuery.folder.fsPath;
 		const isMac = platform.isMacintosh;
 		let cmd: childProcess.ChildProcess;
@@ -286,7 +313,7 @@ export class FileWalker {
 		});
 	}
 
-	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, onMessage: (message: IProgress) => void, cb: (err: Error | null, stdout?: string, last?: boolean) => void): void {
+	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, onMessage: (message: IProgressMessage) => void, cb: (err: Error | null, stdout?: string, last?: boolean) => void): void {
 		let onData = (err: Error | null, stdout?: string, last?: boolean) => {
 			if (err || last) {
 				onData = () => { };
@@ -441,7 +468,7 @@ export class FileWalker {
 
 		// Execute tasks on each file in parallel to optimize throughput
 		const hasSibling = glob.hasSiblingFn(() => files);
-		flow.parallel(files, (file: string, clb: (error: Error | null, _?: any) => void): void => {
+		this.parallel(files, (file: string, clb: (error: Error | null, _?: any) => void): void => {
 
 			// Check canceled
 			if (this.isCanceled || this.isLimitHit) {
@@ -490,12 +517,14 @@ export class FileWalker {
 							this.walkedPaths[realpath] = true; // remember as walked
 
 							// Continue walking
-							return extfs.readdir(currentAbsolutePath, (error: Error, children: string[]): void => {
-								if (error || this.isCanceled || this.isLimitHit) {
+							return readdir(currentAbsolutePath).then(children => {
+								if (this.isCanceled || this.isLimitHit) {
 									return clb(null);
 								}
 
 								this.doWalk(folderQuery, currentRelativePath, children, onResult, err => clb(err || null));
+							}, error => {
+								clb(null);
 							});
 						});
 					}
@@ -591,7 +620,7 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker = new FileWalker(config);
 	}
 
-	search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
+	search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgressMessage) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
 		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error, isLimitHit: boolean) => {
 			done(err, {
 				limitHit: isLimitHit,

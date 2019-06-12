@@ -4,6 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IComposite } from 'vs/workbench/common/composite';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const SideBarVisibleContext = new RawContextKey<boolean>('sideBarVisible', false);
+export const SidebarFocusContext = new RawContextKey<boolean>('sideBarFocus', false);
+export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '');
 
 export interface IViewlet extends IComposite {
 

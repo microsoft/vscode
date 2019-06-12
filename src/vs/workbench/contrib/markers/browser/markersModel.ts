@@ -7,11 +7,12 @@ import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Hasher } from 'vs/base/common/hash';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 function compareUris(a: URI, b: URI) {
 	const astr = a.toString();
@@ -138,14 +139,14 @@ export class MarkersModel {
 	}
 
 	getResourceMarkers(resource: URI): ResourceMarkers | null {
-		return this.resourcesByUri.get(resource.toString()) || null;
+		return withUndefinedAsNull(this.resourcesByUri.get(resource.toString()));
 	}
 
 	setResourceMarkers(resource: URI, rawMarkers: IMarker[]): void {
 		if (isFalsyOrEmpty(rawMarkers)) {
 			this.resourcesByUri.delete(resource.toString());
 		} else {
-			const markers = rawMarkers.map(rawMarker => {
+			const markers = mergeSort(rawMarkers.map(rawMarker => {
 				let relatedInformation: RelatedInformation[] | undefined = undefined;
 
 				if (rawMarker.relatedInformation) {
@@ -153,9 +154,7 @@ export class MarkersModel {
 				}
 
 				return new Marker(rawMarker, relatedInformation);
-			});
-
-			markers.sort(compareMarkers);
+			}), compareMarkers);
 
 			this.resourcesByUri.set(resource.toString(), new ResourceMarkers(resource, markers));
 		}

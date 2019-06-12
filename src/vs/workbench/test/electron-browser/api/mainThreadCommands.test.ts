@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
+import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
+import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration, SelectionRange } from 'vscode-html-languageservice';
 import { TextDocument, Position, Range, CompletionItem, FoldingRange } from 'vscode-languageserver-types';
 import { LanguageMode, Workspace } from './languageModes';
 import { getPathCompletionParticipant } from './pathCompletion';
@@ -15,8 +15,8 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		getId() {
 			return 'html';
 		},
-		doSelection(document: TextDocument, position: Position): Range[] {
-			return htmlLanguageService.getSelectionRanges(document, position);
+		getSelectionRanges(document: TextDocument, positions: Position[]): SelectionRange[][] {
+			return htmlLanguageService.getSelectionRanges(document, positions);
 		},
 		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;

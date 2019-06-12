@@ -4,22 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import * as arrays from 'vs/base/common/arrays';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { basename } from 'vs/base/common/resources';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
 export interface IModelLoadOrCreateOptions {
 	resource?: URI;
-	modeId?: string;
+	mode?: string;
 	initialValue?: string;
 	encoding?: string;
 	useResourcePath?: boolean;
@@ -27,7 +29,7 @@ export interface IModelLoadOrCreateOptions {
 
 export interface IUntitledEditorService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<IUntitledEditorService>;
 
 	/**
 	 * Events for when untitled editors content changes (e.g. any keystroke).
@@ -76,7 +78,7 @@ export interface IUntitledEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string): UntitledEditorInput;
+	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string): UntitledEditorInput;
 
 	/**
 	 * Creates a new untitled model with the optional resource URI or returns an existing one
@@ -95,7 +97,7 @@ export interface IUntitledEditorService {
 	/**
 	 * Suggests a filename for the given untitled resource if it is known.
 	 */
-	suggestFileName(resource: URI): string | undefined;
+	suggestFileName(resource: URI): string;
 
 	/**
 	 * Get the configured encoding for the given untitled resource if any.
@@ -105,7 +107,7 @@ export interface IUntitledEditorService {
 
 export class UntitledEditorService extends Disposable implements IUntitledEditorService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private mapResourceToInput = new ResourceMap<UntitledEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
@@ -124,7 +126,8 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 	}
@@ -181,14 +184,14 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 	}
 
 	loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): Promise<UntitledEditorModel> {
-		return this.createOrGet(options.resource, options.modeId, options.initialValue, options.encoding, options.useResourcePath).resolve();
+		return this.createOrGet(options.resource, options.mode, options.initialValue, options.encoding, options.useResourcePath).resolve();
 	}
 
-	createOrGet(resource?: URI, modeId?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledEditorInput {
-
+	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledEditorInput {
 		if (resource) {
-			// Massage resource if it comes with a file:// scheme
-			if (resource.scheme === Schemas.file) {
+
+			// Massage resource if it comes with known file based resource
+			if (this.fileService.canHandleResource(resource)) {
 				hasAssociatedFilePath = true;
 				resource = resource.with({ scheme: Schemas.untitled }); // ensure we have the right scheme
 			}
@@ -204,44 +207,47 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		}
 
 		// Create new otherwise
-		return this.doCreate(resource, hasAssociatedFilePath, modeId, initialValue, encoding);
+		return this.doCreate(resource, hasAssociatedFilePath, mode, initialValue, encoding);
 	}
 
-	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, modeId?: string, initialValue?: string, encoding?: string): UntitledEditorInput {
-		if (!resource) {
+	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, mode?: string, initialValue?: string, encoding?: string): UntitledEditorInput {
+		let untitledResource: URI;
+		if (resource) {
+			untitledResource = resource;
+		} else {
 
 			// Create new taking a resource URI that is not already taken
 			let counter = this.mapResourceToInput.size + 1;
 			do {
-				resource = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}` });
+				untitledResource = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}` });
 				counter++;
-			} while (this.mapResourceToInput.has(resource));
+			} while (this.mapResourceToInput.has(untitledResource));
 		}
 
 		// Look up default language from settings if any
-		if (!modeId && !hasAssociatedFilePath) {
+		if (!mode && !hasAssociatedFilePath) {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>();
 			if (configuration.files && configuration.files.defaultLanguage) {
-				modeId = configuration.files.defaultLanguage;
+				mode = configuration.files.defaultLanguage;
 			}
 		}
 
-		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, initialValue, encoding);
+		const input = this.instantiationService.createInstance(UntitledEditorInput, untitledResource, hasAssociatedFilePath, mode, initialValue, encoding);
 
 		const contentListener = input.onDidModelChangeContent(() => {
-			this._onDidChangeContent.fire(resource!);
+			this._onDidChangeContent.fire(untitledResource);
 		});
 
 		const dirtyListener = input.onDidChangeDirty(() => {
-			this._onDidChangeDirty.fire(resource!);
+			this._onDidChangeDirty.fire(untitledResource);
 		});
 
 		const encodingListener = input.onDidModelChangeEncoding(() => {
-			this._onDidChangeEncoding.fire(resource!);
+			this._onDidChangeEncoding.fire(untitledResource);
 		});
 
 		const disposeListener = input.onDispose(() => {
-			this._onDidDisposeModel.fire(resource!);
+			this._onDidDisposeModel.fire(untitledResource);
 		});
 
 		// Remove from cache on dispose
@@ -256,7 +262,7 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		});
 
 		// Add to cache
-		this.mapResourceToInput.set(resource, input);
+		this.mapResourceToInput.set(untitledResource, input);
 
 		return input;
 	}
@@ -265,10 +271,10 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		return this.mapResourceToAssociatedFilePath.has(resource);
 	}
 
-	suggestFileName(resource: URI): string | undefined {
+	suggestFileName(resource: URI): string {
 		const input = this.get(resource);
 
-		return input ? input.suggestFileName() : undefined;
+		return input ? input.suggestFileName() : basename(resource);
 	}
 
 	getEncoding(resource: URI): string | undefined {
@@ -277,3 +283,5 @@ export class UntitledEditorService extends Disposable implements IUntitledEditor
 		return input ? input.getEncoding() : undefined;
 	}
 }
+
+registerSingleton(IUntitledEditorService, UntitledEditorService, true);

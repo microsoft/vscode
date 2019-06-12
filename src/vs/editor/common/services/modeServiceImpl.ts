@@ -94,8 +94,8 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getModeIdForLanguageNameLowercase(alias);
 	}
 
-	public getModeIdByFilepathOrFirstLine(filepath: string | null, firstLine?: string): string | null {
-		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(filepath, firstLine);
+	public getModeIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
+		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(resource, firstLine);
 
 		if (modeIds.length > 0) {
 			return modeIds[0];
@@ -104,7 +104,7 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null {
+	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string | null {
 		const modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
 		if (modeIds.length > 0) {
@@ -124,7 +124,7 @@ export class ModeServiceImpl implements IModeService {
 
 	// --- instantiation
 
-	public create(commaSeparatedMimetypesOrCommaSeparatedIds: string): ILanguageSelection {
+	public create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
 			const modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 			return this._createModeAndGetLanguageIdentifier(modeId);
@@ -138,9 +138,9 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
-	public createByFilepathOrFirstLine(filepath: string | null, firstLine?: string): ILanguageSelection {
+	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
 		return new LanguageSelection(this.onLanguagesMaybeChanged, () => {
-			const modeId = this.getModeIdByFilepathOrFirstLine(filepath, firstLine);
+			const modeId = this.getModeIdByFilepathOrFirstLine(resource, firstLine);
 			return this._createModeAndGetLanguageIdentifier(modeId);
 		});
 	}

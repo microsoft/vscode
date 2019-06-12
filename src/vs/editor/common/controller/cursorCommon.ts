@@ -65,8 +65,8 @@ export interface CharacterMap {
 	[char: string]: string;
 }
 
-const autoCloseAlways = _ => true;
-const autoCloseNever = _ => false;
+const autoCloseAlways = () => true;
+const autoCloseNever = () => false;
 const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
 
 export class CursorConfiguration {

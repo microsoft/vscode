@@ -15,7 +15,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -44,7 +44,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	public _serviceBrand: any;
 	private queue: Queue<void>;
 
-	private resource: URI = URI.file(this.environmentService.appKeybindingsPath);
+	private resource: URI = this.environmentService.keybindingsResource;
 
 	constructor(
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -119,7 +119,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			// Update the keybinding with new key
 			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex, 'key'], newKey, { tabSize, insertSpaces, eol })[0], model);
 			const edits = setProperty(model.getValue(), [userKeybindingEntryIndex, 'when'], when, { tabSize, insertSpaces, eol });
-			if (edits.length > 1) {
+			if (edits.length > 0) {
 				this.applyEditsToBuffer(edits[0], model);
 			}
 		} else {
@@ -141,7 +141,10 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private removeDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: ITextModel): void {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
-		this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(keybindingItem.resolvedKeybinding.getUserSettingsLabel(), keybindingItem.command, keybindingItem.when ? keybindingItem.when.serialize() : undefined, true), { tabSize, insertSpaces, eol })[0], model);
+		const key = keybindingItem.resolvedKeybinding ? keybindingItem.resolvedKeybinding.getUserSettingsLabel() : null;
+		if (key) {
+			this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(key, keybindingItem.command, keybindingItem.when ? keybindingItem.when.serialize() : undefined, true), { tabSize, insertSpaces, eol })[0], model);
+		}
 	}
 
 	private removeUnassignedDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: ITextModel): void {
@@ -162,7 +165,8 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 					return index;
 				}
 				if (keybinding.when && keybindingItem.when) {
-					if (ContextKeyExpr.deserialize(keybinding.when).serialize() === keybindingItem.when.serialize()) {
+					const contextKeyExpr = ContextKeyExpr.deserialize(keybinding.when);
+					if (contextKeyExpr && contextKeyExpr.serialize() === keybindingItem.when.serialize()) {
 						return index;
 					}
 				}
@@ -181,9 +185,11 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		return indices;
 	}
 
-	private asObject(key: string, command: string, when: string, negate: boolean): any {
+	private asObject(key: string, command: string | null, when: string | undefined, negate: boolean): any {
 		const object = { key };
-		object['command'] = negate ? `-${command}` : command;
+		if (command) {
+			object['command'] = negate ? `-${command}` : command;
+		}
 		if (when) {
 			object['when'] = when;
 		}
@@ -201,16 +207,16 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 
-	private resolveModelReference(): Promise<IReference<ITextEditorModel>> {
-		return this.fileService.existsFile(this.resource)
+	private resolveModelReference(): Promise<IReference<IResolvedTextEditorModel>> {
+		return this.fileService.exists(this.resource)
 			.then(exists => {
-				const EOL = this.configurationService.getValue('files', { overrideIdentifier: 'json' })['eol'];
-				const result: Promise<any> = exists ? Promise.resolve(null) : this.fileService.updateContent(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
+				const EOL = this.configurationService.getValue<{}>('files', { overrideIdentifier: 'json' })['eol'];
+				const result: Promise<any> = exists ? Promise.resolve(null) : this.textFileService.write(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
 				return result.then(() => this.textModelResolverService.createModelReference(this.resource));
 			});
 	}
 
-	private resolveAndValidate(): Promise<IReference<ITextEditorModel>> {
+	private resolveAndValidate(): Promise<IReference<IResolvedTextEditorModel>> {
 
 		// Target cannot be dirty if not writing into buffer
 		if (this.textFileService.isDirty(this.resource)) {

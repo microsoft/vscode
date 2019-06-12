@@ -20,8 +20,8 @@ import { TernarySearchTree } from 'vs/base/common/map';
 // Sun xVM VirtualBox	08-00-27
 export const virtualMachineHint: { value(): number } = new class {
 
-	private _virtualMachineOUIs: TernarySearchTree<boolean>;
-	private _value: number;
+	private _virtualMachineOUIs?: TernarySearchTree<boolean>;
+	private _value?: number;
 
 	private _isVirtualMachineMacAdress(mac: string): boolean {
 		if (!this._virtualMachineOUIs) {

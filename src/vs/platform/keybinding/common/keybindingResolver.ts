@@ -50,7 +50,7 @@ export class KeybindingResolver {
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpr | null): boolean {
+	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpr | undefined): boolean {
 		if (defaultKb.command !== command) {
 			return false;
 		}
@@ -172,7 +172,7 @@ export class KeybindingResolver {
 	 * Returns true if it is provable `a` implies `b`.
 	 * **Precondition**: Assumes `a` and `b` are normalized!
 	 */
-	public static whenIsEntirelyIncluded(a: ContextKeyExpr | null, b: ContextKeyExpr | null): boolean {
+	public static whenIsEntirelyIncluded(a: ContextKeyExpr | null | undefined, b: ContextKeyExpr | null | undefined): boolean {
 		if (!b) {
 			return true;
 		}
@@ -304,7 +304,7 @@ export class KeybindingResolver {
 		return null;
 	}
 
-	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr | null): boolean {
+	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr | null | undefined): boolean {
 		if (!rules) {
 			return true;
 		}
@@ -314,7 +314,7 @@ export class KeybindingResolver {
 	public static getAllUnboundCommands(boundCommands: Map<string, boolean>): string[] {
 		const unboundCommands: string[] = [];
 		const seenMap: Map<string, boolean> = new Map<string, boolean>();
-		const addCommand = id => {
+		const addCommand = (id: string, includeCommandWithArgs: boolean) => {
 			if (seenMap.has(id)) {
 				return;
 			}
@@ -325,18 +325,20 @@ export class KeybindingResolver {
 			if (boundCommands.get(id) === true) {
 				return;
 			}
-			const command = CommandsRegistry.getCommand(id);
-			if (command && typeof command.description === 'object'
-				&& isNonEmptyArray((<ICommandHandlerDescription>command.description).args)) { // command with args
-				return;
+			if (!includeCommandWithArgs) {
+				const command = CommandsRegistry.getCommand(id);
+				if (command && typeof command.description === 'object'
+					&& isNonEmptyArray((<ICommandHandlerDescription>command.description).args)) { // command with args
+					return;
+				}
 			}
 			unboundCommands.push(id);
 		};
 		for (const id in MenuRegistry.getCommands()) {
-			addCommand(id);
+			addCommand(id, true);
 		}
 		for (const id in CommandsRegistry.getCommands()) {
-			addCommand(id);
+			addCommand(id, false);
 		}
 
 		return unboundCommands;

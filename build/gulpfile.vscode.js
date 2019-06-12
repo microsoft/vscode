@@ -63,14 +63,16 @@ const vscodeResources = [
 	'out-build/bootstrap-window.js',
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur,html}',
+	'!out-build/vs/code/browser/**/*.html',
 	'out-build/vs/base/common/performance.js',
 	'out-build/vs/base/node/languagePacks.js',
-	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh}',
+	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
-	'out-build/vs/workbench/contrib/execution/**/*.scpt',
-	'out-build/vs/workbench/contrib/webview/electron-browser/webview-pre.js',
+	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
+	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
+	'out-build/vs/workbench/contrib/webview/electron-browser/pre/*.js',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
@@ -308,9 +310,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json(productJsonUpdate));
 
-		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
-
-		const watermark = gulp.src(['resources/letterpress.svg', 'resources/letterpress-dark.svg', 'resources/letterpress-hc.svg'], { base: '.' });
+		const license = gulp.src(['LICENSES.chromium.html', product.licenseFileName, 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
 
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
@@ -323,29 +323,13 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const deps = gulp.src(depsSrc, { base: '.', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json']))
-			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('vscode-sqlite3', ['binding.gyp', 'benchmark/**', 'cloudformation/**', 'deps/**', 'test/**', 'build/**', 'src/**'], ['build/Release/*.node']))
-			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/*.node', 'src/*.js']))
-			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/*.node']))
-			.pipe(util.cleanNodeModule('native-is-elevated', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/*.node']))
-			.pipe(util.cleanNodeModule('native-watchdog', ['binding.gyp', 'build/**', 'src/**'], ['build/Release/*.node']))
-			.pipe(util.cleanNodeModule('spdlog', ['binding.gyp', 'build/**', 'deps/**', 'src/**', 'test/**'], ['build/Release/*.node']))
-			.pipe(util.cleanNodeModule('jschardet', ['dist/**']))
-			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('windows-process-tree', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/*.node', 'src/index.js']))
-			.pipe(util.cleanNodeModule('keytar', ['binding.gyp', 'build/**', 'src/**', 'script/**', 'node_modules/**'], ['**/*.node']))
-			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'tools/**'], ['build/Release/*.exe', 'build/Release/*.dll', 'build/Release/*.node']))
-			.pipe(util.cleanNodeModule('vscode-nsfw', ['binding.gyp', 'build/**', 'src/**', 'openpa/**', 'includes/**'], ['build/Release/*.node', '**/*.a']))
-			.pipe(util.cleanNodeModule('vsda', ['binding.gyp', 'README.md', 'build/**', '*.bat', '*.sh', '*.cpp', '*.h'], ['build/Release/vsda.node']))
+			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')))
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*'], 'app/node_modules.asar'));
 
 		let all = es.merge(
-			packageJsonStream,
+		packageJsonStream,
 			productJsonStream,
 			license,
-			watermark,
 			api,
 			sources,
 			deps
@@ -409,14 +393,19 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 			result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))
+				.pipe(replace('@@PRODNAME@@', product.nameLong))
+				.pipe(replace('@@VERSION@@', version))
 				.pipe(replace('@@COMMIT@@', commit))
 				.pipe(replace('@@APPNAME@@', product.applicationName))
+				.pipe(replace('@@DATAFOLDER@@', product.dataFolderName))
+				.pipe(replace('@@QUALITY@@', quality))
 				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 
 			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
+				.pipe(replace('@@PRODNAME@@', product.nameLong))
 				.pipe(replace('@@NAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
 		}
@@ -549,14 +538,14 @@ gulp.task('vscode-translations-import', function () {
 // Sourcemaps
 
 gulp.task('upload-vscode-sourcemaps', () => {
-	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' })
+	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' }) // client source-maps only
 		.pipe(es.mapSync(f => {
 			f.path = `${f.base}/core/${f.relative}`;
 			return f;
 		}));
 
-	const extensionsOut = gulp.src('extensions/**/out/**/*.map', { base: '.' });
-	const extensionsDist = gulp.src('extensions/**/dist/**/*.map', { base: '.' });
+	const extensionsOut = gulp.src(['extensions/**/out/**/*.map', '!extensions/**/node_modules/**'], { base: '.' });
+	const extensionsDist = gulp.src(['extensions/**/dist/**/*.map', '!extensions/**/node_modules/**'], { base: '.' });
 
 	return es.merge(vs, extensionsOut, extensionsDist)
 		.pipe(es.through(function (data) {

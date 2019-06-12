@@ -17,6 +17,7 @@ import * as typeConverters from '../utils/typeConverters';
 const localize = nls.loadMessageBundle();
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+	public static readonly minVersion = API.v220;
 
 	public async resolveCodeLens(
 		inputCodeLens: vscode.CodeLens,
@@ -95,7 +96,7 @@ export function register(
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
-	return new VersionDependentRegistration(client, API.v220, () =>
+	return new VersionDependentRegistration(client, TypeScriptImplementationsCodeLensProvider.minVersion, () =>
 		new ConfigurationDependentRegistration(modeId, 'implementationsCodeLens.enabled', () => {
 			return vscode.languages.registerCodeLensProvider(selector,
 				new TypeScriptImplementationsCodeLensProvider(client, cachedResponse));

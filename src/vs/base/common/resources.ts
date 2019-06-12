@@ -146,7 +146,7 @@ export function normalizePath(resource: URI): URI {
 export function originalFSPath(uri: URI): string {
 	let value: string;
 	const uriPath = uri.path;
-	if (uri.authority && uriPath.length > 1 && uri.scheme === 'file') {
+	if (uri.authority && uriPath.length > 1 && uri.scheme === Schemas.file) {
 		// unc path: file://shares/c$/far/boo
 		value = `//${uri.authority}${uriPath}`;
 	} else if (
@@ -176,28 +176,46 @@ export function isAbsolutePath(resource: URI): boolean {
 /**
  * Returns true if the URI path has a trailing path separator
  */
-export function hasTrailingPathSeparator(resource: URI): boolean {
+export function hasTrailingPathSeparator(resource: URI, sep: string = paths.sep): boolean {
 	if (resource.scheme === Schemas.file) {
 		const fsp = originalFSPath(resource);
-		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === paths.sep;
+		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === sep;
 	} else {
-		let p = resource.path;
+		const p = resource.path;
 		return p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash; // ignore the slash at offset 0
 	}
 }
 
-
 /**
- * Removes a trailing path seperator, if theres one.
+ * Removes a trailing path separator, if there's one.
  * Important: Doesn't remove the first slash, it would make the URI invalid
  */
-export function removeTrailingPathSeparator(resource: URI): URI {
-	if (hasTrailingPathSeparator(resource)) {
+export function removeTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
+	if (hasTrailingPathSeparator(resource, sep)) {
 		return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
 	}
 	return resource;
 }
 
+/**
+ * Adds a trailing path separator to the URI if there isn't one already.
+ * For example, c:\ would be unchanged, but c:\users would become c:\users\
+ */
+export function addTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
+	let isRootSep: boolean = false;
+	if (resource.scheme === Schemas.file) {
+		const fsp = originalFSPath(resource);
+		isRootSep = ((fsp !== undefined) && (fsp.length === extpath.getRoot(fsp).length) && (fsp[fsp.length - 1] === sep));
+	} else {
+		sep = '/';
+		const p = resource.path;
+		isRootSep = p.length === 1 && p.charCodeAt(p.length - 1) === CharCode.Slash;
+	}
+	if (!isRootSep && !hasTrailingPathSeparator(resource, sep)) {
+		return resource.with({ path: resource.path + '/' });
+	}
+	return resource;
+}
 
 /**
  * Returns a relative path between two URIs. If the URIs don't have the same schema or authority, `undefined` is returned.
@@ -218,14 +236,15 @@ export function relativePath(from: URI, to: URI): string | undefined {
  * Resolves a absolute or relative path against a base URI.
  */
 export function resolvePath(base: URI, path: string): URI {
-	let resolvedPath: string;
 	if (base.scheme === Schemas.file) {
-		resolvedPath = URI.file(paths.resolve(originalFSPath(base), path)).path;
-	} else {
-		resolvedPath = paths.posix.resolve(base.path, path);
+		const newURI = URI.file(paths.resolve(originalFSPath(base), path));
+		return base.with({
+			authority: newURI.authority,
+			path: newURI.path
+		});
 	}
 	return base.with({
-		path: resolvedPath
+		path: paths.posix.resolve(base.path, path)
 	});
 }
 
@@ -248,21 +267,6 @@ export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => UR
 
 	return distinctParents;
 }
-
-/**
- * Tests whether the given URL is a file URI created by `URI.parse` instead of `URI.file`.
- * Such URI have no scheme or scheme that consist of a single letter (windows drive letter)
- * @param candidate The URI to test
- * @returns A corrected, real file URI if the input seems to be malformed.
- * Undefined is returned if the input URI looks fine.
- */
-export function isMalformedFileUri(candidate: URI): URI | undefined {
-	if (!candidate.scheme || isWindows && candidate.scheme.match(/^[a-zA-Z]$/)) {
-		return URI.file((candidate.scheme ? candidate.scheme + ':' : '') + candidate.path);
-	}
-	return undefined;
-}
-
 
 /**
  * Data URI related helpers.
@@ -298,7 +302,6 @@ export namespace DataUri {
 	}
 }
 
-
 export class ResourceGlobMatcher {
 
 	private readonly globalExpression: ParsedExpression;
@@ -324,4 +327,17 @@ export class ResourceGlobMatcher {
 		}
 		return !!this.globalExpression(resource.path);
 	}
+}
+
+export function toLocalResource(resource: URI, authority: string | undefined): URI {
+	if (authority) {
+		let path = resource.path;
+		if (path && path[0] !== paths.posix.sep) {
+			path = paths.posix.sep + path;
+		}
+
+		return resource.with({ scheme: Schemas.vscodeRemote, authority, path });
+	}
+
+	return resource.with({ scheme: Schemas.file });
 }

@@ -5,10 +5,11 @@
 
 import { URI } from 'vs/base/common/uri';
 import { sep, posix, normalize } from 'vs/base/common/path';
-import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
+import { endsWith, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
-import { isEqual, basename } from 'vs/base/common/resources';
+import { isEqual, basename, relativePath } from 'vs/base/common/resources';
+import { CharCode } from 'vs/base/common/charCode';
 
 export interface IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): { uri: URI, name?: string } | null;
@@ -36,11 +37,10 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 			const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
 
 			let pathLabel: string;
-			if (isEqual(baseResource.uri, resource, !isLinux)) {
+			if (isEqual(baseResource.uri, resource)) {
 				pathLabel = ''; // no label if paths are identical
 			} else {
-				// TODO: isidor use resources.relative
-				pathLabel = normalize(ltrim(resource.path.substr(baseResource.uri.path.length), posix.sep)!);
+				pathLabel = relativePath(baseResource.uri, resource)!;
 			}
 
 			if (hasMultipleRoots) {
@@ -283,7 +283,7 @@ interface ISegment {
  * @param value string to which templating is applied
  * @param values the values of the templates to use
  */
-export function template(template: string, values: { [key: string]: string | ISeparator } = Object.create(null)): string {
+export function template(template: string, values: { [key: string]: string | ISeparator | null } = Object.create(null)): string {
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
@@ -368,8 +368,8 @@ export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean
  * -   Linux: Supported via _ character (replace && with _)
  * -   macOS: Unsupported (replace && with empty string)
  */
-export function mnemonicButtonLabel(label: string): string {
-	if (isMacintosh) {
+export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: boolean): string {
+	if (isMacintosh || forceDisableMnemonics) {
 		return label.replace(/\(&&\w\)|&&/g, '');
 	}
 
@@ -382,4 +382,17 @@ export function mnemonicButtonLabel(label: string): string {
 
 export function unmnemonicLabel(label: string): string {
 	return label.replace(/&/g, '&&');
+}
+
+/**
+ * Splits a path in name and parent path, supporting both '/' and '\'
+ */
+export function splitName(fullPath: string): { name: string, parentPath: string } {
+	for (let i = fullPath.length - 1; i >= 1; i--) {
+		const code = fullPath.charCodeAt(i);
+		if (code === CharCode.Slash || code === CharCode.Backslash) {
+			return { parentPath: fullPath.substr(0, i), name: fullPath.substr(i + 1) };
+		}
+	}
+	return { parentPath: '', name: fullPath };
 }

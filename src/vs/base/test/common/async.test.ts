@@ -531,4 +531,30 @@ suite('Async', () => {
 			assert.notEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
 		});
 	});
+
+	test('retry - success case', async () => {
+		let counter = 0;
+
+		const res = await async.retry(() => {
+			counter++;
+			if (counter < 2) {
+				return Promise.reject(new Error('fail'));
+			}
+
+			return Promise.resolve(true);
+		}, 10, 3);
+
+		assert.equal(res, true);
+	});
+
+	test('retry - error case', async () => {
+		let expectedError = new Error('fail');
+		try {
+			await async.retry(() => {
+				return Promise.reject(expectedError);
+			}, 10, 3);
+		} catch (error) {
+			assert.equal(error, error);
+		}
+	});
 });
