@@ -1,0 +1,443 @@
+/*---------------------------------------------------------------------------------------------
+*  Copyright (c) Microsoft Corporation. All rights reserved.
+*  Licensed under the MIT License. See License.txt in the project root for license information.
+*--------------------------------------------------------------------------------------------*/
+
+import { Emitter } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import { addDisposableListener, addClass } from 'vs/base/browser/dom';
+import { createServer } from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
+import { startsWith } from 'vs/base/common/strings';
+import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { getWebviewContentMimeType } from 'vs/workbench/contrib/webview/common/mimeTypes';
+
+const SERVER_RESOURCE_ROOT_PATH = '/resource/';
+
+class Server {
+	public static make(
+		id: string,
+		fileService: IFileService
+	): Promise<Server> {
+		let address = '';
+		return new Promise<Server>((resolve, reject) => {
+			const server = createServer((req, res) => {
+				if (req.url === '/') {
+					res.writeHead(200, { 'Content-Type': 'text/html' });
+					res.write(getHtml(id, address));
+					res.end();
+					return;
+				}
+				if (req.url === '/main.js') {
+					res.writeHead(200, { 'Content-Type': 'text/html' });
+					res.write(fs.readFileSync(path.join(__dirname.replace('file:', ''), 'pre', 'main.js')));
+					res.end();
+					return;
+				}
+				if (req.url && startsWith(req.url, SERVER_RESOURCE_ROOT_PATH)) {
+					const path = URI.file(req.url.replace(SERVER_RESOURCE_ROOT_PATH, '/'));
+					res.writeHead(200, { 'Content-Type': getWebviewContentMimeType(path) });
+					fileService.readFile(path).then(result => {
+						res.write(result.value.buffer);
+					}).finally(() => {
+						res.end();
+					});
+					return;
+				}
+
+				res.writeHead(404);
+				res.end();
+				return;
+			});
+
+			server.on('error', reject);
+			const l = server.listen(() => {
+				server.removeListener('error', reject);
+				address = `http://localhost:${l.address().port}`;
+				resolve(new Server(server, l.address().port));
+			});
+		});
+	}
+
+	private constructor(
+		public readonly server: import('http').Server,
+		public readonly port: number
+	) { }
+
+	dispose() {
+		this.server.close();
+	}
+}
+
+interface WebviewContent {
+	readonly html: string;
+	readonly options: WebviewContentOptions;
+	readonly state: string | undefined;
+}
+
+export class IFrameWebview extends Disposable implements Webview {
+	private element: HTMLIFrameElement;
+
+	private _ready: Promise<void>;
+
+	private content: WebviewContent;
+	private _focused = false;
+
+	private readonly id: string;
+	private readonly server: Promise<Server>;
+
+	constructor(
+		private readonly _options: WebviewOptions,
+		contentOptions: WebviewContentOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IFileService fileService: IFileService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	) {
+		super();
+		this.content = {
+			html: '',
+			options: contentOptions,
+			state: undefined
+		};
+
+		this.id = `webview-${Date.now()}`;
+
+		this.element = document.createElement('iframe');
+		this.element.sandbox.add('allow-scripts');
+		this.element.sandbox.add('allow-same-origin');
+		this.element.setAttribute('src', '');
+		this.element.style.border = 'none';
+		this.element.style.width = '100%';
+		this.element.style.height = '100%';
+
+		this.server = Server.make(this.id, fileService);
+		this.server.then(async server => {
+			this.element.setAttribute('src', `http://localhost:${server.port}`);
+		});
+
+		this._register(addDisposableListener(window, 'message', e => {
+			if (!e || !e.data || e.data.target !== this.id) {
+				return;
+			}
+
+			switch (e.data.channel) {
+				case 'onmessage':
+					if (e.data.data) {
+						this._onMessage.fire(e.data.data);
+					}
+					return;
+
+				case 'did-click-link':
+					let [uri] = e.data.data;
+					this._onDidClickLink.fire(URI.parse(uri));
+					return;
+
+				case 'did-set-content':
+					// this._webview.style.flex = '';
+					// this._webview.style.width = '100%';
+					// this._webview.style.height = '100%';
+					// this.layout();
+					return;
+
+				case 'did-scroll':
+					// if (event.args && typeof event.args[0] === 'number') {
+					// 	this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
+					// }
+					return;
+
+				case 'do-reload':
+					this.reload();
+					return;
+
+				case 'do-update-state':
+					const state = e.data.data;
+					this.state = state;
+					this._onDidUpdateState.fire(state);
+					return;
+
+				case 'did-focus':
+					this.handleFocusChange(true);
+					return;
+
+				case 'did-blur':
+					this.handleFocusChange(false);
+					return;
+
+			}
+		}));
+
+		this._ready = new Promise(resolve => {
+			const subscription = this._register(addDisposableListener(window, 'message', (e) => {
+				if (e.data && e.data.target === this.id && e.data.channel === 'webview-ready') {
+					addClass(this.element, 'ready');
+					subscription.dispose();
+					resolve();
+				}
+			}));
+		});
+
+		this.style(themeService.getTheme());
+		this._register(themeService.onThemeChange(this.style, this));
+	}
+
+	public mountTo(parent: HTMLElement) {
+		parent.appendChild(this.element);
+	}
+
+	public set options(options: WebviewContentOptions) {
+		if (areWebviewInputOptionsEqual(options, this.content.options)) {
+			return;
+		}
+
+		this.content = {
+			html: this.content.html,
+			options: options,
+			state: this.content.state,
+		};
+		this.doUpdateContent();
+	}
+
+	public set html(value: string) {
+		this.content = {
+			html: value,
+			options: this.content.options,
+			state: this.content.state,
+		};
+		this.doUpdateContent();
+	}
+
+	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
+		if (retainContextWhenHidden && html === this.content.html && areWebviewInputOptionsEqual(options, this.content.options)) {
+			return;
+		}
+		this.content = {
+			html: html,
+			options: options,
+			state: this.content.state,
+		};
+		this.doUpdateContent();
+	}
+
+	private doUpdateContent() {
+		this._send('content', {
+			contents: this.content.html,
+			options: this.content.options,
+			state: this.content.state
+		});
+	}
+
+	private handleFocusChange(isFocused: boolean): void {
+		this._focused = isFocused;
+		if (isFocused) {
+			this._onDidFocus.fire();
+		}
+	}
+
+	initialScrollProgress: number;
+	state: string | undefined;
+
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	public readonly onDidFocus = this._onDidFocus.event;
+
+	private readonly _onDidClickLink = this._register(new Emitter<URI>());
+	public readonly onDidClickLink = this._onDidClickLink.event;
+
+	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number }>());
+	public readonly onDidScroll = this._onDidScroll.event;
+
+	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
+	public readonly onDidUpdateState = this._onDidUpdateState.event;
+
+	private readonly _onMessage = this._register(new Emitter<any>());
+	public readonly onMessage = this._onMessage.event;
+
+
+	sendMessage(data: any): void {
+		this._send('message', data);
+	}
+
+
+	layout(): void {
+		// noop
+	}
+
+	focus(): void {
+		this.element.focus();
+	}
+	dispose(): void {
+		if (this.element) {
+			if (this.element.parentElement) {
+				this.element.parentElement.removeChild(this.element);
+			}
+		}
+
+		this.element = undefined!;
+		super.dispose();
+	}
+
+	reload(): void {
+		throw new Error('Method not implemented.');
+	}
+	selectAll(): void {
+		throw new Error('Method not implemented.');
+	}
+	copy(): void {
+		throw new Error('Method not implemented.');
+	}
+	paste(): void {
+		throw new Error('Method not implemented.');
+	}
+	cut(): void {
+		throw new Error('Method not implemented.');
+	}
+	undo(): void {
+		throw new Error('Method not implemented.');
+	}
+	redo(): void {
+		throw new Error('Method not implemented.');
+	}
+	showFind(): void {
+		throw new Error('Method not implemented.');
+	}
+	hideFind(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	private _send(channel: string, data: any): void {
+		this._ready
+			.then(() => this.element.contentWindow!.postMessage({
+				channel: channel,
+				args: data
+			}, '*'))
+			.catch(err => console.error(err));
+	}
+
+
+	private style(theme: ITheme): void {
+		const { styles, activeTheme } = getWebviewThemeData(theme, this._configurationService);
+		this._send('styles', { styles, activeTheme });
+	}
+}
+
+function getHtml(id: string, origin: string): any {
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="Content-Security-Policy" content="default-src *; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"/>
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<title>Virtual Document</title>
+</head>
+<body>
+	<script src="/main.js"></script>
+	<script>
+		(function() {
+			const handlers = {};
+
+			const postMessageToVsCode = (channel, data) => {
+				window.parent.postMessage({ target: '${id}', channel, data }, '*');
+			};
+
+			window.addEventListener('message', (e) => {
+				if (e.origin === '${origin}') {
+					postMessageToVsCode(e.data.command, e.data.data);
+					return;
+				}
+
+				const channel = e.data.channel;
+				const handler = handlers[channel];
+				if (handler) {
+					handler(e, e.data.args);
+				} else {
+					console.log('no handler for ', e);
+				}
+			});
+
+			createWebviewManager({
+				origin: '${origin}',
+				postMessage: (channel, data) => {
+					postMessageToVsCode(channel, data);
+				},
+				onMessage: (channel, handler) => {
+					handlers[channel] = handler;
+				},
+				preProcessHtml: (text) => {
+					return text.replace(/vscode-resource:(?=\\S)/gi, '${SERVER_RESOURCE_ROOT_PATH}');
+				},
+				injectHtml: (newDocument) => {
+					return;
+					const defaultScript = newDocument.createElement('script');
+					defaultScript.textContent = \`
+						(function(){
+							const regexp = new RegExp('^vscode-resource:/', 'g');
+
+							const observer = new MutationObserver(handleMutation);
+							observer.observe(document, { subtree: true, childList: true });
+
+							handleChildNodeMutation(document.head.querySelector('base'));
+							document.head.childNodes.forEach(handleChildNodeMutation);
+							if (document.body) {
+								document.body.childNodes.forEach(handleChildNodeMutation);
+							}
+
+							function handleMutation(records) {
+								for (const record of records) {
+									if (record.target.nodeName === 'HEAD' && record.type === 'childList') {
+										handleChildNodeMutation(document.head.querySelector('base'));
+										record.addedNodes.forEach(handleChildNodeMutation);
+									} else {
+										handleChildNodeMutation(record.target);
+									}
+								}
+							}
+
+							function handleChildNodeMutation(node) {
+								if (!node) {
+									return;
+								}
+								if (node.nodeName === 'LINK' || node.nodeName === 'BASE') {
+									handleStyleNode(node, 'href');
+									return;
+								}
+								if (node.nodeName === 'SCRIPT') {
+									handleStyleNode(node, 'src');
+									return;
+								}
+							}
+
+							function handleStyleNode(target, property) {
+								if (!target[property]) {
+									return;
+								}
+								const match = target[property].match(regexp);
+								if (!match) {
+									return;
+								}
+								target.setAttribute(property, target[property].replace(regexp, '${origin}'));
+							}
+						}())
+					\`;
+
+					newDocument.head.prepend(defaultScript);
+				}
+			});
+		}());
+	</script>
+</body>
+</html>`;
+}
