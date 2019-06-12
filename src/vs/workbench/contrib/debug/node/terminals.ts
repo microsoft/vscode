@@ -380,7 +380,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 
 			quote = (s: string) => {
 				s = s.replace(/\"/g, '""');
-				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0) ? `"${s}"` : s;
+				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0 || s.length === 0) ? `"${s}"` : s;
 			};
 
 			if (args.cwd) {
@@ -410,7 +410,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 
 			quote = (s: string) => {
 				s = s.replace(/([\"\\])/g, '\\$1');
-				return s.indexOf(' ') >= 0 ? `"${s}"` : s;
+				return (s.indexOf(' ') >= 0 || s.length === 0) ? `"${s}"` : s;
 			};
 
 			const hardQuote = (s: string) => {
