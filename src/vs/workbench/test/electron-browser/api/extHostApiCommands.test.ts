@@ -16,7 +16,6 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
-import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostHeapService } from 'vs/workbench/api/common/extHostHeapService';
@@ -67,7 +66,6 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		{
 			let instantiationService = new TestInstantiationService();
 			rpcProtocol = new TestRPCProtocol();
-			instantiationService.stub(IHeapService, NullHeapService);
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
 				executeCommand(id: string, args: any): any {

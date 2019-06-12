@@ -18,7 +18,6 @@ import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguage
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
-import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
@@ -81,7 +80,6 @@ suite('ExtHostLanguageFeatures', function () {
 		{
 			let instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMarkerService, MarkerService);
-			instantiationService.stub(IHeapService, NullHeapService);
 			inst = instantiationService;
 		}
 

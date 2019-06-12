@@ -89,7 +89,6 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 // import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 // import { TunnelService } from 'vs/workbench/services/remote/node/tunnelService';
-import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
@@ -164,7 +163,6 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IMenubarService, MenubarService);
 // registerSingleton(IURLService, RelayURLService);
 registerSingleton(ISearchService, RemoteSearchService, true);
-registerSingleton(IHeapService, NullHeapService);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 
