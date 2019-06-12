@@ -487,16 +487,14 @@ export class CommandCenter {
 				(_, token) => this.git.clone(url!, parentPath, token)
 			);
 
-			const choices = [];
-			let message = localize('proposeopen', "Where would you to open the cloned repository?");
-			const open = localize('openrepo', "Current Window");
-			const openNewWindow = localize('openreponew', "New Window");
-			choices.push(open);
-			choices.push(openNewWindow);
+			let message = localize('proposeopen', "Would you like to open the cloned repository?");
+			const open = localize('openrepo', "Open");
+			const openNewWindow = localize('openreponew', "Open in New Window");
+			const choices = [open, openNewWindow];
 
 			const addToWorkspace = localize('add', "Add to Workspace");
 			if (workspace.workspaceFolders) {
-				message = localize('proposeopen2', "Where would you like to open the cloned repository, or add it to the current workspace?");
+				message = localize('proposeopen2', "Would you like to open the cloned repository, or add it to the current workspace?");
 				choices.push(addToWorkspace);
 			}
 
@@ -603,12 +601,10 @@ export class CommandCenter {
 
 		await this.git.init(repositoryPath);
 
-		const choices = [];
-		let message = localize('proposeopen init', "Where would you like to open the initialized repository?");
-		const open = localize('openrepo', "Current Window");
-		const openNewWindow = localize('openreponew', "New Window");
-		choices.push(open);
-		choices.push(openNewWindow);
+		let message = localize('proposeopen init', "Would you like to open the initialized repository?");
+		const open = localize('openrepo', "Open");
+		const openNewWindow = localize('openreponew', "Open in New Window");
+		const choices = [open, openNewWindow];
 
 		if (!askToOpen) {
 			return;
@@ -616,7 +612,7 @@ export class CommandCenter {
 
 		const addToWorkspace = localize('add', "Add to Workspace");
 		if (workspace.workspaceFolders) {
-			message = localize('proposeopen2 init', "Where would you like to open the initialized repository, or add it to the current workspace?");
+			message = localize('proposeopen2 init', "Would you like to open the initialized repository, or add it to the current workspace?");
 			choices.push(addToWorkspace);
 		}
 
