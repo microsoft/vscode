@@ -7,7 +7,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
@@ -91,7 +91,7 @@ export const enum State {
 
 export class SuggestModel implements IDisposable {
 
-	private _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 	private _quickSuggestDelay: number;
 	private _triggerCharacterListener: IDisposable;
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
@@ -101,7 +101,7 @@ export class SuggestModel implements IDisposable {
 	private _context?: LineContext;
 	private _currentSelection: Selection;
 
-	private _completionModel?: CompletionModel;
+	private readonly _completionModel = new MutableDisposable<CompletionModel>();
 	private readonly _onDidCancel = new Emitter<ICancelEvent>();
 	private readonly _onDidTrigger = new Emitter<ITriggerEvent>();
 	private readonly _onDidSuggest = new Emitter<ISuggestEvent>();
@@ -117,36 +117,36 @@ export class SuggestModel implements IDisposable {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
 		// wire up various listeners
-		this._toDispose.push(this._editor.onDidChangeModel(() => {
+		this._toDispose.add(this._editor.onDidChangeModel(() => {
 			this._updateTriggerCharacters();
 			this.cancel();
 		}));
-		this._toDispose.push(this._editor.onDidChangeModelLanguage(() => {
+		this._toDispose.add(this._editor.onDidChangeModelLanguage(() => {
 			this._updateTriggerCharacters();
 			this.cancel();
 		}));
-		this._toDispose.push(this._editor.onDidChangeConfiguration(() => {
+		this._toDispose.add(this._editor.onDidChangeConfiguration(() => {
 			this._updateTriggerCharacters();
 			this._updateQuickSuggest();
 		}));
-		this._toDispose.push(CompletionProviderRegistry.onDidChange(() => {
+		this._toDispose.add(CompletionProviderRegistry.onDidChange(() => {
 			this._updateTriggerCharacters();
 			this._updateActiveSuggestSession();
 		}));
-		this._toDispose.push(this._editor.onDidChangeCursorSelection(e => {
+		this._toDispose.add(this._editor.onDidChangeCursorSelection(e => {
 			this._onCursorChange(e);
 		}));
 
 		let editorIsComposing = false;
-		this._toDispose.push(this._editor.onCompositionStart(() => {
+		this._toDispose.add(this._editor.onCompositionStart(() => {
 			editorIsComposing = true;
 		}));
-		this._toDispose.push(this._editor.onCompositionEnd(() => {
+		this._toDispose.add(this._editor.onCompositionEnd(() => {
 			// refilter when composition ends
 			editorIsComposing = false;
 			this._refilterCompletionItems();
 		}));
-		this._toDispose.push(this._editor.onDidChangeModelContent(() => {
+		this._toDispose.add(this._editor.onDidChangeModelContent(() => {
 			// only filter completions when the editor isn't
 			// composing a character, e.g. ¨ + u makes ü but just
 			// ¨ cannot be used for filtering
@@ -161,8 +161,8 @@ export class SuggestModel implements IDisposable {
 
 	dispose(): void {
 		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerCharacterListener, this._triggerQuickSuggest]);
-		this._toDispose = dispose(this._toDispose);
-		dispose(this._completionModel);
+		this._toDispose.dispose();
+		this._completionModel.dispose();
 		this.cancel();
 	}
 
@@ -206,8 +206,8 @@ export class SuggestModel implements IDisposable {
 			if (supports) {
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
-				const items: CompletionItem[] | undefined = this._completionModel ? this._completionModel.adopt(supports) : undefined;
-				this.trigger({ auto: true, shy: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, items);
+				const items: CompletionItem[] | undefined = this._completionModel.value ? this._completionModel.value.adopt(supports) : undefined;
+				this.trigger({ auto: true, shy: false, triggerCharacter: lastChar }, Boolean(this._completionModel.value), supports, items);
 			}
 		});
 	}
@@ -227,8 +227,7 @@ export class SuggestModel implements IDisposable {
 			}
 			this._state = State.Idle;
 			if (retrigger) {
-				dispose(this._completionModel);
-				this._completionModel = undefined;
+				this._completionModel.value = undefined;
 			}
 			this._context = undefined;
 			this._onDidCancel.fire({ retrigger });
@@ -437,8 +436,7 @@ export class SuggestModel implements IDisposable {
 			}
 
 			const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy);
-			dispose(this._completionModel);
-			this._completionModel = new CompletionModel(items, this._context!.column, {
+			this._completionModel.value = new CompletionModel(items, this._context!.column, {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: ctx.column - this._context!.column
 			},
@@ -479,28 +477,28 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (!this._completionModel) {
+		if (!this._completionModel.value) {
 			// happens when IntelliSense is not yet computed
 			return;
 		}
 
-		if (ctx.column > this._context.column && this._completionModel.incomplete.size > 0 && ctx.leadingWord.word.length !== 0) {
+		if (ctx.column > this._context.column && this._completionModel.value.incomplete.size > 0 && ctx.leadingWord.word.length !== 0) {
 			// typed -> moved cursor RIGHT & incomple model & still on a word -> retrigger
-			const { incomplete } = this._completionModel;
-			const adopted = this._completionModel.adopt(incomplete);
+			const { incomplete } = this._completionModel.value;
+			const adopted = this._completionModel.value.adopt(incomplete);
 			this.trigger({ auto: this._state === State.Auto, shy: false }, true, incomplete, adopted);
 
 		} else {
 			// typed -> moved cursor RIGHT -> update UI
-			let oldLineContext = this._completionModel.lineContext;
+			let oldLineContext = this._completionModel.value.lineContext;
 			let isFrozen = false;
 
-			this._completionModel.lineContext = {
+			this._completionModel.value.lineContext = {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: ctx.column - this._context.column
 			};
 
-			if (this._completionModel.items.length === 0) {
+			if (this._completionModel.value.items.length === 0) {
 
 				if (LineContext.shouldAutoTrigger(this._editor) && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
 					// retrigger when heading into a new word
@@ -510,8 +508,8 @@ export class SuggestModel implements IDisposable {
 
 				if (!this._context.auto) {
 					// freeze when IntelliSense was manually requested
-					this._completionModel.lineContext = oldLineContext;
-					isFrozen = this._completionModel.items.length > 0;
+					this._completionModel.value.lineContext = oldLineContext;
+					isFrozen = this._completionModel.value.items.length > 0;
 
 					if (isFrozen && ctx.leadingWord.word.length === 0) {
 						// there were results before but now there aren't
@@ -528,7 +526,7 @@ export class SuggestModel implements IDisposable {
 			}
 
 			this._onDidSuggest.fire({
-				completionModel: this._completionModel,
+				completionModel: this._completionModel.value,
 				auto: this._context.auto,
 				shy: this._context.shy,
 				isFrozen,
