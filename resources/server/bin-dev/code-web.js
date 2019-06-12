@@ -8,11 +8,15 @@ const cp = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const verbose = process.argv.indexOf('--verbose') !== -1;
-const selfhost = process.argv.indexOf('--selfhost') !== -1;
+const VERBOSE = process.argv.indexOf('--verbose') !== -1;
+const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
+
+const SELFHOST_PORT = 9777;
+const DEVELOPMENT_PORT = 9888;
+const PORT = SELFHOST ? SELFHOST_PORT : DEVELOPMENT_PORT;
 
 let executable;
-if (selfhost) {
+if (SELFHOST) {
 	const parentFolder = path.dirname(path.dirname(path.dirname(path.dirname(__dirname))));
 
 	const executables = {
@@ -45,16 +49,16 @@ let launched = false;
 proc.stdout.on("data", data => {
 
 	// Respect --verbose
-	if (verbose) {
+	if (VERBOSE) {
 		console.log(data.toString());
 	}
 
 	// Bring up web URL when we detect the server is ready
-	if (!launched && data.toString().indexOf('Extension host agent listening on 8000') >= 0) {
+	if (!launched && data.toString().indexOf(`Extension host agent listening on ${PORT}`) >= 0) {
 		launched = true;
 
 		setTimeout(() => {
-			const url = 'http://127.0.0.1:8000';
+			const url = `http://127.0.0.1:${PORT}`;
 
 			console.log(`Opening ${url} in your browser...`);
 
