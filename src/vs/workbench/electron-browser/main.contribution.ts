@@ -699,9 +699,9 @@ import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 		'title': nls.localize('screencastModeConfigurationTitle', "Screencast Mode"),
 		'type': 'object',
 		'properties': {
-			'screencastMode.onlyControlKeys': {
+			'screencastMode.onlyModifierKeys': {
 				'type': 'boolean',
-				'description': nls.localize('screencastMode.onlyControlKeys', "Only show control keys in Screencast Mode."),
+				'description': nls.localize('screencastMode.onlyModifierKeys', "Only show character sequences with modifier keys in Screencast Mode."),
 				'default': false
 			}
 		}

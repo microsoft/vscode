@@ -196,7 +196,7 @@ export class ToggleScreencastModeAction extends Action {
 			const label = keybinding.getLabel();
 
 			if (!event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && this.keybindingService.mightProducePrintableCharacter(event) && label) {
-				if (!this.configurationService.getValue<boolean>('screencastMode.onlyControlKeys')) {
+				if (!this.configurationService.getValue<boolean>('screencastMode.onlyModifierKeys')) {
 					keyboardMarker.textContent += ' ' + label;
 					keyboardMarker.style.display = 'block';
 				}
