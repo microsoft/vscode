@@ -435,6 +435,20 @@ export class RawDebugSession {
 		return Promise.reject(new Error('reverseContinue not supported'));
 	}
 
+	gotoTargets(args: DebugProtocol.GotoTargetsArguments): Promise<DebugProtocol.GotoTargetsResponse> {
+		if (this.capabilities.supportsGotoTargetsRequest) {
+			return this.send('gotoTargets', args);
+		}
+		return Promise.reject(new Error('gotoTargets is not supported'));
+	}
+
+	goto(args: DebugProtocol.GotoArguments): Promise<DebugProtocol.GotoResponse> {
+		if (this.capabilities.supportsGotoTargetsRequest) {
+			return this.send('goto', args);
+		}
+		return Promise.reject(new Error('goto is not supported'));
+	}
+
 	custom(request: string, args: any): Promise<DebugProtocol.Response> {
 		return this.send(request, args);
 	}
