@@ -202,7 +202,7 @@ export class TextFileContentProvider implements ITextModelContentProvider {
 			if (textFileModel) {
 				languageSelector = this.modeService.create(textFileModel.getModeId());
 			} else {
-				languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource.path);
+				languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource);
 			}
 
 			codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);

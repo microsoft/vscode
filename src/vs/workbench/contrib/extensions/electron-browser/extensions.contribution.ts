@@ -44,7 +44,7 @@ import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/ele
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActivationProgress';
+import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/electron-browser/extensionsDependencyChecker';
@@ -192,13 +192,13 @@ const disableAllWorkspaceAction = new SyncActionDescriptor(DisableAllWorkpsaceAc
 actionRegistry.registerWorkbenchAction(disableAllWorkspaceAction, 'Extensions: Disable All Installed Extensions for this Workspace', ExtensionsLabel);
 
 const enableAllAction = new SyncActionDescriptor(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL);
-actionRegistry.registerWorkbenchAction(enableAllAction, 'Extensions: Enable All Installed Extensions', ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(enableAllAction, 'Extensions: Enable All Extensions', ExtensionsLabel);
 
 const enableAllWorkspaceAction = new SyncActionDescriptor(EnableAllWorkpsaceAction, EnableAllWorkpsaceAction.ID, EnableAllWorkpsaceAction.LABEL);
-actionRegistry.registerWorkbenchAction(enableAllWorkspaceAction, 'Extensions: Enable All Installed Extensions for this Workspace', ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(enableAllWorkspaceAction, 'Extensions: Enable All Extensions for this Workspace', ExtensionsLabel);
 
 const checkForUpdatesAction = new SyncActionDescriptor(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL);
-actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: Check for Updates`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: Check for Extension Updates`, ExtensionsLabel);
 
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL), `Extensions: Enable Auto Updating Extensions`, ExtensionsLabel);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL), `Extensions: Disable Auto Updating Extensions`, ExtensionsLabel);
@@ -307,7 +307,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 		id: VIEWLET_ID,
 		title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 	},
-	order: 2
+	order: 3
 });
 
 // View menu
@@ -439,4 +439,13 @@ CommandsRegistry.registerCommand({
 			onUnexpectedError(e);
 		}
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: VIEWLET_ID,
+		title: localize('showExtensions', "Extensions")
+	},
+	order: 3
 });

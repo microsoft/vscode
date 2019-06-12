@@ -273,7 +273,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		this.telemetryService.publicLog('openKeybindings', { textual });
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
-			const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
+			const editableKeybindings = this.environmentService.keybindingsResource;
 			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor

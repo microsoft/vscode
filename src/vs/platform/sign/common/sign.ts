@@ -3,6 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.update-activity {
-	-webkit-mask: url('update.svg') no-repeat 50% 50%;
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const SIGN_SERVICE_ID = 'signService';
+export const ISignService = createDecorator<ISignService>(SIGN_SERVICE_ID);
+
+export interface ISignService {
+	_serviceBrand: any;
+
+	sign(value: string): Promise<string>;
 }

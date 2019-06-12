@@ -32,6 +32,7 @@ import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 export class DebugSession implements IDebugSession {
 
@@ -66,7 +67,8 @@ export class DebugSession implements IDebugSession {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ISignService private readonly signService: ISignService
 	) {
 		this.id = generateUuid();
 		this.repl = new ReplModel(this);
@@ -167,7 +169,7 @@ export class DebugSession implements IDebugSession {
 
 			return dbgr.createDebugAdapter(this).then(debugAdapter => {
 
-				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.environmentService);
+				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.environmentService, this.signService);
 
 				return this.raw!.start().then(() => {
 
@@ -445,6 +447,20 @@ export class DebugSession implements IDebugSession {
 	setVariable(variablesReference: number, name: string, value: string): Promise<DebugProtocol.SetVariableResponse> {
 		if (this.raw) {
 			return this.raw.setVariable({ variablesReference, name, value });
+		}
+		return Promise.reject(new Error('no debug adapter'));
+	}
+
+	gotoTargets(source: DebugProtocol.Source, line: number, column?: number): Promise<DebugProtocol.GotoTargetsResponse> {
+		if (this.raw) {
+			return this.raw.gotoTargets({ source, line, column });
+		}
+		return Promise.reject(new Error('no debug adapter'));
+	}
+
+	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse> {
+		if (this.raw) {
+			return this.raw.goto({ threadId, targetId });
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}

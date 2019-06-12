@@ -96,7 +96,10 @@ const _empty = '';
 const _slash = '/';
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 
-function _isQueryStringScheme(scheme: string) {
+function _isQueryStringScheme(scheme: string): boolean {
+	if (!scheme) {
+		return false;
+	}
 	switch (scheme.toLowerCase()) {
 		case 'http':
 		case 'https':

@@ -130,6 +130,7 @@ export interface CommentProviderFeatures {
 	finishDraftLabel?: string;
 	reactionGroup?: modes.CommentReaction[];
 	commentThreadTemplate?: CommentThreadTemplate;
+	reactionHandler?: boolean;
 }
 
 export interface MainThreadCommentsShape extends IDisposable {
@@ -509,7 +510,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
-	$createEditorInset(handle: number, editorId: string, document: UriComponents, range: IRange, options: modes.IWebviewOptions): Promise<void>;
+	$createEditorInset(handle: number, id: string, uri: UriComponents, range: IRange, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
 	$disposeEditorInset(handle: number): void;
 
 	$setHtml(handle: number, value: string): void;

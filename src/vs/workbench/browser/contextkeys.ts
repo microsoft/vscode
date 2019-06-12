@@ -27,6 +27,8 @@ export const IsWindowsContext = new RawContextKey<boolean>('isWindows', isWindow
 
 export const RemoteAuthorityContext = new RawContextKey<string>('remoteAuthority', '');
 
+export const RemoteConnectionState = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '');
+
 export const HasMacNativeTabsContext = new RawContextKey<boolean>('hasMacNativeTabs', false);
 
 export const SupportsWorkspacesContext = new RawContextKey<boolean>('supportsWorkspaces', true);

@@ -8,11 +8,11 @@ import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,11 +21,13 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { IActivity, IGlobalActivity } from 'vs/workbench/common/activity';
+import { IActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { fillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -104,20 +106,15 @@ export class ToggleViewletAction extends Action {
 	}
 }
 
-export class GlobalActivityAction extends ActivityAction {
-
-	constructor(activity: IGlobalActivity) {
-		super(activity);
-	}
-}
-
 export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 
 	constructor(
-		action: GlobalActivityAction,
+		action: ActivityAction,
 		colors: (theme: ITheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
-		@IContextMenuService protected contextMenuService: IContextMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -148,16 +145,19 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 	}
 
 	private showContextMenu(): void {
-		const globalAction = this._action as GlobalActivityAction;
-		const activity = globalAction.activity as IGlobalActivity;
-		const actions = activity.getActions();
+		const globalActivityActions: IAction[] = [];
+		const globalActivityMenu = this.menuService.createMenu(MenuId.GlobalActivity, this.contextKeyService);
+		fillInActionBarActions(globalActivityMenu, undefined, { primary: [], secondary: globalActivityActions });
+
 		const containerPosition = DOM.getDomNodePagePosition(this.container);
 		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
-
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => location,
-			getActions: () => actions,
-			onHide: () => dispose(actions)
+			getActions: () => globalActivityActions,
+			onHide: () => {
+				globalActivityMenu.dispose();
+				dispose(globalActivityActions);
+			}
 		});
 	}
 }
@@ -260,8 +260,8 @@ export class NextSideBarViewAction extends SwitchSideBarViewAction {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(PreviousSideBarViewAction, PreviousSideBarViewAction.ID, PreviousSideBarViewAction.LABEL), 'View: Open Previous Side Bar View', nls.localize('view', "View"));
-registry.registerWorkbenchAction(new SyncActionDescriptor(NextSideBarViewAction, NextSideBarViewAction.ID, NextSideBarViewAction.LABEL), 'View: Open Next Side Bar View', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(PreviousSideBarViewAction, PreviousSideBarViewAction.ID, PreviousSideBarViewAction.LABEL), 'View: Previous Side Bar View', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(NextSideBarViewAction, NextSideBarViewAction.ID, NextSideBarViewAction.LABEL), 'View: Next Side Bar View', nls.localize('view', "View"));
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 

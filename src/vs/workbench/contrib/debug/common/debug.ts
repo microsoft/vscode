@@ -54,6 +54,7 @@ export const CONTEXT_LOADED_SCRIPTS_ITEM_TYPE = new RawContextKey<string>('loade
 export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('focusedSessionIsAttach', false);
 export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false);
 export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false);
+export const CONTEXT_JUMP_TO_CURSOR_SUPPORTED = new RawContextKey<boolean>('jumpToCursorSupported', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
@@ -222,6 +223,9 @@ export interface IDebugSession extends ITreeElement {
 	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): Promise<Source[]>;
+
+	gotoTargets(source: DebugProtocol.Source, line: number, column?: number): Promise<DebugProtocol.GotoTargetsResponse>;
+	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse>;
 }
 
 export interface IThread extends ITreeElement {
@@ -482,7 +486,7 @@ export interface IDebugAdapter extends IDisposable {
 	startSession(): Promise<void>;
 	sendMessage(message: DebugProtocol.ProtocolMessage): void;
 	sendResponse(response: DebugProtocol.Response): void;
-	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timemout?: number): void;
+	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void;
 	stopSession(): Promise<void>;
 }
 

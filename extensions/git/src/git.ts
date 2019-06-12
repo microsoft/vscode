@@ -329,8 +329,8 @@ export class Git {
 		this.env = options.env || {};
 	}
 
-	open(repository: string): Repository {
-		return new Repository(this, repository);
+	open(repository: string, dotGit: string): Repository {
+		return new Repository(this, repository, dotGit);
 	}
 
 	async init(repository: string): Promise<void> {
@@ -367,6 +367,11 @@ export class Git {
 
 	async getRepositoryRoot(repositoryPath: string): Promise<string> {
 		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
+		return path.normalize(result.stdout.trim());
+	}
+
+	async getRepositoryDotGit(repositoryPath: string): Promise<string> {
+		const result = await this.exec(repositoryPath, ['rev-parse', '--absolute-git-dir']);
 		return path.normalize(result.stdout.trim());
 	}
 
@@ -649,7 +654,8 @@ export class Repository {
 
 	constructor(
 		private _git: Git,
-		private repositoryRoot: string
+		private repositoryRoot: string,
+		readonly dotGit: string
 	) { }
 
 	get git(): Git {
@@ -1419,7 +1425,7 @@ export class Repository {
 		}
 
 		if (tags) {
-			args.push('--tags');
+			args.push('--follow-tags');
 		}
 
 		if (remote) {

@@ -5,14 +5,14 @@
 
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { FeedbackDropdown, IFeedback, IFeedbackDelegate } from 'vs/workbench/contrib/feedback/electron-browser/feedback';
+import { FeedbackDropdown, IFeedback, IFeedbackDelegate } from 'vs/workbench/contrib/feedback/browser/feedback';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import product from 'vs/platform/product/node/product';
 import { Themable, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { clearNode, EventHelper, addClass, removeClass, addDisposableListener } from 'vs/base/browser/dom';
+import { IProductService } from 'vs/platform/product/common/product';
 
 class TwitterFeedbackService implements IFeedbackDelegate {
 
@@ -55,7 +55,8 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IProductService private productService: IProductService
 	) {
 		super(themeService);
 
@@ -82,7 +83,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 	private update(): IDisposable {
 
 		// Create
-		if (product.sendASmile) {
+		if (this.productService.sendASmile) {
 			if (!this.dropdown) {
 				this.dropdown = this._register(this.instantiationService.createInstance(FeedbackDropdown, this.container, {
 					contextViewProvider: this.contextViewService,

@@ -276,14 +276,14 @@ const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
 export class EditorStatus extends Disposable implements IWorkbenchContribution {
-	private tabFocusModeElement: IStatusbarEntryAccessor | null = null;
-	private screenRedearModeElement: IStatusbarEntryAccessor | null = null;
-	private indentationElement: IStatusbarEntryAccessor | null = null;
-	private selectionElement: IStatusbarEntryAccessor | null = null;
-	private encodingElement: IStatusbarEntryAccessor | null = null;
-	private eolElement: IStatusbarEntryAccessor | null = null;
-	private modeElement: IStatusbarEntryAccessor | null = null;
-	private metadataElement: IStatusbarEntryAccessor | null = null;
+	private tabFocusModeElement?: IStatusbarEntryAccessor;
+	private screenRedearModeElement?: IStatusbarEntryAccessor;
+	private indentationElement?: IStatusbarEntryAccessor;
+	private selectionElement?: IStatusbarEntryAccessor;
+	private encodingElement?: IStatusbarEntryAccessor;
+	private eolElement?: IStatusbarEntryAccessor;
+	private modeElement?: IStatusbarEntryAccessor;
+	private metadataElement?: IStatusbarEntryAccessor;
 
 	private readonly state = new State();
 	private readonly activeEditorListeners: IDisposable[] = [];
@@ -392,7 +392,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		} else {
 			if (this.tabFocusModeElement) {
 				this.tabFocusModeElement.dispose();
-				this.tabFocusModeElement = null;
+				this.tabFocusModeElement = undefined;
 			}
 		}
 	}
@@ -409,7 +409,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		} else {
 			if (this.screenRedearModeElement) {
 				this.screenRedearModeElement.dispose();
-				this.screenRedearModeElement = null;
+				this.screenRedearModeElement = undefined;
 			}
 		}
 	}
@@ -418,7 +418,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!text) {
 			if (this.selectionElement) {
 				dispose(this.selectionElement);
-				this.selectionElement = null;
+				this.selectionElement = undefined;
 			}
 
 			return;
@@ -437,7 +437,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!text) {
 			if (this.indentationElement) {
 				dispose(this.indentationElement);
-				this.indentationElement = null;
+				this.indentationElement = undefined;
 			}
 
 			return;
@@ -456,7 +456,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!text) {
 			if (this.encodingElement) {
 				dispose(this.encodingElement);
-				this.encodingElement = null;
+				this.encodingElement = undefined;
 			}
 
 			return;
@@ -475,7 +475,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!text) {
 			if (this.eolElement) {
 				dispose(this.eolElement);
-				this.eolElement = null;
+				this.eolElement = undefined;
 			}
 
 			return;
@@ -494,7 +494,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!text) {
 			if (this.modeElement) {
 				dispose(this.modeElement);
-				this.modeElement = null;
+				this.modeElement = undefined;
 			}
 
 			return;
@@ -507,14 +507,13 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		};
 
 		this.modeElement = this.updateElement(this.modeElement, props, 'status.editor.mode', nls.localize('status.editor.mode', "Editor Language"), StatusbarAlignment.RIGHT, 100.1);
-
 	}
 
 	private updateMetadataElement(text: string | undefined): void {
 		if (!text) {
 			if (this.metadataElement) {
 				dispose(this.metadataElement);
-				this.metadataElement = null;
+				this.metadataElement = undefined;
 			}
 
 			return;
@@ -526,10 +525,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		};
 
 		this.metadataElement = this.updateElement(this.metadataElement, props, 'status.editor.info', nls.localize('status.editor.info', "File Information"), StatusbarAlignment.RIGHT, 100);
-
 	}
 
-	private updateElement(element: IStatusbarEntryAccessor | null, props: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor | null {
+	private updateElement(element: IStatusbarEntryAccessor | undefined, props: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor | undefined {
 		if (!element) {
 			element = this.statusbarService.addEntry(props, id, name, alignment, priority);
 		} else {
@@ -1026,7 +1024,7 @@ export class ChangeModeAction extends Action {
 					if (textModel) {
 						const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 						if (resource) {
-							languageSelection = this.modeService.createByFilepathOrFirstLine(resource.fsPath, textModel.getLineContent(1));
+							languageSelection = this.modeService.createByFilepathOrFirstLine(resource, textModel.getLineContent(1));
 						}
 					}
 				} else {
@@ -1044,7 +1042,7 @@ export class ChangeModeAction extends Action {
 	private configureFileAssociation(resource: URI): void {
 		const extension = extname(resource);
 		const base = basename(resource);
-		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(base);
+		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(resource.with({ path: base }));
 
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
@@ -1190,13 +1188,16 @@ export class ChangeEncodingAction extends Action {
 
 		await timeout(50); // quick open is sensitive to being opened so soon after another
 
-		const resource = toResource(activeControl!.input, { supportSideBySide: SideBySideEditor.MASTER });
-		if (!resource || !this.fileService.canHandleResource(resource)) {
-			return null; // encoding detection only possible for resources the file service can handle
+		const resource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
+		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
+			return null; // encoding detection only possible for resources the file service can handle or that are untitled
 		}
 
-		const content = await this.textFileService.read(resource, { autoGuessEncoding: true, acceptTextOnly: true });
-		const guessedEncoding = content.encoding;
+		let guessedEncoding: string | undefined = undefined;
+		if (this.fileService.canHandleResource(resource)) {
+			const content = await this.textFileService.read(resource, { autoGuessEncoding: true, acceptTextOnly: true });
+			guessedEncoding = content.encoding;
+		}
 
 		const isReopenWithEncoding = (action === reopenWithEncodingPick);
 

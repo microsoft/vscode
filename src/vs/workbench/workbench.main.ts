@@ -91,8 +91,8 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/workbench/services/remote/node/tunnelService';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-
-import 'vs/platform/remote/node/tunnelService';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -131,7 +131,6 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
-import 'vs/workbench/services/heap/node/heap';
 import 'vs/workbench/services/window/electron-browser/windowService';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 
@@ -166,6 +165,7 @@ registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 
 //#endregion
 
+
 //#region --- workbench parts
 
 import 'vs/workbench/browser/parts/quickinput/quickInput';
@@ -178,6 +178,7 @@ import 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 
 //#endregion
+
 
 //#region --- workbench contributions
 
@@ -291,7 +292,7 @@ import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import 'vs/workbench/contrib/format/browser/format.contribution';
 
 // Send a Smile
-import 'vs/workbench/contrib/feedback/electron-browser/feedback.contribution';
+import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
 // Update
 import 'vs/workbench/contrib/update/electron-browser/update.contribution';
@@ -330,7 +331,5 @@ import 'vs/workbench/contrib/experiments/electron-browser/experiments.contributi
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 
 //#endregion

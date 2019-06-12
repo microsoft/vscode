@@ -13,7 +13,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 
 export class ToggleMinimapAction extends Action {
 	public static readonly ID = 'editor.action.toggleMinimap';
-	public static readonly LABEL = nls.localize('toggleMinimap', "View: Toggle Minimap");
+	public static readonly LABEL = nls.localize('toggleMinimap', "Toggle Minimap");
 
 	constructor(
 		id: string,
@@ -30,7 +30,7 @@ export class ToggleMinimapAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMinimapAction, ToggleMinimapAction.ID, ToggleMinimapAction.LABEL), 'View: Toggle Minimap');
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMinimapAction, ToggleMinimapAction.ID, ToggleMinimapAction.LABEL), 'View: Toggle Minimap', nls.localize('view', "View"));
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',

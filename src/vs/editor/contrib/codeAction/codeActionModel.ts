@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -20,23 +20,28 @@ import { CodeActionTrigger } from './codeActionTrigger';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
-export class CodeActionOracle extends Disposable {
+export type TriggeredCodeAction = undefined | {
+	readonly selection: Selection;
+	readonly trigger: CodeActionTrigger;
+	readonly position: Position;
+};
+
+class CodeActionOracle extends Disposable {
 
 	private readonly _autoTriggerTimer = this._register(new TimeoutTimer());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
-		private readonly _signalChange: (newState: CodeActionsState.State) => void,
+		private readonly _signalChange: (triggered: TriggeredCodeAction) => void,
 		private readonly _delay: number = 250,
-		private readonly _progressService?: ILocalProgressService,
 	) {
 		super();
 		this._register(this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)));
 		this._register(this._editor.onDidChangeCursorPosition(() => this._onCursorChange()));
 	}
 
-	trigger(trigger: CodeActionTrigger) {
+	public trigger(trigger: CodeActionTrigger): TriggeredCodeAction {
 		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
 		return this._createEventAndSignalChange(trigger, selection);
 	}
@@ -105,35 +110,24 @@ export class CodeActionOracle extends Disposable {
 		return selection ? selection : undefined;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Promise<CodeActionSet | undefined> {
-		if (!selection) {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): TriggeredCodeAction {
+		const model = this._editor.getModel();
+		if (!selection || !model) {
 			// cancel
-			this._signalChange(CodeActionsState.Empty);
-			return Promise.resolve(undefined);
-		} else {
-			const model = this._editor.getModel();
-			if (!model) {
-				// cancel
-				this._signalChange(CodeActionsState.Empty);
-				return Promise.resolve(undefined);
-			}
-
-			const markerRange = this._getRangeOfMarker(selection);
-			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
-			const actions = createCancelablePromise(token => getCodeActions(model, selection, trigger, token));
-
-			if (this._progressService && trigger.type === 'manual') {
-				this._progressService.showWhile(actions, 250);
-			}
-
-			this._signalChange(new CodeActionsState.Triggered(
-				trigger,
-				selection,
-				position,
-				actions
-			));
-			return actions;
+			this._signalChange(undefined);
+			return undefined;
 		}
+
+		const markerRange = this._getRangeOfMarker(selection);
+		const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
+
+		const e: TriggeredCodeAction = {
+			trigger,
+			selection,
+			position
+		};
+		this._signalChange(e);
+		return e;
 	}
 }
 
@@ -162,16 +156,18 @@ export namespace CodeActionsState {
 
 export class CodeActionModel extends Disposable {
 
-	private _codeActionOracle?: CodeActionOracle;
+	private readonly _codeActionOracle = this._register(new MutableDisposable<CodeActionOracle>());
 	private _state: CodeActionsState.State = CodeActionsState.Empty;
-	private _onDidChangeState = new Emitter<CodeActionsState.State>();
 	private readonly _supportedCodeActions: IContextKey<string>;
+
+	private readonly _onDidChangeState = this._register(new Emitter<CodeActionsState.State>());
+	public readonly onDidChangeState = this._onDidChangeState.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
 		contextKeyService: IContextKeyService,
-		private readonly _progressService: ILocalProgressService
+		private readonly _progressService?: ILocalProgressService
 	) {
 		super();
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
@@ -185,22 +181,12 @@ export class CodeActionModel extends Disposable {
 
 	dispose(): void {
 		super.dispose();
-		dispose(this._codeActionOracle);
-	}
-
-	get onDidChangeState(): Event<CodeActionsState.State> {
-		return this._onDidChangeState.event;
+		this.setState(CodeActionsState.Empty, true);
 	}
 
 	private _update(): void {
-		if (this._codeActionOracle) {
-			this._codeActionOracle.dispose();
-			this._codeActionOracle = undefined;
-		}
+		this._codeActionOracle.value = undefined;
 
-		if (this._state.type === CodeActionsState.Type.Triggered) {
-			this._state.actions.cancel();
-		}
 		this.setState(CodeActionsState.Empty);
 
 		const model = this._editor.getModel();
@@ -217,25 +203,46 @@ export class CodeActionModel extends Disposable {
 
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
-			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, newState => this.setState(newState), undefined, this._progressService);
-			this._codeActionOracle.trigger({ type: 'auto' });
+			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, trigger => {
+				if (!trigger) {
+					this.setState(CodeActionsState.Empty);
+					return;
+				}
+
+				const actions = createCancelablePromise(token => getCodeActions(model, trigger.selection, trigger.trigger, token));
+				if (this._progressService && trigger.trigger.type === 'manual') {
+					this._progressService.showWhile(actions, 250);
+				}
+
+				this.setState(new CodeActionsState.Triggered(trigger.trigger, trigger.selection, trigger.position, actions));
+
+			}, undefined);
+			this._codeActionOracle.value.trigger({ type: 'auto' });
 		} else {
 			this._supportedCodeActions.reset();
 		}
 	}
 
-	public trigger(trigger: CodeActionTrigger): Promise<CodeActionSet | undefined> {
-		if (this._codeActionOracle) {
-			return this._codeActionOracle.trigger(trigger);
+	public trigger(trigger: CodeActionTrigger) {
+		if (this._codeActionOracle.value) {
+			this._codeActionOracle.value.trigger(trigger);
 		}
-		return Promise.resolve(undefined);
 	}
 
-	private setState(newState: CodeActionsState.State) {
+	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {
 		if (newState === this._state) {
 			return;
 		}
+
+		// Cancel old request
+		if (this._state.type === CodeActionsState.Type.Triggered) {
+			this._state.actions.cancel();
+		}
+
 		this._state = newState;
-		this._onDidChangeState.fire(newState);
+
+		if (!skipNotify) {
+			this._onDidChangeState.fire(newState);
+		}
 	}
 }

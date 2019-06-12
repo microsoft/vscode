@@ -905,10 +905,9 @@ export const EventHelper = {
 	}
 };
 
-export interface IFocusTracker {
+export interface IFocusTracker extends Disposable {
 	onDidFocus: Event<void>;
 	onDidBlur: Event<void>;
-	dispose(): void;
 }
 
 export function saveParentsScrollTop(node: Element): number[] {

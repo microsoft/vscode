@@ -10,8 +10,9 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
-import { CodeActionOracle, CodeActionsState } from 'vs/editor/contrib/codeAction/codeActionModel';
+import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/codeActionModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 
 const testProvider = {
@@ -24,7 +25,7 @@ const testProvider = {
 		};
 	}
 };
-suite('CodeAction', () => {
+suite('CodeActionModel', () => {
 
 	const languageIdentifier = new modes.LanguageIdentifier('foo-lang', 3);
 	let uri = URI.parse('untitled:path');
@@ -52,16 +53,18 @@ suite('CodeAction', () => {
 		const reg = modes.CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
 		disposables.add(reg);
 
-		const oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {
+		const contextKeys = new MockContextKeyService();
+		const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+		disposables.add(model.onDidChangeState((e: CodeActionsState.Triggered) => {
 			assert.equal(e.trigger.type, 'auto');
 			assert.ok(e.actions);
 
 			e.actions.then(fixes => {
-				oracle.dispose();
+				model.dispose();
 				assert.equal(fixes.actions.length, 1);
 				done();
 			}, done);
-		});
+		}));
 
 		// start here
 		markerService.changeOne('fake', uri, [{
@@ -89,16 +92,17 @@ suite('CodeAction', () => {
 		editor.setPosition({ lineNumber: 2, column: 1 });
 
 		return new Promise((resolve, reject) => {
-
-			const oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {
+			const contextKeys = new MockContextKeyService();
+			const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+			disposables.add(model.onDidChangeState((e: CodeActionsState.Triggered) => {
 				assert.equal(e.trigger.type, 'auto');
 				assert.ok(e.actions);
 				e.actions.then(fixes => {
-					oracle.dispose();
+					model.dispose();
 					assert.equal(fixes.actions.length, 1);
 					resolve(undefined);
 				}, reject);
-			});
+			}));
 			// start here
 			editor.setPosition({ lineNumber: 1, column: 1 });
 		});
@@ -124,8 +128,9 @@ suite('CodeAction', () => {
 
 		// case 1 - drag selection over multiple lines -> range of enclosed marker, position or marker
 		await new Promise(resolve => {
-
-			let oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {
+			const contextKeys = new MockContextKeyService();
+			const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+			disposables.add(model.onDidChangeState((e: CodeActionsState.Triggered) => {
 				assert.equal(e.trigger.type, 'auto');
 				const selection = <Selection>e.rangeOrSelection;
 				assert.deepEqual(selection.selectionStartLineNumber, 1);
@@ -133,10 +138,9 @@ suite('CodeAction', () => {
 				assert.deepEqual(selection.endLineNumber, 4);
 				assert.deepEqual(selection.endColumn, 1);
 				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
-
-				oracle.dispose();
+				model.dispose();
 				resolve(undefined);
-			}, 5);
+			}, 5));
 
 			editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
 		});
@@ -147,17 +151,19 @@ suite('CodeAction', () => {
 		disposables.add(reg);
 
 		let triggerCount = 0;
-		const oracle = new CodeActionOracle(editor, markerService, (e: CodeActionsState.Triggered) => {
+		const contextKeys = new MockContextKeyService();
+		const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+		disposables.add(model.onDidChangeState((e: CodeActionsState.Triggered) => {
 			assert.equal(e.trigger.type, 'auto');
 			++triggerCount;
 
 			// give time for second trigger before completing test
 			setTimeout(() => {
-				oracle.dispose();
+				model.dispose();
 				assert.strictEqual(triggerCount, 1);
 				done();
 			}, 50);
-		}, 5 /*delay*/);
+		}, 5 /*delay*/));
 
 		markerService.changeOne('fake', uri, [{
 			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,

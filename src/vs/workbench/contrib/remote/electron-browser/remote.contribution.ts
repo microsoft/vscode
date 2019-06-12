@@ -11,7 +11,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { RemoteExtensionLogFileName, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
-import { MenuId, IMenuService, MenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/contrib/output/common/output';
 import * as resources from 'vs/base/common/resources';
@@ -39,8 +39,11 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions/windowActions';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { RemoteConnectionState } from 'vs/workbench/browser/contextkeys';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
+const CLOSE_REMOTE_COMMAND_ID = 'remote.closeRemote';
 
 export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -48,7 +51,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 	private windowCommandMenu: IMenu;
 	private hasWindowActions: boolean = false;
 	private remoteAuthority: string | undefined;
-	private disconnected: boolean = false;
+	private disconnected: boolean = true;
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -60,7 +63,8 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService extensionService: IExtensionService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IWindowsService windowService: IWindowsService
 	) {
 		super();
 
@@ -68,11 +72,22 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		this._register(this.windowCommandMenu);
 
 		this._register(CommandsRegistry.registerCommand(WINDOW_ACTIONS_COMMAND_ID, _ => this.showIndicatorActions(this.windowCommandMenu)));
+		this._register(CommandsRegistry.registerCommand(CLOSE_REMOTE_COMMAND_ID, _ => this.remoteAuthority && windowService.openNewWindow({ reuseWindow: true })));
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
 		if (this.remoteAuthority) {
 			// Pending entry until extensions are ready
-			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."));
+			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
+			RemoteConnectionState.bindTo(this.contextKeyService).set('initializing');
+
+			MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+				group: '6_close',
+				command: {
+					id: CLOSE_REMOTE_COMMAND_ID,
+					title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "C&&lose Remote Connection")
+				},
+				order: 3.5
+			});
 		}
 
 		extensionService.whenInstalledExtensionsRegistered().then(_ => {
@@ -105,18 +120,19 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 	private setDisconnected(isDisconnected: boolean): void {
 		if (this.disconnected !== isDisconnected) {
 			this.disconnected = isDisconnected;
+			RemoteConnectionState.bindTo(this.contextKeyService).set(isDisconnected ? 'disconnected' : 'connected');
 			this.updateWindowIndicator();
 		}
 	}
 
 	private updateWindowIndicator(): void {
-		const windowActionCommand = this.windowCommandMenu.getActions().length ? WINDOW_ACTIONS_COMMAND_ID : undefined;
+		const windowActionCommand = (this.remoteAuthority || this.windowCommandMenu.getActions().length) ? WINDOW_ACTIONS_COMMAND_ID : undefined;
 		if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.remoteAuthority) || this.remoteAuthority;
 			if (!this.disconnected) {
 				this.renderWindowIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel), windowActionCommand);
 			} else {
-				this.renderWindowIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from")} ${hostLabel}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel));
+				this.renderWindowIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from")} ${hostLabel}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel), windowActionCommand);
 			}
 		} else {
 			if (windowActionCommand) {
@@ -149,7 +165,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 
 	private showIndicatorActions(menu: IMenu) {
 
-		const actions = menu.getActions();
+		const actions = !this.disconnected || !this.remoteAuthority ? menu.getActions() : [];
 
 		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 		for (let actionGroup of actions) {
@@ -170,6 +186,17 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 					});
 				}
 			}
+		}
+
+		if (this.remoteAuthority) {
+			if (items.length) {
+				items.push({ type: 'separator' });
+			}
+			items.push({
+				type: 'item',
+				id: CLOSE_REMOTE_COMMAND_ID,
+				label: nls.localize('closeRemote.title', 'Close Remote Connection')
+			});
 		}
 
 		const quickPick = this.quickInputService.createQuickPick();

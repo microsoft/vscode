@@ -14,7 +14,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 export class ToggleRenderWhitespaceAction extends Action {
 
 	public static readonly ID = 'editor.action.toggleRenderWhitespace';
-	public static readonly LABEL = nls.localize('toggleRenderWhitespace', "View: Toggle Render Whitespace");
+	public static readonly LABEL = nls.localize('toggleRenderWhitespace', "Toggle Render Whitespace");
 
 	constructor(
 		id: string,
@@ -39,7 +39,7 @@ export class ToggleRenderWhitespaceAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRenderWhitespaceAction, ToggleRenderWhitespaceAction.ID, ToggleRenderWhitespaceAction.LABEL), 'View: Toggle Render Whitespace');
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRenderWhitespaceAction, ToggleRenderWhitespaceAction.ID, ToggleRenderWhitespaceAction.LABEL), 'View: Toggle Render Whitespace', nls.localize('view', "View"));
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',

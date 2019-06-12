@@ -283,9 +283,9 @@ export async function main(argv: ParsedArgs): Promise<void> {
 	process.once('exit', () => logService.dispose());
 	logService.info('main', argv);
 
-	await Promise.all([environmentService.appSettingsHome, environmentService.extensionsPath].map(p => mkdirp(p)));
+	await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(p => mkdirp(p)));
 
-	const configurationService = new ConfigurationService(environmentService.settingsResource.path);
+	const configurationService = new ConfigurationService(environmentService.settingsResource);
 	await configurationService.initialize();
 
 	services.set(IEnvironmentService, environmentService);

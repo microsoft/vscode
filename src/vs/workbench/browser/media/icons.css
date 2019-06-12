@@ -49,7 +49,8 @@ body[data-exploration^="icon-exploration"] .markers-panel-action-filter > .marke
 body[data-exploration^="icon-exploration"] .search-view .search-widget .replace-container .monaco-action-bar .action-item .icon,
 body[data-exploration^="icon-exploration"] .search-view a[class^="action-"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .search-view .query-details .more,
-body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Source Control: Git actions"] .icon,
+body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Source Control: Git actions"] .icon[data-title="git.commit"],
+body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Source Control: Git actions"] .icon[data-title="git.refresh"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label="Debug actions"] .icon,
 body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .actions-container[aria-label^="Extensions"] .icon,
 body[data-exploration^="icon-exploration"] .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label[data-title^="git."],
@@ -78,6 +79,7 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list
 body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action,
 body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action,
 body[data-exploration^="icon-exploration"] .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .action-label,
+body[data-exploration^="icon-exploration"] .monaco-workbench .activitybar > .content .monaco-action-bar .action-label[title="References"],
 body[data-exploration^="icon-exploration"] .markers-panel .marker-icon,
 body[data-exploration^="icon-exploration"] .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix,
 body[data-exploration^="icon-exploration"] .monaco-tl-twistie.collapsible:not(.loading),
@@ -109,10 +111,14 @@ body[data-exploration^="icon-exploration"] .monaco-editor .debug-breakpoint-log,
 body[data-exploration^="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-title .severity-icon,
 body[data-exploration^="icon-exploration"] .monaco-editor .margin-view-overlays .folding,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-action.save-all,
+body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.init"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="_workbench.openUserSettingsEditor"],
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="workbench.action.compareEditor.previousChange"],
 body[data-exploration^="icon-exploration"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"],
 body[data-exploration^="icon-exploration"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.refresh"],
+body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="references-view.refresh"],
+body[data-exploration^="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="references-view.clear"],
+body[data-exploration^="icon-exploration"] .customview-tree .monaco-tree .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions .action-label[data-title="references-view.remove"],
 body[data-exploration^="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-exploration^="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-viewlet .action-close-all-files,
@@ -248,6 +254,10 @@ body[data-exploration="icon-exploration"] .monaco-workbench .activitybar > .cont
 	-webkit-mask-image: url("images/activitybar/more-alt1.svg");
 }
 
+body[data-exploration="icon-exploration"] .monaco-workbench .activitybar > .content .monaco-action-bar .action-label[title="References"] {
+	-webkit-mask-image: url("images/activitybar/references-alt1.svg");
+}
+
 
 /****************
 	Explorer
@@ -274,7 +284,8 @@ body[data-exploration="icon-exploration"] .monaco-workbench .explorer-action.new
 	-webkit-mask-image: url("images/explorer/add-folder-alt1.svg");
 }
 
-body[data-exploration="icon-exploration"] .monaco-workbench .explorer-action.refresh-explorer {
+body[data-exploration="icon-exploration"] .monaco-workbench .explorer-action.refresh-explorer,
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="references-view.refresh"] {
 	-webkit-mask-image: url("images/explorer/refresh-alt1.svg");
 }
 
@@ -295,7 +306,8 @@ body[data-exploration="icon-exploration"] .monaco-workbench .search-action.refre
 	-webkit-mask-image: url("images/search/refresh-alt1.svg");
 }
 
-body[data-exploration="icon-exploration"] .monaco-workbench .search-action.clear-search-results {
+body[data-exploration="icon-exploration"] .monaco-workbench .search-action.clear-search-results,
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="references-view.clear"] {
 	-webkit-mask-image: url("images/search/clear-alt1.svg");
 }
 
@@ -356,6 +368,10 @@ body[data-exploration="icon-exploration"] .search-view .search-widget .toggle-re
 /****************
 	Git
 ****************/
+
+body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.init"] {
+	-webkit-mask-image: url("images/git/initialze.svg");
+}
 
 body[data-exploration="icon-exploration"] .monaco-workbench .part > .title > .title-actions .action-label[data-title="git.commit"],
 body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-header > .actions .action-label.icon[data-title="git.commit"] {
@@ -1073,7 +1089,7 @@ body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-hea
 body[data-exploration="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-exploration="icon-exploration"] .monaco-tl-twistie.collapsible:not(.loading) {
 	-webkit-mask-image: url("images/tree/expand-alt1.svg");
-	background-image: url("images/tree/expand-alt1.svg");
+	background-image: url("images/tree/expand-empty.svg");
 }
 
 body[data-exploration="icon-exploration"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
@@ -1082,10 +1098,11 @@ body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-hea
 body[data-exploration="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-exploration="icon-exploration"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	-webkit-mask-image: url("images/tree/collapse-alt1.svg");
-	background-image: url("images/tree/collapse-alt1.svg");
+	background-image: url("images/tree/expand-empty.svg");
 
 }
 
+body[data-exploration="icon-exploration"] .customview-tree .monaco-tree .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions .action-label[data-title="references-view.remove"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="workbench.action.closeActiveEditor"],
 body[data-exploration="icon-exploration"] .monaco-editor .peekview-widget .head .peekview-actions .action-label.icon[data-title="peekview.close"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action,
@@ -1115,6 +1132,7 @@ body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .cont
 	-webkit-mask-image: url("images/editor/split-vertical-alt1.svg");
 }
 
+body[data-exploration="icon-exploration"] .scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label[data-title="git.openChange"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label[data-title="git.openChange"],
 body[data-exploration="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label[data-title="git.openChange"] {
 	-webkit-mask-image: url("images/editor/open-change-alt1.svg");
@@ -1211,4 +1229,9 @@ body[data-exploration="icon-exploration"] .monaco-editor .margin-view-overlays .
 
 body[data-exploration="icon-exploration"] .monaco-editor .margin-view-overlays .folding.collapsed {
 	-webkit-mask-image: url("images/misc/unfold-alt1.svg");
+}
+
+body[data-exploration="icon-exploration"] .monaco-editor .find-widget .matchesCount {
+	margin-right: 0;
+	padding-right: 0;
 }

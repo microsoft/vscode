@@ -181,7 +181,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 	private _update(): void {
 
 		// clean up
-		this._callOnModel.dispose();
+		this._callOnModel.clear();
 
 		// we are disabled
 		if (!this.editor.getConfiguration().contribInfo.formatOnPaste) {
@@ -248,7 +248,7 @@ class FormatSelectionAction extends EditorAction {
 		super({
 			id: 'editor.action.formatSelection',
 			label: nls.localize('formatSelection.label', "Format Selection"),
-			alias: 'Format Code',
+			alias: 'Format Selection',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider),
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, EditorContextKeys.hasDocumentSelectionFormattingProvider),

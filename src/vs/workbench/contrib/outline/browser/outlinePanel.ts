@@ -11,7 +11,7 @@ import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
 import 'vs/css!./outlinePanel';
@@ -70,7 +70,7 @@ class RequestState {
 
 class RequestOracle {
 
-	private _disposables = new Array<IDisposable>();
+	private readonly _disposables = new DisposableStore();
 	private _sessionDisposable: IDisposable;
 	private _lastState?: RequestState;
 
