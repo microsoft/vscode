@@ -94,6 +94,7 @@ export interface ITerminalConfiguration {
 	cwd: string;
 	confirmOnExit: boolean;
 	enableBell: boolean;
+	inheritEnv: boolean;
 	env: {
 		linux: { [key: string]: string };
 		osx: { [key: string]: string };
