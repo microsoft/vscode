@@ -816,17 +816,17 @@ declare module 'vscode' {
 		/**
 		 * Added comment threads.
 		 */
-		readonly added: CommentThread[];
+		readonly added: ReadonlyArray<CommentThread>;
 
 		/**
 		 * Removed comment threads.
 		 */
-		readonly removed: CommentThread[];
+		readonly removed: ReadonlyArray<CommentThread>;
 
 		/**
 		 * Changed comment threads.
 		 */
-		readonly changed: CommentThread[];
+		readonly changed: ReadonlyArray<CommentThread>;
 
 		/**
 		 * Changed draft mode
