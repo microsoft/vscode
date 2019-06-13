@@ -145,7 +145,7 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .con
 body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty .close-editor-action:hover,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action,
 body[data-exploration^="icon-exploration"] .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {
-	background-image: none;
+	background-image: none !important;
 	background: var(--gray);
 	-webkit-mask-repeat: no-repeat;
 	-webkit-mask-position: center;
@@ -1093,7 +1093,7 @@ body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-hea
 body[data-exploration="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-up,
 body[data-exploration="icon-exploration"] .monaco-tl-twistie.collapsible:not(.loading) {
 	-webkit-mask-image: url("images/tree/expand-alt1.svg");
-	background-image: url("images/tree/expand-empty.svg");
+	background-image: url("images/tree/expand-empty.svg") !important;
 }
 
 body[data-exploration="icon-exploration"] .file-icon-themable-tree .monaco-tree-row.has-children .content::before,
@@ -1102,7 +1102,7 @@ body[data-exploration="icon-exploration"] .monaco-panel-view .panel > .panel-hea
 body[data-exploration="icon-exploration"] .markers-panel .monaco-tl-contents .multiline-actions .action-label.octicon-chevron-down,
 body[data-exploration="icon-exploration"] .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	-webkit-mask-image: url("images/tree/collapse-alt1.svg");
-	background-image: url("images/tree/expand-empty.svg");
+	background-image: url("images/tree/expand-empty.svg") !important;
 
 }
 
