@@ -872,6 +872,10 @@ body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .con
 	background: transparent;
 }
 
+body[data-exploration^="icon-exploration"] .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .symbol-icon {
+	margin-left: 4px;
+}
+
 body[data-exploration^="icon-exploration"] .monaco-quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon::before {
 	left: 0;
 	top: -3px;
