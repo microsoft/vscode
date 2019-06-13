@@ -1107,6 +1107,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestInitialCwd(id: number): void;
 	$acceptProcessRequestCwd(id: number): void;
 	$acceptProcessRequestLatency(id: number): number;
+	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 }
 
 export interface ExtHostSCMShape {

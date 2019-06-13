@@ -109,6 +109,9 @@ export interface ITerminalConfiguration {
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
+
+	onWorkspacePermissionsChanged: Event<boolean>;
+
 	configFontIsMonospace(): boolean;
 	getFont(): ITerminalFont;
 	/**
@@ -210,6 +213,9 @@ export interface ITerminalService {
 
 	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;
+	terminalInstances: ITerminalInstance[];
+	terminalTabs: ITerminalTab[];
+
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
 	onInstanceCreated: Event<ITerminalInstance>;
@@ -220,8 +226,6 @@ export interface ITerminalService {
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
-	terminalInstances: ITerminalInstance[];
-	terminalTabs: ITerminalTab[];
 
 	/**
 	 * Creates a terminal.

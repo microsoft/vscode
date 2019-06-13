@@ -625,6 +625,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		});
 		return index;
 	}
+
+	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
+		this._isWorkspaceShellAllowed = isAllowed;
+	}
 }
 
 class ApiRequest {
