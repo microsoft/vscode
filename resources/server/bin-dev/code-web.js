@@ -12,9 +12,9 @@ const VERBOSE = process.argv.indexOf('--verbose') !== -1;
 const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
 
 let PORT = 8000;
-process.argv.forEach(arg => {
-	if (arg.indexOf('--port') !== -1) {
-		PORT = arg.substring(arg.indexOf('=') + 1);
+process.argv.forEach((arg, idx) => {
+	if (arg.indexOf('--port') !== -1 && process.argv.length > idx + 1) {
+		PORT = arg.substring(process.argv[idx + 1]);
 	}
 });
 
@@ -46,8 +46,10 @@ if (SELFHOST) {
 	executable = path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh');
 }
 
+
 // Start Server
-const proc = path.extname(executable) === '.cmd' || path.extname(executable) === '.bat' ? cp.spawn(executable, process.argv, { shell: true }) : cp.execFile(executable, process.argv);
+let serverArgs = process.argv.slice(2);
+const proc = path.extname(executable) === '.cmd' || path.extname(executable) === '.bat' ? cp.spawn(executable, serverArgs, { shell: true }) : cp.execFile(executable, serverArgs);
 
 // Show warning message eventually
 const handle = setTimeout(() => {
