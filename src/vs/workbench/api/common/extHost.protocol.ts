@@ -248,7 +248,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean>;
 	$tryApplyWorkspaceEdit(workspaceEditDto: WorkspaceEditDto): Promise<boolean>;
-	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): Promise<boolean>;
+	$tryInsertSnippet(id: string, template: string, selections: readonly IRange[], opts: IUndoStopOptions): Promise<boolean>;
 	$getDiffInformation(id: string): Promise<editorCommon.ILineChange[]>;
 }
 
