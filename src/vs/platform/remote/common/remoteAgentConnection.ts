@@ -280,7 +280,7 @@ export class ConnectionGainEvent {
 export class ReconnectionPermanentFailureEvent {
 	public readonly type = PersistenConnectionEventType.ReconnectionPermanentFailure;
 }
-export type PersistenConnectionEvent = ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ConnectionGainEvent | ReconnectionPermanentFailureEvent;
+export type PersistenConnectionEvent = ConnectionGainEvent | ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ReconnectionPermanentFailureEvent;
 
 abstract class PersistentConnection extends Disposable {
 
@@ -301,6 +301,8 @@ abstract class PersistentConnection extends Disposable {
 		this.protocol = protocol;
 		this._isReconnecting = false;
 		this._permanentFailure = false;
+
+		this._onDidStateChange.fire(new ConnectionGainEvent());
 
 		this._register(protocol.onSocketClose(() => this._beginReconnecting()));
 		this._register(protocol.onSocketTimeout(() => this._beginReconnecting()));

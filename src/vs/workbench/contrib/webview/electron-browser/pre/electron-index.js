@@ -34,7 +34,8 @@
 		},
 		onMessage: (channel, handler) => {
 			ipcRenderer.on(channel, handler);
-		}
+		},
+		focusIframeOnCreate: true
 	});
 
 	document.addEventListener('DOMContentLoaded', () => {

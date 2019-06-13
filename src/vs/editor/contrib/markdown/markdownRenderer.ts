@@ -13,16 +13,16 @@ import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;
 }
 
-export class MarkdownRenderer {
+export class MarkdownRenderer extends Disposable {
 
-	private _onDidRenderCodeBlock = new Emitter<void>();
+	private _onDidRenderCodeBlock = this._register(new Emitter<void>());
 	readonly onDidRenderCodeBlock: Event<void> = this._onDidRenderCodeBlock.event;
 
 	constructor(
@@ -30,6 +30,7 @@ export class MarkdownRenderer {
 		@IModeService private readonly _modeService: IModeService,
 		@optional(IOpenerService) private readonly _openerService: IOpenerService | null = NullOpenerService,
 	) {
+		super();
 	}
 
 	private getOptions(disposeables: DisposableStore): RenderOptions {

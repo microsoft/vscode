@@ -28,7 +28,7 @@ export interface IProductConfiguration {
 	settingsSearchUrl?: string;
 	experimentsUrl?: string;
 	date: string;
-	extensionsGallery: {
+	extensionsGallery?: {
 		serviceUrl: string;
 		itemUrl: string;
 		controlUrl: string;

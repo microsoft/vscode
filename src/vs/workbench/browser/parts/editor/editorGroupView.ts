@@ -40,7 +40,7 @@ import { CLOSE_EDITOR_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -276,13 +276,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Toolbar
 		const groupId = this._group.id;
-		const containerToolbar = new ActionBar(toolbarContainer, {
+		const containerToolbar = this._register(new ActionBar(toolbarContainer, {
 			ariaLabel: localize('araLabelGroupActions', "Editor group actions"), actionRunner: this._register(new class extends ActionRunner {
 				run(action: IAction) {
 					return action.run(groupId);
 				}
 			})
-		});
+		}));
 
 		// Toolbar actions
 		const removeGroupAction = this._register(new Action(
@@ -321,7 +321,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		fillInContextMenuActions(menu, undefined, actions, this.contextMenuService);
+		createAndFillInContextMenuActions(menu, undefined, actions, this.contextMenuService);
 
 		// Show it
 		this.contextMenuService.showContextMenu({

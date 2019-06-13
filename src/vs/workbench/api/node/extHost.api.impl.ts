@@ -489,7 +489,7 @@ export function createApiFactory(
 			},
 			createWebviewTextEditorInset(editor: vscode.TextEditor, range: vscode.Range, options: vscode.WebviewOptions): vscode.WebviewEditorInset {
 				checkProposedApiEnabled(extension);
-				return extHostEditorInsets.createWebviewEditorInset(editor, range, options);
+				return extHostEditorInsets.createWebviewEditorInset(editor, range, options, extension);
 			},
 			createTerminal(nameOrOptions?: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {

@@ -1230,3 +1230,8 @@ body[data-exploration="icon-exploration"] .monaco-editor .margin-view-overlays .
 body[data-exploration="icon-exploration"] .monaco-editor .margin-view-overlays .folding.collapsed {
 	-webkit-mask-image: url("images/misc/unfold-alt1.svg");
 }
+
+body[data-exploration="icon-exploration"] .monaco-editor .find-widget .matchesCount {
+	margin-right: 0;
+	padding-right: 0;
+}

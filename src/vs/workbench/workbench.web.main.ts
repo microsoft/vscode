@@ -89,7 +89,6 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 // import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 // import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 // import { TunnelService } from 'vs/workbench/services/remote/node/tunnelService';
-import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
@@ -118,7 +117,8 @@ import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
-// import 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import 'vs/workbench/services/keybinding/browser/browserKeymapService';
+import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledEditorService';
 // import 'vs/workbench/services/textfile/node/textResourcePropertiesService';
 import 'vs/workbench/services/mode/common/workbenchModeService';
@@ -132,7 +132,6 @@ import 'vs/workbench/services/label/common/labelService';
 // import 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
 // import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
-// import 'vs/workbench/services/heap/node/heap';
 // import 'vs/workbench/services/window/electron-browser/windowService';
 // import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 
@@ -164,7 +163,6 @@ registerSingleton(IContextViewService, ContextViewService, true);
 // registerSingleton(IMenubarService, MenubarService);
 // registerSingleton(IURLService, RelayURLService);
 registerSingleton(ISearchService, RemoteSearchService, true);
-registerSingleton(IHeapService, NullHeapService);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 

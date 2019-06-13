@@ -117,7 +117,9 @@ import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
-import 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
+import 'vs/workbench/services/keybinding/electron-browser/keybinding.contribution';
+import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledEditorService';
 import 'vs/workbench/services/textfile/node/textResourcePropertiesService';
 import 'vs/workbench/services/mode/common/workbenchModeService';
@@ -131,7 +133,6 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
-import 'vs/workbench/services/heap/node/heap';
 import 'vs/workbench/services/window/electron-browser/windowService';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 

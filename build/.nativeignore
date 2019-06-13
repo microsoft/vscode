@@ -67,14 +67,6 @@ windows-process-tree/build/**
 windows-process-tree/src/**
 !windows-process-tree/**/*.node
 
-gc-signals/binding.gyp
-gc-signals/build/**
-gc-signals/src/**
-gc-signals/deps/**
-
-!gc-signals/build/Release/*.node
-!gc-signals/src/index.js
-
 keytar/binding.gyp
 keytar/build/**
 keytar/src/**

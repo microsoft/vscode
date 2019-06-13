@@ -2,20 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { getMediaMime, MIME_UNKNOWN } from 'vs/base/common/mime';
-import { extname, sep } from 'vs/base/common/path';
+import * as electron from 'electron';
+import { sep } from 'vs/base/common/path';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IFileService } from 'vs/platform/files/common/files';
-import * as electron from 'electron';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { getWebviewContentMimeType } from 'vs/workbench/contrib/webview/common/mimeTypes';
 
 type BufferProtocolCallback = (buffer?: Buffer | electron.MimeTypedBuffer | { error: number }) => void;
 
-export const enum WebviewProtocol {
-	CoreResource = 'vscode-core-resource',
-	VsCodeResource = 'vscode-resource',
-}
 
 function resolveContent(fileService: IFileService, resource: URI, mime: string, callback: BufferProtocolCallback): void {
 	fileService.readFile(resource).then(contents => {
@@ -31,7 +27,7 @@ function resolveContent(fileService: IFileService, resource: URI, mime: string, 
 
 export function registerFileProtocol(
 	contents: electron.WebContents,
-	protocol: WebviewProtocol,
+	protocol: string,
 	fileService: IFileService,
 	extensionLocation: URI | undefined,
 	getRoots: () => ReadonlyArray<URI>
@@ -54,10 +50,10 @@ export function registerFileProtocol(
 						requestResourcePath: requestUri.path
 					})
 				});
-				resolveContent(fileService, redirectedUri, getMimeType(requestUri), callback);
+				resolveContent(fileService, redirectedUri, getWebviewContentMimeType(requestUri), callback);
 				return;
 			} else {
-				resolveContent(fileService, normalizedPath, getMimeType(normalizedPath), callback);
+				resolveContent(fileService, normalizedPath, getWebviewContentMimeType(normalizedPath), callback);
 				return;
 			}
 		}
@@ -70,20 +66,3 @@ export function registerFileProtocol(
 	});
 }
 
-const webviewMimeTypes = {
-	'.svg': 'image/svg+xml',
-	'.txt': 'text/plain',
-	'.css': 'text/css',
-	'.js': 'application/javascript',
-	'.json': 'application/json',
-	'.html': 'text/html',
-	'.htm': 'text/html',
-	'.xhtml': 'application/xhtml+xml',
-	'.oft': 'font/otf',
-	'.xml': 'application/xml',
-};
-
-function getMimeType(normalizedPath: URI): string {
-	const ext = extname(normalizedPath.fsPath).toLowerCase();
-	return webviewMimeTypes[ext] || getMediaMime(normalizedPath.fsPath) || MIME_UNKNOWN;
-}
