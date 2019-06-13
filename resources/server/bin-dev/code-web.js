@@ -13,8 +13,8 @@ const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
 
 let PORT = 8000;
 process.argv.forEach((arg, idx) => {
-	if (arg.indexOf('--port') !== -1 && process.argv.length > idx + 1) {
-		PORT = arg.substring(process.argv[idx + 1]);
+	if (arg.indexOf('--port') !== -1 && process.argv.length >= idx + 1) {
+		PORT = process.argv[idx + 1];
 	}
 });
 
