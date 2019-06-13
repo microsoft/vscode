@@ -117,7 +117,7 @@ import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
-import 'vs/workbench/services/keybinding/browser/browserKeymapService';
+import 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledEditorService';
 import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
