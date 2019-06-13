@@ -17,7 +17,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 class ToggleBreakpointAction extends EditorAction {
@@ -99,7 +98,7 @@ class LogPointAction extends EditorAction {
 	}
 }
 
-class RunToCursorAction extends EditorAction {
+export class RunToCursorAction extends EditorAction {
 
 	public static ID = 'editor.debug.action.runToCursor';
 	public static LABEL = nls.localize('runToCursor', "Run to Cursor");
@@ -313,12 +312,3 @@ registerEditorAction(SelectionToWatchExpressionsAction);
 registerEditorAction(ShowDebugHoverAction);
 registerEditorAction(GoToNextBreakpointAction);
 registerEditorAction(GoToPreviousBreakpointAction);
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: RunToCursorAction.ID,
-		title: { value: RunToCursorAction.LABEL, original: 'Debug: Run to Cursor' },
-		category: nls.localize('debug', "Debug")
-	},
-	group: 'debug',
-	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),
-});
