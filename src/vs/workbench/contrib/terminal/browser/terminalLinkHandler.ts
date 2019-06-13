@@ -76,7 +76,6 @@ export class TerminalLinkHandler {
 
 	constructor(
 		private _xterm: any,
-		private _platform: platform.Platform | undefined,
 		private readonly _processManager: ITerminalProcessManager | undefined,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -108,7 +107,7 @@ export class TerminalLinkHandler {
 		};
 
 		this.registerWebLinkHandler();
-		if (this._platform) {
+		if (this._processManager) {
 			this.registerLocalLinkHandler();
 			this.registerGitDiffLinkHandlers();
 		}
@@ -359,17 +358,18 @@ export class TerminalLinkHandler {
 	 * @param link Url link which may contain line and column number.
 	 */
 	public extractLineColumnInfo(link: string): LineColumnInfo {
+
 		const matches: string[] | null = this._localLinkRegex.exec(link);
 		const lineColumnInfo: LineColumnInfo = {
 			lineNumber: 1,
 			columnNumber: 1
 		};
 
-		if (!matches) {
+		if (!matches || !this._processManager) {
 			return lineColumnInfo;
 		}
 
-		const lineAndColumnMatchIndex = this._platform === platform.Platform.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
+		const lineAndColumnMatchIndex = this._processManager.os === platform.OperatingSystem.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
 		for (let i = 0; i < lineAndColumnClause.length; i++) {
 			const lineMatchIndex = lineAndColumnMatchIndex + (lineAndColumnClauseGroupCount * i);
 			const rowNumber = matches[lineMatchIndex];
