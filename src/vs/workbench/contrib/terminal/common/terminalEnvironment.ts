@@ -198,7 +198,8 @@ export function createTerminalEnvironment(
 	configurationResolverService: IConfigurationResolverService | undefined,
 	isWorkspaceShellAllowed: boolean,
 	version: string | undefined,
-	setLocaleVariables: boolean
+	setLocaleVariables: boolean,
+	baseEnv: platform.IProcessEnvironment
 ): platform.IProcessEnvironment {
 	// Create a terminal environment based on settings, launch config and permissions
 	let env: platform.IProcessEnvironment = {};
@@ -207,7 +208,7 @@ export function createTerminalEnvironment(
 		mergeNonNullKeys(env, shellLaunchConfig.env);
 	} else {
 		// Merge process env with the env from config and from shellLaunchConfig
-		mergeNonNullKeys(env, process.env);
+		mergeNonNullKeys(env, baseEnv);
 
 		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		// const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);

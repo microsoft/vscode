@@ -13,7 +13,7 @@ import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchStateContext, RemoteAuthorityContext } from 'vs/workbench/browser/contextkeys';
+import { WorkbenchStateContext, RemoteAuthorityContext, IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -748,11 +748,28 @@ CommandsRegistry.registerCommand(SETTINGS_EDITOR_COMMAND_FILTER_ONLINE, serviceA
 
 // Preferences menu
 
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
+	submenu: MenuId.MenubarPreferencesMenu,
+	group: '5_autosave',
+	order: 2,
+	when: IsMacNativeContext.toNegated() // on macOS native the preferences menu is separate under the application menu
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '1_settings',
 	command: {
 		id: SETTINGS_COMMAND_OPEN_SETTINGS,
 		title: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: SETTINGS_COMMAND_OPEN_SETTINGS,
+		title: nls.localize('settings', "Settings")
 	},
 	order: 1
 });
@@ -766,6 +783,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
+		title: nls.localize('onlineServices', "Online Services Settings")
+	},
+	order: 2
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '2_keybindings',
 	command: {
@@ -773,6 +799,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 		title: nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts")
 	},
 	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: OpenGlobalKeybindingsAction.ID,
+		title: nls.localize('keyboardShortcuts', "Keyboard Shortcuts")
+	},
+	order: 4
 });
 
 // Editor tool items

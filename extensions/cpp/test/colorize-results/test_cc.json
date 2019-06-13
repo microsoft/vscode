@@ -672,7 +672,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.qualified_type.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -694,7 +694,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1574,7 +1574,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1772,7 +1772,7 @@
 	},
 	{
 		"c": "asm",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp storage.type.asm.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp storage.type.asm.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1783,7 +1783,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp punctuation.section.parens.begin.bracket.round.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp punctuation.section.parens.begin.bracket.round.assembly.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1794,7 +1794,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp string.quoted.double.cpp punctuation.definition.string.begin.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp punctuation.definition.string.begin.assembly.cpp",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1804,63 +1804,19 @@
 		}
 	},
 	{
-		"c": "movw $0x38, ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp string.quoted.double.cpp",
+		"c": "movw $0x38, %ax; ltr %ax",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp meta.embedded.assembly.cpp",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "%a",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp string.quoted.double.cpp constant.other.placeholder.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "x; ltr ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp string.quoted.double.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "%a",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp string.quoted.double.cpp constant.other.placeholder.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "x",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp string.quoted.double.cpp",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp string.quoted.double.cpp punctuation.definition.string.end.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp punctuation.definition.string.end.assembly.cpp",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1871,7 +1827,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.parens.cpp punctuation.section.parens.end.bracket.round.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp punctuation.section.parens.end.bracket.round.assembly.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

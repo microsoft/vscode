@@ -265,14 +265,6 @@ import product from 'vs/platform/product/node/product';
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
-		submenu: MenuId.MenubarPreferencesMenu,
-		group: '5_autosave',
-		order: 2,
-		when: IsMacContext.toNegated()
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		group: '6_close',
 		command: {
 			id: CloseWorkspaceAction.ID,
@@ -313,13 +305,6 @@ import product from 'vs/platform/product/node/product';
 	});
 
 	// Appereance menu
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '2_appearance',
-		title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
-		submenu: MenuId.MenubarAppearanceMenu,
-		order: 1
-	});
-
 	MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		group: '1_toggle_view',
 		command: {

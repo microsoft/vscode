@@ -91,18 +91,18 @@ suite('ExtHostDiagnostics', () => {
 			new Diagnostic(new Range(0, 0, 1, 1), 'message-2')
 		]);
 
-		let array = collection.get(URI.parse('foo:bar'));
+		let array = collection.get(URI.parse('foo:bar')) as Diagnostic[];
 		assert.throws(() => array.length = 0);
 		assert.throws(() => array.pop());
 		assert.throws(() => array[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
 
-		collection.forEach((uri, array) => {
+		collection.forEach((uri, array: Diagnostic[]) => {
 			assert.throws(() => array.length = 0);
 			assert.throws(() => array.pop());
 			assert.throws(() => array[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
 		});
 
-		array = collection.get(URI.parse('foo:bar'));
+		array = collection.get(URI.parse('foo:bar')) as Diagnostic[];
 		assert.equal(array.length, 2);
 
 		collection.dispose();

@@ -202,7 +202,7 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 enum PushType {
 	Push,
 	PushTo,
-	PushTags,
+	PushFollowTags,
 }
 
 interface PushOptions {
@@ -487,10 +487,10 @@ export class CommandCenter {
 				(_, token) => this.git.clone(url!, parentPath, token)
 			);
 
-			const choices = [];
 			let message = localize('proposeopen', "Would you like to open the cloned repository?");
-			const open = localize('openrepo', "Open Repository");
-			choices.push(open);
+			const open = localize('openrepo', "Open");
+			const openNewWindow = localize('openreponew', "Open in New Window");
+			const choices = [open, openNewWindow];
 
 			const addToWorkspace = localize('add', "Add to Workspace");
 			if (workspace.workspaceFolders) {
@@ -515,6 +515,8 @@ export class CommandCenter {
 				commands.executeCommand('vscode.openFolder', uri);
 			} else if (result === addToWorkspace) {
 				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
+			} else if (result === openNewWindow) {
+				commands.executeCommand('vscode.openFolder', uri, true);
 			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
@@ -599,10 +601,10 @@ export class CommandCenter {
 
 		await this.git.init(repositoryPath);
 
-		const choices = [];
 		let message = localize('proposeopen init', "Would you like to open the initialized repository?");
-		const open = localize('openrepo', "Open Repository");
-		choices.push(open);
+		const open = localize('openrepo', "Open");
+		const openNewWindow = localize('openreponew', "Open in New Window");
+		const choices = [open, openNewWindow];
 
 		if (!askToOpen) {
 			return;
@@ -621,6 +623,8 @@ export class CommandCenter {
 			commands.executeCommand('vscode.openFolder', uri);
 		} else if (result === addToWorkspace) {
 			workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
+		} else if (result === openNewWindow) {
+			commands.executeCommand('vscode.openFolder', uri, true);
 		} else {
 			await this.model.openRepository(repositoryPath);
 		}
@@ -1759,10 +1763,8 @@ export class CommandCenter {
 			}
 		}
 
-		if (pushOptions.pushType === PushType.PushTags) {
-			await repository.pushTags(undefined, forcePushMode);
-
-			window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
+		if (pushOptions.pushType === PushType.PushFollowTags) {
+			await repository.pushFollowTags(undefined, forcePushMode);
 			return;
 		}
 
@@ -1819,13 +1821,13 @@ export class CommandCenter {
 	}
 
 	@command('git.pushWithTags', { repository: true })
-	async pushWithTags(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTags });
+	async pushFollowTags(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushFollowTags });
 	}
 
 	@command('git.pushWithTagsForce', { repository: true })
-	async pushWithTagsForce(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTags, forcePush: true });
+	async pushFollowTagsForce(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushFollowTags, forcePush: true });
 	}
 
 	@command('git.pushTo', { repository: true })

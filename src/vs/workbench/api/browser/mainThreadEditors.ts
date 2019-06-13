@@ -213,7 +213,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return this._bulkEditService.apply({ edits }, undefined).then(() => true, err => false);
 	}
 
-	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): Promise<boolean> {
+	$tryInsertSnippet(id: string, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
