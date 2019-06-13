@@ -33,8 +33,10 @@ import { WebResources } from 'vs/workbench/browser/web.resources';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
+import { joinPath } from 'vs/base/common/resources';
 
 interface IWindowConfiguration {
+	userDataUri: URI;
 	settingsUri: URI;
 	keybindingsUri: URI;
 	remoteAuthority: string;
@@ -140,7 +142,7 @@ class CodeRendererMain extends Disposable {
 		const environmentService = new SimpleWorkbenchEnvironmentService();
 		environmentService.appRoot = '/web/';
 		environmentService.args = { _: [] };
-		environmentService.appSettingsHome = toResource('/web/settings');
+		environmentService.appSettingsHome = joinPath(this.configuration.userDataUri, 'User');
 		environmentService.settingsResource = this.configuration.settingsUri;
 		environmentService.keybindingsResource = this.configuration.keybindingsUri;
 		environmentService.logsPath = '/web/logs';
@@ -148,11 +150,11 @@ class CodeRendererMain extends Disposable {
 			port: null,
 			break: false
 		};
+
 		return environmentService;
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-
 		const workspaceService = new WorkspaceService({ userSettingsResource: this.configuration.settingsUri, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, new ConfigurationFileService(fileService), remoteAgentService);
 
 		try {
@@ -184,6 +186,7 @@ class CodeRendererMain extends Disposable {
 }
 
 export interface IWindowConfigurationContents {
+	userDataPath: string;
 	settingsPath: string;
 	keybindingsPath: string;
 	folderPath?: string;
@@ -192,12 +195,14 @@ export interface IWindowConfigurationContents {
 
 export function main(windowConfigurationContents: IWindowConfigurationContents): Promise<void> {
 	const windowConfiguration: IWindowConfiguration = {
+		userDataUri: toResource(windowConfigurationContents.userDataPath),
 		settingsUri: toResource(windowConfigurationContents.settingsPath),
 		keybindingsUri: toResource(windowConfigurationContents.keybindingsPath),
 		folderUri: windowConfigurationContents.folderPath ? toResource(windowConfigurationContents.folderPath) : undefined,
 		workspaceUri: windowConfigurationContents.workspacePath ? toResource(windowConfigurationContents.workspacePath) : undefined,
 		remoteAuthority: document.location.host
 	};
+
 	const renderer = new CodeRendererMain(windowConfiguration);
 	return renderer.open();
 }
