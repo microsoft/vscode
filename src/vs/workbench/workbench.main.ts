@@ -7,7 +7,7 @@
 
 import 'vs/editor/editor.all';
 
-import 'vs/workbench/api/electron-browser/extensionHost.contribution';
+import 'vs/workbench/api/browser/extensionHost.contribution';
 
 import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/browser/workbench.contribution';
@@ -91,8 +91,8 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/workbench/services/remote/node/tunnelService';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-
-import 'vs/platform/remote/node/tunnelService';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/integrity/node/integrityService';
@@ -102,9 +102,8 @@ import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService
 import 'vs/workbench/services/extensions/common/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/decorations/browser/decorationsService';
 import 'vs/workbench/services/search/node/searchService';
-import 'vs/workbench/services/progress/browser/progressService2';
+import 'vs/workbench/services/progress/browser/progressService';
 import 'vs/workbench/services/editor/browser/codeEditorService';
-import 'vs/workbench/services/broadcast/electron-browser/broadcastService';
 import 'vs/workbench/services/extensions/electron-browser/extensionHostDebugService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/output/node/outputChannelModelService';
@@ -118,9 +117,11 @@ import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/browser/parts/views/views';
-import 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
+import 'vs/workbench/services/keybinding/electron-browser/keybinding.contribution';
+import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledEditorService';
-import 'vs/workbench/services/textfile/node/textResourcePropertiesService';
+import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
 import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
@@ -132,7 +133,6 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensions/electron-browser/extensionManagementServerService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/notification/common/notificationService';
-import 'vs/workbench/services/heap/node/heap';
 import 'vs/workbench/services/window/electron-browser/windowService';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 
@@ -163,8 +163,10 @@ registerSingleton(IMenubarService, MenubarService);
 registerSingleton(IURLService, RelayURLService);
 registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
+registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 
 //#endregion
+
 
 //#region --- workbench parts
 
@@ -179,6 +181,7 @@ import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 
 //#endregion
 
+
 //#region --- workbench contributions
 
 // Workspace File Watching
@@ -191,8 +194,11 @@ import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
 // Preferences
-import 'vs/workbench/contrib/preferences/electron-browser/preferences.contribution';
+import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
+import { IPreferencesSearchService } from 'vs/workbench/contrib/preferences/common/preferences';
+import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/electron-browser/preferencesSearch';
+registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
 
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
@@ -264,6 +270,9 @@ import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-browser/task.contribution';
 
+// Remote
+import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
+
 // Emmet
 import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
 
@@ -285,7 +294,7 @@ import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import 'vs/workbench/contrib/format/browser/format.contribution';
 
 // Send a Smile
-import 'vs/workbench/contrib/feedback/electron-browser/feedback.contribution';
+import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
 // Update
 import 'vs/workbench/contrib/update/electron-browser/update.contribution';
@@ -321,9 +330,6 @@ import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
 // Experiments
 import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';
-
-// Code Insets
-import 'vs/workbench/contrib/codeinset/electron-browser/codeInset.contribution';
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';

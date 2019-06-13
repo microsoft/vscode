@@ -28,7 +28,7 @@ export interface IProductConfiguration {
 	settingsSearchUrl?: string;
 	experimentsUrl?: string;
 	date: string;
-	extensionsGallery: {
+	extensionsGallery?: {
 		serviceUrl: string;
 		itemUrl: string;
 		controlUrl: string;
@@ -61,6 +61,7 @@ export interface IProductConfiguration {
 	keyboardShortcutsUrlWin: string;
 	introductoryVideosUrl: string;
 	tipsAndTricksUrl: string;
+	newsletterSignupUrl: string;
 	twitterUrl: string;
 	requestFeatureUrl: string;
 	reportIssueUrl: string;
@@ -74,7 +75,6 @@ export interface IProductConfiguration {
 	hockeyApp: {
 		'win32-ia32': string;
 		'win32-x64': string;
-		'linux-ia32': string;
 		'linux-x64': string;
 		'darwin': string;
 	};

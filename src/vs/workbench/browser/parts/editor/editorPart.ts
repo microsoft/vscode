@@ -31,6 +31,7 @@ import { IView, orthogonal, LayoutPriority } from 'vs/base/browser/ui/grid/gridv
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { MementoObject } from 'vs/workbench/common/memento';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -118,8 +119,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private _preferredSize: Dimension | undefined;
 
-	private workspaceMemento: object;
-	private globalMemento: object;
+	private readonly workspaceMemento: MementoObject;
+	private readonly globalMemento: MementoObject;
 
 	private _partOptions: IEditorPartOptions;
 

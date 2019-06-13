@@ -15,7 +15,6 @@ import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { dirname, basename } from 'vs/base/common/resources';
-import { escape } from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -23,6 +22,7 @@ import { IListVirtualDelegate, IKeyboardNavigationLabelProvider, IIdentityProvid
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 
 //#region data source
 
@@ -82,8 +82,14 @@ export class StringRepresentationProvider implements IKeyboardNavigationLabelPro
 	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService) { }
 
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } {
-		// todo@joao `OneReference` elements are lazy and their "real" label
-		// isn't known yet
+		if (element instanceof OneReference) {
+			const { preview } = element.parent;
+			const parts = preview && preview.preview(element.range);
+			if (parts) {
+				return parts.value;
+			}
+		}
+		// FileReferences or unresolved OneReference
 		return basename(element.uri);
 	}
 
@@ -161,31 +167,29 @@ export class FileReferencesRenderer implements ITreeRenderer<FileReferences, Fuz
 //#region render: Reference
 class OneReferenceTemplate {
 
-	readonly before: HTMLSpanElement;
-	readonly inside: HTMLSpanElement;
-	readonly after: HTMLSpanElement;
+	readonly label: HighlightedLabel;
 
 	constructor(container: HTMLElement) {
-		const parent = document.createElement('div');
-		this.before = document.createElement('span');
-		this.inside = document.createElement('span');
-		this.after = document.createElement('span');
-		dom.addClass(this.inside, 'referenceMatch');
-		dom.addClass(parent, 'reference');
-		parent.appendChild(this.before);
-		parent.appendChild(this.inside);
-		parent.appendChild(this.after);
-		container.appendChild(parent);
+		this.label = new HighlightedLabel(container, false);
 	}
 
-	set(element: OneReference): void {
+	set(element: OneReference, score?: FuzzyScore): void {
 		const filePreview = element.parent.preview;
 		const preview = filePreview && filePreview.preview(element.range);
-		if (preview) {
-			const { before, inside, after } = preview;
-			this.before.innerHTML = escape(before);
-			this.inside.innerHTML = escape(inside);
-			this.after.innerHTML = escape(after);
+		if (!preview) {
+			// this means we FAILED to resolve the document...
+			this.label.set(`${basename(element.uri)}:${element.range.startLineNumber + 1}:${element.range.startColumn + 1}`);
+		} else {
+			// render search match as highlight unless
+			// we have score, then render the score
+			const { value, highlight } = preview;
+			if (score && !FuzzyScore.isDefault(score)) {
+				dom.toggleClass(this.label.element, 'referenceMatch', false);
+				this.label.set(value, createMatches(score));
+			} else {
+				dom.toggleClass(this.label.element, 'referenceMatch', true);
+				this.label.set(value, [highlight]);
+			}
 		}
 	}
 }
@@ -199,11 +203,10 @@ export class OneReferenceRenderer implements ITreeRenderer<OneReference, FuzzySc
 	renderTemplate(container: HTMLElement): OneReferenceTemplate {
 		return new OneReferenceTemplate(container);
 	}
-	renderElement(element: ITreeNode<OneReference, FuzzyScore>, index: number, templateData: OneReferenceTemplate): void {
-		templateData.set(element.element);
+	renderElement(node: ITreeNode<OneReference, FuzzyScore>, index: number, templateData: OneReferenceTemplate): void {
+		templateData.set(node.element, node.filterData);
 	}
 	disposeTemplate(): void {
-		//
 	}
 }
 

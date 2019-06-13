@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -103,7 +103,7 @@ suite('CommandService', function () {
 	test('Stop waiting for * extensions to activate when trigger is satisfied #62457', function () {
 
 		let callCounter = 0;
-		let dispoables: IDisposable[] = [];
+		const dispoables = new DisposableStore();
 		let events: string[] = [];
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 
@@ -118,7 +118,7 @@ suite('CommandService', function () {
 							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
 								callCounter += 1;
 							});
-							dispoables.push(reg);
+							dispoables.add(reg);
 							resolve();
 						}, 0);
 					});
@@ -131,14 +131,15 @@ suite('CommandService', function () {
 		return service.executeCommand('farboo').then(() => {
 			assert.equal(callCounter, 1);
 			assert.deepEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
-			dispose(dispoables);
+		}).finally(() => {
+			dispoables.dispose();
 		});
 	});
 
 	test('issue #71471: wait for onCommand activation even if a command is registered', () => {
 		let expectedOrder: string[] = ['registering command', 'resolving activation event', 'executing command'];
 		let actualOrder: string[] = [];
-		let disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 
 			activateByEvent(event: string): Promise<void> {
@@ -153,7 +154,7 @@ suite('CommandService', function () {
 							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
 								actualOrder.push('executing command');
 							});
-							disposables.push(reg);
+							disposables.add(reg);
 
 							setTimeout(() => {
 								// Resolve the activation event after some more time
@@ -170,7 +171,8 @@ suite('CommandService', function () {
 
 		return service.executeCommand('farboo2').then(() => {
 			assert.deepEqual(actualOrder, expectedOrder);
-			dispose(disposables);
+		}).finally(() => {
+			disposables.dispose();
 		});
 	});
 });

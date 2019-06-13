@@ -38,7 +38,7 @@
 }
 
 .extensions-viewlet > .extensions .extensions-list.hidden,
-.extensions-viewlet > .extensions .message.hidden {
+.extensions-viewlet > .extensions .message-container.hidden {
 	display: none;
 	visibility: hidden;
 }
@@ -51,9 +51,14 @@
 	flex: 1;
 }
 
-.extensions-viewlet > .extensions .message {
+.extensions-viewlet > .extensions .message-container {
 	padding: 5px 9px 5px 16px;
 	cursor: default;
+	display: flex;
+}
+
+.extensions-viewlet > .extensions .message-container .message {
+	padding-left: 5px;
 }
 
 .extensions-viewlet > .extensions .monaco-list-row > .bookmark {
@@ -110,7 +115,9 @@
 	height: 22px;
 	line-height: 22px;
 	border-radius: 20px;
-	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header > .extension-remote-badge-container {
@@ -123,11 +130,13 @@
 	line-height: 14px;
 	border-radius: 20px;
 	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header .extension-remote-badge > .octicon {
-	font-size: 13px;
-	vertical-align: middle;
+	font-size: 12px;
 }
 
 .extensions-viewlet.narrow > .extensions .extension > .icon-container,
@@ -222,6 +231,14 @@
 
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container {
 	flex-wrap: wrap-reverse;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container .extension-action {
+	max-width: 150px;
+}
+
+.extensions-viewlet.narrow > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container .extension-action {
+	max-width: 100px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label {

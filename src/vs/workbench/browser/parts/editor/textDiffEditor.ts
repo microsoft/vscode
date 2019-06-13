@@ -72,7 +72,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration);
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables = dispose(this.diffNavigatorDisposables);
@@ -81,56 +81,55 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		this.saveTextDiffEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options, token).then(() => {
-			return input.resolve().then(resolvedModel => {
+		await super.setInput(input, options, token);
 
-				// Check for cancellation
-				if (token.isCancellationRequested) {
-					return undefined;
-				}
+		try {
+			const resolvedModel = await input.resolve();
 
-				// Assert Model Instance
-				if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
-					return undefined;
-				}
-
-				// Set Editor Model
-				const diffEditor = this.getControl();
-				const resolvedDiffEditorModel = <TextDiffEditorModel>resolvedModel;
-				diffEditor.setModel(resolvedDiffEditorModel.textDiffEditorModel);
-
-				// Apply Options from TextOptions
-				let optionsGotApplied = false;
-				if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-					optionsGotApplied = (<TextEditorOptions>options).apply(diffEditor, ScrollType.Immediate);
-				}
-
-				// Otherwise restore View State
-				let hasPreviousViewState = false;
-				if (!optionsGotApplied) {
-					hasPreviousViewState = this.restoreTextDiffEditorViewState(input);
-				}
-
-				// Diff navigator
-				this.diffNavigator = new DiffNavigator(diffEditor, {
-					alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
-				});
-				this.diffNavigatorDisposables.push(this.diffNavigator);
-
-				// Readonly flag
-				diffEditor.updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
+			// Check for cancellation
+			if (token.isCancellationRequested) {
 				return undefined;
-			}, error => {
+			}
 
-				// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
-				if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
-					return null;
-				}
+			// Assert Model Instance
+			if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
+				return undefined;
+			}
 
-				// Otherwise make sure the error bubbles up
-				return Promise.reject(error);
+			// Set Editor Model
+			const diffEditor = this.getControl();
+			const resolvedDiffEditorModel = <TextDiffEditorModel>resolvedModel;
+			diffEditor.setModel(resolvedDiffEditorModel.textDiffEditorModel);
+
+			// Apply Options from TextOptions
+			let optionsGotApplied = false;
+			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+				optionsGotApplied = (<TextEditorOptions>options).apply(diffEditor, ScrollType.Immediate);
+			}
+
+			// Otherwise restore View State
+			let hasPreviousViewState = false;
+			if (!optionsGotApplied) {
+				hasPreviousViewState = this.restoreTextDiffEditorViewState(input);
+			}
+
+			// Diff navigator
+			this.diffNavigator = new DiffNavigator(diffEditor, {
+				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
 			});
-		});
+			this.diffNavigatorDisposables.push(this.diffNavigator);
+
+			// Readonly flag
+			diffEditor.updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
+		} catch (error) {
+
+			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
+			if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
+				return;
+			}
+
+			throw error;
+		}
 	}
 
 	setOptions(options: EditorOptions): void {

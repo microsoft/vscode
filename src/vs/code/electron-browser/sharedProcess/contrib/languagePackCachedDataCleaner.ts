@@ -8,7 +8,7 @@ import * as pfs from 'vs/base/node/pfs';
 
 import { IStringDictionary } from 'vs/base/common/collections';
 import product from 'vs/platform/product/node/product';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -30,23 +30,18 @@ interface LanguagePackFile {
 	[locale: string]: LanguagePackEntry;
 }
 
-export class LanguagePackCachedDataCleaner {
-
-	private _disposables: IDisposable[] = [];
+export class LanguagePackCachedDataCleaner extends Disposable {
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService
 	) {
+		super();
 		// We have no Language pack support for dev version (run from source)
 		// So only cleanup when we have a build version.
 		if (this._environmentService.isBuilt) {
 			this._manageCachedDataSoon();
 		}
-	}
-
-	dispose(): void {
-		this._disposables = dispose(this._disposables);
 	}
 
 	private _manageCachedDataSoon(): void {
@@ -101,12 +96,10 @@ export class LanguagePackCachedDataCleaner {
 			}
 		}, 40 * 1000);
 
-		this._disposables.push({
-			dispose() {
-				if (handle !== undefined) {
-					clearTimeout(handle);
-				}
+		this._register(toDisposable(() => {
+			if (handle !== undefined) {
+				clearTimeout(handle);
 			}
-		});
+		}));
 	}
 }

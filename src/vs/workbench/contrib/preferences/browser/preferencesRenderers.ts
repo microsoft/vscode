@@ -56,13 +56,13 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
 	private associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 
-	private readonly _onFocusPreference = new Emitter<ISetting>();
+	private readonly _onFocusPreference = this._register(new Emitter<ISetting>());
 	readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
 
-	private readonly _onClearFocusPreference = new Emitter<ISetting>();
+	private readonly _onClearFocusPreference = this._register(new Emitter<ISetting>());
 	readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
-	private readonly _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
+	private readonly _onUpdatePreference = this._register(new Emitter<{ key: string, value: any, source: IIndexedSetting }>());
 	readonly onUpdatePreference: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdatePreference.event;
 
 	private filterResult: IFilterResult | undefined;
@@ -233,13 +233,13 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private bracesHidingRenderer: BracesHidingRenderer;
 	private filterResult: IFilterResult | undefined;
 
-	private readonly _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
+	private readonly _onUpdatePreference = this._register(new Emitter<{ key: string, value: any, source: IIndexedSetting }>());
 	readonly onUpdatePreference: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdatePreference.event;
 
-	private readonly _onFocusPreference = new Emitter<ISetting>();
+	private readonly _onFocusPreference = this._register(new Emitter<ISetting>());
 	readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
 
-	private readonly _onClearFocusPreference = new Emitter<ISetting>();
+	private readonly _onClearFocusPreference = this._register(new Emitter<ISetting>());
 	readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
 	constructor(protected editor: ICodeEditor, readonly preferencesModel: DefaultSettingsEditorModel,
@@ -436,13 +436,13 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 
 export class SettingsGroupTitleRenderer extends Disposable implements HiddenAreasProvider {
 
-	private readonly _onHiddenAreasChanged = new Emitter<void>();
+	private readonly _onHiddenAreasChanged = this._register(new Emitter<void>());
 	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; }
 
 	private settingsGroups: ISettingsGroup[];
 	private hiddenGroups: ISettingsGroup[] = [];
 	private settingsGroupTitleWidgets: SettingsGroupTitleWidget[];
-	private disposables: IDisposable[] = [];
+	private renderDisposables: IDisposable[] = [];
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -474,8 +474,8 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 			const settingsGroupTitleWidget = this.instantiationService.createInstance(SettingsGroupTitleWidget, this.editor, group);
 			settingsGroupTitleWidget.render();
 			this.settingsGroupTitleWidgets.push(settingsGroupTitleWidget);
-			this.disposables.push(settingsGroupTitleWidget);
-			this.disposables.push(settingsGroupTitleWidget.onToggled(collapsed => this.onToggled(collapsed, settingsGroupTitleWidget.settingsGroup)));
+			this.renderDisposables.push(settingsGroupTitleWidget);
+			this.renderDisposables.push(settingsGroupTitleWidget.onToggled(collapsed => this.onToggled(collapsed, settingsGroupTitleWidget.settingsGroup)));
 		}
 		this.settingsGroupTitleWidgets.reverse();
 	}
@@ -515,7 +515,7 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 
 	private disposeWidgets() {
 		this.hiddenGroups = [];
-		this.disposables = dispose(this.disposables);
+		this.renderDisposables = dispose(this.renderDisposables);
 	}
 
 	dispose() {

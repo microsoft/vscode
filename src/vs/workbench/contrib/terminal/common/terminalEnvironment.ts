@@ -98,6 +98,7 @@ function _getLangEnvVariable(locale?: string) {
 			es: 'ES',
 			fi: 'FI',
 			fr: 'FR',
+			hu: 'HU',
 			it: 'IT',
 			ja: 'JP',
 			ko: 'KR',
@@ -164,15 +165,14 @@ export function mergeDefaultShellPathAndArgs(
 	shell: IShellLaunchConfig,
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
+	defaultShell: string,
 	platformOverride: platform.Platform = platform.platform
 ): void {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellConfigValue = fetchSetting(`terminal.integrated.shell.${platformKey}`);
-	// const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
 	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
-	// const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 
-	shell.executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || <string>shellConfigValue.default;
+	shell.executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || (<string | null>shellConfigValue.default || defaultShell);
 	shell.args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
 
 	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
@@ -198,7 +198,8 @@ export function createTerminalEnvironment(
 	configurationResolverService: IConfigurationResolverService | undefined,
 	isWorkspaceShellAllowed: boolean,
 	version: string | undefined,
-	setLocaleVariables: boolean
+	setLocaleVariables: boolean,
+	baseEnv: platform.IProcessEnvironment
 ): platform.IProcessEnvironment {
 	// Create a terminal environment based on settings, launch config and permissions
 	let env: platform.IProcessEnvironment = {};
@@ -207,7 +208,7 @@ export function createTerminalEnvironment(
 		mergeNonNullKeys(env, shellLaunchConfig.env);
 	} else {
 		// Merge process env with the env from config and from shellLaunchConfig
-		mergeNonNullKeys(env, process.env);
+		mergeNonNullKeys(env, baseEnv);
 
 		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		// const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);

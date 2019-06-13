@@ -44,6 +44,7 @@ configurationRegistry.registerConfiguration({
 		'update.showReleaseNotes': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.APPLICATION,
 			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices']
 		}

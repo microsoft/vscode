@@ -14,8 +14,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isUIExtension } from 'vs/workbench/services/extensions/node/extensionsUtil';
+import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IProductService } from 'vs/platform/product/common/product';
 
 const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
 const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
@@ -36,6 +37,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
@@ -137,7 +139,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 			return disabledExtensions.some(id => areSameExtensions({ id }, extension.identifier));
 		}
 		if (this.environmentService.configuration.remoteAuthority) {
-			const server = isUIExtension(extension.manifest, this.configurationService) ? this.extensionManagementServerService.localExtensionManagementServer : this.extensionManagementServerService.remoteExtensionManagementServer;
+			const server = isUIExtension(extension.manifest, this.productService, this.configurationService) ? this.extensionManagementServerService.localExtensionManagementServer : this.extensionManagementServerService.remoteExtensionManagementServer;
 			return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
 		}
 		return false;

@@ -240,8 +240,8 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		return { container, twistie, templateData };
 	}
 
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, dynamicHeightProbing?: boolean): void {
-		if (!dynamicHeightProbing) {
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
+		if (typeof height === 'number') {
 			this.renderedNodes.set(node, templateData);
 			this.renderedElements.set(node.element, node);
 		}
@@ -250,15 +250,15 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		templateData.twistie.style.marginLeft = `${indent}px`;
 		this.update(node, templateData);
 
-		this.renderer.renderElement(node, index, templateData.templateData, dynamicHeightProbing);
+		this.renderer.renderElement(node, index, templateData.templateData, height);
 	}
 
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, dynamicHeightProbing?: boolean): void {
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
 		if (this.renderer.disposeElement) {
-			this.renderer.disposeElement(node, index, templateData.templateData, dynamicHeightProbing);
+			this.renderer.disposeElement(node, index, templateData.templateData, height);
 		}
 
-		if (!dynamicHeightProbing) {
+		if (typeof height === 'number') {
 			this.renderedNodes.delete(node);
 			this.renderedElements.delete(node.element);
 		}
@@ -789,12 +789,18 @@ class Trait<T> {
 			return;
 		}
 
+		this._set(nodes, false, browserEvent);
+	}
+
+	private _set(nodes: ITreeNode<T, any>[], silent: boolean, browserEvent?: UIEvent): void {
 		this.nodes = [...nodes];
 		this.elements = undefined;
 		this._nodeSet = undefined;
 
-		const that = this;
-		this._onDidChange.fire({ get elements() { return that.get(); }, browserEvent });
+		if (!silent) {
+			const that = this;
+			this._onDidChange.fire({ get elements() { return that.get(); }, browserEvent });
+		}
 	}
 
 	get(): T[] {
@@ -827,6 +833,7 @@ class Trait<T> {
 		insertedNodes.forEach(node => dfs(node, insertedNodesVisitor));
 
 		const nodes: ITreeNode<T, any>[] = [];
+		let silent = true;
 
 		for (const node of this.nodes) {
 			const id = this.identityProvider.getId(node.element).toString();
@@ -839,11 +846,13 @@ class Trait<T> {
 
 				if (insertedNode) {
 					nodes.push(insertedNode);
+				} else {
+					silent = false;
 				}
 			}
 		}
 
-		this.set(nodes);
+		this._set(nodes, silent);
 	}
 
 	private createNodeSet(): Set<ITreeNode<T, any>> {

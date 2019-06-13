@@ -18,6 +18,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 
 interface CommandHandler {
 	callback: Function;
@@ -209,6 +210,35 @@ export class CommandsConverter {
 		this._commands = commands;
 		this._heap = heap;
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
+	}
+
+	toInternal2(command: vscode.Command | undefined, disposables: DisposableStore): CommandDto | undefined {
+
+		if (!command) {
+			return undefined;
+		}
+
+		const result: CommandDto = {
+			$ident: undefined,
+			id: command.command,
+			title: command.title,
+			tooltip: command.tooltip
+		};
+
+		if (command.command && isNonEmptyArray(command.arguments)) {
+			// we have a contributed command with arguments. that
+			// means we don't want to send the arguments around
+
+			const id = this._heap.keep(command);
+			disposables.add(toDisposable(() => this._heap.delete(id)));
+			result.$ident = id;
+
+			result.id = this._delegatingCommandId;
+			result.arguments = [id];
+
+		}
+
+		return result;
 	}
 
 	toInternal(command: vscode.Command): CommandDto;

@@ -10,7 +10,7 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { extname } from 'vs/base/common/path';
-import { dirname, resolvePath, isEqualAuthority, isEqualOrParent, relativePath } from 'vs/base/common/resources';
+import { dirname, resolvePath, isEqualAuthority, isEqualOrParent, relativePath, extname as resourceExtname } from 'vs/base/common/resources';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import * as json from 'vs/base/common/json';
 import { Schemas } from 'vs/base/common/network';
@@ -158,8 +158,10 @@ export function isSingleFolderWorkspaceInitializationPayload(obj: any): obj is I
 
 const WORKSPACE_SUFFIX = '.' + WORKSPACE_EXTENSION;
 
-export function hasWorkspaceFileExtension(path: string) {
-	return extname(path) === WORKSPACE_SUFFIX;
+export function hasWorkspaceFileExtension(path: string | URI) {
+	const ext = (typeof path === 'string') ? extname(path) : resourceExtname(path);
+
+	return ext === WORKSPACE_SUFFIX;
 }
 
 const SLASH = '/';

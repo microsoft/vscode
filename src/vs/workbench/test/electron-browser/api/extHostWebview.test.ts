@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MainThreadWebviews } from 'vs/workbench/api/electron-browser/mainThreadWebview';
+import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebview';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import * as vscode from 'vscode';

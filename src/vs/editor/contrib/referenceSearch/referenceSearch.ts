@@ -61,7 +61,7 @@ export class ReferenceAction extends EditorAction {
 		super({
 			id: 'editor.action.referenceSearch.trigger',
 			label: nls.localize('references.action.label', "Peek References"),
-			alias: 'Find All References', // leave the alias?
+			alias: 'Peek References',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,

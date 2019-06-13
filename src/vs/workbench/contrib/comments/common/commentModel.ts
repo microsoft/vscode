@@ -98,7 +98,7 @@ export class CommentsModel {
 			const index = firstIndex(matchingResourceData.commentThreads, (commentThread) => commentThread.threadId === thread.threadId);
 			if (index >= 0) {
 				matchingResourceData.commentThreads[index] = ResourceWithCommentThreads.createCommentNode(URI.parse(matchingResourceData.id), thread);
-			} else {
+			} else if (thread.comments && thread.comments.length) {
 				matchingResourceData.commentThreads.push(ResourceWithCommentThreads.createCommentNode(URI.parse(matchingResourceData.id), thread));
 			}
 		});

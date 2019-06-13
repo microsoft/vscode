@@ -441,7 +441,9 @@
 					"**/vs/platform/**/{common,browser}/**",
 					"**/vs/editor/{common,browser}/**",
 					"**/vs/workbench/{common,browser}/**",
-					"**/vs/workbench/services/**/{common,browser}/**"
+					"**/vs/workbench/services/**/{common,browser}/**",
+					"vscode-textmate",
+					"onigasm-umd"
 				]
 			},
 			{
@@ -504,7 +506,9 @@
 			{
 				"target": "**/vs/workbench/contrib/terminal/browser/**",
 				"restrictions": [
-					"vscode-xterm",
+					// xterm and its addons are strictly browser-only components
+					"xterm",
+					"xterm-addon-*",
 					"**/vs/**"
 				]
 			},
@@ -539,7 +543,19 @@
 					"**/vs/base/parts/**/{common,browser,node,electron-main}/**",
 					"**/vs/platform/**/{common,browser,node,electron-main}/**",
 					"**/vs/code/**/{common,browser,node,electron-main}/**",
-					"**/vs/code/code.main",
+					"*" // node modules
+				]
+			},
+			{
+				"target": "**/vs/server/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/**/{common,node}/**",
+					"**/vs/base/parts/**/{common,node}/**",
+					"**/vs/platform/**/{common,node}/**",
+					"**/vs/workbench/**/{common,node}/**",
+					"**/vs/server/**",
+					"**/vs/code/**/{common,node}/**",
 					"*" // node modules
 				]
 			},

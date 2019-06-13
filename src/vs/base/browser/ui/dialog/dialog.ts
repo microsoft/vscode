@@ -15,6 +15,7 @@ import { ButtonGroup, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export interface IDialogOptions {
 	cancelId?: number;
@@ -30,6 +31,11 @@ export interface IDialogStyles extends IButtonStyles {
 	dialogBorder?: Color;
 }
 
+interface ButtonMapEntry {
+	label: string;
+	index: number;
+}
+
 export class Dialog extends Disposable {
 	private element: HTMLElement | undefined;
 	private modal: HTMLElement | undefined;
@@ -40,7 +46,6 @@ export class Dialog extends Disposable {
 	private buttonGroup: ButtonGroup | undefined;
 	private styles: IDialogStyles | undefined;
 	private focusToReturn: HTMLElement | undefined;
-	private iconRotatingInternal: any | undefined;
 
 	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
 		super();
@@ -93,12 +98,13 @@ export class Dialog extends Disposable {
 
 			let focusedButton = 0;
 			this.buttonGroup = new ButtonGroup(this.buttonsContainer, this.buttons.length, { title: true });
+			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
 			this.buttonGroup.buttons.forEach((button, index) => {
-				button.label = mnemonicButtonLabel(this.buttons[index], true);
+				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 
 				this._register(button.onDidClick(e => {
 					EventHelper.stop(e);
-					resolve(index);
+					resolve(buttonMap[index].index);
 				}));
 			});
 
@@ -163,15 +169,6 @@ export class Dialog extends Disposable {
 					break;
 				case 'pending':
 					addClass(this.iconElement, 'icon-pending');
-					let deg = 0;
-					this.iconRotatingInternal = setInterval(() => {
-						if (this.iconElement) {
-							this.iconElement.style.transform = `rotate(${deg}deg)`;
-							deg += 45; // 360 / 8
-						} else {
-							this.iconRotatingInternal = undefined;
-						}
-					}, 125 /** 1000 / 8 */);
 					break;
 				case 'none':
 				case 'info':
@@ -233,13 +230,27 @@ export class Dialog extends Disposable {
 			this.modal = undefined;
 		}
 
-		if (this.iconRotatingInternal) {
-			this.iconRotatingInternal = undefined;
-		}
-
 		if (this.focusToReturn && isAncestor(this.focusToReturn, document.body)) {
 			this.focusToReturn.focus();
 			this.focusToReturn = undefined;
 		}
+	}
+
+	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
+		const buttonMap: ButtonMapEntry[] = [];
+		// Maps each button to its current label and old index so that when we move them around it's not a problem
+		buttons.forEach((button, index) => {
+			buttonMap.push({ label: button, index: index });
+		});
+
+		if (isMacintosh) {
+			if (cancelId !== undefined) {
+				const cancelButton = buttonMap.splice(cancelId, 1)[0];
+				buttonMap.reverse();
+				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
+			}
+		}
+
+		return buttonMap;
 	}
 }

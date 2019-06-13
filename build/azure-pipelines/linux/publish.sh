@@ -5,8 +5,6 @@ ROOT="$REPO/.."
 
 # Publish tarball
 PLATFORM_LINUX="linux-$VSCODE_ARCH"
-[[ "$VSCODE_ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
-[[ "$VSCODE_ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
 BUILDNAME="VSCode-$PLATFORM_LINUX"
 BUILD="$ROOT/$BUILDNAME"
 BUILD_VERSION="$(date +%s)"
@@ -20,13 +18,26 @@ rm -rf $ROOT/code-*.tar.*
 
 node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_LINUX" archive-unsigned "$TARBALL_FILENAME" "$VERSION" true "$TARBALL_PATH"
 
+# Publish Remote Extension Host
+if [[ "$VSCODE_ARCH" != "ia32" ]]; then
+	LEGACY_SERVER_BUILD_NAME="vscode-reh-$PLATFORM_LINUX"
+	SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX"
+	SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX.tar.gz"
+	SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
+
+	rm -rf $ROOT/vscode-server-*.tar.*
+	(cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
+
+	node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "server-$PLATFORM_LINUX" archive-unsigned "$SERVER_TARBALL_FILENAME" "$VERSION" true "$SERVER_TARBALL_PATH"
+fi
+
 # Publish hockeyapp symbols
 node build/azure-pipelines/common/symbols.js "$VSCODE_MIXIN_PASSWORD" "$VSCODE_HOCKEYAPP_TOKEN" "$VSCODE_ARCH" "$VSCODE_HOCKEYAPP_ID_LINUX64"
 
 # Publish DEB
 yarn gulp "vscode-linux-$VSCODE_ARCH-build-deb"
 PLATFORM_DEB="linux-deb-$VSCODE_ARCH"
-[[ "$VSCODE_ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
+DEB_ARCH="amd64"
 DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
 DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
 
@@ -35,7 +46,7 @@ node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "$PLATFORM_DEB" p
 # Publish RPM
 yarn gulp "vscode-linux-$VSCODE_ARCH-build-rpm"
 PLATFORM_RPM="linux-rpm-$VSCODE_ARCH"
-[[ "$VSCODE_ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
+RPM_ARCH="x86_64"
 RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
 RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
 

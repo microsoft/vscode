@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import * as modes from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -106,6 +106,16 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		this._onDidChangeLabel.fire(this._label);
 	}
 
+	private _contextValue: string | undefined;
+
+	get contextValue(): string | undefined {
+		return this._contextValue;
+	}
+
+	set contextValue(context: string | undefined) {
+		this._contextValue = context;
+	}
+
 	private _onDidChangeLabel = new Emitter<string>();
 	get onDidChangeLabel(): Event<string> { return this._onDidChangeLabel.event; }
 
@@ -192,7 +202,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 
 	constructor(
 		public commentThreadHandle: number,
-		public controller: MainThreadCommentController,
+		public controllerHandle: number,
 		public extensionId: string,
 		public threadId: string,
 		public resource: string,
@@ -204,6 +214,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	batchUpdate(
 		range: IRange,
 		label: string,
+		contextValue: string | undefined,
 		comments: modes.Comment[],
 		acceptInputCommand: modes.Command | undefined,
 		additionalCommands: modes.Command[],
@@ -211,6 +222,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 		collapsibleState: modes.CommentThreadCollapsibleState) {
 		this._range = range;
 		this._label = label;
+		this._contextValue = contextValue;
 		this._comments = comments;
 		this._acceptInputCommand = acceptInputCommand;
 		this._additionalCommands = additionalCommands;
@@ -232,7 +244,7 @@ export class MainThreadCommentThread implements modes.CommentThread2 {
 	toJSON(): any {
 		return {
 			$mid: 7,
-			commentControlHandle: this.controller.handle,
+			commentControlHandle: this.controllerHandle,
 			commentThreadHandle: this.commentThreadHandle,
 		};
 	}
@@ -244,6 +256,10 @@ export class MainThreadCommentController {
 	}
 
 	get id(): string {
+		return this._id;
+	}
+
+	get contextValue(): string {
 		return this._id;
 	}
 
@@ -268,6 +284,9 @@ export class MainThreadCommentController {
 	private readonly _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
 	public activeCommentThread?: MainThreadCommentThread;
 
+	get features(): CommentProviderFeatures {
+		return this._features;
+	}
 
 	constructor(
 		private readonly _proxy: ExtHostCommentsShape,
@@ -283,27 +302,34 @@ export class MainThreadCommentController {
 		this._features = features;
 	}
 
-	createCommentThread(commentThreadHandle: number,
+	createCommentThread(extensionId: string,
+		commentThreadHandle: number,
 		threadId: string,
 		resource: UriComponents,
 		range: IRange,
 	): modes.CommentThread2 {
 		let thread = new MainThreadCommentThread(
 			commentThreadHandle,
-			this,
-			'',
+			this.handle,
+			extensionId,
 			threadId,
 			URI.revive(resource).toString(),
 			range
 		);
 
 		this._threads.set(commentThreadHandle, thread);
-		this._commentService.updateComments(this._uniqueId, {
-			added: [thread],
-			removed: [],
-			changed: [],
-			draftMode: modes.DraftMode.NotSupported
-		});
+
+		// As we create comment thread from template and then restore from the newly created maint thread comment thread,
+		// we postpone the update event to avoid duplication.
+		// This can be actually removed once we are on the new API.
+		setTimeout(() => {
+			this._commentService.updateComments(this._uniqueId, {
+				added: [thread],
+				removed: [],
+				changed: [],
+				draftMode: modes.DraftMode.NotSupported
+			});
+		}, 0);
 
 		return thread;
 	}
@@ -313,13 +339,14 @@ export class MainThreadCommentController {
 		resource: UriComponents,
 		range: IRange,
 		label: string,
+		contextValue: string | undefined,
 		comments: modes.Comment[],
 		acceptInputCommand: modes.Command | undefined,
 		additionalCommands: modes.Command[],
 		deleteCommand: modes.Command | undefined,
 		collapsibleState: modes.CommentThreadCollapsibleState): void {
 		let thread = this.getKnownThread(commentThreadHandle);
-		thread.batchUpdate(range, label, comments, acceptInputCommand, additionalCommands, deleteCommand, collapsibleState);
+		thread.batchUpdate(range, label, contextValue, comments, acceptInputCommand, additionalCommands, deleteCommand, collapsibleState);
 
 		this._commentService.updateComments(this._uniqueId, {
 			added: [],
@@ -341,6 +368,14 @@ export class MainThreadCommentController {
 		});
 
 		thread.dispose();
+	}
+
+	deleteCommentThreadMain(commentThreadId: string) {
+		this._threads.forEach(thread => {
+			if (thread.threadId === commentThreadId) {
+				this._proxy.$deleteCommentThread(this._handle, thread.commentThreadHandle);
+			}
+		});
 	}
 
 	updateInput(input: string) {
@@ -371,17 +406,25 @@ export class MainThreadCommentController {
 		}
 
 		let commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
+		let staticContribution = await this._proxy.$checkStaticContribution(this.handle);
 
 		return <ICommentInfo>{
 			owner: this._uniqueId,
 			label: this.label,
 			threads: ret,
-			commentingRanges: commentingRanges ?
-				{
-					resource: resource, ranges: commentingRanges, newCommentThreadCallback: async (uri: UriComponents, range: IRange) => {
-						await this._proxy.$createNewCommentWidgetCallback(this.handle, uri, range, token);
+			commentingRanges: commentingRanges ? {
+				resource: resource,
+				ranges: commentingRanges,
+				newCommentThreadCallback: staticContribution ? undefined : async (uri: UriComponents, range: IRange) => {
+					let threadHandle = await this._proxy.$createNewCommentWidgetCallback(this.handle, uri, range, token);
+
+					if (threadHandle !== undefined) {
+						return this.getKnownThread(threadHandle);
 					}
-				} : [],
+
+					return;
+				}
+			} : [],
 			draftMode: modes.DraftMode.NotSupported
 		};
 	}
@@ -408,6 +451,14 @@ export class MainThreadCommentController {
 		return ret;
 	}
 
+	createCommentThreadTemplate(resource: UriComponents, range: IRange): void {
+		this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
+	}
+
+	async updateCommentThreadTemplate(threadHandle: number, range: IRange) {
+		await this._proxy.$updateCommentThreadTemplate(this.handle, threadHandle, range);
+	}
+
 	toJSON(): any {
 		return {
 			$mid: 6,
@@ -418,8 +469,6 @@ export class MainThreadCommentController {
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
-	private _disposables: IDisposable[];
-	private _activeCommentThreadDisposables: IDisposable[];
 	private readonly _proxy: ExtHostCommentsShape;
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
@@ -427,8 +476,11 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _commentControllers = new Map<number, MainThreadCommentController>();
 
 	private _activeCommentThread?: MainThreadCommentThread;
+	private readonly _activeCommentThreadDisposables = this._register(new DisposableStore());
 	private _input?: modes.CommentInput;
+
 	private _openPanelListener: IDisposable | null;
+
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -436,29 +488,29 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		@ICommentService private readonly _commentService: ICommentService,
 		@IPanelService private readonly _panelService: IPanelService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._disposables = [];
-		this._activeCommentThreadDisposables = [];
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
-		this._disposables.push(this._commentService.onDidChangeActiveCommentThread(async thread => {
-			let controller = (thread as MainThreadCommentThread).controller;
+
+		this._register(this._commentService.onDidChangeActiveCommentThread(async thread => {
+			let handle = (thread as MainThreadCommentThread).controllerHandle;
+			let controller = this._commentControllers.get(handle);
 
 			if (!controller) {
 				return;
 			}
 
-			this._activeCommentThreadDisposables = dispose(this._activeCommentThreadDisposables);
+			this._activeCommentThreadDisposables.clear();
 			this._activeCommentThread = thread as MainThreadCommentThread;
 			controller.activeCommentThread = this._activeCommentThread;
 
-			this._activeCommentThreadDisposables.push(this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
+			this._activeCommentThreadDisposables.add(this._activeCommentThread.onDidChangeInput(input => { // todo, dispose
 				this._input = input;
-				this._proxy.$onCommentWidgetInputChange(controller.handle, this._input ? this._input.value : undefined);
+				this._proxy.$onCommentWidgetInputChange(handle, URI.parse(this._activeCommentThread!.resource), this._activeCommentThread!.range, this._input ? this._input.value : undefined);
 			}));
 
-			await this._proxy.$onCommentWidgetInputChange(controller.handle, this._input ? this._input.value : undefined);
+			await this._proxy.$onCommentWidgetInputChange(controller.handle, URI.parse(this._activeCommentThread!.resource), this._activeCommentThread.range, this._input ? this._input.value : undefined);
 		}));
 	}
 
@@ -502,7 +554,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		commentThreadHandle: number,
 		threadId: string,
 		resource: UriComponents,
-		range: IRange
+		range: IRange,
+		extensionId: ExtensionIdentifier
 	): modes.CommentThread2 | undefined {
 		let provider = this._commentControllers.get(handle);
 
@@ -510,9 +563,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			return undefined;
 		}
 
-		console.log('createCommentThread', commentThreadHandle);
-
-		return provider.createCommentThread(commentThreadHandle, threadId, resource, range);
+		return provider.createCommentThread(extensionId.value, commentThreadHandle, threadId, resource, range);
 	}
 
 	$updateCommentThread(handle: number,
@@ -521,6 +572,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		resource: UriComponents,
 		range: IRange,
 		label: string,
+		contextValue: string | undefined,
 		comments: modes.Comment[],
 		acceptInputCommand: modes.Command | undefined,
 		additionalCommands: modes.Command[],
@@ -532,7 +584,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			return undefined;
 		}
 
-		return provider.updateCommentThread(commentThreadHandle, threadId, resource, range, label, comments, acceptInputCommand, additionalCommands, deleteCommand, collapsibleState);
+		return provider.updateCommentThread(commentThreadHandle, threadId, resource, range, label, contextValue, comments, acceptInputCommand, additionalCommands, deleteCommand, collapsibleState);
 	}
 
 	$deleteCommentThread(handle: number, commentThreadHandle: number) {
@@ -731,8 +783,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	dispose(): void {
-		this._disposables = dispose(this._disposables);
-		this._activeCommentThreadDisposables = dispose(this._activeCommentThreadDisposables);
+		super.dispose();
 		this._workspaceProviders.forEach(value => dispose(value));
 		this._workspaceProviders.clear();
 		this._documentProviders.forEach(value => dispose(value));

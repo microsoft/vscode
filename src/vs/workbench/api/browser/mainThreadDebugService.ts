@@ -5,7 +5,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDebugAdapterTrackerFactory } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
@@ -26,7 +26,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private _debugAdaptersHandleCounter = 1;
 	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
 	private readonly _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
-	private readonly _debugAdapterTrackerFactories: Map<number, IDebugAdapterTrackerFactory>;
 	private readonly _sessions: Set<DebugSessionUUID>;
 
 	constructor(
@@ -53,7 +52,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._debugAdapters = new Map();
 		this._debugConfigurationProviders = new Map();
 		this._debugAdapterDescriptorFactories = new Map();
-		this._debugAdapterTrackerFactories = new Map();
 		this._sessions = new Set();
 	}
 
@@ -204,24 +202,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		if (provider) {
 			this._debugAdapterDescriptorFactories.delete(handle);
 			this.debugService.getConfigurationManager().unregisterDebugAdapterDescriptorFactory(provider);
-		}
-	}
-
-	public $registerDebugAdapterTrackerFactory(debugType: string, handle: number) {
-		const factory = <IDebugAdapterTrackerFactory>{
-			type: debugType,
-		};
-		this._debugAdapterTrackerFactories.set(handle, factory);
-		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterTrackerFactory(factory));
-
-		return Promise.resolve(undefined);
-	}
-
-	public $unregisterDebugAdapterTrackerFactory(handle: number) {
-		const factory = this._debugAdapterTrackerFactories.get(handle);
-		if (factory) {
-			this._debugAdapterTrackerFactories.delete(handle);
-			this.debugService.getConfigurationManager().unregisterDebugAdapterTrackerFactory(factory);
 		}
 	}
 

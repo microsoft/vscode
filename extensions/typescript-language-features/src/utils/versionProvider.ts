@@ -9,8 +9,8 @@ import * as nls from 'vscode-nls';
 import API from './api';
 import { TypeScriptServiceConfiguration } from './configuration';
 import { RelativeWorkspacePathResolver } from './relativePathResolver';
-const localize = nls.loadMessageBundle();
 
+const localize = nls.loadMessageBundle();
 
 export class TypeScriptVersion {
 	constructor(
@@ -109,7 +109,7 @@ export class TypeScriptVersionProvider {
 				return globals[0];
 			}
 		}
-		return undefined;
+		return this.contributedTsNextVersion;
 	}
 
 	public get localVersion(): TypeScriptVersion | undefined {
@@ -138,20 +138,33 @@ export class TypeScriptVersionProvider {
 	}
 
 	public get bundledVersion(): TypeScriptVersion {
-		try {
-			const { extensionPath } = vscode.extensions.getExtension('vscode.typescript-language-features')!;
-			const typescriptPath = path.join(extensionPath, '../node_modules/typescript/lib');
-			const bundledVersion = new TypeScriptVersion(typescriptPath, '');
-			if (bundledVersion.isValid) {
-				return bundledVersion;
-			}
-		} catch (e) {
-			// noop
+		const version = this.getContributedVersion('vscode.typescript-language-features', ['..', 'node_modules']);
+		if (version) {
+			return version;
 		}
+
 		vscode.window.showErrorMessage(localize(
 			'noBundledServerFound',
 			'VS Code\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
 		throw new Error('Could not find bundled tsserver.js');
+	}
+
+	private get contributedTsNextVersion(): TypeScriptVersion | undefined {
+		return this.getContributedVersion('ms-vscode.vscode-typescript-next', ['node_modules']);
+	}
+
+	private getContributedVersion(extensionId: string, pathToTs: readonly string[]): TypeScriptVersion | undefined {
+		try {
+			const { extensionPath } = vscode.extensions.getExtension(extensionId)!;
+			const typescriptPath = path.join(extensionPath, ...pathToTs, 'typescript', 'lib');
+			const bundledVersion = new TypeScriptVersion(typescriptPath, '');
+			if (bundledVersion.isValid) {
+				return bundledVersion;
+			}
+		} catch {
+			// noop
+		}
+		return undefined;
 	}
 
 	private get localTsdkVersions(): TypeScriptVersion[] {

@@ -46,6 +46,7 @@ import { isExtensionHostDebugging } from 'vs/workbench/contrib/debug/common/debu
 import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionHostDebugService } from 'vs/workbench/services/extensions/common/extensionHostDebug';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -392,7 +393,7 @@ export class DebugService implements IDebugService {
 							return this.showError(err.message).then(() => false);
 						}
 						if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-							return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."))
+							return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."))
 								.then(() => false);
 						}
 
@@ -431,9 +432,6 @@ export class DebugService implements IDebugService {
 
 		return this.launchOrAttachToSession(session).then(() => {
 
-			// since the initialized response has arrived announce the new Session (including extensions)
-			this._onDidNewSession.fire(session);
-
 			const internalConsoleOptions = session.configuration.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
 			if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
 				this.panelService.openPanel(REPL_ID, false);
@@ -446,6 +444,9 @@ export class DebugService implements IDebugService {
 			if (shownSessions.length > 1) {
 				this.viewModel.setMultiSessionView(true);
 			}
+
+			// since the initialized response has arrived announce the new Session (including extensions)
+			this._onDidNewSession.fire(session);
 
 			return this.telemetryDebugSessionStart(root, session.configuration.type);
 		}).then(() => true, (error: Error | string) => {
@@ -658,9 +659,9 @@ export class DebugService implements IDebugService {
 		return Promise.resolve(config);
 	}
 
-	private showError(message: string, actions: IAction[] = []): Promise<void> {
+	private showError(message: string, errorActions: ReadonlyArray<IAction> = []): Promise<void> {
 		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
-		actions.push(configureAction);
+		const actions = [...errorActions, configureAction];
 		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length }).then(choice => {
 			if (choice < actions.length) {
 				return actions[choice].run();
@@ -719,7 +720,7 @@ export class DebugService implements IDebugService {
 
 			// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
 			let taskStarted = false;
-			const promise = this.taskService.getActiveTasks().then(tasks => {
+			const promise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(tasks => {
 				if (tasks.filter(t => t._id === task._id).length) {
 					// task is already running - nothing to do.
 					return Promise.resolve(null);
@@ -733,7 +734,7 @@ export class DebugService implements IDebugService {
 				if (task.configurationProperties.isBackground) {
 					return new Promise((c, e) => once(e => e.kind === TaskEventKind.Inactive && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
 						taskStarted = true;
-						c(undefined);
+						c(null);
 					}));
 				}
 
@@ -789,8 +790,15 @@ export class DebugService implements IDebugService {
 		}
 
 		if (stackFrame) {
-			stackFrame.openInEditor(this.editorService, true);
-			aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
+			stackFrame.openInEditor(this.editorService, true).then(editor => {
+				if (editor) {
+					const control = editor.getControl();
+					if (stackFrame && isCodeEditor(control) && control.hasModel()) {
+						const lineContent = control.getModel().getLineContent(stackFrame.range.startLineNumber);
+						aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2} {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
+					}
+				}
+			});
 		}
 		if (session) {
 			this.debugType.set(session.configuration.type);
@@ -846,7 +854,7 @@ export class DebugService implements IDebugService {
 		return this.sendBreakpoints(uri).then(() => breakpoints);
 	}
 
-	updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }, sendOnResourceSaved: boolean): void {
+	updateBreakpoints(uri: uri, data: Map<string, DebugProtocol.Breakpoint>, sendOnResourceSaved: boolean): void {
 		this.model.updateBreakpoints(data);
 		if (sendOnResourceSaved) {
 			this.breakpointsToSendOnResourceSaved.add(uri.toString());
