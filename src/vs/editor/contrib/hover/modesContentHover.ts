@@ -566,10 +566,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		return createCancelablePromise(async cancellationToken => {
 			const codeActions = await getCodeActions(this._editor.getModel()!, new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken);
 			if (codeActions.actions.length) {
-				const disposables = new DisposableStore();
 				const actions: Action[] = [];
 				for (const codeAction of codeActions.actions) {
-					disposables.add(disposables);
 					actions.push(new Action(
 						codeAction.command ? codeAction.command.id : codeAction.title,
 						codeAction.title,
@@ -579,7 +577,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 				return {
 					actions: actions,
-					dispose: () => disposables.dispose()
+					dispose: () => codeActions.dispose()
 				};
 			}
 
