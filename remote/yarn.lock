@@ -1728,6 +1728,11 @@ xterm@3.15.0-beta34:
   resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta34.tgz#32ca9523f842cfc213bf64cbb199bb9adaddcd2d"
   integrity sha512-eqq/K002xVCfYXZggbI7v7dRgRKTvJhVFTHqcs6MdMHuiOYl4lwZFkv4aFf896kkbnKQOZZGGzhnBFfa1w1rTA==
 
+yallist@^3.0.0, yallist@^3.0.3:
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/yallist/-/yallist-3.0.3.tgz#b4b049e314be545e3ce802236d6cd22cd91c3de9"
+  integrity sha512-S+Zk8DEWE6oKpV+vI3qWkaK+jSbIK86pCwe2IF/xwIpQ8jEuxpw9NyaGjmp9+BoJv5FV2piqCDcoCtStppiq2A==
+
 yauzl@^2.9.2:
   version "2.10.0"
   resolved "https://registry.yarnpkg.com/yauzl/-/yauzl-2.10.0.tgz#c7eb17c93e112cb1086fa6d8e51fb0667b79a5f9"
