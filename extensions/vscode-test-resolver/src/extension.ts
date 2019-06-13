@@ -60,9 +60,19 @@ export function activate(context: vscode.ExtensionContext) {
 					}
 				}
 			}
+			const delay = vscode.workspace.getConfiguration('testresolver').get('startupDelay');
+			if (typeof delay === 'number') {
+				let remaining = Math.ceil(delay);
+				outputChannel.append(`Delaying startup by ${remaining} seconds (configured by "testresolver.startupDelay").`);
+				while (remaining > 0) {
+					progress.report({ message: `Delayed resolving: Remaining ${remaining}s` });
+					await (sleep(1000));
+					remaining--;
+				}
+			}
 
-			if (_authority === 'test+error' || vscode.workspace.getConfiguration('testresolver').get('error') === true) {
-				processError('Unable to start the Test Resolver.');
+			if (vscode.workspace.getConfiguration('testresolver').get('startupError') === true) {
+				processError('Test Resolver failed for testing purposes (configured by "testresolver.startupError").');
 				return;
 			}
 
@@ -77,19 +87,32 @@ export function activate(context: vscode.ExtensionContext) {
 			if (!commit) { // dev mode
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
 				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
-				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
+				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath, detached: true });
 			} else {
 				const serverBin = path.join(remoteDataDir, 'bin');
 				progress.report({ message: 'Installing VSCode Server' });
 				const serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin);
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);
 
-				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
+				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation, detached: true });
 			}
 			extHostProcess.stdout.on('data', (data: Buffer) => processOutput(data.toString()));
 			extHostProcess.stderr.on('data', (data: Buffer) => processOutput(data.toString()));
-			extHostProcess.on('error', (error: Error) => processError(`server failed with error:\n${error.message}`));
-			extHostProcess.on('close', (code: number) => processError(`server closed unexpectedly.\nError code: ${code}`));
+			extHostProcess.on('error', (error: Error) => {
+				processError(`server failed with error:\n${error.message}`);
+				extHostProcess = undefined;
+			});
+			extHostProcess.on('close', (code: number) => {
+				processError(`server closed unexpectedly.\nError code: ${code}`);
+				extHostProcess = undefined;
+			});
+			context.subscriptions.push({
+				dispose: () => {
+					if (extHostProcess) {
+						process.kill(-extHostProcess.pid);
+					}
+				}
+			});
 		});
 	}
 
@@ -168,8 +191,8 @@ function getNewEnv(): { [x: string]: string | undefined } {
 	return env;
 }
 
-export function deactivate() {
-	if (extHostProcess) {
-		extHostProcess.kill();
-	}
+function sleep(ms: number): Promise<void> {
+	return new Promise(resolve => {
+		setTimeout(resolve, ms);
+	});
 }
