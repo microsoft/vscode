@@ -28,7 +28,6 @@ steps:
     # Make sure we get latest packages
     sudo apt-get update
     sudo apt-get upgrade -y
-    sudo apt-get install -y python3
 
     # Define variables
     REPO="$(pwd)"
