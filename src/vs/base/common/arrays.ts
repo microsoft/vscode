@@ -295,7 +295,7 @@ function topStep<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, re
 /**
  * @returns a new array with all falsy values removed. The original array IS NOT modified.
  */
-export function coalesce<T>(array: Array<T | undefined | null>): T[] {
+export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
 	if (!array) {
 		return array;
 	}
