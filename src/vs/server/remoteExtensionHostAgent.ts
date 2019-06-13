@@ -16,7 +16,8 @@ const args = minimist(process.argv.slice(2), {
 	string: [
 		'port',
 		'disable-telemetry',
-		'folder'
+		'folder',
+		'extensions-dir'
 	]
 }) as ParsedArgs;
 
@@ -31,10 +32,9 @@ const BUILTIN_EXTENSIONS_FOLDER_PATH = path.join(APP_ROOT, 'extensions');
 args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
 const PORT = args['port'] || 8000;
 
-const EXTENSIONS_PATH = path.join(REMOTE_DATA_FOLDER, 'extensions');
-args['extensions-dir'] = EXTENSIONS_PATH;
+args['extensions-dir'] = args['extensions-dir'] || path.join(REMOTE_DATA_FOLDER, 'extensions');
 
-[REMOTE_DATA_FOLDER, EXTENSIONS_PATH, USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME].forEach(f => {
+[REMOTE_DATA_FOLDER, args['extensions-dir'], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME].forEach(f => {
 	try {
 		if (!fs.existsSync(f)) {
 			fs.mkdirSync(f);
