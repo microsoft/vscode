@@ -314,6 +314,20 @@
 			"recommendations": [
 				"msjsdiag.debugger-for-edge"
 			]
+		},
+		"react-native": {
+			"friendlyName": "React Native",
+			"windowsPath": "%APPDATA%\\npm\\react-native-cli",
+			"recommendations": [
+				"vsmobile.vscode-react-native"
+			]
+		},
+		"cordova": {
+			"friendlyName": "Cordova",
+			"windowsPath": "%APPDATA%\\npm\\cordova",
+			"recommendations": [
+				"vsmobile.cordova-tools"
+			]
 		}
 	},
 	"extensionKeywords": {
