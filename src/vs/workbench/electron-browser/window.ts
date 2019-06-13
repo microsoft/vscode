@@ -26,7 +26,7 @@ import { ipcRenderer as ipc, webFrame, crashReporter, Event } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { fillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -369,7 +369,7 @@ export class ElectronWindow extends Disposable {
 		const actions: Array<MenuItemAction | Separator> = [];
 
 		// Fill actions into groups respecting order
-		fillInActionBarActions(this.touchBarMenu, undefined, actions);
+		createAndFillInActionBarActions(this.touchBarMenu, undefined, actions);
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];

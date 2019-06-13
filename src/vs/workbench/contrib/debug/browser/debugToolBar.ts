@@ -27,7 +27,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { fillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
@@ -265,7 +265,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 	public static getActions(menu: IMenu, debugService: IDebugService, instantiationService: IInstantiationService): IAction[] {
 		const actions: IAction[] = [];
-		fillInActionBarActions(menu, undefined, actions, () => false);
+		createAndFillInActionBarActions(menu, undefined, actions, () => false);
 		if (debugService.getViewModel().isMultiSessionView()) {
 			actions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
 		}
