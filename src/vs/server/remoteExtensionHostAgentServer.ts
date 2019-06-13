@@ -101,9 +101,9 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					const workspace = this._environmentService.args['workspace'];
 					const data = _data.toString()
 						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
-						.replace('{{USER_DATA}}', escapeRegExpCharacters(this._environmentService.userDataPath))
-						.replace('{{FOLDER}}', folder ? escapeRegExpCharacters(URI.file(folder).path) : '')
-						.replace('{{WORKSPACE}}', workspace ? escapeRegExpCharacters(URI.file(workspace).path) : '')
+						.replace('{{USER_DATA}}', escapeRegExpCharacters(this._environmentService.userDataPath.replace(/^[Cc]:/, '').replace(/\\/g, '/')))
+						.replace('{{FOLDER}}', folder ? escapeRegExpCharacters(URI.file(folder).fsPath.replace(/^[Cc]:/, '').replace(/\\/g, '/')) : '')
+						.replace('{{WORKSPACE}}', workspace ? escapeRegExpCharacters(URI.file(workspace).fsPath.replace(/^[Cc]:/, '').replace(/\\/g, '/')) : '')
 						.replace('{{SERVER_APP_ROOT}}', appRoot.replace(/^[Cc]:/, '').replace(/\\/g, '/'));
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
