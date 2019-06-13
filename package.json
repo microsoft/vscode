@@ -131,7 +131,7 @@
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
     "tslint": "^5.16.0",
-    "typescript": "3.5.1",
+    "typescript": "3.5.2",
     "typescript-formatter": "7.1.0",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",
