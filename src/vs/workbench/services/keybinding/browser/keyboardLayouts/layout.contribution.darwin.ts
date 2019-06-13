@@ -5,7 +5,7 @@
 
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en.darwin'; // 15%
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/zh-hans.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en-br.darwin';
+import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en-uk.darwin';
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/es.darwin';
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/jp-roman.darwin';
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/de.darwin';
