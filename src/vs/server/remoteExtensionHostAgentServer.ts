@@ -101,6 +101,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					const workspace = this._environmentService.args['workspace'];
 					const data = _data.toString()
 						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
+						.replace('{{USER_DATA}}', escapeRegExpCharacters(this._environmentService.userDataPath))
 						.replace('{{SETTINGS}}', escapeRegExpCharacters(this._environmentService.settingsResource.path))
 						.replace('{{KEYBINDINGS}}', escapeRegExpCharacters(this._environmentService.keybindingsResource.path))
 						.replace('{{FOLDER}}', folder ? escapeRegExpCharacters(URI.file(folder).path) : '')
