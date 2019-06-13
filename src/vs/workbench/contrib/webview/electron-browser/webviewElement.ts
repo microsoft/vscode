@@ -21,8 +21,8 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
-import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
+import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/webview';
+import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
 import { WebviewFindWidget } from '../browser/webviewFindWidget';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
@@ -116,7 +116,6 @@ class WebviewProtocolProvider extends Disposable {
 		webview: Electron.WebviewTag,
 		private readonly _extensionLocation: URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
-		private readonly _environmentService: IEnvironmentService,
 		private readonly _fileService: IFileService,
 	) {
 		super();
@@ -134,13 +133,7 @@ class WebviewProtocolProvider extends Disposable {
 			return;
 		}
 
-		const appRootUri = URI.file(this._environmentService.appRoot);
-
-		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, undefined, () => [
-			appRootUri
-		]);
-
-		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._extensionLocation, () =>
+		registerFileProtocol(contents, WebviewResourceScheme, this._fileService, this._extensionLocation, () =>
 			this._getLocalResourceRoots()
 		);
 	}
@@ -420,7 +413,6 @@ export class WebviewElement extends Disposable implements Webview {
 			this._webview,
 			this._options.extension ? this._options.extension.location : undefined,
 			() => (this.content.options.localResourceRoots || []),
-			environmentService,
 			fileService));
 
 		this._register(new WebviewPortMappingProvider(

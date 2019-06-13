@@ -44,6 +44,7 @@ import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapService';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
+import { isArray } from 'vs/base/common/types';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -505,7 +506,8 @@ class UserKeybindings extends Disposable {
 		const existing = this._keybindings;
 		try {
 			const content = await this.fileService.readFile(this.keybindingsResource);
-			this._keybindings = parse(content.value.toString());
+			const value = parse(content.value.toString());
+			this._keybindings = isArray(value) ? value : [];
 		} catch (e) {
 			this._keybindings = [];
 		}

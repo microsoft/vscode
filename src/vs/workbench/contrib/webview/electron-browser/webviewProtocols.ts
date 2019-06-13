@@ -12,10 +12,6 @@ import { getWebviewContentMimeType } from 'vs/workbench/contrib/webview/common/m
 
 type BufferProtocolCallback = (buffer?: Buffer | electron.MimeTypedBuffer | { error: number }) => void;
 
-export const enum WebviewProtocol {
-	CoreResource = 'vscode-core-resource',
-	VsCodeResource = 'vscode-resource',
-}
 
 function resolveContent(fileService: IFileService, resource: URI, mime: string, callback: BufferProtocolCallback): void {
 	fileService.readFile(resource).then(contents => {
@@ -31,7 +27,7 @@ function resolveContent(fileService: IFileService, resource: URI, mime: string, 
 
 export function registerFileProtocol(
 	contents: electron.WebContents,
-	protocol: WebviewProtocol,
+	protocol: string,
 	fileService: IFileService,
 	extensionLocation: URI | undefined,
 	getRoots: () => ReadonlyArray<URI>

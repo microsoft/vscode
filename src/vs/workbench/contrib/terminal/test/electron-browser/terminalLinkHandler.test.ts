@@ -49,8 +49,9 @@ class MockTerminalInstanceService implements ITerminalInstanceService {
 	getDefaultShell(p: Platform): string {
 		throw new Error('Method not implemented.');
 	}
-
-
+	getMainProcessParentEnv(): any {
+		throw new Error('Method not implemented.');
+	}
 }
 
 interface LinkFormatInfo {
