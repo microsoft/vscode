@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IKeyboardLayoutInfo } from 'vs/workbench/services/keybinding/common/keymapService';
+
 function deserializeMapping(serializedMapping: ISerializedMapping) {
 	let mapping = serializedMapping;
 
@@ -63,7 +65,7 @@ interface ISerializedMapping {
 export class KeyboardLayoutInfo {
 	value: IKeyboardMapping;
 
-	constructor(public layout: { id: string, lang: string }, public secondaryLayouts: { id: string, lang: string }[], keyboardMapping: ISerializedMapping) {
+	constructor(public layout: IKeyboardLayoutInfo, public secondaryLayouts: IKeyboardLayoutInfo[], keyboardMapping: ISerializedMapping) {
 		this.value = deserializeMapping(keyboardMapping);
 	}
 
