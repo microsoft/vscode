@@ -231,32 +231,28 @@ export class PackageJSONContribution implements IJSONContribution {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
 				return this.npmView(currentKey).then(info => {
-					try {
-						const latest = info && info['dist-tags.latest'];
-						if (latest) {
-							let name = JSON.stringify(latest);
-							let proposal = new CompletionItem(name);
-							proposal.kind = CompletionItemKind.Property;
-							proposal.insertText = name;
-							proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
-							result.add(proposal);
+					const latest = info.distTagsLatest;
+					if (latest) {
+						let name = JSON.stringify(latest);
+						let proposal = new CompletionItem(name);
+						proposal.kind = CompletionItemKind.Property;
+						proposal.insertText = name;
+						proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
+						result.add(proposal);
 
-							name = JSON.stringify('^' + latest);
-							proposal = new CompletionItem(name);
-							proposal.kind = CompletionItemKind.Property;
-							proposal.insertText = name;
-							proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
-							result.add(proposal);
+						name = JSON.stringify('^' + latest);
+						proposal = new CompletionItem(name);
+						proposal.kind = CompletionItemKind.Property;
+						proposal.insertText = name;
+						proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
+						result.add(proposal);
 
-							name = JSON.stringify('~' + latest);
-							proposal = new CompletionItem(name);
-							proposal.kind = CompletionItemKind.Property;
-							proposal.insertText = name;
-							proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
-							result.add(proposal);
-						}
-					} catch (e) {
-						// ignore
+						name = JSON.stringify('~' + latest);
+						proposal = new CompletionItem(name);
+						proposal.kind = CompletionItemKind.Property;
+						proposal.insertText = name;
+						proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
+						result.add(proposal);
 					}
 					return 0;
 				}, () => {
@@ -284,42 +280,30 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string[]> {
-		return new Promise((resolve) => {
-			return this.npmView(pack).then(info => {
-				const result: string[] = [];
-				result.push(info.description || '');
-				result.push(info['dist-tags.latest'] ? localize('json.npm.version.hover', 'Latest version: {0}', info['dist-tags.latest']) : '');
-				result.push(info.homepage || '');
-				return resolve(result);
-			}).catch(() => {
-				return resolve([]);
-			});
+		return this.npmView(pack).then(info => {
+			const result: string[] = [];
+			result.push(info.description || '');
+			result.push(info.distTagsLatest ? localize('json.npm.version.hover', 'Latest version: {0}', info.distTagsLatest) : '');
+			result.push(info.homepage || '');
+			return result;
+		}, () => {
+			return [];
 		});
 	}
 
-	private npmView(pack: string): Promise<any> {
-		return new Promise((resolve) => {
-			const command = 'npm view ' + pack + ' description dist-tags.latest homepage';
+	private npmView(pack: string): Promise<PackageInfo> {
+		return new Promise((resolve, reject) => {
+			const command = 'npm view --json ' + pack + ' description dist-tags.latest homepage';
 			cp.exec(command, (error, stdout) => {
 				if (error) {
-					return resolve();
+					return reject();
 				}
-				const lines = stdout.split('\n');
-				if (lines.length) {
-					const info: any = {};
-					lines.forEach((line) => {
-						const nameval = line.split(' = ');
-						if (nameval.length === 2) {
-							/* tslint:disable:no-unexternalized-strings */
-							const fq = nameval[1].indexOf("'");
-							const lq = nameval[1].lastIndexOf("'");
-							const val = nameval[1].slice(fq + 1, lq).replace("\'", "'");
-							/* tslint:enable:no-unexternalized-strings */
-							info[nameval[0]] = val;
-						}
-					});
-					return resolve(info);
-				}
+				const content = JSON.parse(stdout);
+				resolve({
+					description: content['description'],
+					distTagsLatest: content['dist-tags.latest'],
+					homepage: content['homepage']
+				});
 			});
 		});
 	}
@@ -338,4 +322,10 @@ export class PackageJSONContribution implements IJSONContribution {
 		}
 		return null;
 	}
+}
+
+interface PackageInfo {
+	description: string;
+	distTagsLatest?: string;
+	homepage?: string;
 }
