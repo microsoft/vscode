@@ -190,7 +190,7 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	appRoot: string;
 	userHome: string;
 	userDataPath: string;
-	appNameLong: string;
+	appNameLong: string = 'Visual Studio Code - Web';
 	appQuality?: string;
 	appSettingsHome: URI;
 	settingsResource: URI;
