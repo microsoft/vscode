@@ -106,32 +106,30 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const stackFrame = debugService.getViewModel().focusedStackFrame;
 			const editorService = accessor.get(IEditorService);
-			const activeEditor = editorService.activeEditor;
+			const activeEditor = editorService.activeTextEditorWidget;
 			const notificationService = accessor.get(INotificationService);
 			const quickInputService = accessor.get(IQuickInputService);
 
-			if (stackFrame && isCodeEditor(activeEditor)) {
+			if (stackFrame && isCodeEditor(activeEditor) && activeEditor.hasModel()) {
 				const position = activeEditor.getPosition();
-				const resource = activeEditor.getResource();
-				if (position && resource) {
-					const source = stackFrame.thread.session.getSourceForUri(resource);
-					if (source) {
-						const response = await stackFrame.thread.session.gotoTargets(source, position.lineNumber, position.column);
-						const targets = response.body.targets;
-						if (targets.length) {
-							let id = targets[0].id;
-							if (targets.length > 1) {
-								const picks = targets.map(t => ({ label: t.label, _id: t.id }));
-								const pick = await quickInputService.pick(picks, { placeHolder: nls.localize('chooseLocation', "Choose the specific location") });
-								if (!pick) {
-									return;
-								}
-
-								id = pick._id;
+				const resource = activeEditor.getModel().uri;
+				const source = stackFrame.thread.session.getSourceForUri(resource);
+				if (source) {
+					const response = await stackFrame.thread.session.gotoTargets(source, position.lineNumber, position.column);
+					const targets = response.body.targets;
+					if (targets.length) {
+						let id = targets[0].id;
+						if (targets.length > 1) {
+							const picks = targets.map(t => ({ label: t.label, _id: t.id }));
+							const pick = await quickInputService.pick(picks, { placeHolder: nls.localize('chooseLocation', "Choose the specific location") });
+							if (!pick) {
+								return;
 							}
 
-							return await stackFrame.thread.session.goto(stackFrame.thread.threadId, id);
+							id = pick._id;
 						}
+
+						return await stackFrame.thread.session.goto(stackFrame.thread.threadId, id);
 					}
 				}
 			}
