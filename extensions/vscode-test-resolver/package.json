@@ -79,6 +79,11 @@
 					"description": "If set, the resolver will fail. Use ths setting for testing the failure of a resolver.",
 					"type": "boolean",
 					"default": false
+				},
+				"testresolver.pause": {
+					"description": "If set, connection is paused",
+					"type": "boolean",
+					"default": false
 				}
 			}
 		}
