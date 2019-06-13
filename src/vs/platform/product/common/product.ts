@@ -19,6 +19,12 @@ export interface IProductService {
 	uiExtensions?: string[];
 
 	enableTelemetry: boolean;
+	extensionsGallery?: {
+		serviceUrl: string;
+		itemUrl: string;
+		controlUrl: string;
+		recommendationsUrl: string;
+	};
 
 	sendASmile?: {
 		reportIssueUrl: string;

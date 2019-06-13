@@ -451,6 +451,20 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
+	gotoTargets(source: DebugProtocol.Source, line: number, column?: number): Promise<DebugProtocol.GotoTargetsResponse> {
+		if (this.raw) {
+			return this.raw.gotoTargets({ source, line, column });
+		}
+		return Promise.reject(new Error('no debug adapter'));
+	}
+
+	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse> {
+		if (this.raw) {
+			return this.raw.goto({ threadId, targetId });
+		}
+		return Promise.reject(new Error('no debug adapter'));
+	}
+
 	loadSource(resource: URI): Promise<DebugProtocol.SourceResponse> {
 
 		if (!this.raw) {

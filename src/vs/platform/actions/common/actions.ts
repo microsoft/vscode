@@ -98,7 +98,8 @@ export const enum MenuId {
 	CommentThreadTitle,
 	CommentThreadActions,
 	CommentTitle,
-	CommentActions
+	CommentActions,
+	GlobalActivity
 }
 
 export interface IMenuActionOptions {
@@ -261,6 +262,13 @@ export class MenuItemAction extends ExecuteCommandAction {
 
 		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
+	}
+
+	dispose(): void {
+		if (this.alt) {
+			this.alt.dispose();
+		}
+		super.dispose();
 	}
 
 	run(...args: any[]): Promise<any> {

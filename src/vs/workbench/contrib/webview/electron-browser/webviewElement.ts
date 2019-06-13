@@ -11,7 +11,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as modes from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -21,12 +20,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
-import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
-import { registerFileProtocol, WebviewProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
+import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/webview';
+import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
 import { WebviewFindWidget } from '../browser/webviewFindWidget';
+import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 
 export interface WebviewPortMapping {
 	readonly port: number;
@@ -117,7 +116,6 @@ class WebviewProtocolProvider extends Disposable {
 		webview: Electron.WebviewTag,
 		private readonly _extensionLocation: URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
-		private readonly _environmentService: IEnvironmentService,
 		private readonly _fileService: IFileService,
 	) {
 		super();
@@ -135,13 +133,7 @@ class WebviewProtocolProvider extends Disposable {
 			return;
 		}
 
-		const appRootUri = URI.file(this._environmentService.appRoot);
-
-		registerFileProtocol(contents, WebviewProtocol.CoreResource, this._fileService, undefined, () => [
-			appRootUri
-		]);
-
-		registerFileProtocol(contents, WebviewProtocol.VsCodeResource, this._fileService, this._extensionLocation, () =>
+		registerFileProtocol(contents, WebviewResourceScheme, this._fileService, this._extensionLocation, () =>
 			this._getLocalResourceRoots()
 		);
 	}
@@ -421,7 +413,6 @@ export class WebviewElement extends Disposable implements Webview {
 			this._webview,
 			this._options.extension ? this._options.extension.location : undefined,
 			() => (this.content.options.localResourceRoots || []),
-			environmentService,
 			fileService));
 
 		this._register(new WebviewPortMappingProvider(
@@ -554,11 +545,11 @@ export class WebviewElement extends Disposable implements Webview {
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
 
-	private _send(channel: string, ...args: any[]): void {
+	private _send(channel: string, data?: any): void {
 		this._ready
 			.then(() => {
 				if (this._webview) {
-					this._webview.send(channel, ...args);
+					this._webview.send(channel, data);
 				}
 			})
 			.catch(err => console.error(err));
@@ -647,31 +638,8 @@ export class WebviewElement extends Disposable implements Webview {
 	}
 
 	private style(theme: ITheme): void {
-		const configuration = this._configurationService.getValue<IEditorOptions>('editor');
-		const editorFontFamily = configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-		const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
-		const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
-
-		const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
-			const color = theme.getColor(entry.id);
-			if (color) {
-				colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
-			}
-			return colors;
-		}, {} as { [key: string]: string });
-
-		const styles = {
-			'vscode-font-family': '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
-			'vscode-font-weight': 'normal',
-			'vscode-font-size': '13px',
-			'vscode-editor-font-family': editorFontFamily,
-			'vscode-editor-font-weight': editorFontWeight,
-			'vscode-editor-font-size': editorFontSize,
-			...exportedColors
-		};
-
-		const activeTheme = ApiThemeClassName.fromTheme(theme);
-		this._send('styles', styles, activeTheme);
+		const { styles, activeTheme } = getWebviewThemeData(theme, this._configurationService);
+		this._send('styles', { styles, activeTheme });
 
 		if (this._webviewFindWidget) {
 			this._webviewFindWidget.updateTheme(theme);
@@ -802,25 +770,6 @@ export class WebviewElement extends Disposable implements Webview {
 	public redo() {
 		if (this._webview) {
 			this._webview.redo();
-		}
-	}
-}
-
-
-enum ApiThemeClassName {
-	light = 'vscode-light',
-	dark = 'vscode-dark',
-	highContrast = 'vscode-high-contrast'
-}
-
-namespace ApiThemeClassName {
-	export function fromTheme(theme: ITheme): ApiThemeClassName {
-		if (theme.type === LIGHT) {
-			return ApiThemeClassName.light;
-		} else if (theme.type === DARK) {
-			return ApiThemeClassName.dark;
-		} else {
-			return ApiThemeClassName.highContrast;
 		}
 	}
 }

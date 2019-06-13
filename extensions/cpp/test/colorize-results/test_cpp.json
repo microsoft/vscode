@@ -298,7 +298,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp storage.type.modifier.access.control.public.cpp colon.cpp",
+		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp storage.type.modifier.access.control.public.cpp colon.cpp punctuation.separator.delimiter.colon.access.control.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -331,7 +331,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -353,7 +353,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -452,7 +452,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"t": "source.cpp source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -617,7 +617,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -661,7 +661,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -914,7 +914,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -936,7 +936,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp source.cpp meta.function.definition.cpp meta.head.function.definition.cpp",
+		"t": "source.cpp source.cpp meta.function.definition.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

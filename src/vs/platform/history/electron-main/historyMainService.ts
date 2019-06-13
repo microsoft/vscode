@@ -28,8 +28,9 @@ import { ILifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/ele
 export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
-	private static readonly MAX_MACOS_DOCK_RECENT_FOLDERS = 10;
-	private static readonly MAX_MACOS_DOCK_RECENT_FILES = 5;
+
+	private static readonly MAX_MACOS_DOCK_RECENT_WORKSPACES = 7; // prefer more workspaces...
+	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL = 10; // ...compared to files
 
 	// Exclude some very common files from the dock/taskbar
 	private static readonly COMMON_FILES_FILTER = [
@@ -153,37 +154,58 @@ export class HistoryMainService implements IHistoryMainService {
 			return;
 		}
 
-		// macOS recent documents in the dock are behaving strangely. the entries seem to get
-		// out of sync quickly over time. the attempted fix is to always set the list fresh
-		// from our MRU history data. So we clear the documents first and then set the documents
-		// again.
+		// We clear all documents first to ensure an up-to-date view on the set. Since entries
+		// can get deleted on disk, this ensures that the list is always valid
 		app.clearRecentDocuments();
 
 		const mru = this.getRecentlyOpened();
 
-		// Fill in workspaces
-		for (let i = 0, entries = 0; i < mru.workspaces.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FOLDERS; i++) {
+		// Collect max-N recent workspaces that are known to exist
+		const workspaceEntries: string[] = [];
+		let entries = 0;
+		for (let i = 0; i < mru.workspaces.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_WORKSPACES; i++) {
 			const loc = location(mru.workspaces[i]);
 			if (loc.scheme === Schemas.file) {
 				const workspacePath = originalFSPath(loc);
 				if (await exists(workspacePath)) {
-					app.addRecentDocument(workspacePath);
+					workspaceEntries.push(workspacePath);
 					entries++;
 				}
 			}
 		}
 
-		// Fill in files
-		for (let i = 0, entries = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_FILES; i++) {
+		// Collect max-N recent files that are known to exist
+		const fileEntries: string[] = [];
+		for (let i = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL; i++) {
 			const loc = location(mru.files[i]);
-			if (loc.scheme === Schemas.file && HistoryMainService.COMMON_FILES_FILTER.indexOf(basename(loc)) === -1) {
+			if (loc.scheme === Schemas.file) {
 				const filePath = originalFSPath(loc);
+				if (
+					HistoryMainService.COMMON_FILES_FILTER.indexOf(basename(loc)) !== -1 || // skip some well known file entries
+					workspaceEntries.indexOf(filePath) !== -1								// prefer a workspace entry over a file entry (e.g. for .code-workspace)
+				) {
+					continue;
+				}
+
 				if (await exists(filePath)) {
-					app.addRecentDocument(filePath);
+					fileEntries.push(filePath);
 					entries++;
 				}
 			}
 		}
+
+		// The apple guidelines (https://developer.apple.com/design/human-interface-guidelines/macos/menus/menu-anatomy/)
+		// explain that most recent entries should appear close to the interaction by the user (e.g. close to the
+		// mouse click). Most native macOS applications that add recent documents to the dock, show the most recent document
+		// to the bottom (because the dock menu is not appearing from top to bottom, but from the bottom to the top). As such
+		// we fill in the entries in reverse order so that the most recent shows up at the bottom of the menu.
+		//
+		// On top of that, the maximum number of documents can be configured by the user (defaults to 10). To ensure that
+		// we are not failing to show the most recent entries, we start by adding files first (in reverse order of recency)
+		// and then add folders (in reverse order of recency). Given that strategy, we can ensure that the most recent
+		// N folders are always appearing, even if the limit is low (https://github.com/microsoft/vscode/issues/74788)
+		fileEntries.reverse().forEach(fileEntry => app.addRecentDocument(fileEntry));
+		workspaceEntries.reverse().forEach(workspaceEntry => app.addRecentDocument(workspaceEntry));
 	}
 
 	clearRecentlyOpened(): void {

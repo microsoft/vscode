@@ -12,6 +12,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/webview';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 // todo@joh move these things back into something like contrib/insets
 class EditorWebviewZone implements IViewZone {
@@ -67,7 +68,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		this._disposables.dispose();
 	}
 
-	async $createEditorInset(handle: number, id: string, uri: UriComponents, range: IRange, options: modes.IWebviewOptions): Promise<void> {
+	async $createEditorInset(handle: number, id: string, uri: UriComponents, range: IRange, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
 
 		let editor: IActiveCodeEditor | undefined;
 		id = id.substr(0, id.indexOf(',')); //todo@joh HACK
@@ -89,7 +90,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		const webview = this._webviewService.createWebview({
 			enableFindWidget: false,
 			allowSvgs: false,
-			extension: undefined
+			extension: { id: extensionId, location: URI.revive(extensionLocation) }
 		}, {
 				allowScripts: options.enableScripts
 			});

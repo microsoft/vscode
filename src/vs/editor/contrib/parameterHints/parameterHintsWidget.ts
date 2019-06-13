@@ -8,7 +8,7 @@ import { domEvent, stop } from 'vs/base/browser/event';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -31,7 +31,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 
 	private readonly markdownRenderer: MarkdownRenderer;
 	private readonly renderDisposeables = this._register(new DisposableStore());
-	private model: ParameterHintsModel | null;
+	private readonly model = this._register(new MutableDisposable<ParameterHintsModel>());
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
 	private element: HTMLElement;
@@ -52,13 +52,13 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		@IModeService modeService: IModeService,
 	) {
 		super();
-		this.markdownRenderer = new MarkdownRenderer(editor, modeService, openerService);
-		this.model = new ParameterHintsModel(editor);
+		this.markdownRenderer = this._register(new MarkdownRenderer(editor, modeService, openerService));
+		this.model.value = new ParameterHintsModel(editor);
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
 		this.visible = false;
 
-		this._register(this.model.onChangedHints(newParameterHints => {
+		this._register(this.model.value.onChangedHints(newParameterHints => {
 			if (newParameterHints) {
 				this.show();
 				this.render(newParameterHints);
@@ -282,22 +282,22 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	next(): void {
-		if (this.model) {
+		if (this.model.value) {
 			this.editor.focus();
-			this.model.next();
+			this.model.value.next();
 		}
 	}
 
 	previous(): void {
-		if (this.model) {
+		if (this.model.value) {
 			this.editor.focus();
-			this.model.previous();
+			this.model.value.previous();
 		}
 	}
 
 	cancel(): void {
-		if (this.model) {
-			this.model.cancel();
+		if (this.model.value) {
+			this.model.value.cancel();
 		}
 	}
 
@@ -310,23 +310,14 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 	}
 
 	trigger(context: TriggerContext): void {
-		if (this.model) {
-			this.model.trigger(context, 0);
+		if (this.model.value) {
+			this.model.value.trigger(context, 0);
 		}
 	}
 
 	private updateMaxHeight(): void {
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
 		this.element.style.maxHeight = `${height}px`;
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		if (this.model) {
-			this.model.dispose();
-			this.model = null;
-		}
 	}
 }
 

@@ -282,7 +282,7 @@ export class NativeMenubarControl extends MenubarControl {
 			environmentService,
 			accessibilityService);
 
-		if (isMacintosh) {
+		if (isMacintosh && !isWeb) {
 			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
 			this.topLevelTitles['Preferences'] = nls.localize('mPreferences', "Preferences");
 		}

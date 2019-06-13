@@ -27,4 +27,6 @@ export class ProductService implements IProductService {
 	get enableTelemetry(): boolean { return product.enableTelemetry; }
 
 	get sendASmile(): { reportIssueUrl: string, requestFeatureUrl: string } { return product.sendASmile; }
+
+	get extensionsGallery() { return product.extensionsGallery; }
 }

@@ -44,7 +44,7 @@ import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/ele
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActivationProgress';
+import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/electron-browser/extensionsDependencyChecker';
@@ -439,4 +439,13 @@ CommandsRegistry.registerCommand({
 			onUnexpectedError(e);
 		}
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '2_configuration',
+	command: {
+		id: VIEWLET_ID,
+		title: localize('showExtensions', "Extensions")
+	},
+	order: 3
 });
