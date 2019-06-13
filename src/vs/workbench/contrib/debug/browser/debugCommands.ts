@@ -115,7 +115,7 @@ export function registerCommands(): void {
 				const resource = activeEditor.getModel().uri;
 				const source = stackFrame.thread.session.getSourceForUri(resource);
 				if (source) {
-					const response = await stackFrame.thread.session.gotoTargets(source, position.lineNumber, position.column);
+					const response = await stackFrame.thread.session.gotoTargets(source.raw, position.lineNumber, position.column);
 					const targets = response.body.targets;
 					if (targets.length) {
 						let id = targets[0].id;
