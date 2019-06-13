@@ -39,7 +39,7 @@ export class BrowserKeymap {
 			});
 		}
 
-		const platform = isWindows ? 'win32' : isMacintosh ? 'darwin' : 'linux';
+		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
 		import('vs/workbench/services/keybinding/browser/keyboardlayouts/layout.contribution.' + platform).then(() => {
 			console.log(KeyboardLayoutProvider.INSTANCE.getKeyboardLayouts().length);
