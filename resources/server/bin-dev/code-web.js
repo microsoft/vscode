@@ -8,7 +8,6 @@ const cp = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const VERBOSE = process.argv.indexOf('--verbose') !== -1;
 const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
 
 let PORT = 8000;
@@ -59,10 +58,7 @@ const handle = setTimeout(() => {
 let launched = false;
 proc.stdout.on("data", data => {
 
-	// Respect --verbose
-	if (VERBOSE) {
-		console.log(data.toString());
-	}
+	console.log(data.toString());
 
 	// Bring up web URL when we detect the server is ready
 	if (!launched && data.toString().indexOf(`Extension host agent listening on ${PORT}`) >= 0) {
