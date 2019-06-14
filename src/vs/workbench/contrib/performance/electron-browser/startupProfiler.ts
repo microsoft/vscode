@@ -104,9 +104,9 @@ export class StartupProfiler implements IWorkbenchContribution {
 	}
 
 	private _createPerfIssue(files: string[]): Promise<void> {
-		return this._textModelResolverService.createModelReference(PerfviewInput.Uri).then(ref => {
+		return this._textModelResolverService.createModelReference(PerfviewInput.Uri).then(async (ref) => {
 
-			this._clipboardService.writeText(ref.object.textEditorModel.getValue());
+			await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
 			ref.dispose();
 
 			const body = `

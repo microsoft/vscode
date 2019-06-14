@@ -51,7 +51,7 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 
 	async resolve(variable: Variable): Promise<string | undefined> {
 		for (const delegate of this._delegates) {
-			let value = delegate.resolve(variable);
+			let value = await delegate.resolve(variable);
 			if (value !== undefined) {
 				return value;
 			}

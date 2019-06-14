@@ -856,8 +856,7 @@ export class ExtensionInfoAction extends ExtensionAction {
 
 		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 
-		this.clipboardService.writeText(clipboardStr);
-		return Promise.resolve();
+		return Promise.resolve(this.clipboardService.writeText(clipboardStr));
 	}
 }
 

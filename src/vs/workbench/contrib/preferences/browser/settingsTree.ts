@@ -1416,9 +1416,9 @@ class CopySettingIdAction extends Action {
 		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
 	}
 
-	run(context: SettingsTreeSettingElement): Promise<void> {
+	async run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
-			this.clipboardService.writeText(context.setting.key);
+			await this.clipboardService.writeText(context.setting.key);
 		}
 
 		return Promise.resolve(undefined);
@@ -1435,10 +1435,10 @@ class CopySettingAsJSONAction extends Action {
 		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
 	}
 
-	run(context: SettingsTreeSettingElement): Promise<void> {
+	async run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
-			this.clipboardService.writeText(jsonResult);
+			await this.clipboardService.writeText(jsonResult);
 		}
 
 		return Promise.resolve(undefined);

@@ -24,7 +24,6 @@ export class MainThreadClipboard implements MainThreadClipboardShape {
 	}
 
 	$writeText(value: string): Promise<void> {
-		this._clipboardService.writeText(value);
-		return Promise.resolve();
+		return Promise.resolve(this._clipboardService.writeText(value));
 	}
 }

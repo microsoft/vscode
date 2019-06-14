@@ -332,10 +332,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-	handler: (accessor, args: any) => {
+	handler: async (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control) {
-			control.copyKeybinding(control.activeKeybindingEntry!);
+			await control.copyKeybinding(control.activeKeybindingEntry!);
 		}
 	}
 });
@@ -345,10 +345,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: 0,
-	handler: (accessor, args: any) => {
+	handler: async (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
 		if (control) {
-			control.copyKeybindingCommand(control.activeKeybindingEntry!);
+			await control.copyKeybindingCommand(control.activeKeybindingEntry!);
 		}
 	}
 });
