@@ -24,7 +24,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
@@ -185,26 +185,20 @@ class CodeRendererMain extends Disposable {
 }
 
 export interface IWindowConfigurationContents {
-	userDataUri: string;
-	folderUri?: string;
-	workspaceUri?: string;
+	authority: string;
+	userDataUri: UriComponents;
+	folderUri?: UriComponents;
+	workspaceUri?: UriComponents;
 }
 
 export function main(windowConfigurationContents: IWindowConfigurationContents): Promise<void> {
 	const windowConfiguration: IWindowConfiguration = {
-		userDataUri: toResource(windowConfigurationContents.userDataUri),
-		folderUri: windowConfigurationContents.folderUri ? toResource(windowConfigurationContents.folderUri) : undefined,
-		workspaceUri: windowConfigurationContents.workspaceUri ? toResource(windowConfigurationContents.workspaceUri) : undefined,
-		remoteAuthority: document.location.host
+		userDataUri: URI.revive(windowConfigurationContents.userDataUri),
+		remoteAuthority: windowConfigurationContents.authority,
+		folderUri: windowConfigurationContents.folderUri ? URI.revive(windowConfigurationContents.folderUri) : undefined,
+		workspaceUri: windowConfigurationContents.workspaceUri ? URI.revive(windowConfigurationContents.workspaceUri) : undefined
 	};
 
 	const renderer = new CodeRendererMain(windowConfiguration);
 	return renderer.open();
-}
-
-function toResource(uri: string): URI {
-	return URI.parse(uri).with({
-		scheme: Schemas.vscodeRemote,
-		authority: document.location.host
-	});
 }
