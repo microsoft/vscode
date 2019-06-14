@@ -384,8 +384,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			signatureHelpTriggerCharacters: metadata.triggerCharacters,
 			signatureHelpRetriggerCharacters: metadata.retriggerCharacters,
 
-			provideSignatureHelp: (model: ITextModel, position: EditorPosition, token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelp | undefined> => {
-				return this._proxy.$provideSignatureHelp(handle, model.uri, position, context, token);
+			provideSignatureHelp: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelpResult | undefined> => {
+				const result = await this._proxy.$provideSignatureHelp(handle, model.uri, position, context, token);
+				if (!result) {
+					return undefined;
+				}
+				return {
+					value: result,
+					dispose: () => {
+						this._proxy.$releaseSignatureHelp(handle, result.id);
+					}
+				};
 			}
 		});
 	}
