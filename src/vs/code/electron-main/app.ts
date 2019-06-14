@@ -301,6 +301,11 @@ export class CodeApplication extends Disposable {
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
 
+		// Register custom schemes with privileges
+		protocol.registerSchemesAsPrivileged([
+			{ scheme: 'vscode-resource', privileges: { secure: true, supportFetchAPI: true, corsEnabled: true } }
+		]);
+
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
 		// any shortcut that is pinned to the taskbar and prevent showing
