@@ -839,7 +839,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 	async provideTextContent(resource: URI): Promise<ITextModel> {
 		const model = this.modelService.createModel(await this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource), resource);
 
-		return Promise.resolve(model);
+		return model;
 	}
 }
 
