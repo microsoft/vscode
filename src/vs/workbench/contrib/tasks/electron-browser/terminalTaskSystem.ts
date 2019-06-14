@@ -42,8 +42,8 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
-import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -172,6 +172,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private environmentService: IWorkbenchEnvironmentService,
 		private outputChannelId: string,
 		private fileService: IFileService,
+		private terminalInstanceService: ITerminalInstanceService,
 		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
 
@@ -751,6 +752,25 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
 	}
 
+	private getDefaultShell(platform: Platform.Platform): string {
+		let defaultShell: string | undefined = undefined;
+		try {
+			defaultShell = this.terminalInstanceService.getDefaultShell(platform);
+		} catch {
+			// Do nothing
+		}
+		if (!defaultShell) {
+			// Make up a guess for the default shell.
+			if (platform === Platform.Platform.Windows) {
+				defaultShell = 'cmd.exe';
+			} else {
+				defaultShell = 'bash.exe';
+			}
+			console.warn('Cannot get the default shell.');
+		}
+		return defaultShell;
+	}
+
 	private createShellLaunchConfig(task: CustomTask | ContributedTask, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): IShellLaunchConfig | undefined {
 		let shellLaunchConfig: IShellLaunchConfig;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
@@ -759,7 +779,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: undefined, args: undefined, waitOnExit };
-			this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig, getDefaultShell(platform), platform);
+			this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig, this.getDefaultShell(platform), platform);
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
