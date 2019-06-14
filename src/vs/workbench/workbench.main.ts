@@ -121,7 +121,7 @@ import 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import 'vs/workbench/services/keybinding/electron-browser/keybinding.contribution';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledEditorService';
-import 'vs/workbench/services/textfile/node/textResourcePropertiesService';
+import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
 import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';

@@ -13,7 +13,6 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 // tslint:disable-next-line: import-patterns no-standalone-editor
-import { SimpleResourcePropertiesService } from 'vs/editor/standalone/browser/simpleServices';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionHostDebugParams, IDebugParams } from 'vs/platform/environment/common/environment';
@@ -36,7 +35,6 @@ import { ExportData } from 'vs/base/common/performance';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IReloadSessionEvent, IExtensionHostDebugService, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent } from 'vs/workbench/services/extensions/common/extensionHostDebug';
@@ -816,14 +814,6 @@ export class SimpleTelemetryService implements ITelemetryService {
 }
 
 registerSingleton(ITelemetryService, SimpleTelemetryService);
-
-//#endregion
-
-//#region Text Resource Properties
-
-export class SimpleTextResourcePropertiesService extends SimpleResourcePropertiesService { }
-
-registerSingleton(ITextResourcePropertiesService, SimpleTextResourcePropertiesService);
 
 //#endregion
 

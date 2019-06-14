@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-interface ArrayConstructor {
-	isArray<T>(arg: ReadonlyArray<T> | null | undefined): arg is ReadonlyArray<T>;
-	isArray<T>(arg: Array<T> | null | undefined): arg is Array<T>;
-	isArray(arg: any): arg is Array<any>;
-	isArray<T>(arg: any): arg is Array<T>;
+const cp = require('child_process');
+
+function exec(cmdLine) {
+	console.log(cmdLine);
+	cp.execSync(cmdLine, {stdio: "inherit"});
 }
+
+exec('git fetch distro');
+exec(`git checkout ${process.env['npm_package_distro']} -- src/vs/server resources/server`);
+exec('git reset HEAD src/vs/server resources/server');

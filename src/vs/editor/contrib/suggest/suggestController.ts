@@ -135,6 +135,7 @@ export class SuggestController implements IEditorContribution {
 		this._toDispose.push(this._editor.onDidBlurEditorWidget(() => {
 			if (!this._sticky) {
 				this._model.cancel();
+				this._model.clear();
 			}
 		}));
 
@@ -165,6 +166,7 @@ export class SuggestController implements IEditorContribution {
 		if (!event || !event.item) {
 			this._alternatives.getValue().reset();
 			this._model.cancel();
+			this._model.clear();
 			return;
 		}
 		if (!this._editor.hasModel()) {
@@ -213,6 +215,7 @@ export class SuggestController implements IEditorContribution {
 		if (!suggestion.command) {
 			// done
 			this._model.cancel();
+			this._model.clear();
 
 		} else if (suggestion.command.id === TriggerSuggestAction.id) {
 			// retigger
@@ -220,7 +223,9 @@ export class SuggestController implements IEditorContribution {
 
 		} else {
 			// exec command, done
-			this._commandService.executeCommand(suggestion.command.id, ...(suggestion.command.arguments ? [...suggestion.command.arguments] : [])).catch(onUnexpectedError);
+			this._commandService.executeCommand(suggestion.command.id, ...(suggestion.command.arguments ? [...suggestion.command.arguments] : []))
+				.catch(onUnexpectedError)
+				.finally(() => this._model.clear()); // <- clear only now, keep commands alive
 			this._model.cancel();
 		}
 
@@ -340,6 +345,7 @@ export class SuggestController implements IEditorContribution {
 
 	cancelSuggestWidget(): void {
 		this._model.cancel();
+		this._model.clear();
 		this._widget.getValue().hideWidget();
 	}
 

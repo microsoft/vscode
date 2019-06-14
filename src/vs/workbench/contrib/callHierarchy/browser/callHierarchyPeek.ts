@@ -33,6 +33,7 @@ import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/action
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Color } from 'vs/base/common/color';
+import { TreeMouseEventTarget } from 'vs/base/browser/ui/tree/tree';
 
 const enum State {
 	Loading = 'loading',
@@ -307,6 +308,10 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		}));
 
 		this._disposables.add(this._tree.onMouseDblClick(e => {
+			if (e.target === TreeMouseEventTarget.Twistie) {
+				return;
+			}
+
 			if (e.element && isNonEmptyArray(e.element.locations)) {
 				this.dispose();
 				this._editorService.openEditor({

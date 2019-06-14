@@ -15,6 +15,8 @@ call node build\lib\builtInExtensions.js
 :: Download nodejs executable for remote
 call node .\node_modules\gulp\bin\gulp.js node-remote
 
+echo Using node from .build\node-remote\node
+
 :: Launch Agent
 call .build\node-remote\node.exe out\vs\server\main.js %*
 

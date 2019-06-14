@@ -50,11 +50,6 @@ if (SELFHOST) {
 let serverArgs = process.argv.slice(2);
 const proc = path.extname(executable) === '.cmd' || path.extname(executable) === '.bat' ? cp.spawn(executable, serverArgs, { shell: true }) : cp.execFile(executable, serverArgs);
 
-// Show warning message eventually
-const handle = setTimeout(() => {
-	console.log(`...still waiting for the extension host agent listening on ${PORT}. Is the port free? You can run with --verbose to see for errors from starting the server.`);
-}, 5000);
-
 let launched = false;
 proc.stdout.on("data", data => {
 
@@ -62,7 +57,6 @@ proc.stdout.on("data", data => {
 
 	// Bring up web URL when we detect the server is ready
 	if (!launched && data.toString().indexOf(`Extension host agent listening on ${PORT}`) >= 0) {
-		clearTimeout(handle);
 		launched = true;
 
 		setTimeout(() => {

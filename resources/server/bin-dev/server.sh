@@ -20,6 +20,8 @@ function code() {
 		./node_modules/.bin/gulp node-remote
 	fi
 
+	echo 'Using node from ./.build/node-remote/node'
+
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
 	./.build/node-remote/node "$ROOT/out/vs/server/main.js" "$@"
