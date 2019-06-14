@@ -36,7 +36,6 @@ import { getDocumentFormattingEditsUntilResult, getDocumentRangeFormattingEditsU
 import { getLinks } from 'vs/editor/contrib/links/getLinks';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
-import { ExtHostHeapService } from 'vs/workbench/api/common/extHostHeapService';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -100,16 +99,14 @@ suite('ExtHostLanguageFeatures', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		const heapService = new ExtHostHeapService();
-
-		const commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
+		const commands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics, new NullLogService());
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));

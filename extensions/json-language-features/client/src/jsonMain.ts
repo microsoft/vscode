@@ -83,7 +83,12 @@ export function activate(context: ExtensionContext) {
 
 	let documentSelector = ['json', 'jsonc'];
 
-	let schemaResolutionErrorStatusBarItem = window.createStatusBarItem(StatusBarAlignment.Right, 0);
+	let schemaResolutionErrorStatusBarItem = window.createStatusBarItem({
+		id: 'status.json.resolveError',
+		name: localize('json.resolveError', "JSON: Schema Resolution Error"),
+		alignment: StatusBarAlignment.Right,
+		priority: 0
+	});
 	schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
 	schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema.') + ' ' + localize('json.clickToRetry', 'Click to retry.');
 	schemaResolutionErrorStatusBarItem.text = '$(alert)';

@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as net from 'net';
 import { downloadAndUnzipVSCodeServer } from './download';
+import { terminateProcess } from './util/processes';
 
 let extHostProcess: cp.ChildProcess | undefined;
 const enum CharCode {
@@ -87,14 +88,14 @@ export function activate(context: vscode.ExtensionContext) {
 			if (!commit) { // dev mode
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
 				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
-				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath, detached: true });
+				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
 			} else {
 				const serverBin = path.join(remoteDataDir, 'bin');
 				progress.report({ message: 'Installing VSCode Server' });
 				const serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin);
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);
 
-				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation, detached: true });
+				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
 			}
 			extHostProcess.stdout.on('data', (data: Buffer) => processOutput(data.toString()));
 			extHostProcess.stderr.on('data', (data: Buffer) => processOutput(data.toString()));
@@ -109,7 +110,7 @@ export function activate(context: vscode.ExtensionContext) {
 			context.subscriptions.push({
 				dispose: () => {
 					if (extHostProcess) {
-						process.kill(-extHostProcess.pid);
+						terminateProcess(extHostProcess, context.extensionPath);
 					}
 				}
 			});

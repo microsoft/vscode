@@ -91,6 +91,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { RunAutomaticTasks, AllowAutomaticTaskRunning, DisallowAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/electron-browser/runAutomaticTasks';
 
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -355,7 +356,8 @@ class TaskService extends Disposable implements ITaskService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ITerminalInstanceService private readonly terminalInstanceService: ITerminalInstanceService,
 	) {
 		super();
 
@@ -1235,7 +1237,7 @@ class TaskService extends Disposable implements ITaskService {
 				this.terminalService, this.outputService, this.panelService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
 				this.contextService, this.environmentService,
-				TaskService.OutputChannelId, this.fileService,
+				TaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
 				(workspaceFolder: IWorkspaceFolder) => {
 					if (!workspaceFolder) {
 						return undefined;
