@@ -3,13 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWebviewService, Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IFrameWebview as WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { IWebviewService, WebviewOptions, WebviewContentOptions, Webview } from 'vs/workbench/contrib/webview/common/webview';
 
-export class NullWebviewService implements IWebviewService {
-
+export class WebviewService implements IWebviewService {
 	_serviceBrand: any;
 
-	createWebview(_options: WebviewOptions, _contentOptions: WebviewContentOptions): Webview {
-		throw new Error('not supported');
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) { }
+
+	createWebview(
+		options: WebviewOptions,
+		contentOptions: WebviewContentOptions
+	): Webview {
+		return this._instantiationService.createInstance(WebviewElement,
+			options,
+			contentOptions);
 	}
 }
