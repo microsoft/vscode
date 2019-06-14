@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import * as modes from 'vs/editor/common/modes';
-import { ActionsOrientation, ActionViewItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, ActionViewItem, ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -35,7 +35,7 @@ import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from '.
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -153,6 +153,7 @@ export class CommentNode extends Disposable {
 
 	private createActionsToolbar() {
 		const actions: IAction[] = [];
+		const secondaryActions: IAction[] = [];
 
 		let hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
 
@@ -188,12 +189,22 @@ export class CommentNode extends Disposable {
 		const menu = commentMenus.getCommentTitleActions(this.comment, this._contextKeyService);
 		this._register(menu);
 		this._register(menu.onDidChange(e => {
-			const contributedActions = menu.getActions({ shouldForwardArgs: true }).reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
-			this.toolbar.setActions(contributedActions);
+			const primary: IAction[] = [];
+			const secondary: IAction[] = [];
+			const result = { primary, secondary };
+			fillInActions(contributedActions, result, false, g => /^inline/.test(g));
+			this.toolbar.setActions(primary, secondary);
 		}));
 
-		const contributedActions = menu.getActions({ shouldForwardArgs: true }).reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
-		actions.push(...contributedActions);
+		const contributedActions = menu.getActions({ shouldForwardArgs: true });
+		{
+			const primary: IAction[] = [];
+			const secondary: IAction[] = [];
+			const result = { primary, secondary };
+			fillInActions(contributedActions, result, false, g => /^inline/.test(g));
+			actions.push(...primary);
+			secondaryActions.push(...secondary);
+		}
 
 		if (actions.length) {
 			this.toolbar = new ToolBar(this._actionsToolbarContainer, this.contextMenuService, {
@@ -224,7 +235,7 @@ export class CommentNode extends Disposable {
 			};
 
 			this.registerActionBarListeners(this._actionsToolbarContainer);
-			this.toolbar.setActions(actions, [])();
+			this.toolbar.setActions(actions, secondaryActions)();
 			this._register(this.toolbar);
 		}
 	}
@@ -725,6 +736,29 @@ export class CommentNode extends Disposable {
 			this._clearTimeout = setTimeout(() => {
 				dom.removeClass(this.domNode, 'focus');
 			}, 3000);
+		}
+	}
+}
+
+function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+	for (let tuple of groups) {
+		let [group, actions] = tuple;
+		if (useAlternativeActions) {
+			actions = actions.map(a => (a instanceof MenuItemAction) && !!a.alt ? a.alt : a);
+		}
+
+		if (isPrimaryGroup(group)) {
+			const to = Array.isArray<IAction>(target) ? target : target.primary;
+
+			to.unshift(...actions);
+		} else {
+			const to = Array.isArray<IAction>(target) ? target : target.secondary;
+
+			if (to.length > 0) {
+				to.push(new Separator());
+			}
+
+			to.push(...actions);
 		}
 	}
 }
