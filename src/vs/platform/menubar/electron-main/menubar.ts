@@ -486,7 +486,7 @@ export class Menubar {
 		}, false));
 	}
 
-	private isOptionClick(event: Electron.Event): boolean {
+	private isOptionClick(event: Electron.KeyboardEvent): boolean {
 		return !!(event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey))));
 	}
 
@@ -580,7 +580,7 @@ export class Menubar {
 		}
 	}
 
-	private static _menuItemIsTriggeredViaKeybinding(event: Electron.Event, userSettingsLabel: string): boolean {
+	private static _menuItemIsTriggeredViaKeybinding(event: Electron.KeyboardEvent, userSettingsLabel: string): boolean {
 		// The event coming in from Electron will inform us only about the modifier keys pressed.
 		// The strategy here is to check if the modifier keys match those of the keybinding,
 		// since it is highly unlikely to use modifier keys when clicking with the mouse
