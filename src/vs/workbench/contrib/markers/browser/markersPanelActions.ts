@@ -296,7 +296,7 @@ export class QuickFixAction extends Action {
 	private static readonly CLASS: string = 'markers-panel-action-quickfix';
 	private static readonly AUTO_FIX_CLASS: string = QuickFixAction.CLASS + ' autofixable';
 
-	private readonly _onShowQuickFixes: Emitter<void> = new Emitter<void>();
+	private readonly _onShowQuickFixes = this._register(new Emitter<void>());
 	readonly onShowQuickFixes: Event<void> = this._onShowQuickFixes.event;
 
 	private _quickFixes: IAction[] = [];

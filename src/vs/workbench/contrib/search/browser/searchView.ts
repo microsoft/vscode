@@ -23,7 +23,7 @@ import 'vs/css!./media/searchview';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as nls from 'vs/nls';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -59,7 +59,7 @@ import { relativePath } from 'vs/base/common/resources';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Memento } from 'vs/workbench/common/memento';
+import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const $ = dom.$;
@@ -102,8 +102,8 @@ export class SearchView extends ViewletPanel {
 
 	private tree: WorkbenchObjectTree<RenderableMatch>;
 	private treeLabels: ResourceLabels;
-	private viewletState: object;
-	private globalMemento: object;
+	private viewletState: MementoObject;
+	private globalMemento: MementoObject;
 	private messagesElement: HTMLElement;
 	private messageDisposables: IDisposable[] = [];
 	private searchWidgetsContainerElement: HTMLElement;
@@ -698,7 +698,7 @@ export class SearchView extends ViewletPanel {
 			getAnchor: () => e.anchor,
 			getActions: () => {
 				const actions: IAction[] = [];
-				fillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
+				createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
 				return actions;
 			},
 			getActionsContext: () => e.element
@@ -1699,21 +1699,9 @@ export class SearchView extends ViewletPanel {
 		super.saveState();
 	}
 
-	private _toDispose: IDisposable[] = [];
-	protected _register<T extends IDisposable>(t: T): T {
-		if (this.isDisposed) {
-			console.warn('Registering disposable on object that has already been disposed.');
-			t.dispose();
-		} else {
-			this._toDispose.push(t);
-		}
-		return t;
-	}
-
 	dispose(): void {
 		this.isDisposed = true;
 		this.saveState();
-		this._toDispose = dispose(this._toDispose);
 		super.dispose();
 	}
 }

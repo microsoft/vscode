@@ -547,14 +547,14 @@
 				]
 			},
 			{
-				"target": "**/vs/agent/**",
+				"target": "**/vs/server/**",
 				"restrictions": [
 					"vs/nls",
 					"**/vs/base/**/{common,node}/**",
 					"**/vs/base/parts/**/{common,node}/**",
 					"**/vs/platform/**/{common,node}/**",
 					"**/vs/workbench/**/{common,node}/**",
-					"**/vs/agent/**",
+					"**/vs/server/**",
 					"**/vs/code/**/{common,node}/**",
 					"*" // node modules
 				]

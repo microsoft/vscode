@@ -387,7 +387,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					environment: {
 						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
-						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : undefined,
+						appSettingsHome: this._environmentService.appSettingsHome ? this._environmentService.appSettingsHome : undefined,
 						appName: product.nameLong,
 						appUriScheme: product.urlProtocol,
 						appLanguage: platform.language,

@@ -302,9 +302,13 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	layout(dimension: dom.Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
+			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight, dimension.width);
+			if (lastElementVisible) {
+				revealLastElement(this.tree);
+			}
 		}
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 
@@ -547,6 +551,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		if (this.replElementsChangeListener) {
 			this.replElementsChangeListener.dispose();
 		}
+		this.refreshScheduler.dispose();
 		super.dispose();
 	}
 }
@@ -734,24 +739,31 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	constructor(private configurationService: IConfigurationService) { }
 
 	getHeight(element: IReplElement): number {
+		const countNumberOfLines = (str: string) => Math.max(1, (str.match(/\r\n|\n/g) || []).length);
+
 		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
 		const fontSize = this.configurationService.getValue<IDebugConfiguration>('debug').console.fontSize;
 		const rowHeight = Math.ceil(1.4 * fontSize);
-		if (element instanceof Expression && element.hasChildren) {
-			return 2 * rowHeight;
-		}
 
 		// In order to keep scroll position we need to give a good approximation to the tree
-		if (element instanceof SimpleReplElement) {
-			// For every 150 characters increase the number of lines needed
-			let count = Math.ceil(element.value.length / 150);
-			for (let i = 0; i < element.value.length; i++) {
-				if (element.value[i] === '\n' || element.value[i] === '\r\n') {
-					count++;
-				}
+		// For every 150 characters increase the number of lines needed
+		if (element instanceof Expression) {
+			let { name, value } = element;
+			let nameRows = countNumberOfLines(name) + Math.floor(name.length / 150);
+
+			if (element.hasChildren) {
+				return (nameRows + 1) * rowHeight;
 			}
 
-			return Math.max(1, count) * rowHeight;
+			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+			return rowHeight * (nameRows + valueRows);
+		}
+
+		if (element instanceof SimpleReplElement) {
+			let value = element.value;
+			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+
+			return valueRows * rowHeight;
 		}
 
 		return rowHeight;

@@ -25,6 +25,9 @@
 			paths: {
 				'vscode-textmate': `${window.location.origin}/node_modules/vscode-textmate/release/main`,
 				'onigasm-umd': `${window.location.origin}/node_modules/onigasm-umd/release/main`,
+				'xterm': `${window.location.origin}/node_modules/xterm/lib/xterm.js`,
+				'xterm-addon-search': `${window.location.origin}/node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
+				'xterm-addon-web-links': `${window.location.origin}/node_modules/xterm-addon-web-links/lib/xterm-addon-web-links.js`,
 			}
 		});
 
@@ -36,9 +39,8 @@
 		],
 			// @ts-ignore
 			function () {
-
 				// @ts-ignore
-				require('vs/workbench/browser/web.main').main().then(undefined, console.error);
+				require('vs/workbench/browser/web.main').main(self['WINDOW_CONFIGURATION']).then(undefined, console.error);
 			});
 	});
 })();

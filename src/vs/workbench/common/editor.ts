@@ -178,7 +178,7 @@ export interface IEditorInputFactoryRegistry {
 	 *
 	 * @param editorInputId the identifier of the editor input
 	 */
-	getEditorInputFactory(editorInputId: string): IEditorInputFactory;
+	getEditorInputFactory(editorInputId: string): IEditorInputFactory | undefined;
 
 	/**
 	 * Starts the registry by providing the required services.
@@ -1050,23 +1050,22 @@ export interface IEditorMemento<T> {
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService;
 	private fileInputFactory: IFileInputFactory;
-	private editorInputFactoryConstructors: { [editorInputId: string]: IConstructorSignature0<IEditorInputFactory> } = Object.create(null);
-	private readonly editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
+	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
+	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
 
 	start(accessor: ServicesAccessor): void {
 		this.instantiationService = accessor.get(IInstantiationService);
 
-		for (let key in this.editorInputFactoryConstructors) {
-			const element = this.editorInputFactoryConstructors[key];
-			this.createEditorInputFactory(key, element);
-		}
+		this.editorInputFactoryConstructors.forEach((ctor, key) => {
+			this.createEditorInputFactory(key, ctor);
+		});
 
-		this.editorInputFactoryConstructors = Object.create(null);
+		this.editorInputFactoryConstructors.clear();
 	}
 
 	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
 		const instance = this.instantiationService.createInstance(ctor);
-		this.editorInputFactoryInstances[editorInputId] = instance;
+		this.editorInputFactoryInstances.set(editorInputId, instance);
 	}
 
 	registerFileInputFactory(factory: IFileInputFactory): void {
@@ -1079,14 +1078,14 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 
 	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
 		if (!this.instantiationService) {
-			this.editorInputFactoryConstructors[editorInputId] = ctor;
+			this.editorInputFactoryConstructors.set(editorInputId, ctor);
 		} else {
 			this.createEditorInputFactory(editorInputId, ctor);
 		}
 	}
 
-	getEditorInputFactory(editorInputId: string): IEditorInputFactory {
-		return this.editorInputFactoryInstances[editorInputId];
+	getEditorInputFactory(editorInputId: string): IEditorInputFactory | undefined {
+		return this.editorInputFactoryInstances.get(editorInputId);
 	}
 }
 

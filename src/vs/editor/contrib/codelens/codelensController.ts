@@ -5,29 +5,30 @@
 
 import { CancelablePromise, RunOnceScheduler, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { toDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { CodeLensProviderRegistry, CodeLens } from 'vs/editor/common/modes';
-import { getCodeLensData, CodeLensModel, CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
+import { CodeLensModel, getCodeLensData, CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { CodeLensWidget, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
 
-export class CodeLensContribution extends Disposable implements editorCommon.IEditorContribution {
+export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 	private static readonly ID: string = 'css.editor.codeLens';
 
 	private _isEnabled: boolean;
 
-	private readonly _localToDispose = this._register(new DisposableStore());
+	private readonly _globalToDispose = new DisposableStore();
+	private readonly _localToDispose = new DisposableStore();
 	private _lenses: CodeLensWidget[] = [];
 	private _currentFindCodeLensSymbolsPromise: CancelablePromise<CodeLensModel> | undefined;
+	private _oldCodeLensModels = new DisposableStore();
 	private _currentCodeLensModel: CodeLensModel | undefined;
 	private _modelChangeCounter: number = 0;
 	private _currentResolveCodeLensSymbolsPromise: CancelablePromise<any> | undefined;
@@ -39,29 +40,26 @@ export class CodeLensContribution extends Disposable implements editorCommon.IEd
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICodeLensCache private readonly _codeLensCache: ICodeLensCache
 	) {
-		super();
 		this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 
-		this._lenses = [];
-		this._currentFindCodeLensSymbolsPromise = undefined;
-		this._modelChangeCounter = 0;
-
-		this._register(this._editor.onDidChangeModel(() => this._onModelChange()));
-		this._register(this._editor.onDidChangeModelLanguage(() => this._onModelChange()));
-		this._register(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			let prevIsEnabled = this._isEnabled;
+		this._globalToDispose.add(this._editor.onDidChangeModel(() => this._onModelChange()));
+		this._globalToDispose.add(this._editor.onDidChangeModelLanguage(() => this._onModelChange()));
+		this._globalToDispose.add(this._editor.onDidChangeConfiguration(() => {
+			const prevIsEnabled = this._isEnabled;
 			this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 			if (prevIsEnabled !== this._isEnabled) {
 				this._onModelChange();
 			}
 		}));
-		this._register(CodeLensProviderRegistry.onDidChange(this._onModelChange, this));
+		this._globalToDispose.add(CodeLensProviderRegistry.onDidChange(this._onModelChange, this));
 		this._onModelChange();
 	}
 
 	dispose(): void {
 		this._localDispose();
-		super.dispose();
+		this._globalToDispose.dispose();
+		this._oldCodeLensModels.dispose();
+		dispose(this._currentCodeLensModel);
 	}
 
 	private _localDispose(): void {
@@ -75,6 +73,7 @@ export class CodeLensContribution extends Disposable implements editorCommon.IEd
 			this._currentResolveCodeLensSymbolsPromise = undefined;
 		}
 		this._localToDispose.clear();
+		this._oldCodeLensModels.clear();
 		dispose(this._currentCodeLensModel);
 	}
 
@@ -136,8 +135,9 @@ export class CodeLensContribution extends Disposable implements editorCommon.IEd
 
 			this._currentFindCodeLensSymbolsPromise.then(result => {
 				if (counterValue === this._modelChangeCounter) { // only the last one wins
-					// lifecycle -> dispose old model
-					dispose(this._currentCodeLensModel);
+					if (this._currentCodeLensModel) {
+						this._oldCodeLensModels.add(this._currentCodeLensModel);
+					}
 					this._currentCodeLensModel = result;
 
 					// cache model to reduce flicker
@@ -151,9 +151,9 @@ export class CodeLensContribution extends Disposable implements editorCommon.IEd
 		}, 250);
 		this._localToDispose.add(scheduler);
 		this._localToDispose.add(this._detectVisibleLenses);
-		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
-			this._editor.changeDecorations((changeAccessor) => {
-				this._editor.changeViewZones((viewAccessor) => {
+		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
+			this._editor.changeDecorations(decorationsAccessor => {
+				this._editor.changeViewZones(viewZonesAccessor => {
 					let toDispose: CodeLensWidget[] = [];
 					let lastLensLineNumber: number = -1;
 
@@ -164,17 +164,17 @@ export class CodeLensContribution extends Disposable implements editorCommon.IEd
 							toDispose.push(lens);
 
 						} else {
-							lens.update(viewAccessor);
+							lens.update(viewZonesAccessor);
 							lastLensLineNumber = lens.getLineNumber();
 						}
 					});
 
 					let helper = new CodeLensHelper();
 					toDispose.forEach((l) => {
-						l.dispose(helper, viewAccessor);
+						l.dispose(helper, viewZonesAccessor);
 						this._lenses.splice(this._lenses.indexOf(l), 1);
 					});
-					helper.commit(changeAccessor);
+					helper.commit(decorationsAccessor);
 				});
 			});
 
@@ -188,15 +188,15 @@ export class CodeLensContribution extends Disposable implements editorCommon.IEd
 				this._detectVisibleLenses.schedule();
 			}
 		}));
-		this._localToDispose.add(this._editor.onDidLayoutChange(e => {
+		this._localToDispose.add(this._editor.onDidLayoutChange(() => {
 			this._detectVisibleLenses.schedule();
 		}));
 		this._localToDispose.add(toDisposable(() => {
 			if (this._editor.getModel()) {
 				const scrollState = StableEditorScrollState.capture(this._editor);
-				this._editor.changeDecorations((changeAccessor) => {
-					this._editor.changeViewZones((accessor) => {
-						this._disposeAllLenses(changeAccessor, accessor);
+				this._editor.changeDecorations(decorationsAccessor => {
+					this._editor.changeViewZones(viewZonesAccessor => {
+						this._disposeAllLenses(decorationsAccessor, viewZonesAccessor);
 					});
 				});
 				scrollState.restore(this._editor);
@@ -261,10 +261,12 @@ export class CodeLensContribution extends Disposable implements editorCommon.IEd
 
 		const scrollState = StableEditorScrollState.capture(this._editor);
 
-		this._editor.changeDecorations((changeAccessor) => {
-			this._editor.changeViewZones((accessor) => {
+		this._editor.changeDecorations(decorationsAccessor => {
+			this._editor.changeViewZones(viewZoneAccessor => {
 
-				let codeLensIndex = 0, groupsIndex = 0, helper = new CodeLensHelper();
+				const helper = new CodeLensHelper();
+				let codeLensIndex = 0;
+				let groupsIndex = 0;
 
 				while (groupsIndex < groups.length && codeLensIndex < this._lenses.length) {
 
@@ -272,14 +274,14 @@ export class CodeLensContribution extends Disposable implements editorCommon.IEd
 					let codeLensLineNumber = this._lenses[codeLensIndex].getLineNumber();
 
 					if (codeLensLineNumber < symbolsLineNumber) {
-						this._lenses[codeLensIndex].dispose(helper, accessor);
+						this._lenses[codeLensIndex].dispose(helper, viewZoneAccessor);
 						this._lenses.splice(codeLensIndex, 1);
 					} else if (codeLensLineNumber === symbolsLineNumber) {
 						this._lenses[codeLensIndex].updateCodeLensSymbols(groups[groupsIndex], helper);
 						groupsIndex++;
 						codeLensIndex++;
 					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLensWidget(groups[groupsIndex], this._editor, helper, accessor, () => this._detectVisibleLenses.schedule()));
+						this._lenses.splice(codeLensIndex, 0, new CodeLensWidget(groups[groupsIndex], this._editor, helper, viewZoneAccessor, () => this._detectVisibleLenses.schedule()));
 						codeLensIndex++;
 						groupsIndex++;
 					}
@@ -287,17 +289,17 @@ export class CodeLensContribution extends Disposable implements editorCommon.IEd
 
 				// Delete extra code lenses
 				while (codeLensIndex < this._lenses.length) {
-					this._lenses[codeLensIndex].dispose(helper, accessor);
+					this._lenses[codeLensIndex].dispose(helper, viewZoneAccessor);
 					this._lenses.splice(codeLensIndex, 1);
 				}
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLensWidget(groups[groupsIndex], this._editor, helper, accessor, () => this._detectVisibleLenses.schedule()));
+					this._lenses.push(new CodeLensWidget(groups[groupsIndex], this._editor, helper, viewZoneAccessor, () => this._detectVisibleLenses.schedule()));
 					groupsIndex++;
 				}
 
-				helper.commit(changeAccessor);
+				helper.commit(decorationsAccessor);
 			});
 		});
 
@@ -346,16 +348,20 @@ export class CodeLensContribution extends Disposable implements editorCommon.IEd
 				});
 
 				return Promise.all(promises).then(() => {
-					lenses[i].updateCommands(resolvedSymbols);
+					if (!token.isCancellationRequested) {
+						lenses[i].updateCommands(resolvedSymbols);
+					}
 				});
 			});
 
 			return Promise.all(promises);
 		});
 
-		this._currentResolveCodeLensSymbolsPromise.catch(err => {
-			onUnexpectedError(err);
-		}).finally(() => {
+		this._currentResolveCodeLensSymbolsPromise.then(() => {
+			this._oldCodeLensModels.clear(); // dispose old models once we have updated the UI with the current model
+			this._currentResolveCodeLensSymbolsPromise = undefined;
+		}, err => {
+			onUnexpectedError(err); // can also be cancellation!
 			this._currentResolveCodeLensSymbolsPromise = undefined;
 		});
 	}

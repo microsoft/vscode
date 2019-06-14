@@ -15,14 +15,17 @@
     "node-pty": "0.8.1",
     "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
-    "spdlog": "0.8.1",
+    "spdlog": "^0.9.0",
     "vscode-chokidar": "1.6.5",
     "vscode-nsfw": "1.1.1",
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.2.5",
     "vscode-textmate": "^4.1.1",
     "yauzl": "^2.9.2",
-    "yazl": "^2.4.3"
+    "yazl": "^2.4.3",
+    "xterm": "3.15.0-beta34",
+    "xterm-addon-search": "0.1.0-beta6",
+    "xterm-addon-web-links": "0.1.0-beta10"
   },
   "optionalDependencies": {
     "vscode-windows-ca-certs": "0.1.0"

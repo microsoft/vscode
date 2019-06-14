@@ -25,6 +25,10 @@ mkdir -p $ROOT/extensions/emmet/test-fixtures
 ./scripts/code.sh $ROOT/extensions/emmet/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test --disable-extensions --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
 rm -rf $ROOT/extensions/emmet/test-fixtures
 
+if [ -f ./resources/server/test/test-remote-integration.sh ]; then
+	./resources/server/test/test-remote-integration.sh
+fi
+
 # Tests in commonJS
 cd $ROOT/extensions/css-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
 cd $ROOT/extensions/html-language-features/server && $ROOT/scripts/node-electron.sh test/index.js

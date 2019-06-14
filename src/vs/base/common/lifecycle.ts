@@ -30,9 +30,9 @@ function markTracked<T extends IDisposable>(x: T): void {
 	}
 }
 
-function trackDisposable<T extends IDisposable>(x: T): void {
+function trackDisposable<T extends IDisposable>(x: T): T {
 	if (!TRACK_DISPOSABLES) {
-		return;
+		return x;
 	}
 
 	const stack = new Error().stack!;
@@ -41,6 +41,7 @@ function trackDisposable<T extends IDisposable>(x: T): void {
 			console.log(stack);
 		}
 	}, 3000);
+	return x;
 }
 
 export interface IDisposable {
@@ -54,7 +55,8 @@ export function isDisposable<E extends object>(thing: E): thing is E & IDisposab
 
 export function dispose<T extends IDisposable>(disposable: T): T;
 export function dispose<T extends IDisposable>(disposable: T | undefined): T | undefined;
-export function dispose<T extends IDisposable>(disposables: T[]): T[];
+export function dispose<T extends IDisposable>(disposables: Array<T>): Array<T>;
+export function dispose<T extends IDisposable>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
 export function dispose<T extends IDisposable>(disposables: T | T[] | undefined): T | T[] | undefined {
 	if (Array.isArray(disposables)) {
 		disposables.forEach(d => {
@@ -75,11 +77,11 @@ export function dispose<T extends IDisposable>(disposables: T | T[] | undefined)
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	disposables.forEach(markTracked);
-	return { dispose: () => dispose(disposables) };
+	return trackDisposable({ dispose: () => dispose(disposables) });
 }
 
 export function toDisposable(fn: () => void): IDisposable {
-	return { dispose: fn };
+	return trackDisposable({ dispose: fn });
 }
 
 export class DisposableStore implements IDisposable {
@@ -92,6 +94,10 @@ export class DisposableStore implements IDisposable {
 	 * Any future disposables added to this object will be disposed of on `add`.
 	 */
 	public dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+
 		markTracked(this);
 		this._isDisposed = true;
 		this.clear();
@@ -109,10 +115,13 @@ export class DisposableStore implements IDisposable {
 		if (!t) {
 			return t;
 		}
+		if ((t as any as DisposableStore) === this) {
+			throw new Error('Cannot register a disposable on itself!');
+		}
 
 		markTracked(t);
 		if (this._isDisposed) {
-			console.warn('Registering disposable on object that has already been disposed.');
+			console.warn(new Error('Registering disposable on object that has already been disposed of').stack);
 			t.dispose();
 		} else {
 			this._toDispose.add(t);
@@ -139,7 +148,56 @@ export abstract class Disposable implements IDisposable {
 	}
 
 	protected _register<T extends IDisposable>(t: T): T {
+		if ((t as any as Disposable) === this) {
+			throw new Error('Cannot register a disposable on itself!');
+		}
 		return this._store.add(t);
+	}
+}
+
+/**
+ * Manages the lifecycle of a disposable value that may be changed.
+ *
+ * This ensures that when the the disposable value is changed, the previously held disposable is disposed of. You can
+ * also register a `MutableDisposable` on a `Disposable` to ensure it is automatically cleaned up.
+ */
+export class MutableDisposable<T extends IDisposable> implements IDisposable {
+	private _value?: T;
+	private _isDisposed = false;
+
+	constructor() {
+		trackDisposable(this);
+	}
+
+	get value(): T | undefined {
+		return this._isDisposed ? undefined : this._value;
+	}
+
+	set value(value: T | undefined) {
+		if (this._isDisposed || value === this._value) {
+			return;
+		}
+
+		if (this._value) {
+			this._value.dispose();
+		}
+		if (value) {
+			markTracked(value);
+		}
+		this._value = value;
+	}
+
+	clear() {
+		this.value = undefined;
+	}
+
+	dispose(): void {
+		this._isDisposed = true;
+		markTracked(this);
+		if (this._value) {
+			this._value.dispose();
+		}
+		this._value = undefined;
 	}
 }
 
@@ -149,22 +207,23 @@ export interface IReference<T> extends IDisposable {
 
 export abstract class ReferenceCollection<T> {
 
-	private references: { [key: string]: { readonly object: T; counter: number; } } = Object.create(null);
+	private references: Map<string, { readonly object: T; counter: number; }> = new Map();
 
 	constructor() { }
 
 	acquire(key: string): IReference<T> {
-		let reference = this.references[key];
+		let reference = this.references.get(key);
 
 		if (!reference) {
-			reference = this.references[key] = { counter: 0, object: this.createReferencedObject(key) };
+			reference = { counter: 0, object: this.createReferencedObject(key) };
+			this.references.set(key, reference);
 		}
 
 		const { object } = reference;
 		const dispose = once(() => {
-			if (--reference.counter === 0) {
-				this.destroyReferencedObject(key, reference.object);
-				delete this.references[key];
+			if (--reference!.counter === 0) {
+				this.destroyReferencedObject(key, reference!.object);
+				this.references.delete(key);
 			}
 		});
 

@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext, ShellLaunchConfigDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
+import { ExtHostConfiguration, ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY, IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
@@ -278,6 +278,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
+	// TODO: Pull this from main side
+	private _isWorkspaceShellAllowed: boolean = false;
+
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
 
@@ -323,6 +326,22 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._terminalRenderers.push(renderer);
 
 		return renderer;
+	}
+
+	public getDefaultShell(configProvider: ExtHostConfigProvider): string {
+		const fetchSetting = (key: string) => {
+			const setting = configProvider
+				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
+				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
+			return this._apiInspectConfigToPlain<string | string[]>(setting);
+		};
+		return terminalEnvironment.getDefaultShell(
+			fetchSetting,
+			this._isWorkspaceShellAllowed,
+			getDefaultShell(platform.platform),
+			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
+			process.env.windir
+		);
 	}
 
 	public async resolveTerminalRenderer(id: number): Promise<vscode.TerminalRenderer> {
@@ -472,7 +491,14 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 					.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
 				return this._apiInspectConfigToPlain<string | string[]>(setting);
 			};
-			terminalEnvironment.mergeDefaultShellPathAndArgs(shellLaunchConfig, fetchSetting, isWorkspaceShellAllowed || false, getDefaultShell(platform.platform));
+			terminalEnvironment.mergeDefaultShellPathAndArgs(
+				shellLaunchConfig,
+				fetchSetting,
+				isWorkspaceShellAllowed || false,
+				getDefaultShell(platform.platform),
+				process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
+				process.env.windir
+			);
 		}
 
 		// Get the initial cwd
@@ -500,7 +526,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			variableResolver,
 			isWorkspaceShellAllowed,
 			pkg.version,
-			terminalConfig.get<boolean>('setLocaleVariables', false)
+			terminalConfig.get<boolean>('setLocaleVariables', false),
+			// Always inherit the environment as we need to be running in a login shell, this may
+			// change when macOS servers are supported
+			process.env as platform.IProcessEnvironment
 		);
 
 		// Fork the process and listen for messages
@@ -608,6 +637,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			return false;
 		});
 		return index;
+	}
+
+	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
+		this._isWorkspaceShellAllowed = isAllowed;
 	}
 }
 

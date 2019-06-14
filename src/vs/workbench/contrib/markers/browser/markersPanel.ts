@@ -40,9 +40,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { domEvent } from 'vs/base/browser/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { MementoObject } from 'vs/workbench/common/memento';
 
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
@@ -78,7 +80,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
 	private ariaLabelElement: HTMLElement;
-	private panelState: object;
+	private readonly panelState: MementoObject;
 	private panelFoucusContextKey: IContextKey<boolean>;
 
 	private filter: Filter;
@@ -89,6 +91,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
 	readonly markersViewModel: MarkersViewModel;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -108,7 +111,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.panelState = this.getMemento(StorageScope.WORKSPACE);
 		this.markersViewModel = instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']);
-		this._register(this.markersViewModel.onDidChange(this.onDidChangeViewState, this));
+		this.markersViewModel.onDidChange(this.onDidChangeViewState, this, this.disposables);
 		this.setCurrentActiveEditor();
 	}
 
@@ -732,5 +735,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		super.dispose();
 		this.tree.dispose();
 		this.markersViewModel.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }

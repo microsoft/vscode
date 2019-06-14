@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.2.3
+// Type definitions for Electron 4.2.4
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -1338,16 +1338,21 @@ declare namespace Electron {
 		removeListener(event: 'new-window-for-tab', listener: Function): this;
 		/**
 		 * Emitted when the document changed its title, calling event.preventDefault() will
-		 * prevent the native window's title from changing.
+		 * prevent the native window's title from changing. explicitSet is false when title
+		 * is synthesized from file url.
 		 */
 		on(event: 'page-title-updated', listener: (event: Event,
-			title: string, explicitSet: boolean) => void): this;
+			title: string,
+			explicitSet: boolean) => void): this;
 		once(event: 'page-title-updated', listener: (event: Event,
-			title: string, explicitSet: boolean) => void): this;
+			title: string,
+			explicitSet: boolean) => void): this;
 		addListener(event: 'page-title-updated', listener: (event: Event,
-			title: string, explicitSet: boolean) => void): this;
+			title: string,
+			explicitSet: boolean) => void): this;
 		removeListener(event: 'page-title-updated', listener: (event: Event,
-			title: string, explicitSet: boolean) => void): this;
+			title: string,
+			explicitSet: boolean) => void): this;
 		/**
 		 * Emitted when the web page has been rendered (while not being shown) and window
 		 * can be displayed without a visual flash.
@@ -3353,35 +3358,6 @@ declare namespace Electron {
 		 * One of the following:
 		 */
 		type?: ('task' | 'separator' | 'file');
-	}
-
-	interface MemoryInfo {
-
-		// Docs: http://electronjs.org/docs/api/structures/memory-info
-
-		/**
-		 * The maximum amount of memory that has ever been pinned to actual physical RAM.
-		 * On macOS its value will always be 0.
-		 */
-		peakWorkingSetSize: number;
-		/**
-		 * Process id of the process.
-		 */
-		pid: number;
-		/**
-		 * The amount of memory not shared by other processes, such as JS heap or HTML
-		 * content.
-		 */
-		privateBytes: number;
-		/**
-		 * The amount of memory shared between processes, typically memory consumed by the
-		 * Electron code itself
-		 */
-		sharedBytes: number;
-		/**
-		 * The amount of memory currently pinned to actual physical RAM.
-		 */
-		workingSetSize: number;
 	}
 
 	interface MemoryUsageDetails {
@@ -5919,6 +5895,22 @@ declare namespace Electron {
 			 * Array of URLs.
 			 */
 			favicons: string[]) => void): this;
+		/**
+		 * Fired when page title is set during navigation. explicitSet is false when title
+		 * is synthesized from file url.
+		 */
+		on(event: 'page-title-updated', listener: (event: Event,
+			title: string,
+			explicitSet: boolean) => void): this;
+		once(event: 'page-title-updated', listener: (event: Event,
+			title: string,
+			explicitSet: boolean) => void): this;
+		addListener(event: 'page-title-updated', listener: (event: Event,
+			title: string,
+			explicitSet: boolean) => void): this;
+		removeListener(event: 'page-title-updated', listener: (event: Event,
+			title: string,
+			explicitSet: boolean) => void): this;
 		/**
 		 * Emitted when a new frame is generated. Only the dirty area is passed in the
 		 * buffer.

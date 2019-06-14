@@ -19,7 +19,7 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { IsMacContext } from 'vs/workbench/browser/contextkeys';
+import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -160,7 +160,7 @@ CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', functi
 });
 
 const group = viewCategory;
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Flip Editor Group Layout', group);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', group);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: 'z_flip',
@@ -275,6 +275,13 @@ export class ToggleSidebarVisibilityAction extends Action {
 }
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarVisibilityAction, ToggleSidebarVisibilityAction.ID, ToggleSidebarVisibilityAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', viewCategory);
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '2_appearance',
+	title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
+	submenu: MenuId.MenubarAppearanceMenu,
+	order: 1
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
@@ -448,8 +455,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	command: {
 		id: ToggleMenuBarAction.ID,
 		title: nls.localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
-		toggled: ContextKeyExpr.and(IsMacContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'))
+		toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'))
 	},
+	when: IsMacNativeContext.toNegated(),
 	order: 0
 });
 

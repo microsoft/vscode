@@ -473,7 +473,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCodeActionProvider(resource: URI, range: types.Range, kind?: string): Promise<(vscode.CodeAction | vscode.Command)[] | undefined> {
+	private _executeCodeActionProvider(resource: URI, range: types.Range, kind?: string): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
 		const args = {
 			resource,
 			range: typeConverters.Range.from(range),

@@ -538,14 +538,14 @@ gulp.task('vscode-translations-import', function () {
 // Sourcemaps
 
 gulp.task('upload-vscode-sourcemaps', () => {
-	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' })
+	const vs = gulp.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' }) // client source-maps only
 		.pipe(es.mapSync(f => {
 			f.path = `${f.base}/core/${f.relative}`;
 			return f;
 		}));
 
-	const extensionsOut = gulp.src('extensions/**/out/**/*.map', { base: '.' });
-	const extensionsDist = gulp.src('extensions/**/dist/**/*.map', { base: '.' });
+	const extensionsOut = gulp.src(['extensions/**/out/**/*.map', '!extensions/**/node_modules/**'], { base: '.' });
+	const extensionsDist = gulp.src(['extensions/**/dist/**/*.map', '!extensions/**/node_modules/**'], { base: '.' });
 
 	return es.merge(vs, extensionsOut, extensionsDist)
 		.pipe(es.through(function (data) {

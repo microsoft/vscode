@@ -6,7 +6,7 @@
 import 'vs/css!./actionbar';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { SelectBox, ISelectOptionItem, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
@@ -16,16 +16,14 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Event, Emitter } from 'vs/base/common/event';
-import { asArray } from 'vs/base/common/arrays';
 
-export interface IActionViewItem {
+export interface IActionViewItem extends IDisposable {
 	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: HTMLElement): void;
 	isEnabled(): boolean;
 	focus(fromRight?: boolean): void;
 	blur(): void;
-	dispose(): void;
 }
 
 export interface IBaseActionViewItemOptions {
@@ -596,8 +594,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return this.domNode;
 	}
 
-	push(arg: IAction | IAction[], options: IActionOptions = {}): void {
-		const actions: IAction[] = asArray(arg);
+	push(arg: IAction | ReadonlyArray<IAction>, options: IActionOptions = {}): void {
+		const actions: ReadonlyArray<IAction> = Array.isArray(arg) ? arg : [arg];
 
 		let index = types.isNumber(options.index) ? options.index : null;
 

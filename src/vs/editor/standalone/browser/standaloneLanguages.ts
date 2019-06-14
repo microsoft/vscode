@@ -427,7 +427,7 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
  */
 export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
-		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Promise<(modes.Command | modes.CodeAction)[]> => {
+		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): modes.CodeActionList | Promise<modes.CodeActionList> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
@@ -510,7 +510,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Promise<(modes.Command | modes.CodeAction)[]>;
+	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): modes.CodeActionList | Promise<modes.CodeActionList>;
 }
 
 /**

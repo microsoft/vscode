@@ -837,7 +837,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 	) { }
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
-		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource.path), resource);
+		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource), resource);
 
 		return Promise.resolve(model);
 	}
@@ -875,10 +875,8 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const textFileService = accessor.get(ITextFileService);
 	const editorService = accessor.get(IEditorService);
 	const viewletService = accessor.get(IViewletService);
-	const activeViewlet = viewletService.getActiveViewlet();
-	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID || !listService.lastFocusedList) {
-		await viewletService.openViewlet(VIEWLET_ID, true);
-	}
+
+	await viewletService.openViewlet(VIEWLET_ID, true);
 
 	const list = listService.lastFocusedList;
 	if (list) {

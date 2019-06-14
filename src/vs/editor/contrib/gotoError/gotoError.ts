@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -27,28 +27,29 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-class MarkerModel extends Disposable {
+class MarkerModel {
 
 	private readonly _editor: ICodeEditor;
 	private _markers: IMarker[];
 	private _nextIdx: number;
+	private _toUnbind: IDisposable[];
 	private _ignoreSelectionChange: boolean;
 	private readonly _onCurrentMarkerChanged: Emitter<IMarker | undefined>;
 	private readonly _onMarkerSetChanged: Emitter<MarkerModel>;
 
 	constructor(editor: ICodeEditor, markers: IMarker[]) {
-		super();
 		this._editor = editor;
 		this._markers = [];
 		this._nextIdx = -1;
+		this._toUnbind = [];
 		this._ignoreSelectionChange = false;
 		this._onCurrentMarkerChanged = new Emitter<IMarker>();
 		this._onMarkerSetChanged = new Emitter<MarkerModel>();
 		this.setMarkers(markers);
 
 		// listen on editor
-		this._register(this._editor.onDidDispose(() => this.dispose()));
-		this._register(this._editor.onDidChangeCursorPosition(() => {
+		this._toUnbind.push(this._editor.onDidDispose(() => this.dispose()));
+		this._toUnbind.push(this._editor.onDidChangeCursorPosition(() => {
 			if (this._ignoreSelectionChange) {
 				return;
 			}
@@ -186,6 +187,10 @@ class MarkerModel extends Disposable {
 
 	public indexOf(marker: IMarker): number {
 		return 1 + this._markers.indexOf(marker);
+	}
+
+	public dispose(): void {
+		this._toUnbind = dispose(this._toUnbind);
 	}
 }
 
@@ -423,7 +428,7 @@ export class NextMarkerAction extends MarkerNavigationAction {
 		super(true, false, {
 			id: NextMarkerAction.ID,
 			label: NextMarkerAction.LABEL,
-			alias: 'Go to Next Error or Warning',
+			alias: 'Go to Next Problem (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
@@ -437,7 +442,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 		super(false, false, {
 			id: PrevMarkerAction.ID,
 			label: PrevMarkerAction.LABEL,
-			alias: 'Go to Previous Error or Warning',
+			alias: 'Go to Previous Problem (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
@@ -449,7 +454,7 @@ class NextMarkerInFilesAction extends MarkerNavigationAction {
 		super(true, true, {
 			id: 'editor.action.marker.nextInFiles',
 			label: nls.localize('markerAction.nextInFiles.label', "Go to Next Problem in Files (Error, Warning, Info)"),
-			alias: 'Go to Next Error or Warning in Files',
+			alias: 'Go to Next Problem in Files (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -465,7 +470,7 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 		super(false, true, {
 			id: 'editor.action.marker.prevInFiles',
 			label: nls.localize('markerAction.previousInFiles.label', "Go to Previous Problem in Files (Error, Warning, Info)"),
-			alias: 'Go to Previous Error or Warning in Files',
+			alias: 'Go to Previous Problem in Files (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,

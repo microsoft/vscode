@@ -9,6 +9,7 @@ import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
+import * as resources from 'vs/base/common/resources';
 import { IStringDictionary, values } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
@@ -16,7 +17,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isUNC } from 'vs/base/common/extpath';
 
-import { win32 } from 'vs/base/node/processes';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -36,14 +36,14 @@ import {
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
-	TelemetryEvent, Triggers, TaskTerminateResponse, TaskSystemInfoResovler, TaskSystemInfo, ResolveSet, ResolvedVariables
+	TelemetryEvent, Triggers, TaskTerminateResponse, TaskSystemInfoResolver, TaskSystemInfo, ResolveSet, ResolvedVariables
 } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
-import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -154,7 +154,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private terminals: IStringDictionary<TerminalData>;
 	private idleTaskTerminals: LinkedMap<string, string>;
 	private sameTaskTerminals: IStringDictionary<string>;
-	private taskSystemInfoResolver: TaskSystemInfoResovler;
+	private taskSystemInfoResolver: TaskSystemInfoResolver;
 	private lastTask: VerifiedTask;
 	private currentTask: VerifiedTask;
 	private isRerun: boolean;
@@ -172,7 +172,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private environmentService: IWorkbenchEnvironmentService,
 		private outputChannelId: string,
 		private fileService: IFileService,
-		taskSystemInfoResolver: TaskSystemInfoResovler,
+		private terminalInstanceService: ITerminalInstanceService,
+		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
 
 		this.activeTasks = Object.create(null);
@@ -434,7 +435,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 						if (isProcess) {
 							let processVarValue: string;
 							if (Platform.isWindows) {
-								processVarValue = await win32.findExecutable(
+								processVarValue = await this.findExecutable(
 									this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name!)),
 									cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
 									envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
@@ -559,14 +560,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
-					return watchingProblemMatcher.processLine(line).then(() => {
-						if (!delayer) {
-							delayer = new Async.Delayer(3000);
-						}
-						delayer.trigger(() => {
-							watchingProblemMatcher.forceDelivery();
-							delayer = undefined;
-						});
+					watchingProblemMatcher.processLine(line);
+					if (!delayer) {
+						delayer = new Async.Delayer(3000);
+					}
+					delayer.trigger(() => {
+						watchingProblemMatcher.forceDelivery();
+						delayer = undefined;
 					});
 				});
 				const onExit = terminal.onExit((exitCode) => {
@@ -639,7 +639,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
-					return startStopProblemMatcher.processLine(line);
+					startStopProblemMatcher.processLine(line);
 				});
 				const onExit = terminal.onExit((exitCode) => {
 					onData.dispose();
@@ -752,6 +752,25 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
 	}
 
+	private getDefaultShell(platform: Platform.Platform): string {
+		let defaultShell: string | undefined = undefined;
+		try {
+			defaultShell = this.terminalInstanceService.getDefaultShell(platform);
+		} catch {
+			// Do nothing
+		}
+		if (!defaultShell) {
+			// Make up a guess for the default shell.
+			if (platform === Platform.Platform.Windows) {
+				defaultShell = 'cmd.exe';
+			} else {
+				defaultShell = 'bash.exe';
+			}
+			console.warn('Cannot get the default shell.');
+		}
+		return defaultShell;
+	}
+
 	private createShellLaunchConfig(task: CustomTask | ContributedTask, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): IShellLaunchConfig | undefined {
 		let shellLaunchConfig: IShellLaunchConfig;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
@@ -760,7 +779,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: undefined, args: undefined, waitOnExit };
-			this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig, this.terminalService.getDefaultShell(platform), platform);
+			this.terminalInstanceService.mergeDefaultShellPathAndArgs(shellLaunchConfig, this.getDefaultShell(platform), this.terminalService.configHelper, platform);
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
@@ -803,7 +822,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 						toAdd.push('-c');
 					}
 				} else if (basename === 'wsl.exe') {
-					if (!shellSpecified && (getWindowsBuildNumber() >= 17763)) { // See https://github.com/Microsoft/vscode/issues/67855
+					if (!shellSpecified) {
 						toAdd.push('-e');
 					}
 				} else {
@@ -1236,7 +1255,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				matcher = value;
 			}
 			if (!matcher) {
-				this.appendOutput(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
+				this.appendOutput(nls.localize('unknownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
 				return;
 			}
 			let taskSystemInfo: TaskSystemInfo | undefined = resolver.taskSystemInfo;
@@ -1362,5 +1381,52 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (outputChannel) {
 			outputChannel.append(output);
 		}
+	}
+
+	private async findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string> {
+		// If we have an absolute path then we take it.
+		if (path.isAbsolute(command)) {
+			return command;
+		}
+		if (cwd === undefined) {
+			cwd = process.cwd();
+		}
+		const dir = path.dirname(command);
+		if (dir !== '.') {
+			// We have a directory and the directory is relative (see above). Make the path absolute
+			// to the current working directory.
+			return path.join(cwd, command);
+		}
+		if (paths === undefined && Types.isString(process.env.PATH)) {
+			paths = process.env.PATH.split(path.delimiter);
+		}
+		// No PATH environment. Make path absolute to the cwd.
+		if (paths === undefined || paths.length === 0) {
+			return path.join(cwd, command);
+		}
+		// We have a simple file name. We get the path variable from the env
+		// and try to find the executable on the path.
+		for (let pathEntry of paths) {
+			// The path entry is absolute.
+			let fullPath: string;
+			if (path.isAbsolute(pathEntry)) {
+				fullPath = path.join(pathEntry, command);
+			} else {
+				fullPath = path.join(cwd, pathEntry, command);
+			}
+
+			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: fullPath }), this.environmentService.configuration.remoteAuthority))) {
+				return fullPath;
+			}
+			let withExtension = fullPath + '.com';
+			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: withExtension }), this.environmentService.configuration.remoteAuthority))) {
+				return withExtension;
+			}
+			withExtension = fullPath + '.exe';
+			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: withExtension }), this.environmentService.configuration.remoteAuthority))) {
+				return withExtension;
+			}
+		}
+		return path.join(cwd, command);
 	}
 }

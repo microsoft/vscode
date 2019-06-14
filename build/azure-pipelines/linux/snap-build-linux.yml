@@ -47,7 +47,7 @@ steps:
     PACKAGEJSON="$(ls $SNAP_ROOT/code*/usr/share/code*/resources/app/package.json)"
     VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
     SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
-    (cd $SNAP_ROOT/code-* && sudo snapcraft snap --output "$SNAP_PATH")
+    (cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap --output "$SNAP_PATH")
 
     # Publish snap package
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \

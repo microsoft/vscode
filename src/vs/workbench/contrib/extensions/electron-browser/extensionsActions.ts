@@ -47,10 +47,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import product from 'vs/platform/product/node/product';
 import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { clipboard } from 'electron';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
@@ -62,6 +60,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IProductService } from 'vs/platform/product/common/product';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -73,11 +72,11 @@ function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	};
 }
 
-const promptDownloadManually = (extension: IGalleryExtension | undefined, message: string, error: Error, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
-	if (!extension || error.name === INSTALL_ERROR_INCOMPATIBLE || error.name === INSTALL_ERROR_MALICIOUS) {
+const promptDownloadManually = (extension: IGalleryExtension | undefined, message: string, error: Error, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService, productService: IProductService) => {
+	if (!extension || error.name === INSTALL_ERROR_INCOMPATIBLE || error.name === INSTALL_ERROR_MALICIOUS || !productService.extensionsGallery) {
 		return Promise.reject(error);
 	} else {
-		const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
+		const downloadUrl = `${productService.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
 		notificationService.prompt(Severity.Error, message, [{
 			label: localize('download', "Download Manually"),
 			run: () => openerService.open(URI.parse(downloadUrl)).then(() => {
@@ -247,7 +246,7 @@ export class InstallAction extends ExtensionAction {
 
 				console.error(err);
 
-				return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+				return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
 			});
 	}
 
@@ -556,7 +555,8 @@ export class UpdateAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(`extensions.update`, '', UpdateAction.DisabledClass, false);
 		this.update();
@@ -600,7 +600,7 @@ export class UpdateAction extends ExtensionAction {
 
 			console.error(err);
 
-			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
 		});
 	}
 
@@ -786,7 +786,8 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL);
 		this.update();
@@ -815,7 +816,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 
 							console.error(err);
 
-							return promptDownloadManually(this.extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", this.extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+							return promptDownloadManually(this.extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", this.extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
 						});
 				}
 				return null;
@@ -833,7 +834,9 @@ export class ExtensionInfoAction extends ExtensionAction {
 	static readonly ID = 'extensions.extensionInfo';
 	static readonly LABEL = localize('extensionInfoAction', "Copy Extension Information");
 
-	constructor() {
+	constructor(
+		@IClipboardService private readonly clipboardService: IClipboardService
+	) {
 		super(ExtensionInfoAction.ID, ExtensionInfoAction.LABEL);
 		this.update();
 	}
@@ -853,7 +856,7 @@ export class ExtensionInfoAction extends ExtensionAction {
 
 		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 
-		clipboard.writeText(clipboardStr);
+		this.clipboardService.writeText(clipboardStr);
 		return Promise.resolve();
 	}
 }
@@ -1159,7 +1162,8 @@ export class UpdateAllAction extends Action {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label, '', false);
 
@@ -1183,7 +1187,7 @@ export class UpdateAllAction extends Action {
 
 			console.error(err);
 
-			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
 		});
 	}
 }
@@ -1722,7 +1726,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 			await this.extensionWorkbenchService.install(extension);
 		} catch (err) {
 			console.error(err);
-			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
 		}
 	}
 }
@@ -1740,7 +1744,8 @@ export class InstallRecommendedExtensionAction extends Action {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, undefined, false);
 		this.extensionId = extensionId;
@@ -1759,7 +1764,7 @@ export class InstallRecommendedExtensionAction extends Action {
 							return this.extensionWorkbenchService.install(extension)
 								.then(() => null, err => {
 									console.error(err);
-									return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService);
+									return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
 								});
 						}
 						return null;

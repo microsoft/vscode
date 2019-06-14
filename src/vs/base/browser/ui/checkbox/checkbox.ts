@@ -31,13 +31,12 @@ const defaultOpts = {
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
 	private checkbox: Checkbox;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	render(container: HTMLElement): void {
 		this.element = container;
 
-		this.disposables.dispose();
-		this.disposables = new DisposableStore();
+		this.disposables.clear();
 		this.checkbox = new Checkbox({
 			actionClassName: this._action.class,
 			isChecked: this._action.checked,

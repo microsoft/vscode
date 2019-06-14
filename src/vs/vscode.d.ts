@@ -1130,7 +1130,7 @@ declare module 'vscode' {
 		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
 		 * that the snippet is completely filled-in or accepted.
 		 */
-		insertSnippet(snippet: SnippetString, location?: Position | Range | Position[] | Range[], options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		insertSnippet(snippet: SnippetString, location?: Position | Range | ReadonlyArray<Position> | ReadonlyArray<Range>, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
@@ -4354,7 +4354,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param diagnostics Array of diagnostics or `undefined`
 		 */
-		set(uri: Uri, diagnostics: Diagnostic[] | undefined): void;
+		set(uri: Uri, diagnostics: ReadonlyArray<Diagnostic> | undefined): void;
 
 		/**
 		 * Replace all entries in this collection.
@@ -4366,7 +4366,7 @@ declare module 'vscode' {
 		 *
 		 * @param entries An array of tuples, like `[[file1, [d1, d2]], [file2, [d3, d4, d5]]]`, or `undefined`.
 		 */
-		set(entries: [Uri, Diagnostic[] | undefined][]): void;
+		set(entries: ReadonlyArray<[Uri, ReadonlyArray<Diagnostic> | undefined]>): void;
 
 		/**
 		 * Remove all diagnostics from this collection that belong
@@ -4388,7 +4388,7 @@ declare module 'vscode' {
 		 * @param callback Function to execute for each entry.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callback: (uri: Uri, diagnostics: Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void;
+		forEach(callback: (uri: Uri, diagnostics: ReadonlyArray<Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void;
 
 		/**
 		 * Get the diagnostics for a given resource. *Note* that you cannot
@@ -4397,7 +4397,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @returns An immutable array of [diagnostics](#Diagnostic) or `undefined`.
 		 */
-		get(uri: Uri): Diagnostic[] | undefined;
+		get(uri: Uri): ReadonlyArray<Diagnostic> | undefined;
 
 		/**
 		 * Check if this collection contains diagnostics for a
@@ -9055,6 +9055,31 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Reactions of a [comment](#Comment)
+	 */
+	export interface CommentReaction {
+		/**
+		 * The human-readable label for the reaction
+		 */
+		readonly label: string;
+
+		/**
+		 * Icon for the reaction shown in UI.
+		 */
+		readonly iconPath: string | Uri;
+
+		/**
+		 * The number of users who have reacted to this reaction
+		 */
+		readonly count: number;
+
+		/**
+		 * Whether the [author](CommentAuthorInformation) of the comment has reacted to this reaction
+		 */
+		readonly authorHasReacted: boolean;
+	}
+
+	/**
 	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
 	 */
 	export interface Comment {
@@ -9077,7 +9102,7 @@ declare module 'vscode' {
 		 * Context value of the comment. This can be used to contribute comment specific actions.
 		 * For example, a comment is given a context value as `editable`. When contributing actions to `comments/comment/title`
 		 * using `menus` extension point, you can specify context value for key `comment` in `when` expression like `comment == editable`.
-		 * ```
+		 * ```json
 		 *	"contributes": {
 		 *		"menus": {
 		 *			"comments/comment/title": [
@@ -9092,6 +9117,11 @@ declare module 'vscode' {
 		 * This will show action `extension.deleteComment` only for comments with `contextValue` is `editable`.
 		 */
 		contextValue?: string;
+
+		/**
+		 * Optional reactions of the [comment](#Comment)
+		 */
+		reactions?: CommentReaction[];
 
 		/**
 		 * Optional label describing the [Comment](#Comment)
@@ -9156,6 +9186,11 @@ declare module 'vscode' {
 		 * @param comments The ordered comments of the thread.
 		 */
 		createCommentThread(uri: Uri, range: Range, comments: Comment[]): CommentThread;
+
+		/**
+		 * Optional reaction handler for creating and deleting reactions on a [comment](#Comment).
+		 */
+		reactionHandler?: (comment: Comment, reaction: CommentReaction) => Promise<void>;
 
 		/**
 		 * Dispose this comment controller.

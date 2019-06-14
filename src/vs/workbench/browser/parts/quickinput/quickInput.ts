@@ -898,7 +898,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private enabled = true;
 	private inQuickOpenWidgets: Record<string, boolean> = {};
 	private inQuickOpenContext: IContextKey<boolean>;
-	private contexts: { [id: string]: IContextKey<boolean>; } = Object.create(null);
+	private contexts: Map<string, IContextKey<boolean>> = new Map();
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
@@ -947,11 +947,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private setContextKey(id?: string) {
 		let key: IContextKey<boolean> | undefined;
 		if (id) {
-			key = this.contexts[id];
+			key = this.contexts.get(id);
 			if (!key) {
 				key = new RawContextKey<boolean>(id, false)
 					.bindTo(this.contextKeyService);
-				this.contexts[id] = key;
+				this.contexts.set(id, key);
 			}
 		}
 
@@ -967,11 +967,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	private resetContextKeys() {
-		for (const key in this.contexts) {
-			if (this.contexts[key].get()) {
-				this.contexts[key].reset();
+		this.contexts.forEach(context => {
+			if (context.get()) {
+				context.reset();
 			}
-		}
+		});
 	}
 
 	private registerKeyModsListeners() {

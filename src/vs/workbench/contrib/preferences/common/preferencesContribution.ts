@@ -79,7 +79,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 
 		// Global User Settings File
-		if (isEqual(resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
+		if (isEqual(resource, this.environmentService.settingsResource, !isLinux)) {
 			return { override: this.preferencesService.openGlobalSettings(true, options, group) };
 		}
 

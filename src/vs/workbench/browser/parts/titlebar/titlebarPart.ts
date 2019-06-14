@@ -27,7 +27,7 @@ import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
+import { MenubarControl, NativeMenubarControl, CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -337,15 +337,18 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Menubar: the menubar part which is responsible for populating both the custom and native menubars
-		this.menubarPart = this.instantiationService.createInstance(MenubarControl);
-		this.menubar = append(this.element, $('div.menubar'));
-		this.menubar.setAttribute('role', 'menubar');
+		if ((isMacintosh && !isWeb) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+			this.menubarPart = this.instantiationService.createInstance(NativeMenubarControl);
+		} else {
+			const customMenubarControl = this.instantiationService.createInstance(CustomMenubarControl);
+			this.menubarPart = customMenubarControl;
+			this.menubar = append(this.element, $('div.menubar'));
+			this.menubar.setAttribute('role', 'menubar');
 
-		this.menubarPart.create(this.menubar);
+			customMenubarControl.create(this.menubar);
 
-		if (!isMacintosh || isWeb) {
-			this._register(this.menubarPart.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
-			this._register(this.menubarPart.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
+			this._register(customMenubarControl.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+			this._register(customMenubarControl.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
 		}
 
 		// Title
@@ -548,7 +551,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private adjustTitleMarginToCenter(): void {
-		if (!isMacintosh || isWeb) {
+		if (this.menubarPart instanceof CustomMenubarControl) {
 			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
 			const rightMarker = this.element.clientWidth - (this.windowControls ? this.windowControls.clientWidth : 0) - 10;
 
@@ -589,7 +592,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
 
-			if (this.menubarPart) {
+			if (this.menubarPart instanceof CustomMenubarControl) {
 				const menubarDimension = new Dimension(0, dimension.height);
 				this.menubarPart.layout(menubarDimension);
 			}

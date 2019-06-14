@@ -6,7 +6,7 @@
 import 'vs/css!./media/gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -28,7 +28,7 @@ import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 
-class MessageWidget extends Disposable {
+class MessageWidget {
 
 	private _lines: number = 0;
 	private _longestLineLength: number = 0;
@@ -38,9 +38,9 @@ class MessageWidget extends Disposable {
 	private readonly _relatedBlock: HTMLDivElement;
 	private readonly _scrollable: ScrollableElement;
 	private readonly _relatedDiagnostics = new WeakMap<HTMLElement, IRelatedInformation>();
+	private readonly _disposables: IDisposable[] = [];
 
 	constructor(parent: HTMLElement, editor: ICodeEditor, onRelatedInformation: (related: IRelatedInformation) => void) {
-		super();
 		this._editor = editor;
 
 		const domNode = document.createElement('div');
@@ -54,7 +54,7 @@ class MessageWidget extends Disposable {
 
 		this._relatedBlock = document.createElement('div');
 		domNode.appendChild(this._relatedBlock);
-		this._register(dom.addStandardDisposableListener(this._relatedBlock, 'click', event => {
+		this._disposables.push(dom.addStandardDisposableListener(this._relatedBlock, 'click', event => {
 			event.preventDefault();
 			const related = this._relatedDiagnostics.get(event.target);
 			if (related) {
@@ -70,11 +70,15 @@ class MessageWidget extends Disposable {
 			verticalScrollbarSize: 3
 		});
 		parent.appendChild(this._scrollable.getDomNode());
-		this._register(this._scrollable.onScroll(e => {
+		this._disposables.push(this._scrollable.onScroll(e => {
 			domNode.style.left = `-${e.scrollLeft}px`;
 			domNode.style.top = `-${e.scrollTop}px`;
 		}));
-		this._register(this._scrollable);
+		this._disposables.push(this._scrollable);
+	}
+
+	dispose(): void {
+		dispose(this._disposables);
 	}
 
 	update({ source, message, relatedInformation, code }: IMarker): void {
@@ -176,7 +180,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		private readonly actions: IAction[],
+		private readonly actions: ReadonlyArray<IAction>,
 		private readonly _themeService: IThemeService
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
@@ -248,7 +252,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		container.appendChild(this._container);
 
 		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related));
-		this._disposables.push(this._message);
+		this._disposables.add(this._message);
 	}
 
 	show(where: Position, heightInLines: number): void {

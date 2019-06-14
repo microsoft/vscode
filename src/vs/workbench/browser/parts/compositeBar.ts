@@ -427,7 +427,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		});
 	}
 
-	private getContextMenuActions(): IAction[] {
+	private getContextMenuActions(): ReadonlyArray<IAction> {
 		const actions: IAction[] = this.model.visibleItems
 			.map(({ id, name, activityAction }) => (<IAction>{
 				id,

@@ -768,6 +768,10 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 	return null;
 }
 
+export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
+	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
+}
+
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
 	let style = document.createElement('style');
 	style.type = 'text/css';
@@ -905,10 +909,9 @@ export const EventHelper = {
 	}
 };
 
-export interface IFocusTracker {
+export interface IFocusTracker extends Disposable {
 	onDidFocus: Event<void>;
 	onDidBlur: Event<void>;
-	dispose(): void;
 }
 
 export function saveParentsScrollTop(node: Element): number[] {

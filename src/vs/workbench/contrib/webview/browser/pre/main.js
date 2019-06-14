@@ -94,13 +94,19 @@ const defaultCssRules = `
 	}`;
 
 /**
- * @typedef {{ postMessage: (channel: string, data?: any) => void, onMessage: (channel: string, handler: any) => void }} HostCommunications
+ * @typedef {{
+ *   postMessage: (channel: string, data?: any) => void,
+ *   onMessage: (channel: string, handler: any) => void,
+ *   injectHtml?: (document: HTMLDocument) => void,
+ *   preProcessHtml?: (text: string) => void,
+ *   focusIframeOnCreate?: boolean
+ * }} HostCommunications
  */
 
 /**
  * @param {HostCommunications} host
  */
-module.exports = function createWebviewManager(host) {
+function createWebviewManager(host) {
 	// state
 	let firstLoad = true;
 	let loadTimeout;
@@ -212,9 +218,9 @@ module.exports = function createWebviewManager(host) {
 			return;
 		}
 
-		host.onMessage('styles', (_event, variables, activeTheme) => {
-			initData.styles = variables;
-			initData.activeTheme = activeTheme;
+		host.onMessage('styles', (_event, data) => {
+			initData.styles = data.styles;
+			initData.activeTheme = data.activeTheme;
 
 			const target = getActiveFrame();
 			if (!target) {
@@ -238,7 +244,7 @@ module.exports = function createWebviewManager(host) {
 		host.onMessage('content', (_event, data) => {
 			const options = data.options;
 
-			const text = data.contents;
+			const text = host.preProcessHtml ? host.preProcessHtml(data.contents) : data.contents;
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
 			newDocument.querySelectorAll('a').forEach(a => {
@@ -292,6 +298,10 @@ module.exports = function createWebviewManager(host) {
 			newDocument.head.prepend(defaultStyles);
 
 			applyStyles(newDocument, newDocument.body);
+
+			if (host.injectHtml) {
+				host.injectHtml(newDocument);
+			}
 
 			const frame = getActiveFrame();
 			const wasFirstLoad = firstLoad;
@@ -372,7 +382,9 @@ module.exports = function createWebviewManager(host) {
 					applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
 					newFrame.setAttribute('id', 'active-frame');
 					newFrame.style.visibility = 'visible';
-					newFrame.contentWindow.focus();
+					if (host.focusIframeOnCreate) {
+						newFrame.contentWindow.focus();
+					}
 
 					contentWindow.addEventListener('scroll', handleInnerScroll);
 
@@ -441,6 +453,10 @@ module.exports = function createWebviewManager(host) {
 		window.onmessage = onMessage;
 
 		// signal ready
-		host.postMessage('webview-ready', process.pid);
+		host.postMessage('webview-ready', {});
 	});
-};
+}
+
+if (typeof module !== 'undefined') {
+	module.exports = createWebviewManager;
+}

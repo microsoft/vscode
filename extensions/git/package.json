@@ -3,6 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "publisher": "vscode",
+  "license": "MIT",
   "version": "1.0.0",
   "engines": {
     "vscode": "^1.5.0"
@@ -318,12 +319,12 @@
       },
       {
         "command": "git.pushWithTags",
-        "title": "%command.pushWithTags%",
+        "title": "%command.pushFollowTags%",
         "category": "Git"
       },
       {
         "command": "git.pushWithTagsForce",
-        "title": "%command.pushWithTagsForce%",
+        "title": "%command.pushFollowTagsForce%",
         "category": "Git"
       },
       {

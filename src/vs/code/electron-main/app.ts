@@ -62,7 +62,7 @@ import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { homedir } from 'os';
-import { join, sep, dirname } from 'vs/base/common/path';
+import { join, sep } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
@@ -79,14 +79,12 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { statSync, utimes } from 'fs';
-import { promisify } from 'util';
+import { statSync } from 'fs';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 export class CodeApplication extends Disposable {
 
 	private static readonly MACHINE_ID_KEY = 'telemetry.machineId';
-
-	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh7';
 
 	private windowsMainService: IWindowsMainService | undefined;
 
@@ -98,7 +96,8 @@ export class CodeApplication extends Disposable {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateService private readonly stateService: IStateService
+		@IStateService private readonly stateService: IStateService,
+		@ISignService private readonly signService: ISignService
 	) {
 		super();
 
@@ -255,21 +254,18 @@ export class CodeApplication extends Disposable {
 
 		ipc.on('vscode:reloadWindow', (event: Event) => event.sender.reload());
 
-		// After waking up from sleep  (after window opened)
+		// Some listeners after window opened
 		(async () => {
 			await this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen);
 
+			// After waking up from sleep  (after window opened)
 			powerMonitor.on('resume', () => {
 				if (this.windowsMainService) {
 					this.windowsMainService.sendToAll('vscode:osResume', undefined);
 				}
 			});
-		})();
 
-		// Keyboard layout changes (after window opened)
-		(async () => {
-			await this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen);
-
+			// Keyboard layout changes (after window opened)
 			const nativeKeymap = await import('native-keymap');
 			nativeKeymap.onDidChangeKeyboardLayout(() => {
 				if (this.windowsMainService) {
@@ -351,12 +347,10 @@ export class CodeApplication extends Disposable {
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
-			(async () => {
-				const server = await serveDriver(electronIpcServer, this.environmentService.driverHandle!, this.environmentService, appInstantiationService);
+			const server = await serveDriver(electronIpcServer, this.environmentService.driverHandle!, this.environmentService, appInstantiationService);
 
-				this.logService.info('Driver started at:', this.environmentService.driverHandle);
-				this._register(server);
-			})();
+			this.logService.info('Driver started at:', this.environmentService.driverHandle);
+			this._register(server);
 		}
 
 		// Setup Auth Handler
@@ -637,30 +631,6 @@ export class CodeApplication extends Disposable {
 
 		// Remote Authorities
 		this.handleRemoteAuthorities();
-
-		// Helps application icon refresh after an update with new icon is installed (macOS)
-		// TODO@Ben remove after a couple of releases
-		if (isMacintosh) {
-			if (!this.stateService.getItem(CodeApplication.APP_ICON_REFRESH_KEY)) {
-				this.stateService.setItem(CodeApplication.APP_ICON_REFRESH_KEY, true);
-
-				// 'exe' => /Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron
-				const appPath = dirname(dirname(dirname(app.getPath('exe'))));
-				const infoPlistPath = join(appPath, 'Contents', 'Info.plist');
-				this.touch(appPath);
-				this.touch(infoPlistPath);
-			}
-		}
-	}
-
-	private async touch(path: string): Promise<void> {
-		const now = Date.now() / 1000; // the value should be a Unix timestamp in seconds
-
-		try {
-			await promisify(utimes)(path, now, now);
-		} catch (error) {
-			// ignore
-		}
 	}
 
 	private handleRemoteAuthorities(): void {
@@ -673,7 +643,7 @@ export class CodeApplication extends Disposable {
 			private readonly _connection: Promise<ManagementPersistentConnection>;
 			private readonly _disposeRunner: RunOnceScheduler;
 
-			constructor(authority: string, host: string, port: number) {
+			constructor(authority: string, host: string, port: number, signService: ISignService) {
 				this._authority = authority;
 
 				const options: IConnectionOptions = {
@@ -684,7 +654,8 @@ export class CodeApplication extends Disposable {
 						getAddress: () => {
 							return Promise.resolve({ host, port });
 						}
-					}
+					},
+					signService
 				};
 
 				this._connection = connectRemoteAgentManagement(options, authority, `main`);
@@ -753,7 +724,7 @@ export class CodeApplication extends Disposable {
 					return;
 				}
 
-				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port);
+				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port, this.signService);
 				connectionPool.set(uri.authority, activeConnection);
 			}
 

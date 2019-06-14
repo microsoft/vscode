@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { dispose, IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
 import { endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -290,7 +289,7 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = URI.file(join(this._environmentService.appSettingsHome, 'snippets'));
+		const userSnippetsFolder = resources.joinPath(this._environmentService.appSettingsHome, 'snippets');
 		return this._fileService.createFolder(userSnippetsFolder).then(() => this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables));
 	}
 

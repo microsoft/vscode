@@ -609,7 +609,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			}
 
 			await this.extensionService.whenInstalledExtensionsRegistered();
-			const mimeTypes = await guessMimeTypes(uri.fsPath);
+			const mimeTypes = guessMimeTypes(uri);
 			if (mimeTypes.length !== 1 || mimeTypes[0] !== MIME_UNKNOWN) {
 				return;
 			}

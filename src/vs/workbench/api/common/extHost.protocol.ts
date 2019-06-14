@@ -130,6 +130,7 @@ export interface CommentProviderFeatures {
 	finishDraftLabel?: string;
 	reactionGroup?: modes.CommentReaction[];
 	commentThreadTemplate?: CommentThreadTemplate;
+	reactionHandler?: boolean;
 }
 
 export interface MainThreadCommentsShape extends IDisposable {
@@ -247,7 +248,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean>;
 	$tryApplyWorkspaceEdit(workspaceEditDto: WorkspaceEditDto): Promise<boolean>;
-	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): Promise<boolean>;
+	$tryInsertSnippet(id: string, template: string, selections: readonly IRange[], opts: IUndoStopOptions): Promise<boolean>;
 	$getDiffInformation(id: string): Promise<editorCommon.ILineChange[]>;
 }
 
@@ -495,7 +496,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, extensionId: ExtensionIdentifier | undefined, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
+	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
 	$dispose(id: number): void;
 }
 
@@ -509,7 +510,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
-	$createEditorInset(handle: number, editorId: string, document: UriComponents, range: IRange, options: modes.IWebviewOptions): Promise<void>;
+	$createEditorInset(handle: number, id: string, uri: UriComponents, range: IRange, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
 	$disposeEditorInset(handle: number): void;
 
 	$setHtml(handle: number, value: string): void;
@@ -921,6 +922,20 @@ export interface SuggestResultDto {
 	c?: boolean;
 }
 
+export interface SignatureHelpDto {
+	id: CacheId;
+	signatures: modes.SignatureInformation[];
+	activeSignature: number;
+	activeParameter: number;
+}
+
+export interface SignatureHelpContextDto {
+	readonly triggerKind: modes.SignatureHelpTriggerKind;
+	readonly triggerCharacter?: string;
+	readonly isRetrigger: boolean;
+	readonly activeSignatureHelp?: SignatureHelpDto;
+}
+
 export interface LocationDto {
 	uri: UriComponents;
 	range: IRange;
@@ -993,6 +1008,11 @@ export interface CodeActionDto {
 	isPreferred?: boolean;
 }
 
+export interface CodeActionListDto {
+	cacheId: number;
+	actions: ReadonlyArray<CodeActionDto>;
+}
+
 export type CacheId = number;
 export type ChainedCacheId = [CacheId, CacheId];
 
@@ -1041,7 +1061,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined>;
 	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<LocationDto[] | undefined>;
-	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionDto[] | undefined>;
+	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<CodeActionListDto | undefined>;
+	$releaseCodeActions(handle: number, cacheId: number): void;
 	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
@@ -1053,7 +1074,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<SuggestResultDto | undefined>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: ChainedCacheId, token: CancellationToken): Promise<SuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp | undefined>;
+	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<SignatureHelpDto | undefined>;
+	$releaseSignatureHelp(handle: number, id: number): void;
 	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<LinksListDto | undefined>;
 	$resolveDocumentLink(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<LinkDto | undefined>;
 	$releaseDocumentLinks(handle: number, id: number): void;
@@ -1100,6 +1122,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestInitialCwd(id: number): void;
 	$acceptProcessRequestCwd(id: number): void;
 	$acceptProcessRequestLatency(id: number): number;
+	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 }
 
 export interface ExtHostSCMShape {
@@ -1298,7 +1321,6 @@ export const ExtHostContext = {
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
 	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
-	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),

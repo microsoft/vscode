@@ -5,6 +5,7 @@
   "displayName": "%displayName%",
   "version": "1.0.0",
   "icon": "images/gulp.png",
+  "license": "MIT",
   "engines": {
     "vscode": "*"
   },

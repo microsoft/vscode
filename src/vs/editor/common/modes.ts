@@ -550,6 +550,10 @@ export interface CodeActionContext {
 	trigger: CodeActionTrigger;
 }
 
+export interface CodeActionList extends IDisposable {
+	readonly actions: ReadonlyArray<CodeAction>;
+}
+
 /**
  * The code action interface defines the contract between extensions and
  * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
@@ -559,7 +563,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeAction[]>;
+	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
 
 	/**
 	 * Optional list of CodeActionKinds that this provider returns.
@@ -624,6 +628,10 @@ export interface SignatureHelp {
 	activeParameter: number;
 }
 
+export interface SignatureHelpResult extends IDisposable {
+	value: SignatureHelp;
+}
+
 export enum SignatureHelpTriggerKind {
 	Invoke = 1,
 	TriggerCharacter = 2,
@@ -649,7 +657,7 @@ export interface SignatureHelpProvider {
 	/**
 	 * Provide help for the signature at the given position and document.
 	 */
-	provideSignatureHelp(model: model.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+	provideSignatureHelp(model: model.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelpResult>;
 }
 
 /**
