@@ -17,7 +17,7 @@ import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/electron-browser/rawDebugSession';
-import product from 'vs/platform/product/node/product';
+import { IProductService } from 'vs/platform/product/common/product';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -68,7 +68,8 @@ export class DebugSession implements IDebugSession {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ISignService private readonly signService: ISignService
+		@ISignService private readonly signService: ISignService,
+		@IProductService private readonly productService: IProductService
 	) {
 		this.id = generateUuid();
 		this.repl = new ReplModel(this);
@@ -177,7 +178,7 @@ export class DebugSession implements IDebugSession {
 
 					return this.raw!.initialize({
 						clientID: 'vscode',
-						clientName: product.nameLong,
+						clientName: this.productService.nameLong,
 						adapterID: this.configuration.type,
 						pathFormat: 'path',
 						linesStartAt1: true,
