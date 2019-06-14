@@ -1987,40 +1987,40 @@ class Dialogs {
 	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): Promise<IMessageBoxResult> {
 		return this.getDialogQueue(window).queue(() => {
 			return new Promise(resolve => {
-				const callback = (response: number, checkboxChecked: boolean) => {
-					resolve({ button: response, checkboxChecked });
-				};
-
+				let dialogPromise: Promise<Electron.MessageBoxReturnValue>;
 				if (window) {
-					dialog.showMessageBox(window.win, options, callback);
+					dialogPromise = dialog.showMessageBox(window.win, options);
 				} else {
-					dialog.showMessageBox(options, callback);
+					dialogPromise = dialog.showMessageBox(options);
 				}
+				dialogPromise.then(({ response, checkboxChecked }: Electron.MessageBoxReturnValue) => {
+					resolve({ button: response, checkboxChecked });
+				});
 			});
 		});
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): Promise<string> {
 
-		function normalizePath(path: string): string {
+		function normalizePath(path: string | undefined): string {
 			if (path && isMacintosh) {
-				path = normalizeNFC(path); // normalize paths returned from the OS
+				return normalizeNFC(path); // normalize paths returned from the OS
+			} else {
+				return '';
 			}
-
-			return path;
 		}
 
 		return this.getDialogQueue(window).queue(() => {
 			return new Promise(resolve => {
-				const callback = (path: string) => {
-					resolve(normalizePath(path));
-				};
-
+				let dialogPromise: Promise<Electron.SaveDialogReturnValue>;
 				if (window) {
-					dialog.showSaveDialog(window.win, options, callback);
+					dialogPromise = dialog.showSaveDialog(window.win, options);
 				} else {
-					dialog.showSaveDialog(options, callback);
+					dialogPromise = dialog.showSaveDialog(options);
 				}
+				dialogPromise.then(({ canceled, filePath, bookmark }: Electron.SaveDialogReturnValue) => {
+					resolve(normalizePath(filePath));
+				});
 			});
 		});
 	}
