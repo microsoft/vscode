@@ -29,6 +29,8 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 		return editor.getContribution<MessageController>(MessageController._id);
 	}
 
+	private readonly closeTimeout = 3000; // close after 3s
+
 	getId(): string {
 		return MessageController._id;
 	}
@@ -72,8 +74,7 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 		this._messageListeners.add(this._editor.onDidDispose(() => this.closeMessage()));
 		this._messageListeners.add(this._editor.onDidChangeModel(() => this.closeMessage()));
 
-		// close after 3s
-		this._messageListeners.add(new TimeoutTimer(() => this.closeMessage(), 3000));
+		this._messageListeners.add(new TimeoutTimer(() => this.closeMessage(), this.closeTimeout));
 
 		// close on mouse move
 		let bounds: Range;
