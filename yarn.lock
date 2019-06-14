@@ -6176,9 +6176,10 @@ node-pre-gyp@^0.12.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@microsoft/node-pty#04445ed76f90b4f56a190982ea2d4fcdd22a0ee7:
-  version "0.8.1"
-  resolved "https://codeload.github.com/microsoft/node-pty/tar.gz/04445ed76f90b4f56a190982ea2d4fcdd22a0ee7"
+node-pty@^0.9.0-beta18:
+  version "0.9.0-beta18"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.9.0-beta18.tgz#d81c1ed96ee2727043abd5ac6666250149c1b606"
+  integrity sha512-j4E8RYda9cqm+2cGxaAxDlpEmPpuS0dfCuZII8VPRTw6p5gRJRwPJo9oL//YKdtaasRFfRy0/mUaNj8ft3FQVg==
   dependencies:
     nan "^2.13.2"
 

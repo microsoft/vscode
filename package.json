@@ -42,7 +42,7 @@
     "native-is-elevated": "^0.2.1",
     "native-keymap": "microsoft/node-native-keymap#node_v12",
     "native-watchdog": "1.0.0",
-    "node-pty": "microsoft/node-pty#04445ed76f90b4f56a190982ea2d4fcdd22a0ee7",
+    "node-pty": "^0.9.0-beta18",
     "onigasm-umd": "^2.2.2",
     "semver": "^5.5.0",
     "spdlog": "^0.9.0",
@@ -158,7 +158,7 @@
     "windows-mutex": "0.2.1",
     "windows-process-tree": "0.2.3"
   },
-  "//" : [
+  "//": [
     "There are no prebuilt binaries available for the v8 7.6 ABI",
     "node-pre-gyp will fallback to source build but that will fail for",
     "modules using older version of nan, this resolves nan to the",
