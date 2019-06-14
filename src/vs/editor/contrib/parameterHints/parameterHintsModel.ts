@@ -188,6 +188,9 @@ export class ParameterHintsModel extends Disposable {
 			}
 
 			if (!result || !result.value.signatures || result.value.signatures.length === 0) {
+				if (result) {
+					result.dispose();
+				}
 				this._lastSignatureHelpResult.clear();
 				this.cancel();
 				return false;
