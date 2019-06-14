@@ -477,8 +477,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			}
 			return Promise.resolve();
 		}));
-		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, () => {
-			return Promise.resolve(this.clipboardService.writeText(this.getVisibleContent()));
+		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, async () => {
+			await this.clipboardService.writeText(this.getVisibleContent());
+			return Promise.resolve();
 		}));
 		actions.push(new Action('debug.collapseRepl', nls.localize('collapse', "Collapse All"), undefined, true, () => {
 			this.tree.collapseAll();

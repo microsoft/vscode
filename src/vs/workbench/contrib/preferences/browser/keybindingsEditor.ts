@@ -709,7 +709,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			label: localize('copyLabel', "Copy"),
 			enabled: true,
 			id: KEYBINDINGS_EDITOR_COMMAND_COPY,
-			run: () => { return this.copyKeybinding(keybindingItem); }
+			run: () => this.copyKeybinding(keybindingItem)
 		};
 	}
 
