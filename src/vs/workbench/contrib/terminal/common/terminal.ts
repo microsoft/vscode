@@ -763,7 +763,7 @@ export interface IWindowsShellHelper extends IDisposable {
 export interface ITerminalChildProcess {
 	onProcessData: Event<string>;
 	onProcessExit: Event<number>;
-	onProcessIdReady: Event<number>;
+	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
 
 	/**

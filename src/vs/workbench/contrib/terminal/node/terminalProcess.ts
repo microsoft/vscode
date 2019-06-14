@@ -29,8 +29,8 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
 	private readonly _onProcessExit = new Emitter<number>();
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
-	private readonly _onProcessIdReady = new Emitter<number>();
-	public get onProcessIdReady(): Event<number> { return this._onProcessIdReady.event; }
+	private readonly _onProcessReady = new Emitter<{ pid: number, cwd: string }>();
+	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = new Emitter<string>();
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 
@@ -83,7 +83,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		const ptyProcess = pty.spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._processStartupComplete = new Promise<void>(c => {
-			this.onProcessIdReady(() => c());
+			this.onProcessReady(() => c());
 		});
 		ptyProcess.on('data', data => {
 			this._onProcessData.fire(data);
@@ -111,7 +111,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		this._titleInterval = null;
 		this._onProcessData.dispose();
 		this._onProcessExit.dispose();
-		this._onProcessIdReady.dispose();
+		this._onProcessReady.dispose();
 		this._onProcessTitleChanged.dispose();
 	}
 
@@ -162,7 +162,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 	}
 
 	private _sendProcessId(ptyProcess: pty.IPty) {
-		this._onProcessIdReady.fire(ptyProcess.pid);
+		this._onProcessReady.fire({ pid: ptyProcess.pid, cwd: this._initialCwd });
 	}
 
 	private _sendProcessTitle(ptyProcess: pty.IPty): void {
