@@ -101,7 +101,7 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 			}
 		}
 
-		return Promise.all(resolve).finally(() => value.dispose());
+		return Promise.all(resolve).finally(() => setTimeout(() => value.dispose(), 0));
 
 	}).then(() => {
 		return result;

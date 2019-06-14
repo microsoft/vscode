@@ -613,7 +613,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		});
 	}
 
-	insertSnippet(snippet: SnippetString, where?: Position | Position[] | Range | Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
+	insertSnippet(snippet: SnippetString, where?: Position | readonly Position[] | Range | readonly Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
 		if (this._disposed) {
 			return Promise.reject(new Error('TextEditor#insertSnippet not possible on closed editors'));
 		}

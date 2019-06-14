@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.36.0",
-  "distro": "060a874751adc68d68777085e88c99a8f04ba5da",
+  "distro": "8a2c96a9296c1b8112a4d0e74c0b10063c1a8d44",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -25,9 +25,9 @@
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
-    "web": "node resources/server/bin-dev/code-web.js --port=9888",
-    "web-selfhost": "node resources/server/bin-dev/code-web.js --port=9777 --selfhost --folder .",
-    "install-server": "git fetch distro && git checkout distro/distro -- src/vs/server resources/server && git reset HEAD src/vs/server resources/server"
+    "web": "node resources/server/bin-dev/code-web.js --port 9888",
+    "web-selfhost": "node resources/server/bin-dev/code-web.js --port 9777 --selfhost --folder .",
+    "install-server": "node build/npm/install-server.js"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -54,7 +54,7 @@
     "vscode-proxy-agent": "0.4.0",
     "vscode-ripgrep": "^1.2.5",
     "vscode-textmate": "^4.1.1",
-    "xterm": "3.15.0-beta34",
+    "xterm": "3.15.0-beta37",
     "xterm-addon-search": "0.1.0-beta6",
     "xterm-addon-web-links": "0.1.0-beta10",
     "yauzl": "^2.9.2",
@@ -131,7 +131,7 @@
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
     "tslint": "^5.16.0",
-    "typescript": "3.5.1",
+    "typescript": "3.5.2",
     "typescript-formatter": "7.1.0",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",

@@ -531,16 +531,16 @@ declare module 'vscode' {
 		/**
 		 * The [text editor](#TextEditor) for which the selections have changed.
 		 */
-		textEditor: TextEditor;
+		readonly textEditor: TextEditor;
 		/**
 		 * The new value for the [text editor's selections](#TextEditor.selections).
 		 */
-		selections: Selection[];
+		readonly selections: ReadonlyArray<Selection>;
 		/**
 		 * The [change kind](#TextEditorSelectionChangeKind) which has triggered this
 		 * event. Can be `undefined`.
 		 */
-		kind?: TextEditorSelectionChangeKind;
+		readonly kind?: TextEditorSelectionChangeKind;
 	}
 
 	/**
@@ -550,11 +550,11 @@ declare module 'vscode' {
 		/**
 		 * The [text editor](#TextEditor) for which the visible ranges have changed.
 		 */
-		textEditor: TextEditor;
+		readonly textEditor: TextEditor;
 		/**
 		 * The new value for the [text editor's visible ranges](#TextEditor.visibleRanges).
 		 */
-		visibleRanges: Range[];
+		readonly visibleRanges: ReadonlyArray<Range>;
 	}
 
 	/**
@@ -564,11 +564,11 @@ declare module 'vscode' {
 		/**
 		 * The [text editor](#TextEditor) for which the options have changed.
 		 */
-		textEditor: TextEditor;
+		readonly textEditor: TextEditor;
 		/**
 		 * The new value for the [text editor's options](#TextEditor.options).
 		 */
-		options: TextEditorOptions;
+		readonly options: TextEditorOptions;
 	}
 
 	/**
@@ -578,11 +578,11 @@ declare module 'vscode' {
 		/**
 		 * The [text editor](#TextEditor) for which the view column has changed.
 		 */
-		textEditor: TextEditor;
+		readonly textEditor: TextEditor;
 		/**
 		 * The new value for the [text editor's view column](#TextEditor.viewColumn).
 		 */
-		viewColumn: ViewColumn;
+		readonly viewColumn: ViewColumn;
 	}
 
 	/**
@@ -1130,7 +1130,7 @@ declare module 'vscode' {
 		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
 		 * that the snippet is completely filled-in or accepted.
 		 */
-		insertSnippet(snippet: SnippetString, location?: Position | Range | Position[] | Range[], options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		insertSnippet(snippet: SnippetString, location?: Position | Range | ReadonlyArray<Position> | ReadonlyArray<Range>, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
@@ -4203,7 +4203,7 @@ declare module 'vscode' {
 		/**
 		 * An array of resources for which diagnostics have changed.
 		 */
-		readonly uris: Uri[];
+		readonly uris: ReadonlyArray<Uri>;
 	}
 
 	/**
@@ -5331,7 +5331,7 @@ declare module 'vscode' {
 		/**
 		 * The task item representing the task that got started.
 		 */
-		execution: TaskExecution;
+		readonly execution: TaskExecution;
 	}
 
 	/**
@@ -5343,7 +5343,7 @@ declare module 'vscode' {
 		/**
 		 * The task item representing the task that finished.
 		 */
-		execution: TaskExecution;
+		readonly execution: TaskExecution;
 	}
 
 	/**
@@ -5355,12 +5355,12 @@ declare module 'vscode' {
 		/**
 		 * The task execution for which the process got started.
 		 */
-		execution: TaskExecution;
+		readonly execution: TaskExecution;
 
 		/**
 		 * The underlying process id.
 		 */
-		processId: number;
+		readonly processId: number;
 	}
 
 	/**
@@ -5372,12 +5372,12 @@ declare module 'vscode' {
 		/**
 		 * The task execution for which the process got started.
 		 */
-		execution: TaskExecution;
+		readonly execution: TaskExecution;
 
 		/**
 		 * The process's exit code.
 		 */
-		exitCode: number;
+		readonly exitCode: number;
 	}
 
 	export interface TaskFilter {
@@ -5584,12 +5584,12 @@ declare module 'vscode' {
 		/**
 		 * The type of change.
 		 */
-		type: FileChangeType;
+		readonly type: FileChangeType;
 
 		/**
 		 * The uri of the file that has changed.
 		 */
-		uri: Uri;
+		readonly uri: Uri;
 	}
 
 	/**
@@ -7331,12 +7331,12 @@ declare module 'vscode' {
 		/**
 		 * The affected document.
 		 */
-		document: TextDocument;
+		readonly document: TextDocument;
 
 		/**
 		 * An array of content changes.
 		 */
-		contentChanges: TextDocumentContentChangeEvent[];
+		readonly contentChanges: ReadonlyArray<TextDocumentContentChangeEvent>;
 	}
 
 	/**
@@ -7373,12 +7373,12 @@ declare module 'vscode' {
 		/**
 		 * The document that will be saved.
 		 */
-		document: TextDocument;
+		readonly document: TextDocument;
 
 		/**
 		 * The reason why save was triggered.
 		 */
-		reason: TextDocumentSaveReason;
+		readonly reason: TextDocumentSaveReason;
 
 		/**
 		 * Allows to pause the event loop and to apply [pre-save-edits](#TextEdit).
@@ -7419,12 +7419,12 @@ declare module 'vscode' {
 		/**
 		 * Added workspace folders.
 		 */
-		readonly added: WorkspaceFolder[];
+		readonly added: ReadonlyArray<WorkspaceFolder>;
 
 		/**
 		 * Removed workspace folders.
 		 */
-		readonly removed: WorkspaceFolder[];
+		readonly removed: ReadonlyArray<WorkspaceFolder>;
 	}
 
 	/**
@@ -8500,17 +8500,17 @@ declare module 'vscode' {
 		/**
 		 * The [debug session](#DebugSession) for which the custom event was received.
 		 */
-		session: DebugSession;
+		readonly session: DebugSession;
 
 		/**
 		 * Type of event.
 		 */
-		event: string;
+		readonly event: string;
 
 		/**
 		 * Event specific information.
 		 */
-		body?: any;
+		readonly body?: any;
 	}
 
 	/**
@@ -8707,17 +8707,17 @@ declare module 'vscode' {
 		/**
 		 * Added breakpoints.
 		 */
-		readonly added: Breakpoint[];
+		readonly added: ReadonlyArray<Breakpoint>;
 
 		/**
 		 * Removed breakpoints.
 		 */
-		readonly removed: Breakpoint[];
+		readonly removed: ReadonlyArray<Breakpoint>;
 
 		/**
 		 * Changed breakpoints.
 		 */
-		readonly changed: Breakpoint[];
+		readonly changed: ReadonlyArray<Breakpoint>;
 	}
 
 	/**

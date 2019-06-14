@@ -10,7 +10,7 @@ import { IAction } from 'vs/base/common/actions';
 import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Comment, CommentThread2 } from 'vs/editor/common/modes';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class CommentMenus implements IDisposable {
 	constructor(
@@ -47,7 +47,7 @@ export class CommentMenus implements IDisposable {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		fillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => true);
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		return menu;
 	}

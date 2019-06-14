@@ -24,7 +24,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
@@ -33,11 +33,12 @@ import { WebResources } from 'vs/workbench/browser/web.resources';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
+import { joinPath } from 'vs/base/common/resources';
 
 interface IWindowConfiguration {
-	settingsUri: URI;
-	keybindingsUri: URI;
 	remoteAuthority: string;
+
+	userDataUri: URI;
 	folderUri?: URI;
 	workspaceUri?: URI;
 }
@@ -121,7 +122,7 @@ class CodeRendererMain extends Disposable {
 		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		await Promise.all([
-			this.createWorkspaceService(payload, fileService, remoteAgentService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -140,20 +141,20 @@ class CodeRendererMain extends Disposable {
 		const environmentService = new SimpleWorkbenchEnvironmentService();
 		environmentService.appRoot = '/web/';
 		environmentService.args = { _: [] };
-		environmentService.appSettingsHome = toResource('/web/settings');
-		environmentService.settingsResource = this.configuration.settingsUri;
-		environmentService.keybindingsResource = this.configuration.keybindingsUri;
+		environmentService.appSettingsHome = joinPath(this.configuration.userDataUri, 'User');
+		environmentService.settingsResource = joinPath(environmentService.appSettingsHome, 'settings.json');
+		environmentService.keybindingsResource = joinPath(environmentService.appSettingsHome, 'keybindings.json');
 		environmentService.logsPath = '/web/logs';
 		environmentService.debugExtensionHost = {
 			port: null,
 			break: false
 		};
+
 		return environmentService;
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-
-		const workspaceService = new WorkspaceService({ userSettingsResource: this.configuration.settingsUri, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, new ConfigurationFileService(fileService), remoteAgentService);
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ userSettingsResource: environmentService.settingsResource, remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, new ConfigurationFileService(fileService), remoteAgentService);
 
 		try {
 			await workspaceService.initialize(payload);
@@ -184,28 +185,20 @@ class CodeRendererMain extends Disposable {
 }
 
 export interface IWindowConfigurationContents {
-	settingsPath: string;
-	keybindingsPath: string;
-	folderPath?: string;
-	workspacePath?: string;
+	authority: string;
+	userDataUri: UriComponents;
+	folderUri?: UriComponents;
+	workspaceUri?: UriComponents;
 }
 
 export function main(windowConfigurationContents: IWindowConfigurationContents): Promise<void> {
 	const windowConfiguration: IWindowConfiguration = {
-		settingsUri: toResource(windowConfigurationContents.settingsPath),
-		keybindingsUri: toResource(windowConfigurationContents.keybindingsPath),
-		folderUri: windowConfigurationContents.folderPath ? toResource(windowConfigurationContents.folderPath) : undefined,
-		workspaceUri: windowConfigurationContents.workspacePath ? toResource(windowConfigurationContents.workspacePath) : undefined,
-		remoteAuthority: document.location.host
+		userDataUri: URI.revive(windowConfigurationContents.userDataUri),
+		remoteAuthority: windowConfigurationContents.authority,
+		folderUri: windowConfigurationContents.folderUri ? URI.revive(windowConfigurationContents.folderUri) : undefined,
+		workspaceUri: windowConfigurationContents.workspaceUri ? URI.revive(windowConfigurationContents.workspaceUri) : undefined
 	};
+
 	const renderer = new CodeRendererMain(windowConfiguration);
 	return renderer.open();
-}
-
-function toResource(path: string): URI {
-	return URI.from({
-		scheme: Schemas.vscodeRemote,
-		authority: document.location.host,
-		path
-	});
 }

@@ -444,7 +444,10 @@ export class RawDebugSession {
 
 	goto(args: DebugProtocol.GotoArguments): Promise<DebugProtocol.GotoResponse> {
 		if (this.capabilities.supportsGotoTargetsRequest) {
-			return this.send('goto', args);
+			return this.send('goto', args).then(res => {
+				this.fireSimulatedContinuedEvent(args.threadId);
+				return res;
+			});
 		}
 		return Promise.reject(new Error('goto is not supported'));
 	}

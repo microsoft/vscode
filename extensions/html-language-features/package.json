@@ -177,8 +177,8 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^5.2.1",
-    "vscode-nls": "^4.0.0"
+    "vscode-languageclient": "^5.3.0-next.6",
+    "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
     "@types/node": "^10.14.8"
