@@ -12,12 +12,15 @@
 
 /// <reference types="node" />
 
-declare module 'vscode-sqlite3' {
+declare module 'sqlite3' {
 	import events = require("events");
 
 	export const OPEN_READONLY: number;
 	export const OPEN_READWRITE: number;
 	export const OPEN_CREATE: number;
+	export const OPEN_SHAREDCACHE: number;
+	export const OPEN_PRIVATECACHE: number;
+	export const OPEN_URI: number;
 
 	export const cached: {
 		Database(filename: string, callback?: (this: Database, err: Error | null) => void): Database;
@@ -100,6 +103,9 @@ declare module 'vscode-sqlite3' {
 		OPEN_READONLY: number;
 		OPEN_READWRITE: number;
 		OPEN_CREATE: number;
+		OPEN_SHAREDCACHE: number;
+		OPEN_PRIVATECACHE: number;
+		OPEN_URI: number;
 		cached: typeof cached;
 		RunResult: RunResult;
 		Statement: typeof Statement;
