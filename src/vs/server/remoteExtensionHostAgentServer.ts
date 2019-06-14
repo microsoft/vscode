@@ -26,6 +26,8 @@ import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
 import { isLinux } from 'vs/base/common/platform';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IURITransformer } from 'vs/base/common/uriIpc';
+import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 
 const CONNECTION_AUTH_TOKEN = generateUuid();
 
@@ -73,6 +75,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 		setTimeout(() => this.cleanupOlderLogs(this._environmentService.logsPath).then(null, err => console.error(err)), 10000);
 
+		let transformer: IURITransformer;
+
 		const server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
 
 			// Only serve GET requests
@@ -91,17 +95,25 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			try {
 				const pathname = url.parse(req.url!).pathname;
 
+
 				let filePath: string;
 				if (pathname === '/') {
+
+					const authority = req.headers.host!; // TODO@web this is localhost when opening 127.0.0.1 and is possibly undefined, does it matter?
+					if (!transformer) {
+						transformer = createRemoteURITransformer(authority);
+					}
+
 					filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
 					const _data = await util.promisify(fs.readFile)(filePath);
 					const folder = this._environmentService.args['folder'] ? sanitizeFilePath(this._environmentService.args['folder'], process.env['VSCODE_CWD'] || process.cwd()) : undefined;
 					const workspace = this._environmentService.args['workspace'];
 					const data = _data.toString()
 						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
-						.replace('{{USER_DATA}}', URI.file(this._environmentService.userDataPath).toString())
-						.replace('{{FOLDER}}', folder ? URI.file(folder).toString() : '')
-						.replace('{{WORKSPACE}}', workspace ? URI.file(workspace).toString() : '');
+						.replace('\'{{USER_DATA}}\'', JSON.stringify(transformer.transformOutgoing(URI.file(this._environmentService.userDataPath))))
+						.replace('\'{{FOLDER}}\'', folder ? JSON.stringify(transformer.transformOutgoing(URI.file(folder))) : 'undefined')
+						.replace('\'{{WORKSPACE}}\'', workspace ? JSON.stringify(transformer.transformOutgoing(URI.file(workspace))) : 'undefined')
+						.replace('{{AUTHORITY}}', authority);
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
 				} else {
