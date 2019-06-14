@@ -248,7 +248,7 @@ function deserialize(reader: IReader): any {
 
 interface PendingRequest {
 	request: IRawPromiseRequest | IRawEventListenRequest;
-	timeoutTimer: NodeJS.Timer;
+	timeoutTimer: any;
 }
 
 export class ChannelServer<TContext = string> implements IChannelServer<TContext>, IDisposable {
@@ -718,9 +718,9 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
 		this.channels.set(channelName, channel);
 
-		for (const connection of this._connections) {
+		this._connections.forEach(connection => {
 			connection.channelServer.registerChannel(channelName, channel);
-		}
+		});
 	}
 
 	dispose(): void {
