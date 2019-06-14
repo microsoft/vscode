@@ -236,7 +236,7 @@ class GenerateColorThemeAction extends Action {
 		}, null, '\t');
 		contents = contents.replace(/\"__/g, '//"');
 
-		return this.editorService.openEditor({ contents, language: 'jsonc' });
+		return this.editorService.openEditor({ contents, mode: 'jsonc' });
 	}
 }
 
@@ -268,6 +268,24 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	command: {
 		id: SelectIconThemeAction.ID,
 		title: localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '4_themes',
+	command: {
+		id: SelectColorThemeAction.ID,
+		title: localize('selectTheme.label', "Color Theme")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '4_themes',
+	command: {
+		id: SelectIconThemeAction.ID,
+		title: localize('themes.selectIconTheme.label', "File Icon Theme")
 	},
 	order: 2
 });

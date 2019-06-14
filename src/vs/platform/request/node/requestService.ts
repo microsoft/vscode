@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IRequestOptions, IRequestContext, IRequestFunction, request } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
@@ -16,21 +16,21 @@ import { CancellationToken } from 'vs/base/common/cancellation';
  * This service exposes the `request` API, while using the global
  * or configured proxy settings.
  */
-export class RequestService implements IRequestService {
+export class RequestService extends Disposable implements IRequestService {
 
 	_serviceBrand: any;
 
 	private proxyUrl?: string;
 	private strictSSL: boolean;
 	private authorization?: string;
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService
 	) {
+		super();
 		this.configure(configurationService.getValue<IHTTPConfiguration>());
-		configurationService.onDidChangeConfiguration(() => this.configure(configurationService.getValue()), this, this.disposables);
+		this._register(configurationService.onDidChangeConfiguration(() => this.configure(configurationService.getValue()), this));
 	}
 
 	private configure(config: IHTTPConfiguration) {

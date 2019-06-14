@@ -11,7 +11,6 @@ import { tail } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { combinedDisposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
@@ -70,7 +69,7 @@ class Item extends BreadcrumbsItem {
 			return false;
 		}
 		if (this.element instanceof FileElement && other.element instanceof FileElement) {
-			return isEqual(this.element.uri, other.element.uri);
+			return isEqual(this.element.uri, other.element.uri, false);
 		}
 		if (this.element instanceof TreeElement && other.element instanceof TreeElement) {
 			return this.element.id === other.element.id;
@@ -224,7 +223,7 @@ export class BreadcrumbsControl {
 			input = input.master;
 		}
 
-		if (!input || !input.getResource() || (input.getResource()!.scheme !== Schemas.untitled && !this._fileService.canHandleResource(input.getResource()!))) {
+		if (!input || !input.getResource() || !this._fileService.canHandleResource(input.getResource()!)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -384,14 +383,14 @@ export class BreadcrumbsControl {
 				this._breadcrumbsPickerShowing = true;
 				this._updateCkBreadcrumbsActive();
 
-				return combinedDisposable([
+				return combinedDisposable(
 					picker,
 					selectListener,
 					focusListener,
 					zoomListener,
 					focusTracker,
 					blurListener
-				]);
+				);
 			},
 			getAnchor: () => {
 				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
@@ -490,16 +489,16 @@ export class BreadcrumbsControl {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'View: Toggle Breadcrumbs' },
-		category: localize('cmd.category', "View")
+		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
+		category: { value: localize('cmd.category', "View"), original: 'View' }
 	}
 });
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',
-	order: 99,
+	order: 3,
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: localize('miToggleBreadcrumbs', "Toggle &&Breadcrumbs"),
+		title: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
 		toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true)
 	}
 });

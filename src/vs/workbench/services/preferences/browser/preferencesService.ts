@@ -273,7 +273,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		this.telemetryService.publicLog('openKeybindings', { textual });
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
-			const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
+			const editableKeybindings = this.environmentService.keybindingsResource;
 			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor
@@ -524,9 +524,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		switch (configurationTarget) {
 			case ConfigurationTarget.USER:
 			case ConfigurationTarget.USER_LOCAL:
-				return URI.file(this.environmentService.appSettingsPath);
+				return this.environmentService.settingsResource;
 			case ConfigurationTarget.USER_REMOTE:
-				return URI.file(this.environmentService.appSettingsPath);
+				return this.environmentService.settingsResource;
 			case ConfigurationTarget.WORKSPACE:
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					return null;

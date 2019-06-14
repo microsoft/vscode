@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { domEvent } from 'vs/base/browser/event';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -60,10 +60,10 @@ export class InspectContextKeysAction extends Action {
 	}
 
 	run(): Promise<void> {
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		const stylesheet = createStyleSheet();
-		disposables.push(toDisposable(() => {
+		disposables.add(toDisposable(() => {
 			if (stylesheet.parentNode) {
 				stylesheet.parentNode.removeChild(stylesheet);
 			}
@@ -72,7 +72,7 @@ export class InspectContextKeysAction extends Action {
 
 		const hoverFeedback = document.createElement('div');
 		document.body.appendChild(hoverFeedback);
-		disposables.push(toDisposable(() => document.body.removeChild(hoverFeedback)));
+		disposables.add(toDisposable(() => document.body.removeChild(hoverFeedback)));
 
 		hoverFeedback.style.position = 'absolute';
 		hoverFeedback.style.pointerEvents = 'none';
@@ -80,7 +80,7 @@ export class InspectContextKeysAction extends Action {
 		hoverFeedback.style.zIndex = '1000';
 
 		const onMouseMove = domEvent(document.body, 'mousemove', true);
-		disposables.push(onMouseMove(e => {
+		disposables.add(onMouseMove(e => {
 			const target = e.target as HTMLElement;
 			const position = getDomNodePagePosition(target);
 

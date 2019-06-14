@@ -473,7 +473,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCodeActionProvider(resource: URI, range: types.Range, kind?: string): Promise<(vscode.CodeAction | vscode.Command)[] | undefined> {
+	private _executeCodeActionProvider(resource: URI, range: types.Range, kind?: string): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
 		const args = {
 			resource,
 			range: typeConverters.Range.from(range),
@@ -504,7 +504,7 @@ export class ExtHostApiCommands {
 
 	private _executeCodeLensProvider(resource: URI, itemResolveCount: number): Promise<vscode.CodeLens[] | undefined> {
 		const args = { resource, itemResolveCount };
-		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args)
+		return this._commands.executeCommand<modes.CodeLens[]>('_executeCodeLensProvider', args)
 			.then(tryMapWith(item => {
 				return new types.CodeLens(
 					typeConverters.Range.to(item.range),

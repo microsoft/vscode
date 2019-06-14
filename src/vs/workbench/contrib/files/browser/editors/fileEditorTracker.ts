@@ -132,7 +132,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	private handleDeletes(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
 		const nonDirtyFileEditors = this.getOpenedFileEditors(false /* non-dirty only */);
-		nonDirtyFileEditors.forEach(editor => {
+		nonDirtyFileEditors.forEach(async editor => {
 			const resource = editor.getResource();
 
 			// Handle deletes in opened editors depending on:
@@ -165,20 +165,17 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// file is really gone and not just a faulty file event.
 				// This only applies to external file events, so we need to check for the isExternal
 				// flag.
-				let checkExists: Promise<boolean>;
+				let exists = false;
 				if (isExternal) {
-					checkExists = timeout(100).then(() => this.fileService.exists(resource));
-				} else {
-					checkExists = Promise.resolve(false);
+					await timeout(100);
+					exists = await this.fileService.exists(resource);
 				}
 
-				checkExists.then(exists => {
-					if (!exists && !editor.isDisposed()) {
-						editor.dispose();
-					} else if (this.environmentService.verbose) {
-						console.warn(`File exists even though we received a delete event: ${resource.toString()}`);
-					}
-				});
+				if (!exists && !editor.isDisposed()) {
+					editor.dispose();
+				} else if (this.environmentService.verbose) {
+					console.warn(`File exists even though we received a delete event: ${resource.toString()}`);
+				}
 			}
 		});
 	}

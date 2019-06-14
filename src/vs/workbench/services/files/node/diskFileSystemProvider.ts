@@ -80,16 +80,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			const children = await readdir(this.toFilePath(resource));
 
 			const result: [string, FileType][] = [];
-			for (let i = 0; i < children.length; i++) {
-				const child = children[i];
-
+			await Promise.all(children.map(async child => {
 				try {
 					const stat = await this.stat(joinPath(resource, child));
 					result.push([child, stat.type]);
 				} catch (error) {
 					this.logService.trace(error); // ignore errors for individual entries that can arise from permission denied
 				}
-			}
+			}));
 
 			return result;
 		} catch (error) {

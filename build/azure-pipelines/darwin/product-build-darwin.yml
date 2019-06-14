@@ -7,15 +7,21 @@ steps:
   inputs:
     versionSpec: "1.10.1"
 
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
 - script: |
     set -e
 
     cat << EOF > ~/.netrc
     machine monacotools.visualstudio.com
-    password $(VSO_PAT)
+    password $(devops-pat)
     machine github.com
     login vscode
-    password $(VSCODE_MIXIN_PASSWORD)
+    password $(github-distro-mixin-password)
     EOF
 
     git config user.email "vscode@microsoft.com"
@@ -28,14 +34,15 @@ steps:
     yarn gulp mixin
     yarn gulp hygiene
     yarn monaco-compile-check
-    node build/azure-pipelines/common/installDistro.js
+    node build/azure-pipelines/common/installDistroDependencies.js
+    node build/azure-pipelines/common/installDistroDependencies.js remote
     node build/lib/builtInExtensions.js
   displayName: Prepare build
 
 - script: |
     set -e
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
-    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+    AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
     ./build/azure-pipelines/darwin/build.sh
   displayName: Build
 
@@ -77,11 +84,11 @@ steps:
 
 - script: |
     set -e
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    VSCODE_HOCKEYAPP_TOKEN="$(VSCODE_HOCKEYAPP_TOKEN)" \
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+    AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
     ./build/azure-pipelines/darwin/publish.sh
   displayName: Publish
 

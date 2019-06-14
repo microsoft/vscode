@@ -15,6 +15,7 @@ import { IExtensionContributions, ExtensionType, IExtension } from 'vs/platform/
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ProductService } from 'vs/platform/product/node/productService';
 
 function storageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -38,7 +39,9 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IWorkbenchEnvironmentService) || instantiationService.stub(IWorkbenchEnvironmentService, { configuration: Object.create(null) } as IWorkbenchEnvironmentService),
 			instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService,
 				{ onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event, onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService),
-			instantiationService.get(IConfigurationService), instantiationService.get(IExtensionManagementServerService));
+			instantiationService.get(IConfigurationService), instantiationService.get(IExtensionManagementServerService),
+			new ProductService()
+		);
 	}
 
 	public reset(): void {

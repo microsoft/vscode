@@ -1101,7 +1101,7 @@ declare module 'vscode' {
 
 		/**
 		 * The column in which this editor shows. Will be `undefined` in case this
-		 * isn't one of the main editors, e.g an embedded editor, or when the editor
+		 * isn't one of the main editors, e.g. an embedded editor, or when the editor
 		 * column is larger than three.
 		 */
 		viewColumn?: ViewColumn;
@@ -1130,7 +1130,7 @@ declare module 'vscode' {
 		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
 		 * that the snippet is completely filled-in or accepted.
 		 */
-		insertSnippet(snippet: SnippetString, location?: Position | Range | Position[] | Range[], options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		insertSnippet(snippet: SnippetString, location?: Position | Range | ReadonlyArray<Position> | ReadonlyArray<Range>, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
@@ -1900,7 +1900,7 @@ declare module 'vscode' {
 	 *
 	 * *Note* that a document selector that is just a language identifier selects *all*
 	 * documents, even those that are not saved on disk. Only use such selectors when
-	 * a feature works without further context, e.g without the need to resolve related
+	 * a feature works without further context, e.g. without the need to resolve related
 	 * 'files'.
 	 *
 	 * @sample `let sel:DocumentSelector = { scheme: 'file', language: 'typescript' }`;
@@ -2595,7 +2595,7 @@ declare module 'vscode' {
 		name: string;
 
 		/**
-		 * More detail for this symbol, e.g the signature of a function.
+		 * More detail for this symbol, e.g. the signature of a function.
 		 */
 		detail: string;
 
@@ -2605,12 +2605,12 @@ declare module 'vscode' {
 		kind: SymbolKind;
 
 		/**
-		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g comments and code.
+		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
 		 */
 		range: Range;
 
 		/**
-		 * The range that should be selected and reveal when this symbol is being picked, e.g the name of a function.
+		 * The range that should be selected and reveal when this symbol is being picked, e.g. the name of a function.
 		 * Must be contained by the [`range`](#DocumentSymbol.range).
 		 */
 		selectionRange: Range;
@@ -3515,6 +3515,10 @@ declare module 'vscode' {
 		 *
 		 * The editor will only resolve a completion item once.
 		 *
+		 * *Note* that accepting a completion item will not wait for it to be resolved. Because of that [`insertText`](#CompletionItem.insertText),
+		 * [`additionalTextEdits`](#CompletionItem.additionalTextEdits), and [`command`](#CompletionItem.command) should not
+		 * be changed when resolving an item.
+		 *
 		 * @param item A completion item currently active in the UI.
 		 * @param token A cancellation token.
 		 * @return The resolved completion item or a thenable that resolves to of such. It is OK to return the given
@@ -3645,7 +3649,7 @@ declare module 'vscode' {
 	 *
 	 * For some languages one color can have multiple presentations, e.g. css can represent the color red with
 	 * the constant `Red`, the hex-value `#ff0000`, or in rgba and hsla forms. In csharp other representations
-	 * apply, e.g `System.Drawing.Color.Red`.
+	 * apply, e.g. `System.Drawing.Color.Red`.
 	 */
 	export class ColorPresentation {
 
@@ -4231,7 +4235,7 @@ declare module 'vscode' {
 
 	/**
 	 * Represents a related message and source code location for a diagnostic. This should be
-	 * used to point to code locations that cause or related to a diagnostics, e.g when duplicating
+	 * used to point to code locations that cause or related to a diagnostics, e.g. when duplicating
 	 * a symbol in a scope.
 	 */
 	export class DiagnosticRelatedInformation {
@@ -4350,7 +4354,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param diagnostics Array of diagnostics or `undefined`
 		 */
-		set(uri: Uri, diagnostics: Diagnostic[] | undefined): void;
+		set(uri: Uri, diagnostics: ReadonlyArray<Diagnostic> | undefined): void;
 
 		/**
 		 * Replace all entries in this collection.
@@ -4362,7 +4366,7 @@ declare module 'vscode' {
 		 *
 		 * @param entries An array of tuples, like `[[file1, [d1, d2]], [file2, [d3, d4, d5]]]`, or `undefined`.
 		 */
-		set(entries: [Uri, Diagnostic[] | undefined][]): void;
+		set(entries: ReadonlyArray<[Uri, ReadonlyArray<Diagnostic> | undefined]>): void;
 
 		/**
 		 * Remove all diagnostics from this collection that belong
@@ -4384,7 +4388,7 @@ declare module 'vscode' {
 		 * @param callback Function to execute for each entry.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callback: (uri: Uri, diagnostics: Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void;
+		forEach(callback: (uri: Uri, diagnostics: ReadonlyArray<Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void;
 
 		/**
 		 * Get the diagnostics for a given resource. *Note* that you cannot
@@ -4393,7 +4397,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @returns An immutable array of [diagnostics](#Diagnostic) or `undefined`.
 		 */
-		get(uri: Uri): Diagnostic[] | undefined;
+		get(uri: Uri): ReadonlyArray<Diagnostic> | undefined;
 
 		/**
 		 * Check if this collection contains diagnostics for a
@@ -5500,8 +5504,8 @@ declare module 'vscode' {
 	/**
 	 * A type that filesystem providers should use to signal errors.
 	 *
-	 * This class has factory methods for common error-cases, like `EntryNotFound` when
-	 * a file or folder doesn't exist, use them like so: `throw vscode.FileSystemError.EntryNotFound(someUri);`
+	 * This class has factory methods for common error-cases, like `FileNotFound` when
+	 * a file or folder doesn't exist, use them like so: `throw vscode.FileSystemError.FileNotFound(someUri);`
 	 */
 	export class FileSystemError extends Error {
 
@@ -5763,8 +5767,11 @@ declare module 'vscode' {
 		 * to allow using a static localhost port inside the webview that is resolved to random port that a service is
 		 * running on.
 		 *
-		 * If a webview accesses localhost content, we recomend that you specify port mappings even if
+		 * If a webview accesses localhost content, we recommend that you specify port mappings even if
 		 * the `webviewPort` and `extensionHostPort` ports are the same.
+		 *
+		 * *Note* that port mappings only work for `http` or `https` urls. Websocket urls (e.g. `ws://localhost:3000`)
+		 * cannot be mapped to another port.
 		 */
 		readonly portMapping?: ReadonlyArray<WebviewPortMapping>;
 	}
@@ -6673,7 +6680,7 @@ declare module 'vscode' {
 		 * the following rules:
 		 *
 		 * - The uri-scheme must be `vscode.env.uriScheme`;
-		 * - The uri-authority must be the extension id (eg. `my.extension`);
+		 * - The uri-authority must be the extension id (e.g. `my.extension`);
 		 * - The uri-path, -query and -fragment parts are arbitrary.
 		 *
 		 * For example, if the `my.extension` extension registers a uri handler, it will only
@@ -8414,9 +8421,9 @@ declare module 'vscode' {
 		/**
 		 * Creates a new [source control](#SourceControl) instance.
 		 *
-		 * @param id An `id` for the source control. Something short, eg: `git`.
-		 * @param label A human-readable string for the source control. Eg: `Git`.
-		 * @param rootUri An optional Uri of the root of the source control. Eg: `Uri.parse(workspaceRoot)`.
+		 * @param id An `id` for the source control. Something short, e.g.: `git`.
+		 * @param label A human-readable string for the source control. E.g.: `Git`.
+		 * @param rootUri An optional Uri of the root of the source control. E.g.: `Uri.parse(workspaceRoot)`.
 		 * @return An instance of [source control](#SourceControl).
 		 */
 		export function createSourceControl(id: string, label: string, rootUri?: Uri): SourceControl;
@@ -8959,29 +8966,39 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Comment mode of a [comment](#Comment)
+	 */
+	export enum CommentMode {
+		/**
+		 * Displays the comment editor
+		 */
+		Editing = 0,
+
+		/**
+		 * Displays the preview of the comment
+		 */
+		Preview = 1
+	}
+
+	/**
 	 * A collection of [comments](#Comment) representing a conversation at a particular range in a document.
 	 */
 	export interface CommentThread {
 		/**
-		 * A unique identifier of the comment thread.
-		 */
-		readonly id: string;
-
-		/**
 		 * The uri of the document the thread has been created on.
 		 */
-		readonly resource: Uri;
+		readonly uri: Uri;
 
 		/**
 		 * The range the comment thread is located within the document. The thread icon will be shown
 		 * at the first line of the range.
 		 */
-		readonly range: Range;
+		range: Range;
 
 		/**
 		 * The ordered comments of the thread.
 		 */
-		comments: Comment[];
+		comments: ReadonlyArray<Comment>;
 
 		/**
 		 * Whether the thread should be collapsed or expanded when opening the document.
@@ -8990,31 +9007,29 @@ declare module 'vscode' {
 		collapsibleState: CommentThreadCollapsibleState;
 
 		/**
+		 * Context value of the comment thread. This can be used to contribute thread specific actions.
+		 * For example, a comment thread is given a context value as `editable`. When contributing actions to `comments/commentThread/title`
+		 * using `menus` extension point, you can specify context value for key `commentThread` in `when` expression like `commentThread == editable`.
+		 * ```
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"comments/commentThread/title": [
+		 *				{
+		 *					"command": "extension.deleteCommentThread",
+		 *					"when": "commentThread == editable"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show action `extension.deleteCommentThread` only for comment threads with `contextValue` is `editable`.
+		 */
+		contextValue?: string;
+
+		/**
 		 * The optional human-readable label describing the [Comment Thread](#CommentThread)
 		 */
 		label?: string;
-
-		/**
-		 * Optional accept input command
-		 *
-		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
-		 * This command will be invoked when users the user accepts the value in the comment editor.
-		 * This command will disabled when the comment editor is empty.
-		 */
-		acceptInputCommand?: Command;
-
-		/**
-		 * Optional additonal commands.
-		 *
-		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
-		 */
-		additionalCommands?: Command[];
-
-		/**
-		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
-		 * when the user collapses a comment thread that has no comments in it.
-		 */
-		deleteCommand?: Command;
 
 		/**
 		 * Dispose this comment thread.
@@ -9025,76 +9040,109 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
+	 * Author information of a [comment](#Comment)
 	 */
-	export class Comment {
+	export interface CommentAuthorInformation {
 		/**
-		 * The id of the comment
+		 * The display name of the author of the comment
 		 */
-		readonly id: string;
+		name: string;
 
 		/**
-		 * The human-readable comment body
+		 * The optional icon path for the author
 		 */
-		readonly body: MarkdownString;
-
-		/**
-		 * The display name of the user who created the comment
-		 */
-		readonly userName: string;
-
-		/**
-		 * Optional label describing the [Comment](#Comment)
-		 * Label will be rendered next to userName if exists.
-		 */
-		readonly label?: string;
-
-		/**
-		 * The icon path for the user who created the comment
-		 */
-		readonly userIconPath?: Uri;
-
-		/**
-		 * The command to be executed if the comment is selected in the Comments Panel
-		 */
-		readonly selectCommand?: Command;
-
-		/**
-		 * The command to be executed when users try to save the edits to the comment
-		 */
-		readonly editCommand?: Command;
-
-		/**
-		 * The command to be executed when users try to delete the comment
-		 */
-		readonly deleteCommand?: Command;
-
-		/**
-		 * @param id The id of the comment
-		 * @param body The human-readable comment body
-		 * @param userName The display name of the user who created the comment
-		 */
-		constructor(id: string, body: MarkdownString, userName: string);
+		iconPath?: Uri;
 	}
 
 	/**
-	 * The comment input box in Comment Widget.
+	 * Reactions of a [comment](#Comment)
 	 */
-	export interface CommentInputBox {
+	export interface CommentReaction {
 		/**
-		 * Setter and getter for the contents of the comment input box
+		 * The human-readable label for the reaction
 		 */
-		value: string;
+		readonly label: string;
 
 		/**
-		 * The uri of the document comment input box has been created on
+		 * Icon for the reaction shown in UI.
 		 */
-		resource: Uri;
+		readonly iconPath: string | Uri;
 
 		/**
-		 * The range the comment input box is located within the document
+		 * The number of users who have reacted to this reaction
 		 */
-		range: Range;
+		readonly count: number;
+
+		/**
+		 * Whether the [author](CommentAuthorInformation) of the comment has reacted to this reaction
+		 */
+		readonly authorHasReacted: boolean;
+	}
+
+	/**
+	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
+	 */
+	export interface Comment {
+		/**
+		 * The human-readable comment body
+		 */
+		body: string | MarkdownString;
+
+		/**
+		 * [Comment mode](#CommentMode) of the comment
+		 */
+		mode: CommentMode;
+
+		/**
+		 * The [author information](#CommentAuthorInformation) of the comment
+		 */
+		author: CommentAuthorInformation;
+
+		/**
+		 * Context value of the comment. This can be used to contribute comment specific actions.
+		 * For example, a comment is given a context value as `editable`. When contributing actions to `comments/comment/title`
+		 * using `menus` extension point, you can specify context value for key `comment` in `when` expression like `comment == editable`.
+		 * ```json
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"comments/comment/title": [
+		 *				{
+		 *					"command": "extension.deleteComment",
+		 *					"when": "comment == editable"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show action `extension.deleteComment` only for comments with `contextValue` is `editable`.
+		 */
+		contextValue?: string;
+
+		/**
+		 * Optional reactions of the [comment](#Comment)
+		 */
+		reactions?: CommentReaction[];
+
+		/**
+		 * Optional label describing the [Comment](#Comment)
+		 * Label will be rendered next to authorName if exists.
+		 */
+		label?: string;
+	}
+
+	/**
+	 * Command argument for actions registered in `comments/commentThread/context`.
+	 */
+	export interface CommentReply {
+		/**
+		 * The active [comment thread](#CommentThread)
+		 */
+		thread: CommentThread;
+
+		/**
+		 * The value in the comment editor
+		 */
+		text: string;
 	}
 
 	/**
@@ -9105,38 +9153,6 @@ declare module 'vscode' {
 		 * Provide a list of ranges which allow new comment threads creation or null for a given document
 		 */
 		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
-	}
-
-	/**
-	 * Comment thread template for new comment thread creation.
-	 */
-	export interface CommentThreadTemplate {
-		/**
-		 * The human-readable label describing the [Comment Thread](#CommentThread)
-		 */
-		readonly label: string;
-
-		/**
-		 * Optional accept input command
-		 *
-		 * `acceptInputCommand` is the default action rendered on Comment Widget, which is always placed rightmost.
-		 * This command will be invoked when users the user accepts the value in the comment editor.
-		 * This command will disabled when the comment editor is empty.
-		 */
-		readonly acceptInputCommand?: Command;
-
-		/**
-		 * Optional additonal commands.
-		 *
-		 * `additionalCommands` are the secondary actions rendered on Comment Widget.
-		 */
-		readonly additionalCommands?: Command[];
-
-		/**
-		 * The command to be executed when users try to delete the comment thread. Currently, this is only called
-		 * when the user collapses a comment thread that has no comments in it.
-		 */
-		readonly deleteCommand?: Command;
 	}
 
 	/**
@@ -9155,28 +9171,9 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The active [comment input box](#CommentInputBox) or `undefined`. The active `inputBox` is the input box of
-		 * the comment thread widget that currently has focus. It's `undefined` when the focus is not in any CommentInputBox.
-		 */
-		readonly inputBox: CommentInputBox | undefined;
-
-		/**
-		 * Optional comment thread template information.
-		 *
-		 * The comment controller will use this information to create the comment widget when users attempt to create new comment thread
-		 * from the gutter or command palette.
-		 *
-		 * When users run `CommentThreadTemplate.acceptInputCommand` or `CommentThreadTemplate.additionalCommands`, extensions should create
-		 * the approriate [CommentThread](#CommentThread).
-		 *
-		 * If not provided, users won't be able to create new comment threads in the editor.
-		 */
-		template?: CommentThreadTemplate;
-
-		/**
 		 * Optional commenting range provider. Provide a list [ranges](#Range) which support commenting to any given resource uri.
 		 *
-		 * If not provided and `emptyCommentThreadFactory` exits, users can leave comments in any document opened in the editor.
+		 * If not provided, users can leave comments in any document opened in the editor.
 		 */
 		commentingRangeProvider?: CommentingRangeProvider;
 
@@ -9184,12 +9181,16 @@ declare module 'vscode' {
 		 * Create a [comment thread](#CommentThread). The comment thread will be displayed in visible text editors (if the resource matches)
 		 * and Comments Panel once created.
 		 *
-		 * @param id An `id` for the comment thread.
-		 * @param resource The uri of the document the thread has been created on.
+		 * @param uri The uri of the document the thread has been created on.
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
 		 */
-		createCommentThread(id: string, resource: Uri, range: Range, comments: Comment[]): CommentThread;
+		createCommentThread(uri: Uri, range: Range, comments: Comment[]): CommentThread;
+
+		/**
+		 * Optional reaction handler for creating and deleting reactions on a [comment](#Comment).
+		 */
+		reactionHandler?: (comment: Comment, reaction: CommentReaction) => Promise<void>;
 
 		/**
 		 * Dispose this comment controller.
@@ -9200,7 +9201,7 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	namespace comment {
+	namespace comments {
 		/**
 		 * Creates a new [comment controller](#CommentController) instance.
 		 *

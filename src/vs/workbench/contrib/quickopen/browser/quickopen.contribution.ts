@@ -183,3 +183,12 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	},
 	order: 1
 });
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '1_command',
+	command: {
+		id: ShowAllCommandsAction.ID,
+		title: nls.localize('commandPalette', "Command Palette...")
+	},
+	order: 1
+});

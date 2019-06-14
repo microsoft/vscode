@@ -9,6 +9,7 @@ import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import * as Async from 'vs/base/common/async';
+import * as resources from 'vs/base/common/resources';
 import { IStringDictionary, values } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
@@ -16,8 +17,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isUNC } from 'vs/base/common/extpath';
 
-import { win32 } from 'vs/base/node/processes';
-
+import { IFileService } from 'vs/platform/files/common/files';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -29,21 +29,21 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/contrib/tasks/common/problemCollectors';
+import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope, RevealProblemKind
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration, ExtensionTaskSource, TaskScope, RevealProblemKind, DependsOrder
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
-	TelemetryEvent, Triggers, TaskTerminateResponse, TaskSystemInfoResovler, TaskSystemInfo, ResolveSet, ResolvedVariables
+	TelemetryEvent, Triggers, TaskTerminateResponse, TaskSystemInfoResolver, TaskSystemInfo, ResolveSet, ResolvedVariables
 } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
-import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -154,7 +154,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private terminals: IStringDictionary<TerminalData>;
 	private idleTaskTerminals: LinkedMap<string, string>;
 	private sameTaskTerminals: IStringDictionary<string>;
-	private taskSystemInfoResolver: TaskSystemInfoResovler;
+	private taskSystemInfoResolver: TaskSystemInfoResolver;
 	private lastTask: VerifiedTask;
 	private currentTask: VerifiedTask;
 	private isRerun: boolean;
@@ -171,7 +171,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private contextService: IWorkspaceContextService,
 		private environmentService: IWorkbenchEnvironmentService,
 		private outputChannelId: string,
-		taskSystemInfoResolver: TaskSystemInfoResovler
+		private fileService: IFileService,
+		private terminalInstanceService: ITerminalInstanceService,
+		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
 
 		this.activeTasks = Object.create(null);
@@ -332,10 +334,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Promise.all<TaskTerminateResponse>(promises);
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver, trigger: string): Promise<ITaskSummary> {
+	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string): Promise<ITaskSummary> {
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
-			task.configurationProperties.dependsOn.forEach((dependency) => {
+			for (let index in task.configurationProperties.dependsOn) {
+				const dependency = task.configurationProperties.dependsOn[index];
 				let dependencyTask = resolver.resolve(dependency.workspaceFolder, dependency.task!);
 				if (dependencyTask) {
 					let key = dependencyTask.getMapKey();
@@ -343,6 +346,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (!promise) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
 						promise = this.executeTask(dependencyTask, resolver, trigger);
+					}
+					if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
+						promise = Promise.resolve(await promise);
 					}
 					promises.push(promise);
 				} else {
@@ -353,7 +359,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					));
 					this.showOutput();
 				}
-			});
+			}
 		}
 
 		if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command)) {
@@ -424,12 +430,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			variables.forEach(variable => variablesArray.push(variable));
 
 			return new Promise((resolve, reject) => {
-				this.configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks').then(resolvedVariablesMap => {
+				this.configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks').then(async resolvedVariablesMap => {
 					if (resolvedVariablesMap) {
 						if (isProcess) {
 							let processVarValue: string;
 							if (Platform.isWindows) {
-								processVarValue = win32.findExecutable(
+								processVarValue = await this.findExecutable(
 									this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name!)),
 									cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
 									envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
@@ -509,7 +515,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (task.configurationProperties.isBackground) {
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
+				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService, this.fileService);
 				let toDispose: IDisposable[] | undefined = [];
 				let eventCounter: number = 0;
 				toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
@@ -523,8 +529,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 							if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 								(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
 								let reveal = task.command.presentation!.reveal;
-								let revealProblem = task.command.presentation!.revealProblem;
-								if (revealProblem === RevealProblemKind.OnProblem) {
+								let revealProblems = task.command.presentation!.revealProblems;
+								if (revealProblems === RevealProblemKind.OnProblem) {
 									this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 								} else if (reveal === RevealKind.Silent) {
 									this.terminalService.setActiveInstance(terminal!);
@@ -630,7 +636,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService);
+				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
 					startStopProblemMatcher.processLine(line);
@@ -653,8 +659,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 						}
 					}
 					let reveal = task.command.presentation!.reveal;
-					let revealProblem = task.command.presentation!.revealProblem;
-					let revealProblemPanel = terminal && (revealProblem === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0);
+					let revealProblems = task.command.presentation!.revealProblems;
+					let revealProblemPanel = terminal && (revealProblems === RevealProblemKind.OnProblem) && (startStopProblemMatcher.numberOfMatches > 0);
 					if (revealProblemPanel) {
 						this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 					} else if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
@@ -688,7 +694,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminal) {
 			return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
 		}
-		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblem === RevealProblemKind.Always);
+		let showProblemPanel = task.command.presentation && (task.command.presentation.revealProblems === RevealProblemKind.Always);
 		if (showProblemPanel) {
 			this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
 		} else if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
@@ -746,6 +752,25 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
 	}
 
+	private getDefaultShell(platform: Platform.Platform): string {
+		let defaultShell: string | undefined = undefined;
+		try {
+			defaultShell = this.terminalInstanceService.getDefaultShell(platform);
+		} catch {
+			// Do nothing
+		}
+		if (!defaultShell) {
+			// Make up a guess for the default shell.
+			if (platform === Platform.Platform.Windows) {
+				defaultShell = 'cmd.exe';
+			} else {
+				defaultShell = 'bash.exe';
+			}
+			console.warn('Cannot get the default shell.');
+		}
+		return defaultShell;
+	}
+
 	private createShellLaunchConfig(task: CustomTask | ContributedTask, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): IShellLaunchConfig | undefined {
 		let shellLaunchConfig: IShellLaunchConfig;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
@@ -754,7 +779,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: undefined, args: undefined, waitOnExit };
-			this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig, platform);
+			this.terminalInstanceService.mergeDefaultShellPathAndArgs(shellLaunchConfig, this.getDefaultShell(platform), this.terminalService.configHelper, platform);
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
@@ -797,7 +822,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 						toAdd.push('-c');
 					}
 				} else if (basename === 'wsl.exe') {
-					if (!shellSpecified && (getWindowsBuildNumber() >= 17763)) { // See https://github.com/Microsoft/vscode/issues/67855
+					if (!shellSpecified) {
 						toAdd.push('-e');
 					}
 				} else {
@@ -1230,7 +1255,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				matcher = value;
 			}
 			if (!matcher) {
-				this.appendOutput(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
+				this.appendOutput(nls.localize('unknownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
 				return;
 			}
 			let taskSystemInfo: TaskSystemInfo | undefined = resolver.taskSystemInfo;
@@ -1356,5 +1381,52 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (outputChannel) {
 			outputChannel.append(output);
 		}
+	}
+
+	private async findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string> {
+		// If we have an absolute path then we take it.
+		if (path.isAbsolute(command)) {
+			return command;
+		}
+		if (cwd === undefined) {
+			cwd = process.cwd();
+		}
+		const dir = path.dirname(command);
+		if (dir !== '.') {
+			// We have a directory and the directory is relative (see above). Make the path absolute
+			// to the current working directory.
+			return path.join(cwd, command);
+		}
+		if (paths === undefined && Types.isString(process.env.PATH)) {
+			paths = process.env.PATH.split(path.delimiter);
+		}
+		// No PATH environment. Make path absolute to the cwd.
+		if (paths === undefined || paths.length === 0) {
+			return path.join(cwd, command);
+		}
+		// We have a simple file name. We get the path variable from the env
+		// and try to find the executable on the path.
+		for (let pathEntry of paths) {
+			// The path entry is absolute.
+			let fullPath: string;
+			if (path.isAbsolute(pathEntry)) {
+				fullPath = path.join(pathEntry, command);
+			} else {
+				fullPath = path.join(cwd, pathEntry, command);
+			}
+
+			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: fullPath }), this.environmentService.configuration.remoteAuthority))) {
+				return fullPath;
+			}
+			let withExtension = fullPath + '.com';
+			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: withExtension }), this.environmentService.configuration.remoteAuthority))) {
+				return withExtension;
+			}
+			withExtension = fullPath + '.exe';
+			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: withExtension }), this.environmentService.configuration.remoteAuthority))) {
+				return withExtension;
+			}
+		}
+		return path.join(cwd, command);
 	}
 }

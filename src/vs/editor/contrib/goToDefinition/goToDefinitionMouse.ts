@@ -159,7 +159,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
 
-					const modeId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri.fsPath);
+					const modeId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
 						wordRange,
 						new MarkdownString().appendCodeblock(modeId ? modeId : '', previewValue)
@@ -294,7 +294,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): Promise<any> {
 		this.editor.setPosition(target.position!);
-		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: '', label: '', id: '', precondition: null });
+		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: '', label: '', id: '', precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
 	}
 

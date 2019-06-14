@@ -9,7 +9,6 @@ import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext, CommandDto } from './extHost.protocol';
-import { ExtHostHeapService } from 'vs/workbench/api/common/extHostHeapService';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
@@ -18,6 +17,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 
 interface CommandHandler {
 	callback: Function;
@@ -39,12 +39,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	constructor(
 		mainContext: IMainContext,
-		heapService: ExtHostHeapService,
 		logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
-		this._converter = new CommandsConverter(this, heapService);
+		this._converter = new CommandsConverter(this);
 		this._argumentProcessors = [
 			{
 				processArgument(a) {
@@ -200,15 +199,45 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 export class CommandsConverter {
 
 	private readonly _delegatingCommandId: string;
-	private _commands: ExtHostCommands;
-	private _heap: ExtHostHeapService;
+	private readonly _commands: ExtHostCommands;
+	private readonly _cache = new Map<number, vscode.Command>();
+	private _cachIdPool = 0;
 
 	// --- conversion between internal and api commands
-	constructor(commands: ExtHostCommands, heap: ExtHostHeapService) {
+	constructor(commands: ExtHostCommands) {
 		this._delegatingCommandId = `_internal_command_delegation_${Date.now()}`;
 		this._commands = commands;
-		this._heap = heap;
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
+	}
+
+	toInternal2(command: vscode.Command | undefined, disposables: DisposableStore): CommandDto | undefined {
+
+		if (!command) {
+			return undefined;
+		}
+
+		const result: CommandDto = {
+			$ident: undefined,
+			id: command.command,
+			title: command.title,
+			tooltip: command.tooltip
+		};
+
+		if (command.command && isNonEmptyArray(command.arguments)) {
+			// we have a contributed command with arguments. that
+			// means we don't want to send the arguments around
+
+			const id = ++this._cachIdPool;
+			this._cache.set(id, command);
+			disposables.add(toDisposable(() => this._cache.delete(id)));
+			result.$ident = id;
+
+			result.id = this._delegatingCommandId;
+			result.arguments = [id];
+
+		}
+
+		return result;
 	}
 
 	toInternal(command: vscode.Command): CommandDto;
@@ -230,7 +259,8 @@ export class CommandsConverter {
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 
-			const id = this._heap.keep(command);
+			const id = ++this._cachIdPool;
+			this._cache.set(id, command);
 			result.$ident = id;
 
 			result.id = this._delegatingCommandId;
@@ -244,11 +274,11 @@ export class CommandsConverter {
 		return result;
 	}
 
-	fromInternal(command: modes.Command): vscode.Command {
+	fromInternal(command: modes.Command): vscode.Command | undefined {
 
 		const id = ObjectIdentifier.of(command);
 		if (typeof id === 'number') {
-			return this._heap.get<vscode.Command>(id);
+			return this._cache.get(id);
 
 		} else {
 			return {
@@ -260,7 +290,10 @@ export class CommandsConverter {
 	}
 
 	private _executeConvertedCommand<R>(...args: any[]): Promise<R> {
-		const actualCmd = this._heap.get<vscode.Command>(args[0]);
+		const actualCmd = this._cache.get(args[0]);
+		if (!actualCmd) {
+			return Promise.reject('actual command NOT FOUND');
+		}
 		return this._commands.executeCommand(actualCmd.command, ...(actualCmd.arguments || []));
 	}
 

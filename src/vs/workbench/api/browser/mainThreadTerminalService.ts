@@ -41,6 +41,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
 		this._toDispose.push(terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : null)));
 		this._toDispose.push(terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
+		this._toDispose.push(terminalService.configHelper.onWorkspacePermissionsChanged(isAllowed => this._onWorkspacePermissionsChanged(isAllowed)));
 
 		// Set initial ext host state
 		this.terminalService.terminalInstances.forEach(t => {
@@ -62,7 +63,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// when the extension host process goes down ?
 	}
 
-	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string, cwd?: string | UriComponents, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean): Promise<{ id: number, name: string }> {
+	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string, cwd?: string | UriComponents, env?: { [key: string]: string }, waitOnExit?: boolean, strictEnv?: boolean, runInBackground?: boolean): Promise<{ id: number, name: string }> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name,
 			executable: shellPath,
@@ -71,7 +72,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			waitOnExit,
 			ignoreConfigurationCwd: true,
 			env,
-			strictEnv
+			strictEnv,
+			runInBackground
 		};
 		const terminal = this.terminalService.createTerminal(shellLaunchConfig);
 		return Promise.resolve({
@@ -179,6 +181,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTitleChanged(terminalId: number, name: string): void {
 		this._proxy.$acceptTerminalTitleChange(terminalId, name);
+	}
+
+	private _onWorkspacePermissionsChanged(isAllowed: boolean): void {
+		this._proxy.$acceptWorkspacePermissionsChanged(isAllowed);
 	}
 
 	private _onTerminalRendererInput(terminalId: number, data: string): void {

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, Keybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { KeyCode, Keybinding, SimpleKeybinding, createKeybinding, KeyMod } from 'vs/base/common/keyCodes';
+import { OS, OperatingSystem, isWeb } from 'vs/base/common/platform';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -130,18 +130,22 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		const actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
-			const kk = createKeybinding(actualKb.primary, OS);
-			if (kk) {
-				this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, 0, rule.when);
+			if (!this._assertBrowserConflicts(actualKb.primary, rule.id)) {
+				const kk = createKeybinding(actualKb.primary, OS);
+				if (kk) {
+					this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, 0, rule.when);
+				}
 			}
 		}
 
 		if (actualKb && Array.isArray(actualKb.secondary)) {
 			for (let i = 0, len = actualKb.secondary.length; i < len; i++) {
 				const k = actualKb.secondary[i];
-				const kk = createKeybinding(k, OS);
-				if (kk) {
-					this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, -i - 1, rule.when);
+				if (!this._assertBrowserConflicts(k, rule.id)) {
+					const kk = createKeybinding(k, OS);
+					if (kk) {
+						this._registerDefaultKeybinding(kk, rule.id, undefined, rule.weight, -i - 1, rule.when);
+					}
 				}
 			}
 		}
@@ -206,6 +210,54 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 				console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
 			}
 		}
+	}
+
+	private _assertBrowserConflicts(keybinding: number, commandId: string): boolean {
+		if (!isWeb) {
+			return false;
+		}
+
+		const firstPart = (keybinding & 0x0000FFFF) >>> 0;
+		const chordPart = (keybinding & 0xFFFF0000) >>> 16;
+		const modifiersMask = KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift;
+
+		for (let part of [firstPart, chordPart]) {
+			if ((part & modifiersMask) === 0) {
+				continue;
+			}
+
+			if ((part & modifiersMask) === KeyMod.CtrlCmd && (part & 0x000000FF) === KeyCode.KEY_W) {
+				console.warn('Ctrl/Cmd+W keybindings should not be used by default in web. Offender: ', keybinding, ' for ', commandId);
+
+				return true;
+			}
+
+			if ((part & modifiersMask) === KeyMod.CtrlCmd && (part & 0x000000FF) === KeyCode.KEY_N) {
+				console.warn('Ctrl/Cmd+N keybindings should not be used by default in web. Offender: ', keybinding, ' for ', commandId);
+
+				return true;
+			}
+
+			if ((part & modifiersMask) === KeyMod.CtrlCmd && (part & 0x000000FF) === KeyCode.KEY_T) {
+				console.warn('Ctrl/Cmd+T keybindings should not be used by default in web. Offender: ', keybinding, ' for ', commandId);
+
+				return true;
+			}
+
+			if ((part & modifiersMask) === (KeyMod.CtrlCmd | KeyMod.Alt) && ((part & 0x000000FF) === KeyCode.LeftArrow || (part & 0x000000FF) === KeyCode.RightArrow)) {
+				console.warn('Ctrl/Cmd+Arrow keybindings should not be used by default in web. Offender: ', keybinding, ' for ', commandId);
+
+				return true;
+			}
+
+			if ((part & modifiersMask) === KeyMod.CtrlCmd && ((part & 0x000000FF) >= KeyCode.KEY_0 && (part & 0x000000FF) <= KeyCode.KEY_9)) {
+				console.warn('Ctrl/Cmd+Num keybindings should not be used by default in web. Offender: ', keybinding, ' for ', commandId);
+
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpr | null | undefined): void {

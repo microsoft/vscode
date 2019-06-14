@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, CommandDto } from './extHost.protocol';
@@ -415,6 +415,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._proxy.$updateSourceControl(this.handle, { commitTemplate });
 	}
 
+	private _acceptInputDisposables = new MutableDisposable<DisposableStore>();
 	private _acceptInputCommand: vscode.Command | undefined = undefined;
 
 	get acceptInputCommand(): vscode.Command | undefined {
@@ -422,12 +423,15 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	set acceptInputCommand(acceptInputCommand: vscode.Command | undefined) {
+		this._acceptInputDisposables.value = new DisposableStore();
+
 		this._acceptInputCommand = acceptInputCommand;
 
-		const internal = this._commands.converter.toInternal(acceptInputCommand);
+		const internal = this._commands.converter.toInternal2(acceptInputCommand, this._acceptInputDisposables.value);
 		this._proxy.$updateSourceControl(this.handle, { acceptInputCommand: internal });
 	}
 
+	private _statusBarDisposables = new MutableDisposable<DisposableStore>();
 	private _statusBarCommands: vscode.Command[] | undefined = undefined;
 
 	get statusBarCommands(): vscode.Command[] | undefined {
@@ -439,9 +443,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			return;
 		}
 
+		this._statusBarDisposables.value = new DisposableStore();
+
 		this._statusBarCommands = statusBarCommands;
 
-		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c)) as CommandDto[];
+		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal2(c, this._statusBarDisposables.value!)) as CommandDto[];
 		this._proxy.$updateSourceControl(this.handle, { statusBarCommands: internal });
 	}
 
@@ -519,6 +525,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	dispose(): void {
+		this._acceptInputDisposables.dispose();
+		this._statusBarDisposables.dispose();
+
 		this._groups.forEach(group => group.dispose());
 		this._proxy.$unregisterSourceControl(this.handle);
 	}

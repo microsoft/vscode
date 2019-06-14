@@ -31,7 +31,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ILocalProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -84,7 +84,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	readonly minimumHeight = 260;
 
-	private _onDidCreateWidget = new Emitter<{ width: number; height: number; } | undefined>();
+	private _onDidCreateWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
 
 	constructor(
@@ -94,7 +94,7 @@ export class PreferencesEditor extends BaseEditor {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IProgressService private readonly progressService: IProgressService,
+		@ILocalProgressService private readonly progressService: ILocalProgressService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
@@ -154,14 +154,14 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	setInput(newInput: PreferencesEditorInput, options: SettingsEditorOptions, token: CancellationToken): Promise<void> {
+	setInput(newInput: EditorInput, options: SettingsEditorOptions, token: CancellationToken): Promise<void> {
 		this.defaultSettingsEditorContextKey.set(true);
 		this.defaultSettingsJSONEditorContextKey.set(true);
 		if (options && options.query) {
 			this.focusSearch(options.query);
 		}
 
-		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput, options, token));
+		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput as PreferencesEditorInput, options, token));
 	}
 
 	layout(dimension: DOM.Dimension): void {
@@ -329,11 +329,6 @@ export class PreferencesEditor extends BaseEditor {
 			this.telemetryService.publicLog('defaultSettings.filter', data);
 			this._lastReportedFilter = filter;
 		}
-	}
-
-	dispose(): void {
-		this._onDidCreateWidget.dispose();
-		super.dispose();
 	}
 }
 
@@ -774,10 +769,10 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private settingsTargetsWidget: SettingsTargetsWidget;
 
-	private readonly _onFocus = new Emitter<void>();
+	private readonly _onFocus = this._register(new Emitter<void>());
 	readonly onFocus: Event<void> = this._onFocus.event;
 
-	private readonly _onDidSettingsTargetChange = new Emitter<SettingsTarget>();
+	private readonly _onDidSettingsTargetChange = this._register(new Emitter<SettingsTarget>());
 	readonly onDidSettingsTargetChange: Event<SettingsTarget> = this._onDidSettingsTargetChange.event;
 
 	private splitview: SplitView;

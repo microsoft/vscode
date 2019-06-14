@@ -251,7 +251,7 @@ export class ColorThemeData implements IColorTheme {
 						break;
 					case 'themeTokenColors':
 					case 'id': case 'label': case 'settingsId': case 'extensionData': case 'watch':
-						theme[key] = data[key];
+						(theme as any)[key] = data[key];
 						break;
 				}
 			}

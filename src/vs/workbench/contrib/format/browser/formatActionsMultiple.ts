@@ -26,7 +26,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 
@@ -46,7 +45,6 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IModeService private readonly _modeService: IModeService,
-		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
@@ -97,7 +95,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 				// formatter does not target this file
 				const label = this._labelService.getUriLabel(document.uri, { relative: true });
 				const message = nls.localize('miss', "Extension '{0}' cannot format '{1}'", extension.displayName || extension.name, label);
-				this._statusbarService.setStatusMessage(message, 4000);
+				this._notificationService.status(message, { hideAfter: 4000 });
 				return undefined;
 			}
 		} else if (formatter.length === 1) {
@@ -201,19 +199,34 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 	const overrides = { resource: model.uri, overrideIdentifier: model.getModeId() };
 	const defaultFormatter = configService.getValue<string>(DefaultFormatter.configName, overrides);
 
+	let defaultFormatterPick: IIndexedPick | undefined;
+
 	const picks = formatters.map((provider, index) => {
-		return <IIndexedPick>{
+		const isDefault = ExtensionIdentifier.equals(provider.extensionId, defaultFormatter);
+		const pick = <IIndexedPick>{
 			index,
 			label: provider.displayName || '',
-			description: ExtensionIdentifier.equals(provider.extensionId, defaultFormatter) ? nls.localize('def', "(default)") : undefined,
+			description: isDefault ? nls.localize('def', "(default)") : undefined,
 		};
+
+		if (isDefault) {
+			// autofocus default pick
+			defaultFormatterPick = pick;
+		}
+
+		return pick;
 	});
 
 	const configurePick: IQuickPickItem = {
 		label: nls.localize('config', "Configure Default Formatter...")
 	};
 
-	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick], { placeHolder: nls.localize('format.placeHolder', "Select a formatter") });
+	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick],
+		{
+			placeHolder: nls.localize('format.placeHolder', "Select a formatter"),
+			activeItem: defaultFormatterPick
+		}
+	);
 	if (!pick) {
 		// dismissed
 		return undefined;

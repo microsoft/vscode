@@ -5,7 +5,6 @@
 
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -48,7 +47,6 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	private _process: ITerminalChildProcess | null = null;
 	private _preLaunchInputQueue: string[] = [];
-	private _disposables: IDisposable[] = [];
 	private _latency: number = -1;
 	private _latencyRequest: Promise<number>;
 	private _latencyLastMeasured: number = 0;
@@ -96,19 +94,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			this._process.shutdown(immediate);
 			this._process = null;
 		}
-		this._disposables.forEach(d => d.dispose());
-		this._disposables.length = 0;
 	}
 
-	public addDisposable(disposable: IDisposable) {
-		this._disposables.push(disposable);
-	}
-
-	public createProcess(
+	public async createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number
-	): void {
+	): Promise<void> {
 		const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 		if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 			this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
@@ -134,7 +126,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
 		} else {
-			this._process = this._launchProcess(shellLaunchConfig, cols, rows);
+			this._process = await this._launchProcess(shellLaunchConfig, cols, rows);
 		}
 		this.processState = ProcessState.LAUNCHING;
 
@@ -167,9 +159,9 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		}, LAUNCHING_DURATION);
 	}
 
-	private _launchProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): ITerminalChildProcess {
+	private async _launchProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): Promise<ITerminalChildProcess> {
 		if (!shellLaunchConfig.executable) {
-			this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
+			this._terminalInstanceService.mergeDefaultShellPathAndArgs(shellLaunchConfig, this._terminalInstanceService.getDefaultShell(platform.platform), this._configHelper);
 		}
 
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
@@ -179,10 +171,11 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
-		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.setLocaleVariables);
+		const baseEnv = this._configHelper.config.inheritEnv ? process.env as platform.IProcessEnvironment : await this._terminalInstanceService.getMainProcessParentEnv();
+		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.setLocaleVariables, baseEnv);
 
-		this._logService.debug(`Terminal process launching`, shellLaunchConfig, initialCwd, cols, rows, env);
-		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, this._configHelper.config.windowsEnableConpty);
+		const useConpty = this._configHelper.config.windowsEnableConpty;
+		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
 	}
 
 	public setDimensions(cols: number, rows: number): void {

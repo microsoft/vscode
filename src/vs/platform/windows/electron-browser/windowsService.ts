@@ -74,13 +74,13 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('closeWorkspace', windowId);
 	}
 
-	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return this.channel.call('enterWorkspace', [windowId, path]).then((result: IEnterWorkspaceResult) => {
-			if (result) {
-				result.workspace = reviveWorkspaceIdentifier(result.workspace);
-			}
-			return result;
-		});
+	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
+		const result: IEnterWorkspaceResult = await this.channel.call('enterWorkspace', [windowId, path]);
+		if (result) {
+			result.workspace = reviveWorkspaceIdentifier(result.workspace);
+		}
+
+		return result;
 	}
 
 	toggleFullScreen(windowId: number): Promise<void> {
@@ -103,13 +103,12 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('clearRecentlyOpened');
 	}
 
-	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
-		return this.channel.call('getRecentlyOpened', windowId)
-			.then((recentlyOpened: IRecentlyOpened) => {
-				recentlyOpened.workspaces.forEach(recent => isRecentWorkspace(recent) ? recent.workspace = reviveWorkspaceIdentifier(recent.workspace) : recent.folderUri = URI.revive(recent.folderUri));
-				recentlyOpened.files.forEach(recent => recent.fileUri = URI.revive(recent.fileUri));
-				return recentlyOpened;
-			});
+	async getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
+		const recentlyOpened: IRecentlyOpened = await this.channel.call('getRecentlyOpened', windowId);
+		recentlyOpened.workspaces.forEach(recent => isRecentWorkspace(recent) ? recent.workspace = reviveWorkspaceIdentifier(recent.workspace) : recent.folderUri = URI.revive(recent.folderUri));
+		recentlyOpened.files.forEach(recent => recent.fileUri = URI.revive(recent.fileUri));
+
+		return recentlyOpened;
 	}
 
 	newWindowTab(): Promise<void> {
@@ -196,18 +195,26 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('openNewWindow', options);
 	}
 
-	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
-		return this.channel.call<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>('getWindows').then(result => {
-			for (const win of result) {
-				if (win.folderUri) {
-					win.folderUri = URI.revive(win.folderUri);
-				}
-				if (win.workspace) {
-					win.workspace = reviveWorkspaceIdentifier(win.workspace);
-				}
+	async getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
+		const result = await this.channel.call<{
+			id: number;
+			workspace?: IWorkspaceIdentifier;
+			folderUri?: ISingleFolderWorkspaceIdentifier;
+			title: string;
+			filename?: string;
+		}[]>('getWindows');
+
+		for (const win of result) {
+			if (win.folderUri) {
+				win.folderUri = URI.revive(win.folderUri);
 			}
-			return result;
-		});
+
+			if (win.workspace) {
+				win.workspace = reviveWorkspaceIdentifier(win.workspace);
+			}
+		}
+
+		return result;
 	}
 
 	getWindowCount(): Promise<number> {

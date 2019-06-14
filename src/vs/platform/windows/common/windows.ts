@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IProcessEnvironment, isMacintosh, isLinux } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
@@ -282,6 +282,10 @@ export interface IWindowSettings {
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): 'native' | 'custom' {
+	if (isWeb) {
+		return 'custom';
+	}
+
 	const configuration = configurationService.getValue<IWindowSettings>('window');
 
 	const isDev = !environment.isBuilt || isExtensionDevelopment;

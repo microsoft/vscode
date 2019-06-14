@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -291,7 +291,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 }
 
-export class FolderSettingsActionItem extends BaseActionItem {
+export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private _folder: IWorkspaceFolder | null;
 	private _folderSettingCounts = new Map<string, number>();
@@ -427,7 +427,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
 			getActions: () => this.getDropdownMenuActions(),
-			getActionItem: () => undefined,
+			getActionViewItem: () => undefined,
 			onHide: () => {
 				this.anchorElement.blur();
 			}
@@ -479,12 +479,12 @@ export class SettingsTargetsWidget extends Widget {
 	private userLocalSettings: Action;
 	private userRemoteSettings: Action;
 	private workspaceSettings: Action;
-	private folderSettings: FolderSettingsActionItem;
+	private folderSettings: FolderSettingsActionViewItem;
 	private options: ISettingsTargetsWidgetOptions;
 
 	private _settingsTarget: SettingsTarget;
 
-	private readonly _onDidTargetChange = new Emitter<SettingsTarget>();
+	private readonly _onDidTargetChange = this._register(new Emitter<SettingsTarget>());
 	readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
 
 	constructor(
@@ -508,7 +508,7 @@ export class SettingsTargetsWidget extends Widget {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
 			animated: false,
-			actionItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : undefined
+			actionViewItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : undefined
 		}));
 
 		this.userLocalSettings = new Action('userSettings', localize('userSettings', "User"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
@@ -517,7 +517,7 @@ export class SettingsTargetsWidget extends Widget {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const hostLabel = remoteAuthority && this.labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority);
 		const remoteSettingsLabel = localize('userSettingsRemote', "Remote") +
-			(hostLabel ? ` (${hostLabel})` : '');
+			(hostLabel ? ` [${hostLabel}]` : '');
 		this.userRemoteSettings = new Action('userSettingsRemote', remoteSettingsLabel, '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
 		this.userRemoteSettings.tooltip = this.userRemoteSettings.label;
 
@@ -525,7 +525,7 @@ export class SettingsTargetsWidget extends Widget {
 		this.workspaceSettings.tooltip = this.workspaceSettings.label;
 
 		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false, (folder: IWorkspaceFolder) => this.updateTarget(folder.uri));
-		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionItem, folderSettingsAction);
+		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, folderSettingsAction);
 
 		this.update();
 
@@ -751,7 +751,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 
 	private _editPreferenceDecoration: string[];
 
-	private readonly _onClick = new Emitter<IEditorMouseEvent>();
+	private readonly _onClick = this._register(new Emitter<IEditorMouseEvent>());
 	get onClick(): Event<IEditorMouseEvent> { return this._onClick.event; }
 
 	constructor(private editor: ICodeEditor

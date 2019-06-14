@@ -5,11 +5,12 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { OperatingSystem } from 'vs/base/common/platform';
+import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -37,7 +38,6 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED = new RawContextKey
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
-export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
 // The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
@@ -46,6 +46,7 @@ export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverM
 export const EXT_HOST_CREATION_DELAY = 100;
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
+export const ITerminalNativeService = createDecorator<ITerminalNativeService>('terminalNativeService');
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
@@ -58,14 +59,15 @@ export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
+export const SHELL_PATH_INVALID_EXIT_CODE = -1;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
 export interface ITerminalConfiguration {
 	shell: {
-		linux: string;
-		osx: string;
-		windows: string;
+		linux: string | null;
+		osx: string | null;
+		windows: string | null;
 	};
 	shellArgs: {
 		linux: string[];
@@ -92,6 +94,7 @@ export interface ITerminalConfiguration {
 	cwd: string;
 	confirmOnExit: boolean;
 	enableBell: boolean;
+	inheritEnv: boolean;
 	env: {
 		linux: { [key: string]: string };
 		osx: { [key: string]: string };
@@ -101,21 +104,19 @@ export interface ITerminalConfiguration {
 	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
-	enableLatencyMitigation: boolean;
 	experimentalRefreshOnResume: boolean;
 }
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
+
+	onWorkspacePermissionsChanged: Event<boolean>;
+
 	configFontIsMonospace(): boolean;
 	getFont(): ITerminalFont;
-	/**
-	 * Merges the default shell path and args into the provided launch configuration
-	 */
-	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride?: platform.Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	checkWorkspaceShellPermissions(osOverride?: platform.OperatingSystem): boolean;
+	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;
 }
 
 export interface ITerminalFont {
@@ -162,7 +163,7 @@ export interface IShellLaunchConfig {
 	env?: ITerminalEnvironment;
 
 	/**
-	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (eg. if the
+	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (e.g. if the
 	 * shell is being launched by an extension).
 	 */
 	ignoreConfigurationCwd?: boolean;
@@ -192,6 +193,15 @@ export interface IShellLaunchConfig {
 	 * provided as nothing will be inherited from the process or any configuration.
 	 */
 	strictEnv?: boolean;
+
+	/**
+	 * When enabled the terminal will run the process as normal but not be surfaced to the user
+	 * until `Terminal.show` is called. The typical usage for this is when you need to run
+	 * something that may need interactivity but only want to tell the user about it when
+	 * interaction is needed. Note that the terminals will still be exposed to all extensions
+	 * as normal.
+	 */
+	runInBackground?: boolean;
 }
 
 export interface ITerminalService {
@@ -199,6 +209,9 @@ export interface ITerminalService {
 
 	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;
+	terminalInstances: ITerminalInstance[];
+	terminalTabs: ITerminalTab[];
+
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
 	onInstanceCreated: Event<ITerminalInstance>;
@@ -209,16 +222,12 @@ export interface ITerminalService {
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
-	terminalInstances: ITerminalInstance[];
-	terminalTabs: ITerminalTab[];
 
 	/**
 	 * Creates a terminal.
 	 * @param shell The shell launch configuration to use.
-	 * @param wasNewTerminalAction Whether this was triggered by a new terminal action, if so a
-	 * default shell selection dialog may display.
 	 */
-	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	createTerminal(shell?: IShellLaunchConfig): ITerminalInstance;
 
 	/**
 	 * Creates a terminal renderer.
@@ -244,6 +253,12 @@ export interface ITerminalService {
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
 
+	/**
+	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
+	 * among other things.
+	 */
+	refreshActiveTab(): void;
+
 	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;
 	focusFindWidget(): Promise<void>;
@@ -253,7 +268,6 @@ export interface ITerminalService {
 	findPrevious(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	selectDefaultWindowsShell(): Promise<string | undefined>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
 	/**
@@ -269,6 +283,23 @@ export interface ITerminalService {
 
 	extHostReady(remoteAuthority: string): void;
 	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+}
+
+/**
+ * Provides access to native or electron APIs to other terminal services.
+ */
+export interface ITerminalNativeService {
+	_serviceBrand: any;
+
+	readonly linuxDistro: LinuxDistro;
+
+	readonly onOpenFileRequest: Event<IOpenFileRequest>;
+	readonly onOsResume: Event<void>;
+
+	getWindowsBuildNumber(): number;
+	whenFileDeleted(path: URI): Promise<void>;
+	getWslPath(path: string): Promise<string>;
+	selectDefaultWindowsShell(): Promise<string | undefined>;
 }
 
 export const enum Direction {
@@ -421,7 +452,7 @@ export interface ITerminalInstance {
 
 	/**
 	 * Whether to disable layout for the terminal. This is useful when the size of the terminal is
-	 * being manipulating (eg. adding a split pane) and we want the terminal to ignore particular
+	 * being manipulating (e.g. adding a split pane) and we want the terminal to ignore particular
 	 * resize events.
 	 */
 	disableLayout: boolean;
@@ -649,7 +680,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number;
 	readonly remoteAuthority: string | undefined;
-	readonly os: platform.OperatingSystem | undefined;
+	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 
 	readonly onProcessReady: Event<void>;
@@ -658,9 +689,8 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number>;
 
-	addDisposable(disposable: IDisposable): void;
 	dispose(immediate?: boolean): void;
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): Promise<void>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 
@@ -687,7 +717,6 @@ export const enum ProcessState {
 	// was run.
 	KILLED_BY_PROCESS
 }
-
 
 export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly terminalId: number;

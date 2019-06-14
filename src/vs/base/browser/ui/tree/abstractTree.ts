@@ -7,11 +7,11 @@ import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, mightProducePrintableCharacter, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass } from 'vs/base/browser/dom';
+import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult, ITreeModelSpliceEvent, TreeMouseEventTarget } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IDragAndDropData, StaticDND, DragAndDropData } from 'vs/base/browser/dnd';
 import { range, equals, distinctES6 } from 'vs/base/common/arrays';
@@ -240,8 +240,8 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		return { container, twistie, templateData };
 	}
 
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, dynamicHeightProbing?: boolean): void {
-		if (!dynamicHeightProbing) {
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
+		if (typeof height === 'number') {
 			this.renderedNodes.set(node, templateData);
 			this.renderedElements.set(node.element, node);
 		}
@@ -250,15 +250,15 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		templateData.twistie.style.marginLeft = `${indent}px`;
 		this.update(node, templateData);
 
-		this.renderer.renderElement(node, index, templateData.templateData, dynamicHeightProbing);
+		this.renderer.renderElement(node, index, templateData.templateData, height);
 	}
 
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, dynamicHeightProbing?: boolean): void {
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
 		if (this.renderer.disposeElement) {
-			this.renderer.disposeElement(node, index, templateData.templateData, dynamicHeightProbing);
+			this.renderer.disposeElement(node, index, templateData.templateData, height);
 		}
 
-		if (!dynamicHeightProbing) {
+		if (typeof height === 'number') {
 			this.renderedNodes.delete(node);
 			this.renderedElements.delete(node.element);
 		}
@@ -722,9 +722,18 @@ function asTreeEvent<T>(event: IListEvent<ITreeNode<T, any>>): ITreeEvent<T> {
 }
 
 function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMouseEvent<T> {
+	let target: TreeMouseEventTarget = TreeMouseEventTarget.Unknown;
+
+	if (hasParentWithClass(event.browserEvent.target as HTMLElement, 'monaco-tl-twistie', 'monaco-tl-row')) {
+		target = TreeMouseEventTarget.Twistie;
+	} else if (hasParentWithClass(event.browserEvent.target as HTMLElement, 'monaco-tl-contents', 'monaco-tl-row')) {
+		target = TreeMouseEventTarget.Element;
+	}
+
 	return {
 		browserEvent: event.browserEvent,
-		element: event.element ? event.element.element : null
+		element: event.element ? event.element.element : null,
+		target
 	};
 }
 
@@ -789,12 +798,18 @@ class Trait<T> {
 			return;
 		}
 
+		this._set(nodes, false, browserEvent);
+	}
+
+	private _set(nodes: ITreeNode<T, any>[], silent: boolean, browserEvent?: UIEvent): void {
 		this.nodes = [...nodes];
 		this.elements = undefined;
 		this._nodeSet = undefined;
 
-		const that = this;
-		this._onDidChange.fire({ get elements() { return that.get(); }, browserEvent });
+		if (!silent) {
+			const that = this;
+			this._onDidChange.fire({ get elements() { return that.get(); }, browserEvent });
+		}
 	}
 
 	get(): T[] {
@@ -827,6 +842,7 @@ class Trait<T> {
 		insertedNodes.forEach(node => dfs(node, insertedNodesVisitor));
 
 		const nodes: ITreeNode<T, any>[] = [];
+		let silent = true;
 
 		for (const node of this.nodes) {
 			const id = this.identityProvider.getId(node.element).toString();
@@ -839,11 +855,13 @@ class Trait<T> {
 
 				if (insertedNode) {
 					nodes.push(insertedNode);
+				} else {
+					silent = false;
 				}
 			}
 		}
 
-		this.set(nodes);
+		this._set(nodes, silent);
 	}
 
 	private createNodeSet(): Set<ITreeNode<T, any>> {

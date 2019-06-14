@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -13,7 +13,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, DisabledLabelAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, DisabledLabelAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget } from 'vs/workbench/contrib/extensions/electron-browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -80,11 +80,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const author = append(footer, $('.author.ellipsis'));
 		const actionbar = new ActionBar(footer, {
 			animated: false,
-			actionItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: Action) => {
 				if (action.id === ManageExtensionAction.ID) {
-					return (<ManageExtensionAction>action).createActionItem();
+					return (<ManageExtensionAction>action).createActionViewItem();
 				}
-				return new ExtensionActionItem(null, action, actionOptions);
+				return new ExtensionActionViewItem(null, action, actionOptions);
 			}
 		});
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
@@ -116,10 +116,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, disabledLabelAction]);
 
 		actionbar.push(actions, actionOptions);
-		const disposables = [...actions, ...widgets, actionbar, extensionContainers];
+		const disposables = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers);
 
 		return {
-			root, element, icon, name, installCount, ratings, author, description, disposables, actionbar,
+			root, element, icon, name, installCount, ratings, author, description, disposables: [disposables], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -188,13 +188,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		this.extensionViewState.onFocus(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.items.forEach(item => (<ExtensionActionItem>item).setFocus(true));
+				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(true));
 			}
 		}, this, data.extensionDisposables);
 
 		this.extensionViewState.onBlur(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.items.forEach(item => (<ExtensionActionItem>item).setFocus(false));
+				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(false));
 			}
 		}, this, data.extensionDisposables);
 	}
