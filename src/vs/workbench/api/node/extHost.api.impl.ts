@@ -465,11 +465,24 @@ export function createApiFactory(
 			showSaveDialog(options) {
 				return extHostDialogs.showSaveDialog(options);
 			},
-			createStatusBarItem(position?: vscode.StatusBarAlignment, priority?: number): vscode.StatusBarItem {
-				const id = extension.identifier.value;
-				const name = nls.localize('extensionLabel', "{0} (Extension)", extension.displayName || extension.name);
+			createStatusBarItem(alignmentOrOptions?: vscode.StatusBarAlignment | vscode.window.StatusBarItemOptions, priority?: number): vscode.StatusBarItem {
+				let id: string;
+				let name: string;
+				let alignment: number | undefined;
 
-				return extHostStatusBar.createStatusBarEntry(id, name, <number>position, priority);
+				if (alignmentOrOptions && typeof alignmentOrOptions !== 'number') {
+					id = alignmentOrOptions.id;
+					name = alignmentOrOptions.name;
+					alignment = alignmentOrOptions.alignment;
+					priority = alignmentOrOptions.priority;
+				} else {
+					id = extension.identifier.value;
+					name = nls.localize('extensionLabel', "{0} (Extension)", extension.displayName || extension.name);
+					alignment = alignmentOrOptions;
+					priority = priority;
+				}
+
+				return extHostStatusBar.createStatusBarEntry(id, name, alignment, priority);
 			},
 			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
