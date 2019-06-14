@@ -19,7 +19,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	private readonly _onProcessExit = this._register(new Emitter<number>());
 	public readonly onProcessExit: Event<number> = this._onProcessExit.event;
 	private readonly _onProcessReady = new Emitter<{ pid: number, cwd: string }>();
-	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }t;
+	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
 
