@@ -33,7 +33,7 @@ export class TaskService extends AbstractTaskService {
 
 	protected updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): void {
 		this._workspaceTasksPromise = this.computeWorkspaceTasks(runSource).then(value => {
-			if (this.executionEngine !== ExecutionEngine.Terminal || !(this._taskSystem instanceof TerminalTaskSystem)) {
+			if (this.executionEngine !== ExecutionEngine.Terminal || ((this._taskSystem !== undefined) && !(this._taskSystem instanceof TerminalTaskSystem))) {
 				throw new Error(TaskService.ProcessTaskSystemSupportMessage);
 			}
 			return value;
