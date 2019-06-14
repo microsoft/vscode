@@ -264,6 +264,13 @@ export class MenuItemAction extends ExecuteCommandAction {
 		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
 	}
 
+	dispose(): void {
+		if (this.alt) {
+			this.alt.dispose();
+		}
+		super.dispose();
+	}
+
 	run(...args: any[]): Promise<any> {
 		let runArgs: any[] = [];
 

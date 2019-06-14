@@ -810,10 +810,10 @@ class SignatureHelpAdapter {
 
 class Cache<T> {
 
-	private _data = new Map<number, T[]>();
+	private _data = new Map<number, readonly T[]>();
 	private _idPool = 1;
 
-	add(item: T[]): number {
+	add(item: readonly T[]): number {
 		const id = this._idPool++;
 		this._data.set(id, item);
 		return id;
@@ -898,7 +898,7 @@ class ColorProviderAdapter {
 	provideColors(resource: URI, token: CancellationToken): Promise<IRawColorInfo[]> {
 		const doc = this._documents.getDocument(resource);
 		return asPromise(() => this._provider.provideDocumentColors(doc, token)).then(colors => {
-			if (!Array.isArray(colors)) {
+			if (!Array.isArray<vscode.ColorInformation>(colors)) {
 				return [];
 			}
 

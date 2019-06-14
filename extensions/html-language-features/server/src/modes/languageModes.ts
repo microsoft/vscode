@@ -31,7 +31,7 @@ export interface Workspace {
 
 export interface LanguageMode {
 	getId(): string;
-	getSelectionRanges?: (document: TextDocument, positions: Position[]) => SelectionRange[][];
+	getSelectionRanges?: (document: TextDocument, positions: Position[]) => SelectionRange[];
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
