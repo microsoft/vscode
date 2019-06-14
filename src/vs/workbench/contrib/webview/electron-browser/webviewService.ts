@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-// import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
-import { IFrameWebview as WebviewElement } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { WebviewElement } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { IWebviewService, WebviewOptions, WebviewContentOptions, Webview } from 'vs/workbench/contrib/webview/common/webview';
 
 export class WebviewService implements IWebviewService {
@@ -19,10 +18,8 @@ export class WebviewService implements IWebviewService {
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions
 	): Webview {
-		const element = this._instantiationService.createInstance(WebviewElement,
+		return this._instantiationService.createInstance(WebviewElement,
 			options,
 			contentOptions);
-
-		return element;
 	}
 }

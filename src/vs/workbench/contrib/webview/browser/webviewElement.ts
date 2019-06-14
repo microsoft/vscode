@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
@@ -14,70 +14,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
-import { createServer } from 'http';
-import * as fs from 'fs';
-import * as path from 'path';
-import { startsWith } from 'vs/base/common/strings';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getWebviewContentMimeType } from 'vs/workbench/contrib/webview/common/mimeTypes';
-
-const SERVER_RESOURCE_ROOT_PATH = '/resource/';
-
-class Server {
-	public static make(
-		id: string,
-		fileService: IFileService
-	): Promise<Server> {
-		let address = '';
-		return new Promise<Server>((resolve, reject) => {
-			const server = createServer((req, res) => {
-				if (req.url === '/') {
-					res.writeHead(200, { 'Content-Type': 'text/html' });
-					res.write(getHtml(id, address));
-					res.end();
-					return;
-				}
-				if (req.url === '/main.js') {
-					res.writeHead(200, { 'Content-Type': 'text/html' });
-					res.write(fs.readFileSync(path.join(__dirname.replace('file:', ''), 'pre', 'main.js')));
-					res.end();
-					return;
-				}
-				if (req.url && startsWith(req.url, SERVER_RESOURCE_ROOT_PATH)) {
-					const path = URI.file(req.url.replace(SERVER_RESOURCE_ROOT_PATH, '/'));
-					res.writeHead(200, { 'Content-Type': getWebviewContentMimeType(path) });
-					fileService.readFile(path).then(result => {
-						res.write(result.value.buffer);
-					}).finally(() => {
-						res.end();
-					});
-					return;
-				}
-
-				res.writeHead(404);
-				res.end();
-				return;
-			});
-
-			server.on('error', reject);
-			const l = server.listen(() => {
-				server.removeListener('error', reject);
-				address = `http://localhost:${l.address().port}`;
-				resolve(new Server(server, l.address().port));
-			});
-		});
-	}
-
-	private constructor(
-		public readonly server: import('http').Server,
-		public readonly port: number
-	) { }
-
-	dispose() {
-		this.server.close();
-	}
-}
 
 interface WebviewContent {
 	readonly html: string;
@@ -94,10 +32,9 @@ export class IFrameWebview extends Disposable implements Webview {
 	private _focused = false;
 
 	private readonly id: string;
-	private readonly server: Promise<Server>;
 
 	constructor(
-		private readonly _options: WebviewOptions,
+		_options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -118,15 +55,10 @@ export class IFrameWebview extends Disposable implements Webview {
 		this.element = document.createElement('iframe');
 		this.element.sandbox.add('allow-scripts');
 		this.element.sandbox.add('allow-same-origin');
-		this.element.setAttribute('src', '');
+		this.element.setAttribute('src', `/src/vs/workbench/contrib/webview/browser/pre/index.html?id=${this.id}`);
 		this.element.style.border = 'none';
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';
-
-		this.server = Server.make(this.id, fileService);
-		this.server.then(async server => {
-			this.element.setAttribute('src', `http://localhost:${server.port}`);
-		});
 
 		this._register(addDisposableListener(window, 'message', e => {
 			if (!e || !e.data || e.data.target !== this.id) {
@@ -241,7 +173,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private handleFocusChange(isFocused: boolean): void {
 		this._focused = isFocused;
-		if (isFocused) {
+		if (this._focused) {
 			this._onDidFocus.fire();
 		}
 	}
@@ -332,112 +264,3 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 }
 
-function getHtml(id: string, origin: string): any {
-	return `<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="UTF-8">
-	<meta http-equiv="Content-Security-Policy" content="default-src *; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"/>
-
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta http-equiv="X-UA-Compatible" content="ie=edge">
-	<title>Virtual Document</title>
-</head>
-<body>
-	<script src="/main.js"></script>
-	<script>
-		(function() {
-			const handlers = {};
-
-			const postMessageToVsCode = (channel, data) => {
-				window.parent.postMessage({ target: '${id}', channel, data }, '*');
-			};
-
-			window.addEventListener('message', (e) => {
-				if (e.origin === '${origin}') {
-					postMessageToVsCode(e.data.command, e.data.data);
-					return;
-				}
-
-				const channel = e.data.channel;
-				const handler = handlers[channel];
-				if (handler) {
-					handler(e, e.data.args);
-				} else {
-					console.log('no handler for ', e);
-				}
-			});
-
-			createWebviewManager({
-				origin: '${origin}',
-				postMessage: (channel, data) => {
-					postMessageToVsCode(channel, data);
-				},
-				onMessage: (channel, handler) => {
-					handlers[channel] = handler;
-				},
-				preProcessHtml: (text) => {
-					return text.replace(/vscode-resource:(?=\\S)/gi, '${SERVER_RESOURCE_ROOT_PATH}');
-				},
-				injectHtml: (newDocument) => {
-					return;
-					const defaultScript = newDocument.createElement('script');
-					defaultScript.textContent = \`
-						(function(){
-							const regexp = new RegExp('^vscode-resource:/', 'g');
-
-							const observer = new MutationObserver(handleMutation);
-							observer.observe(document, { subtree: true, childList: true });
-
-							handleChildNodeMutation(document.head.querySelector('base'));
-							document.head.childNodes.forEach(handleChildNodeMutation);
-							if (document.body) {
-								document.body.childNodes.forEach(handleChildNodeMutation);
-							}
-
-							function handleMutation(records) {
-								for (const record of records) {
-									if (record.target.nodeName === 'HEAD' && record.type === 'childList') {
-										handleChildNodeMutation(document.head.querySelector('base'));
-										record.addedNodes.forEach(handleChildNodeMutation);
-									} else {
-										handleChildNodeMutation(record.target);
-									}
-								}
-							}
-
-							function handleChildNodeMutation(node) {
-								if (!node) {
-									return;
-								}
-								if (node.nodeName === 'LINK' || node.nodeName === 'BASE') {
-									handleStyleNode(node, 'href');
-									return;
-								}
-								if (node.nodeName === 'SCRIPT') {
-									handleStyleNode(node, 'src');
-									return;
-								}
-							}
-
-							function handleStyleNode(target, property) {
-								if (!target[property]) {
-									return;
-								}
-								const match = target[property].match(regexp);
-								if (!match) {
-									return;
-								}
-								target.setAttribute(property, target[property].replace(regexp, '${origin}'));
-							}
-						}())
-					\`;
-
-					newDocument.head.prepend(defaultScript);
-				}
-			});
-		}());
-	</script>
-</body>
-</html>`;
-}
