@@ -53,7 +53,7 @@ suite('Files - Increment file name', () => {
 	test('Increment file name without any extension or version, trailing dot', function () {
 		const name = 'test.';
 		const result = incrementFileName(name, false);
-		assert.strictEqual(result, 'test. copy');
+		assert.strictEqual(result, 'test copy.');
 	});
 
 	test('Increment file name without any extension or version, leading dot', function () {

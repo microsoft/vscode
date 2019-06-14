@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
+import { extname, basename } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -347,16 +348,13 @@ export function incrementFileName(name: string, isFolder: boolean): string {
 	let namePrefix = name;
 	let extSuffix = '';
 	if (!isFolder) {
-		let index = name.lastIndexOf('.');
-		if (index > 0 && index < name.length - 1) {
-			namePrefix = name.substring(0, index);
-			extSuffix = name.substring(index);
-		}
+		extSuffix = extname(name);
+		namePrefix = basename(name, extSuffix);
 	}
 
 	// name copy 5(.txt) => name copy 6(.txt)
 	// name copy(.txt) => name copy 2(.txt)
-	let suffixRegex = /^(.+ copy)( \d+)?$/;
+	const suffixRegex = /^(.+ copy)( \d+)?$/;
 	if (suffixRegex.test(namePrefix)) {
 		return namePrefix.replace(suffixRegex, (match, g1?, g2?) => {
 			let number = (g2 ? parseInt(g2) : 1);
