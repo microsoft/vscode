@@ -38,7 +38,6 @@ import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskTerminateResponse, TaskSystemInfoResolver, TaskSystemInfo, ResolveSet, ResolvedVariables
 } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
@@ -896,8 +895,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 			// This must be normalized to the OS
-			const authority = this.environmentService.configuration.remoteAuthority;
-			shellLaunchConfig.cwd = URI.from({ scheme: authority ? REMOTE_HOST_SCHEME : Schemas.file, authority: authority, path: cwd });
+			shellLaunchConfig.cwd = resources.toLocalResource(URI.from({ scheme: Schemas.file, path: cwd }), this.environmentService.configuration.remoteAuthority);
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
