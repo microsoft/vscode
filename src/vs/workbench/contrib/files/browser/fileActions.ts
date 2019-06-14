@@ -357,7 +357,7 @@ export function incrementFileName(name: string, isFolder: boolean): string {
 	// name copy 5(.txt) => name copy 6(.txt)
 	// name copy(.txt) => name copy 2(.txt)
 	let suffixRegex = /^(.+ copy)( \d+)?$/;
-	if (namePrefix.match(suffixRegex)) {
+	if (suffixRegex.test(namePrefix)) {
 		return namePrefix.replace(suffixRegex, (match, g1?, g2?) => {
 			let number = (g2 ? parseInt(g2) : 1);
 			return number === 0
