@@ -26,7 +26,6 @@ import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
 import { isLinux } from 'vs/base/common/platform';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 const CONNECTION_AUTH_TOKEN = generateUuid();
 
@@ -101,10 +100,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					const workspace = this._environmentService.args['workspace'];
 					const data = _data.toString()
 						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
-						.replace('{{USER_DATA}}', escapeRegExpCharacters(this._environmentService.userDataPath.replace(/^[Cc]:/, '').replace(/\\/g, '/')))
-						.replace('{{FOLDER}}', folder ? escapeRegExpCharacters(URI.file(folder).fsPath.replace(/^[Cc]:/, '').replace(/\\/g, '/')) : '')
-						.replace('{{WORKSPACE}}', workspace ? escapeRegExpCharacters(URI.file(workspace).fsPath.replace(/^[Cc]:/, '').replace(/\\/g, '/')) : '')
-						.replace('{{SERVER_APP_ROOT}}', appRoot.replace(/^[Cc]:/, '').replace(/\\/g, '/'));
+						.replace('{{USER_DATA}}', URI.file(this._environmentService.userDataPath).toString())
+						.replace('{{FOLDER}}', folder ? URI.file(folder).toString() : '')
+						.replace('{{WORKSPACE}}', workspace ? URI.file(workspace).toString() : '')
+						.replace('{{SERVER_APP_ROOT}}', URI.file(appRoot).toString());
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
 				} else {
