@@ -309,9 +309,16 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	private onPromise(request: IRawPromiseRequest): void {
 		const channel = this.channels.get(request.channelName);
+
 		if (!channel) {
-			throw new Error(`Unknown channel: ${request.channelName}`);
+			this.sendResponse(<IRawResponse>{
+				id: request.id,
+				data: { message: request.channelName, name: 'Unknown channel', stack: undefined },
+				type: ResponseType.PromiseError
+			});
+			return;
 		}
+
 		const cancellationTokenSource = new CancellationTokenSource();
 		let promise: Promise<any>;
 
@@ -348,8 +355,10 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	private onEventListen(request: IRawEventListenRequest): void {
 		const channel = this.channels.get(request.channelName);
+
 		if (!channel) {
-			throw new Error(`Unknown channel: ${request.channelName}`);
+			console.error(`Unknown channel: ${request.channelName}`);
+			return;
 		}
 
 		const id = request.id;
