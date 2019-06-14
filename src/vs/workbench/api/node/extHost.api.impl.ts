@@ -254,6 +254,9 @@ export function createApiFactory(
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
 			},
+			get shell() {
+				return extHostTerminalService.getDefaultShell(configProvider);
+			},
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remoteAuthority });
 			}
@@ -388,9 +391,6 @@ export function createApiFactory(
 			},
 			get terminals() {
 				return extHostTerminalService.terminals;
-			},
-			get shell() {
-				return extHostTerminalService.getDefaultShell(configProvider);
 			},
 			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor> {
 				let documentPromise: Promise<vscode.TextDocument>;
