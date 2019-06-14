@@ -23,6 +23,7 @@ const $ = DOM.$;
 
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
+	disableAltFocus?: boolean;
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
@@ -786,7 +787,7 @@ export class MenuBar extends Disposable {
 		// Clean alt key press and release
 		if (allModifiersReleased && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.lastKeyReleased === 'alt') {
 			if (!this.awaitingAltRelease) {
-				if (!this.isFocused) {
+				if (!this.isFocused && !(this.options.disableAltFocus && this.options.visibility !== 'toggle')) {
 					this.mnemonicsInUse = true;
 					this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBar.OVERFLOW_INDEX };
 					this.focusState = MenubarState.FOCUSED;
