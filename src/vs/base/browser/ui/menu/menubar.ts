@@ -23,7 +23,7 @@ const $ = DOM.$;
 
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
-	disableAltBehavior?: boolean;
+	disableAltFocus?: boolean;
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
@@ -167,10 +167,6 @@ export class MenuBar extends Disposable {
 
 		this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (!this.options.enableMnemonics || !e.altKey || e.ctrlKey || e.defaultPrevented) {
-				return;
-			}
-
-			if (e.altKey && this.options.disableAltBehavior && this.options.visibility !== 'toggle') {
 				return;
 			}
 
@@ -781,10 +777,6 @@ export class MenuBar extends Disposable {
 			return;
 		}
 
-		if (modifierKeyStatus.lastKeyPressed === 'alt' && this.options.disableAltBehavior && this.options.visibility !== 'toggle') {
-			return;
-		}
-
 		// Alt key pressed while menu is focused. This should return focus away from the menubar
 		if (this.isFocused && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.altKey) {
 			this.setUnfocusedState();
@@ -795,7 +787,7 @@ export class MenuBar extends Disposable {
 		// Clean alt key press and release
 		if (allModifiersReleased && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.lastKeyReleased === 'alt') {
 			if (!this.awaitingAltRelease) {
-				if (!this.isFocused) {
+				if (!this.isFocused && !(this.options.disableAltFocus && this.options.visibility !== 'toggle')) {
 					this.mnemonicsInUse = true;
 					this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBar.OVERFLOW_INDEX };
 					this.focusState = MenubarState.FOCUSED;

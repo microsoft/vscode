@@ -623,11 +623,11 @@ import product from 'vs/platform/product/node/product';
 				'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
 				'included': isWindows || isLinux
 			},
-			'window.disableCustomMenuBarAltBehavior': {
+			'window.disableCustomMenuBarAltFocus': {
 				'type': 'boolean',
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': nls.localize('disableCustomMenuBarAltBehavior', "If enabled, disables Alt key interaction with menu bar."),
+				'markdownDescription': nls.localize('disableCustomMenuBarAltFocus', "If enabled, disables the ability to focus the menu bar with the Alt-key when not set to toggle."),
 				'included': isWindows || isLinux
 			},
 			'window.autoDetectHighContrast': {
