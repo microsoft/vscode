@@ -281,7 +281,12 @@ class SuggestionDetails {
 		return this.el;
 	}
 
-	render(item: CompletionItem): void {
+	renderLoading(): void {
+		this.type.textContent = nls.localize('loading', "Loading...");
+		this.docs.textContent = '';
+	}
+
+	renderItem(item: CompletionItem): void {
 		this.renderDisposeable = dispose(this.renderDisposeable);
 
 		if (!item || !canExpandCompletionItem(item)) {
@@ -630,7 +635,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 			this.list.reveal(index);
 
-			this.currentSuggestionDetails = createCancelablePromise(token => item.resolve(token));
+			this.currentSuggestionDetails = createCancelablePromise(async token => {
+				const loading = disposableTimeout(() => this.showDetails(true), 250);
+				token.onCancellationRequested(() => loading.dispose());
+				const result = await item.resolve(token);
+				loading.dispose();
+				return result;
+			});
 
 			this.currentSuggestionDetails.then(() => {
 				if (this.list.length < index) {
@@ -644,7 +655,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.ignoreFocusEvents = false;
 
 				if (this.expandDocsSettingFromStorage()) {
-					this.showDetails();
+					this.showDetails(false);
 				} else {
 					removeClass(this.element, 'docs-side');
 				}
@@ -945,7 +956,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			}
 
 			this.updateExpandDocsSetting(true);
-			this.showDetails();
+			this.showDetails(true);
 			this._ariaAlert(this.details.getAriaLabel());
 			/* __GDPR__
 				"suggestWidget:expandDetails" : {
@@ -958,11 +969,15 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 	}
 
-	showDetails(): void {
+	showDetails(loading: boolean): void {
 		this.expandSideOrBelow();
 
 		show(this.details.element);
-		this.details.render(this.list.getFocusedElements()[0]);
+		if (loading) {
+			this.details.renderLoading();
+		} else {
+			this.details.renderItem(this.list.getFocusedElements()[0]);
+		}
 		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
 
 		// Reset margin-top that was set as Fix for #26416
