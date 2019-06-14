@@ -9,7 +9,7 @@ import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextk
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { Platform, OperatingSystem } from 'vs/base/common/platform';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
@@ -114,10 +114,6 @@ export interface ITerminalConfigHelper {
 
 	configFontIsMonospace(): boolean;
 	getFont(): ITerminalFont;
-	/**
-	 * Merges the default shell path and args into the provided launch configuration
-	 */
-	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, defaultShell: string, platformOverride?: Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;

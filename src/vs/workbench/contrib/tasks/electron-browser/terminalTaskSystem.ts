@@ -779,7 +779,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: undefined, args: undefined, waitOnExit };
-			this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig, this.getDefaultShell(platform), platform);
+			this.terminalInstanceService.mergeDefaultShellPathAndArgs(shellLaunchConfig, this.getDefaultShell(platform), this.terminalService.configHelper, platform);
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {

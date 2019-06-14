@@ -166,6 +166,8 @@ export function getDefaultShell(
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
 	defaultShell: string,
+	isWoW64: boolean,
+	windir: string | undefined,
 	platformOverride: platform.Platform = platform.platform
 ): string {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
@@ -175,10 +177,10 @@ export function getDefaultShell(
 	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 	// safe to assume that this was used by accident as Sysnative does not
 	// exist and will break the terminal in non-WoW64 environments.
-	if ((platformOverride === platform.Platform.Windows) && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && process.env.windir) {
-		const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
+	if ((platformOverride === platform.Platform.Windows) && !isWoW64 && windir) {
+		const sysnativePath = path.join(windir, 'Sysnative').toLowerCase();
 		if (executable && executable.toLowerCase().indexOf(sysnativePath) === 0) {
-			executable = path.join(process.env.windir, 'System32', executable.substr(sysnativePath.length));
+			executable = path.join(windir, 'System32', executable.substr(sysnativePath.length));
 		}
 	}
 
@@ -193,7 +195,6 @@ export function getDefaultShell(
 function getDefaultShellArgs(
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
-	defaultShell: string,
 	platformOverride: platform.Platform = platform.platform
 ): string[] {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
@@ -207,10 +208,12 @@ export function mergeDefaultShellPathAndArgs(
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
 	defaultShell: string,
+	isWoW64: boolean,
+	windir: string | undefined,
 	platformOverride: platform.Platform = platform.platform
 ): void {
-	shell.executable = getDefaultShell(fetchSetting, isWorkspaceShellAllowed, defaultShell, platformOverride);
-	shell.args = getDefaultShellArgs(fetchSetting, isWorkspaceShellAllowed, defaultShell, platformOverride);
+	shell.executable = getDefaultShell(fetchSetting, isWorkspaceShellAllowed, defaultShell, isWoW64, windir, platformOverride);
+	shell.args = getDefaultShellArgs(fetchSetting, isWorkspaceShellAllowed, platformOverride);
 }
 
 export function createTerminalEnvironment(

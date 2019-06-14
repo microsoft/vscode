@@ -335,7 +335,13 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
 			return this._apiInspectConfigToPlain<string | string[]>(setting);
 		};
-		return terminalEnvironment.getDefaultShell(fetchSetting, this._isWorkspaceShellAllowed, getDefaultShell(platform.platform));
+		return terminalEnvironment.getDefaultShell(
+			fetchSetting,
+			this._isWorkspaceShellAllowed,
+			getDefaultShell(platform.platform),
+			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
+			process.env.windir
+		);
 	}
 
 	public async resolveTerminalRenderer(id: number): Promise<vscode.TerminalRenderer> {
@@ -485,7 +491,14 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 					.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
 				return this._apiInspectConfigToPlain<string | string[]>(setting);
 			};
-			terminalEnvironment.mergeDefaultShellPathAndArgs(shellLaunchConfig, fetchSetting, isWorkspaceShellAllowed || false, getDefaultShell(platform.platform));
+			terminalEnvironment.mergeDefaultShellPathAndArgs(
+				shellLaunchConfig,
+				fetchSetting,
+				isWorkspaceShellAllowed || false,
+				getDefaultShell(platform.platform),
+				process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
+				process.env.windir
+			);
 		}
 
 		// Get the initial cwd
