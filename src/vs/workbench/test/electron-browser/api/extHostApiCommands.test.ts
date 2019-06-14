@@ -18,7 +18,6 @@ import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguage
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostHeapService } from 'vs/workbench/api/common/extHostHeapService';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -107,9 +106,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		const heapService = new ExtHostHeapService();
-
-		commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
+		commands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);
