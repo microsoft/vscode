@@ -155,11 +155,13 @@ export class TypeScriptVersionProvider {
 
 	private getContributedVersion(extensionId: string, pathToTs: readonly string[]): TypeScriptVersion | undefined {
 		try {
-			const { extensionPath } = vscode.extensions.getExtension(extensionId)!;
-			const typescriptPath = path.join(extensionPath, ...pathToTs, 'typescript', 'lib');
-			const bundledVersion = new TypeScriptVersion(typescriptPath, '');
-			if (bundledVersion.isValid) {
-				return bundledVersion;
+			const extension = vscode.extensions.getExtension(extensionId);
+			if (extension) {
+				const typescriptPath = path.join(extension.extensionPath, ...pathToTs, 'typescript', 'lib');
+				const bundledVersion = new TypeScriptVersion(typescriptPath, '');
+				if (bundledVersion.isValid) {
+					return bundledVersion;
+				}
 			}
 		} catch {
 			// noop

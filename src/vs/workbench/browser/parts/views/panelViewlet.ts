@@ -334,18 +334,17 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	private addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
-		const disposables: IDisposable[] = [];
-		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel, null, disposables);
+		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel);
 		const onDidChangeTitleArea = panel.onDidChangeTitleArea(() => {
 			if (this.isSingleView()) {
 				this.updateTitleArea();
 			}
-		}, null, disposables);
+		});
 		const onDidChange = panel.onDidChange(() => {
 			if (panel === this.lastFocusedPanel && !panel.isExpanded()) {
 				this.lastFocusedPanel = undefined;
 			}
-		}, null, disposables);
+		});
 
 		const panelStyler = attachStyler<IPanelColors>(this.themeService, {
 			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,

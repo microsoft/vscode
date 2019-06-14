@@ -47,7 +47,7 @@ export class CommentMenus implements IDisposable {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => true);
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		return menu;
 	}

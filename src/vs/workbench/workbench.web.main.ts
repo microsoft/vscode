@@ -247,13 +247,12 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 import 'vs/workbench/contrib/url/common/url.contribution';
 
 // Webview
-// import 'vs/workbench/contrib/webview/browser/webview.contribution';
-// import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
+import 'vs/workbench/contrib/webview/browser/webview.contribution';
 
 import { IWebviewService } from 'vs/workbench/contrib/webview/common/webview';
-import { NullWebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
+import { WebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
 import { IWebviewEditorService, WebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-registerSingleton(IWebviewService, NullWebviewService, true);
+registerSingleton(IWebviewService, WebviewService, true);
 registerSingleton(IWebviewEditorService, WebviewEditorService, true);
 
 // Extensions Management

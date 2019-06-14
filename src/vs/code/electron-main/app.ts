@@ -254,21 +254,18 @@ export class CodeApplication extends Disposable {
 
 		ipc.on('vscode:reloadWindow', (event: Event) => event.sender.reload());
 
-		// After waking up from sleep  (after window opened)
+		// Some listeners after window opened
 		(async () => {
 			await this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen);
 
+			// After waking up from sleep  (after window opened)
 			powerMonitor.on('resume', () => {
 				if (this.windowsMainService) {
 					this.windowsMainService.sendToAll('vscode:osResume', undefined);
 				}
 			});
-		})();
 
-		// Keyboard layout changes (after window opened)
-		(async () => {
-			await this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen);
-
+			// Keyboard layout changes (after window opened)
 			const nativeKeymap = await import('native-keymap');
 			nativeKeymap.onDidChangeKeyboardLayout(() => {
 				if (this.windowsMainService) {
@@ -350,12 +347,10 @@ export class CodeApplication extends Disposable {
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
-			(async () => {
-				const server = await serveDriver(electronIpcServer, this.environmentService.driverHandle!, this.environmentService, appInstantiationService);
+			const server = await serveDriver(electronIpcServer, this.environmentService.driverHandle!, this.environmentService, appInstantiationService);
 
-				this.logService.info('Driver started at:', this.environmentService.driverHandle);
-				this._register(server);
-			})();
+			this.logService.info('Driver started at:', this.environmentService.driverHandle);
+			this._register(server);
 		}
 
 		// Setup Auth Handler

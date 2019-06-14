@@ -50,6 +50,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	private _latency: number = -1;
 	private _latencyRequest: Promise<number>;
 	private _latencyLastMeasured: number = 0;
+	private _initialCwd: string;
 
 	private readonly _onProcessReady = new Emitter<void>();
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
@@ -138,8 +139,9 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			}
 		});
 
-		this._process.onProcessIdReady(pid => {
-			this.shellProcessId = pid;
+		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
+			this.shellProcessId = e.pid;
+			this._initialCwd = e.cwd;
 			this._onProcessReady.fire();
 
 			// Send any queued data that's waiting
@@ -161,7 +163,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	private async _launchProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): Promise<ITerminalChildProcess> {
 		if (!shellLaunchConfig.executable) {
-			this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig, this._terminalInstanceService.getDefaultShell(platform.platform));
+			this._terminalInstanceService.mergeDefaultShellPathAndArgs(shellLaunchConfig, this._terminalInstanceService.getDefaultShell(platform.platform), this._configHelper);
 		}
 
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
@@ -207,10 +209,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public getInitialCwd(): Promise<string> {
-		if (!this._process) {
-			return Promise.resolve('');
-		}
-		return this._process.getInitialCwd();
+		return Promise.resolve(this._initialCwd);
 	}
 
 	public getCwd(): Promise<string> {
