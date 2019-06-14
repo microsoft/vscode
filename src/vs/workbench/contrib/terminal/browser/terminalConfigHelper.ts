@@ -14,6 +14,7 @@ import { Terminal as XTermTerminal } from 'xterm';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { mergeDefaultShellPathAndArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { Emitter, Event } from 'vs/base/common/event';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -28,6 +29,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	private _charMeasureElement: HTMLElement;
 	private _lastFontMeasurement: ITerminalFont;
 	public config: ITerminalConfiguration;
+
+	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
+	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
 
 	public constructor(
 		private readonly _linuxDistro: LinuxDistro,
@@ -160,6 +164,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {
+		this._onWorkspacePermissionsChanged.fire(isAllowed);
 		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
 	}
 

@@ -389,6 +389,9 @@ export function createApiFactory(
 			get terminals() {
 				return extHostTerminalService.terminals;
 			},
+			get shell() {
+				return extHostTerminalService.getDefaultShell(configProvider);
+			},
 			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor> {
 				let documentPromise: Promise<vscode.TextDocument>;
 				if (URI.isUri(documentOrUri)) {

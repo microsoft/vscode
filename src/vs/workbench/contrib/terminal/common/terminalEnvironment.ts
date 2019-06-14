@@ -161,6 +161,46 @@ export function escapeNonWindowsPath(path: string): string {
 	return newPath;
 }
 
+export function getDefaultShell(
+	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
+	isWorkspaceShellAllowed: boolean,
+	defaultShell: string,
+	platformOverride: platform.Platform = platform.platform
+): string {
+	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
+	const shellConfigValue = fetchSetting(`terminal.integrated.shell.${platformKey}`);
+	let executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || (<string | null>shellConfigValue.default || defaultShell);
+
+	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
+	// safe to assume that this was used by accident as Sysnative does not
+	// exist and will break the terminal in non-WoW64 environments.
+	if ((platformOverride === platform.Platform.Windows) && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && process.env.windir) {
+		const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
+		if (executable && executable.toLowerCase().indexOf(sysnativePath) === 0) {
+			executable = path.join(process.env.windir, 'System32', executable.substr(sysnativePath.length));
+		}
+	}
+
+	// Convert / to \ on Windows for convenience
+	if (executable && platformOverride === platform.Platform.Windows) {
+		executable = executable.replace(/\//g, '\\');
+	}
+
+	return executable;
+}
+
+function getDefaultShellArgs(
+	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
+	isWorkspaceShellAllowed: boolean,
+	defaultShell: string,
+	platformOverride: platform.Platform = platform.platform
+): string[] {
+	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
+	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
+	const args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
+	return args;
+}
+
 export function mergeDefaultShellPathAndArgs(
 	shell: IShellLaunchConfig,
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
@@ -168,27 +208,8 @@ export function mergeDefaultShellPathAndArgs(
 	defaultShell: string,
 	platformOverride: platform.Platform = platform.platform
 ): void {
-	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
-	const shellConfigValue = fetchSetting(`terminal.integrated.shell.${platformKey}`);
-	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
-
-	shell.executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || (<string | null>shellConfigValue.default || defaultShell);
-	shell.args = (isWorkspaceShellAllowed ? <string[]>shellArgsConfigValue.value : <string[]>shellArgsConfigValue.user) || <string[]>shellArgsConfigValue.default;
-
-	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
-	// safe to assume that this was used by accident as Sysnative does not
-	// exist and will break the terminal in non-WoW64 environments.
-	if ((platformOverride === platform.Platform.Windows) && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && process.env.windir) {
-		const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
-		if (shell.executable && shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
-			shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
-		}
-	}
-
-	// Convert / to \ on Windows for convenience
-	if (shell.executable && platformOverride === platform.Platform.Windows) {
-		shell.executable = shell.executable.replace(/\//g, '\\');
-	}
+	shell.executable = getDefaultShell(fetchSetting, isWorkspaceShellAllowed, defaultShell, platformOverride);
+	shell.args = getDefaultShellArgs(fetchSetting, isWorkspaceShellAllowed, defaultShell, platformOverride);
 }
 
 export function createTerminalEnvironment(
