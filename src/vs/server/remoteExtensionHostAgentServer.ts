@@ -106,7 +106,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 					filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
 					const _data = await util.promisify(fs.readFile)(filePath);
-					const folder = this._environmentService.args['folder'] ? sanitizeFilePath(this._environmentService.args['folder'], process.env['VSCODE_CWD'] || process.cwd()) : undefined;
+					const folder = this._environmentService.args['folder'] ? sanitizeFilePath(this._environmentService.args['folder'], process.env['VSCODE_CWD'] || process.cwd()) : this._getQueryValue(req.url, 'folder');
 					const workspace = this._environmentService.args['workspace'];
 					const data = _data.toString()
 						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
@@ -210,6 +210,23 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
 
 		await Promise.all(toDelete.map(name => rimraf(path.join(logsRoot, name))));
+	}
+
+	private _getQueryValue(url: string | undefined, key: string): string | undefined {
+		if (url === undefined) {
+			return undefined;
+		}
+		const queryString = url.split('?')[1];
+		if (queryString) {
+			const args = queryString.split('&');
+			for (let i = 0; i < args.length; i++) {
+				const split = args[i].split('=');
+				if (split[0] === key) {
+					return split[1];
+				}
+			}
+		}
+		return undefined;
 	}
 
 	private _handleConnection(socket: NodeSocket | WebSocketNodeSocket, isReconnection: boolean, reconnectionToken: string): void {
