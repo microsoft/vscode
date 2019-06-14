@@ -36,8 +36,9 @@ import { hash } from 'vs/base/common/hash';
 import { joinPath } from 'vs/base/common/resources';
 
 interface IWindowConfiguration {
-	userDataUri: URI;
 	remoteAuthority: string;
+
+	userDataUri: URI;
 	folderUri?: URI;
 	workspaceUri?: URI;
 }
@@ -184,18 +185,16 @@ class CodeRendererMain extends Disposable {
 }
 
 export interface IWindowConfigurationContents {
-	userDataPath: string;
-	settingsPath: string;
-	keybindingsPath: string;
-	folderPath?: string;
-	workspacePath?: string;
+	userDataUri: string;
+	folderUri?: string;
+	workspaceUri?: string;
 }
 
 export function main(windowConfigurationContents: IWindowConfigurationContents): Promise<void> {
 	const windowConfiguration: IWindowConfiguration = {
-		userDataUri: toResource(windowConfigurationContents.userDataPath),
-		folderUri: windowConfigurationContents.folderPath ? toResource(windowConfigurationContents.folderPath) : undefined,
-		workspaceUri: windowConfigurationContents.workspacePath ? toResource(windowConfigurationContents.workspacePath) : undefined,
+		userDataUri: toResource(windowConfigurationContents.userDataUri),
+		folderUri: windowConfigurationContents.folderUri ? toResource(windowConfigurationContents.folderUri) : undefined,
+		workspaceUri: windowConfigurationContents.workspaceUri ? toResource(windowConfigurationContents.workspaceUri) : undefined,
 		remoteAuthority: document.location.host
 	};
 
@@ -203,10 +202,9 @@ export function main(windowConfigurationContents: IWindowConfigurationContents):
 	return renderer.open();
 }
 
-function toResource(path: string): URI {
-	return URI.from({
+function toResource(uri: string): URI {
+	return URI.parse(uri).with({
 		scheme: Schemas.vscodeRemote,
-		authority: document.location.host,
-		path
+		authority: document.location.host
 	});
 }
