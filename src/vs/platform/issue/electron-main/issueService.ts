@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { BrowserWindow, ipcMain, screen, Event, dialog } from 'electron';
+import { BrowserWindow, ipcMain, screen, dialog } from 'electron';
 import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { PerformanceInfo, IDiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -40,13 +40,13 @@ export class IssueService implements IIssueService {
 	}
 
 	private registerListeners(): void {
-		ipcMain.on('vscode:issueSystemInfoRequest', (event: Event) => {
+		ipcMain.on('vscode:issueSystemInfoRequest', (event: Electron.IpcMainEvent) => {
 			this.diagnosticsService.getSystemInfo(this.launchService).then(msg => {
 				event.sender.send('vscode:issueSystemInfoResponse', msg);
 			});
 		});
 
-		ipcMain.on('vscode:listProcesses', async (event: Event) => {
+		ipcMain.on('vscode:listProcesses', async (event: Electron.IpcMainEvent) => {
 			const processes = [];
 
 			try {
@@ -75,7 +75,7 @@ export class IssueService implements IIssueService {
 			event.sender.send('vscode:listProcessesResponse', processes);
 		});
 
-		ipcMain.on('vscode:issueReporterClipboard', (event: Event) => {
+		ipcMain.on('vscode:issueReporterClipboard', (event: Electron.IpcMainEvent) => {
 			const messageOptions = {
 				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub. Would you like to write the information to the clipboard so that it can be pasted?"),
 				type: 'warning',
@@ -86,13 +86,14 @@ export class IssueService implements IIssueService {
 			};
 
 			if (this._issueWindow) {
-				dialog.showMessageBox(this._issueWindow, messageOptions, response => {
-					event.sender.send('vscode:issueReporterClipboardResponse', response === 0);
-				});
+				dialog.showMessageBox(this._issueWindow, messageOptions)
+					.then(result => {
+						event.sender.send('vscode:issueReporterClipboardResponse', result.response === 0);
+					});
 			}
 		});
 
-		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Event) => {
+		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Electron.IpcMainEvent) => {
 			this.getPerformanceInfo().then(msg => {
 				event.sender.send('vscode:issuePerformanceInfoResponse', msg);
 			});
@@ -109,14 +110,15 @@ export class IssueService implements IIssueService {
 			};
 
 			if (this._issueWindow) {
-				dialog.showMessageBox(this._issueWindow, messageOptions, (response) => {
-					if (response === 0) {
-						if (this._issueWindow) {
-							this._issueWindow.destroy();
-							this._issueWindow = null;
+				dialog.showMessageBox(this._issueWindow, messageOptions)
+					.then(result => {
+						if (result.response === 0) {
+							if (this._issueWindow) {
+								this._issueWindow.destroy();
+								this._issueWindow = null;
+							}
 						}
-					}
-				});
+					});
 			}
 		});
 
@@ -144,13 +146,13 @@ export class IssueService implements IIssueService {
 			this.windowsService.openExternal(arg);
 		});
 
-		ipcMain.on('vscode:closeIssueReporter', (event: Event) => {
+		ipcMain.on('vscode:closeIssueReporter', (event: Electron.IpcMainEvent) => {
 			if (this._issueWindow) {
 				this._issueWindow.close();
 			}
 		});
 
-		ipcMain.on('windowsInfoRequest', (event: Event) => {
+		ipcMain.on('windowsInfoRequest', (event: Electron.IpcMainEvent) => {
 			this.launchService.getMainProcessInfo().then(info => {
 				event.sender.send('vscode:windowsInfoResponse', info.windows);
 			});
@@ -174,7 +176,10 @@ export class IssueService implements IIssueService {
 						x: position.x,
 						y: position.y,
 						title: localize('issueReporter', "Issue Reporter"),
-						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
+						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
+						webPreferences: {
+							nodeIntegration: true
+						}
 					});
 
 					this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
@@ -220,7 +225,10 @@ export class IssueService implements IIssueService {
 						x: position.x,
 						y: position.y,
 						backgroundColor: data.styles.backgroundColor,
-						title: localize('processExplorer', "Process Explorer")
+						title: localize('processExplorer', "Process Explorer"),
+						webPreferences: {
+							nodeIntegration: true
+						}
 					});
 
 					this._processExplorerWindow.setMenuBarVisibility(false);
