@@ -764,7 +764,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			if (platform === Platform.Platform.Windows) {
 				defaultShell = 'cmd.exe';
 			} else {
-				defaultShell = 'bash.exe';
+				defaultShell = 'bash';
 			}
 			console.warn('Cannot get the default shell.');
 		}
