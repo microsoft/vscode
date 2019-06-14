@@ -42,7 +42,7 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
-import { getWindowsBuildNumber, getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
+import { getDefaultShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 interface TerminalData {
@@ -802,7 +802,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 						toAdd.push('-c');
 					}
 				} else if (basename === 'wsl.exe') {
-					if (!shellSpecified && (getWindowsBuildNumber() >= 17763)) { // See https://github.com/Microsoft/vscode/issues/67855
+					if (!shellSpecified) {
 						toAdd.push('-e');
 					}
 				} else {
