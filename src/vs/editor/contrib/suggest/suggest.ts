@@ -278,7 +278,7 @@ registerDefaultLanguageCommand('_executeCompletionItemProvider', async (model, p
 		await Promise.all(resolving);
 		return result;
 	} finally {
-		disposables.dispose();
+		setTimeout(() => disposables.dispose(), 0);
 	}
 });
 

@@ -221,6 +221,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			try {
 				action();
 			} catch (err) {
+				sub.dispose();
 				reject(err);
 			}
 		});
@@ -776,9 +777,13 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			}, event => {
 				assert.equal(event.auto, true);
 				assert.equal(event.completionModel.items.length, 2);
-				assert.equal(disposeA, 1);
-				assert.equal(disposeB, 0);
+
+				// clean up
+				model.clear();
+				assert.equal(disposeA, 2); // provide got called two times!
+				assert.equal(disposeB, 1);
 			});
+
 		});
 	});
 });
