@@ -20,6 +20,8 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions) => Promise<void>;
@@ -50,7 +52,9 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		themeService: IThemeService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(id, telemetryService, themeService, storageService);
 
@@ -97,7 +101,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 			openInternalClb: () => this.handleOpenInternalCallback(input, options),
 			openExternalClb: this.environmentService.configuration.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
 			metadataClb: meta => this.handleMetadataChanged(meta)
-		});
+		}, this.statusbarService, this.contextMenuService);
 	}
 
 	private async handleOpenInternalCallback(input: EditorInput, options: EditorOptions): Promise<void> {

@@ -16,6 +16,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 /**
  * An implementation of editor for binary files like images.
@@ -32,6 +34,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@IStorageService storageService: IStorageService,
 		@IFileService fileService: IFileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IStatusbarService statusbarService: IStatusbarService,
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super(
 			BinaryFileEditor.ID,
@@ -44,6 +48,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			fileService,
 			environmentService,
 			storageService,
+			statusbarService,
+			contextMenuService
 		);
 	}
 
