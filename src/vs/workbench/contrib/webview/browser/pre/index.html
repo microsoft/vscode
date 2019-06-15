@@ -23,7 +23,8 @@
 			};
 
 			window.addEventListener('message', (e) => {
-				if (e.origin === 'TODO - Does this come from the inner iframe we created?') {
+				if (e.data && (e.data.command === 'onmessage' || e.data.command === 'do-update-state')) {
+					// Came from inner iframe
 					postMessageToVsCode(e.data.command, e.data.data);
 					return;
 				}
@@ -46,7 +47,7 @@
 					handlers[channel] = handler;
 				},
 				preProcessHtml: (text) => {
-					return text.replace(/(?:["'])vscode-resource:([^\s'"]+)(?:["'])/gi, '/resource?path=$1');
+					return text.replace(/(?:["'])vscode-resource:([^\s'"]+)(?:["'])/gi, '/vscode-resource$1');
 				}
 			});
 		}());
