@@ -62,7 +62,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		return this._start(port);
 	}
 
-	private _start(port: number) {
+	private async _start(port: number) {
 		const ifaces = os.networkInterfaces();
 
 		Object.keys(ifaces).forEach(function (ifname) {
@@ -74,6 +74,48 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		});
 
 		setTimeout(() => this.cleanupOlderLogs(this._environmentService.logsPath).then(null, err => console.error(err)), 10000);
+
+		const webviewPort = await findFreePort(+port + 1, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */);
+
+		const webviewServer = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
+			// Only serve GET requests
+			if (req.method !== 'GET') {
+				res.writeHead(500, { 'Content-Type': 'text/plain' });
+				return res.end(`Unsupported method ${req.method}`);
+			}
+			const rootPath = URI.parse(require.toUrl('vs/workbench/contrib/webview/browser/pre')).fsPath;
+			const resourceWhitelist = new Set([
+				'/index.html',
+				'/',
+				'/fake.html',
+				'/main.js',
+				'/service-worker.js'
+			]);
+			try {
+				const requestUrl = url.parse(req.url!);
+				if (!resourceWhitelist.has(requestUrl.pathname!)) {
+					res.writeHead(404, { 'Content-Type': 'text/plain' });
+					return res.end('Not found');
+				}
+
+				const filePath = rootPath + (requestUrl.pathname === '/' ? '/index.html' : requestUrl.pathname);
+				const data = await util.promisify(fs.readFile)(filePath);
+				res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || 'text/plain' });
+				return res.end(data);
+			} catch (error) {
+				console.error(error.toString());
+				res.writeHead(404, { 'Content-Type': 'text/plain' });
+				return res.end('Not found');
+			}
+		});
+		webviewServer.on('error', (err) => {
+			console.error(`Error occurred in webviewServer`);
+			console.error(err);
+		});
+		webviewServer.listen(webviewPort, () => {
+			const address = webviewServer.address();
+			console.log(`webview server listening on ${typeof address === 'string' ? address : address.port}`);
+		});
 
 		let transformer: IURITransformer;
 
@@ -89,20 +131,6 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			if (req.url === '/version') {
 				res.writeHead(200, { 'Content-Type': 'text/html' });
 				return res.end(product.commit || '');
-			}
-
-			// Resource
-			if (req.url && req.url.indexOf('/vscode-resource/') === 0) {
-				try {
-					const filePath = req.url.replace(/^\/vscode-resource/, '');
-					const data = await util.promisify(fs.readFile)(filePath);
-					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
-					return res.end(data);
-				} catch (error) {
-					console.error(error.toString());
-					res.writeHead(404, { 'Content-Type': 'text/plain' });
-					return res.end('Not found');
-				}
 			}
 
 			// Workbench
@@ -121,12 +149,19 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					const _data = await util.promisify(fs.readFile)(filePath);
 					const folder = this._environmentService.args['folder'] ? sanitizeFilePath(this._environmentService.args['folder'], process.env['VSCODE_CWD'] || process.cwd()) : this._getQueryValue(req.url, 'folder');
 					const workspace = this._environmentService.args['workspace'];
+
+					const webviewServerAddress = webviewServer.address();
+					const webviewEndpoint = typeof webviewServerAddress === 'string'
+						? webviewServerAddress
+						: (webviewServerAddress.address === '::' ? 'localhost' : webviewServerAddress.address) + ':' + webviewServerAddress.port;
+
 					const data = _data.toString()
 						.replace('{{CONNECTION_AUTH_TOKEN}}', CONNECTION_AUTH_TOKEN)
 						.replace('\'{{USER_DATA}}\'', JSON.stringify(transformer.transformOutgoing(URI.file(this._environmentService.userDataPath))))
 						.replace('\'{{FOLDER}}\'', folder ? JSON.stringify(transformer.transformOutgoing(URI.file(folder))) : 'undefined')
 						.replace('\'{{WORKSPACE}}\'', workspace ? JSON.stringify(transformer.transformOutgoing(URI.file(workspace))) : 'undefined')
-						.replace('{{AUTHORITY}}', authority);
+						.replace('{{AUTHORITY}}', authority)
+						.replace('{{WEBVIEW_ENDPOINT}}', `http://${webviewEndpoint}`);
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 					return res.end(data);
 				} else {
