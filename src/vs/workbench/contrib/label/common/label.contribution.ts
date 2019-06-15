@@ -9,6 +9,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Schemas } from 'vs/base/common/network';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -32,7 +33,7 @@ export class LabelContribution implements IWorkbenchContribution {
 	private registerFormatters(): void {
 		if (isWeb) {
 			this.labelService.registerFormatter({
-				scheme: 'vscode-remote',
+				scheme: Schemas.vscodeRemote,
 				authority: this.environmentService.configuration.remoteAuthority,
 				formatting: {
 					label: '${path}',
