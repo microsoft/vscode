@@ -91,10 +91,23 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				return res.end(product.commit || '');
 			}
 
+			// Resource
+			if (req.url && req.url.indexOf('/vscode-resource/') === 0) {
+				try {
+					const filePath = req.url.replace(/^\/vscode-resource/, '');
+					const data = await util.promisify(fs.readFile)(filePath);
+					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
+					return res.end(data);
+				} catch (error) {
+					console.error(error.toString());
+					res.writeHead(404, { 'Content-Type': 'text/plain' });
+					return res.end('Not found');
+				}
+			}
+
 			// Workbench
 			try {
 				const pathname = url.parse(req.url!).pathname;
-
 
 				let filePath: string;
 				if (pathname === '/') {
