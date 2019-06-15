@@ -17,14 +17,16 @@ function deserializeMapping(serializedMapping: ISerializedMapping) {
 			let withAltGr = result[2];
 			let withShiftAltGr = result[3];
 			let mask = Number(result[4]);
+			let vkey = result.length === 6 ? result[5] : undefined;
 			ret[key] = {
 				'value': value,
-				'valueIsDeadKey': (mask & 1) > 0,
+				'vkey': vkey,
 				'withShift': withShift,
-				'withShiftIsDeadKey': (mask & 2) > 0,
 				'withAltGr': withAltGr,
-				'withAltGrIsDeadKey': (mask & 4) > 0,
 				'withShiftAltGr': withShiftAltGr,
+				'valueIsDeadKey': (mask & 1) > 0,
+				'withShiftIsDeadKey': (mask & 2) > 0,
+				'withAltGrIsDeadKey': (mask & 4) > 0,
 				'withShiftAltGrIsDeadKey': (mask & 8) > 0
 			};
 		} else {
