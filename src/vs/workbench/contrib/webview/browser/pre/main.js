@@ -256,7 +256,7 @@
 					defaultScript.textContent = `
 					const acquireVsCodeApi = (function() {
 						const originalPostMessage = window.parent.postMessage.bind(window.parent);
-						const targetOrigin = window.parent.origin;
+						const targetOrigin = '*';
 						let acquired = false;
 
 						let state = ${data.state ? `JSON.parse(${JSON.stringify(data.state)})` : undefined};
