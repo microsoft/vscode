@@ -56,7 +56,7 @@ export class WebResources {
 		while (match = this._regexp.exec(target.textContent)) {
 
 			const remoteUrl = match[2];
-			positions.push(match.index! + 'url('.length + match[1].length);
+			positions.push(match.index! + 'url('.length + (typeof match[1] === 'string' ? match[1].length : 0));
 			positions.push(remoteUrl.length);
 
 			if (this._cache.has(remoteUrl)) {
