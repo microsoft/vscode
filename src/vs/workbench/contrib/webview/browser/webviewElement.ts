@@ -16,6 +16,7 @@ import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browse
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
 
 interface WebviewContent {
 	readonly html: string;
@@ -34,12 +35,12 @@ export class IFrameWebview extends Disposable implements Webview {
 	private readonly id: string;
 
 	constructor(
-		_options: WebviewOptions,
+		private _options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
@@ -55,7 +56,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		this.element = document.createElement('iframe');
 		this.element.sandbox.add('allow-scripts');
 		this.element.sandbox.add('allow-same-origin');
-		this.element.setAttribute('src', `/src/vs/workbench/contrib/webview/browser/pre/index.html?id=${this.id}`);
+		this.element.setAttribute('src', `${environmentService.webviewEndpoint}?id=${this.id}`); // TODO: get this from env service
 		this.element.style.border = 'none';
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';
@@ -108,6 +109,13 @@ export class IFrameWebview extends Disposable implements Webview {
 					this.handleFocusChange(false);
 					return;
 
+				case 'load-resource':
+					{
+						const path = e.data.data.path;
+						const uri = URI.file(path);
+						this.loadResource(uri);
+						return;
+					}
 			}
 		}));
 
@@ -261,6 +269,29 @@ export class IFrameWebview extends Disposable implements Webview {
 	private style(theme: ITheme): void {
 		const { styles, activeTheme } = getWebviewThemeData(theme, this._configurationService);
 		this._send('styles', { styles, activeTheme });
+	}
+
+	private async loadResource(uri: URI) {
+		try {
+			const result = await loadLocalResource(uri, this.fileService, this._options.extension ? this._options.extension.location : undefined,
+				() => (this.content.options.localResourceRoots || []));
+
+			if (result.type === 'success') {
+				return this._send('loaded-resource', {
+					status: 200,
+					path: uri.path,
+					mime: result.mimeType,
+					data: result.data.buffer
+				});
+			}
+		} catch  {
+			// noop
+		}
+
+		return this._send('loaded-resource', {
+			status: 404,
+			path: uri.path
+		});
 	}
 }
 

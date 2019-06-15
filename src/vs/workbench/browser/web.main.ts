@@ -41,6 +41,7 @@ interface IWindowConfiguration {
 	userDataUri: URI;
 	folderUri?: URI;
 	workspaceUri?: URI;
+	webviewEndpoint?: string;
 }
 
 class CodeRendererMain extends Disposable {
@@ -149,6 +150,7 @@ class CodeRendererMain extends Disposable {
 			port: null,
 			break: false
 		};
+		environmentService.webviewEndpoint = this.configuration.webviewEndpoint;
 
 		return environmentService;
 	}
@@ -189,6 +191,7 @@ export interface IWindowConfigurationContents {
 	userDataUri: UriComponents;
 	folderUri?: UriComponents;
 	workspaceUri?: UriComponents;
+	webviewEndpoint?: string;
 }
 
 export function main(windowConfigurationContents: IWindowConfigurationContents): Promise<void> {
@@ -196,7 +199,8 @@ export function main(windowConfigurationContents: IWindowConfigurationContents):
 		userDataUri: URI.revive(windowConfigurationContents.userDataUri),
 		remoteAuthority: windowConfigurationContents.authority,
 		folderUri: windowConfigurationContents.folderUri ? URI.revive(windowConfigurationContents.folderUri) : undefined,
-		workspaceUri: windowConfigurationContents.workspaceUri ? URI.revive(windowConfigurationContents.workspaceUri) : undefined
+		workspaceUri: windowConfigurationContents.workspaceUri ? URI.revive(windowConfigurationContents.workspaceUri) : undefined,
+		webviewEndpoint: windowConfigurationContents.webviewEndpoint
 	};
 
 	const renderer = new CodeRendererMain(windowConfiguration);

@@ -118,6 +118,28 @@
 			initialScrollProgress: undefined
 		};
 
+		// Service worker for resource loading
+		const FAKE_LOAD = !!navigator.serviceWorker;
+		if (navigator.serviceWorker) {
+			navigator.serviceWorker.register('service-worker.js');
+
+			navigator.serviceWorker.ready.then(registration => {
+				registration.active.postMessage('ping');
+
+				host.onMessage('loaded-resource', event => {
+					registration.active.postMessage({ channel: 'loaded-resource', data: event.data.args });
+				});
+			});
+
+			navigator.serviceWorker.addEventListener('message', event => {
+				switch (event.data.channel) {
+					case 'load-resource':
+						host.postMessage('load-resource', { path: event.data.path });
+						return;
+				}
+			});
+		}
+
 		/**
 		 * @param {HTMLDocument?} document
 		 * @param {HTMLElement?} body
@@ -337,15 +359,30 @@
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
 				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
+				if (FAKE_LOAD) {
+					// We should just be able to use srcdoc, but I wasn't
+					// seeing the service worker applying properly.
+					// Fake load an empty on the correct origin and then write real html
+					// into it to get around this.
+					newFrame.src = '/fake.html';
+				}
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
 
-				// write new content onto iframe
-				newFrame.contentDocument.open('text/html', 'replace');
+				if (!FAKE_LOAD) {
+					// write new content onto iframe
+					newFrame.contentDocument.open();
+				}
 
 				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
 
 				newFrame.contentWindow.addEventListener('DOMContentLoaded', e => {
+					if (FAKE_LOAD) {
+						newFrame.contentDocument.open();
+						newFrame.contentDocument.write('<!DOCTYPE html>');
+						newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
+						newFrame.contentDocument.close();
+					}
 					const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
 					if (contentDocument) {
 						applyStyles(contentDocument, contentDocument.body);
@@ -414,9 +451,11 @@
 
 				// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
 				// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
-				newFrame.contentDocument.write('<!DOCTYPE html>');
-				newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
-				newFrame.contentDocument.close();
+				if (!FAKE_LOAD) {
+					newFrame.contentDocument.write('<!DOCTYPE html>');
+					newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
+					newFrame.contentDocument.close();
+				}
 
 				host.postMessage('did-set-content', undefined);
 			});

@@ -228,6 +228,7 @@ export class SimpleWorkbenchEnvironmentService implements IWorkbenchEnvironmentS
 	disableCrashReporter: boolean;
 	driverHandle?: string;
 	driverVerbose: boolean;
+	webviewEndpoint?: string;
 }
 
 
