@@ -11,7 +11,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/
 // VMware ESX 3, Server, Workstation, Player	00-50-56, 00-0C-29, 00-05-69
 // Microsoft Hyper-V, Virtual Server, Virtual PC	00-03-FF
-// Parallells Desktop, Workstation, Server, Virtuozzo	00-1C-42
+// Parallels Desktop, Workstation, Server, Virtuozzo	00-1C-42
 // Virtual Iron 4	00-0F-4B
 // Red Hat Xen	00-16-3E
 // Oracle VM	00-16-3E
