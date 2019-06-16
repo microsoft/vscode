@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, INotifyOptions } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
@@ -57,11 +57,11 @@ export class NotificationService extends Disposable implements INotificationServ
 		this.model.addNotification({ severity: Severity.Error, message });
 	}
 
-	notify(notification: INotification, options?: INotifyOptions): INotificationHandle {
+	notify(notification: INotification): INotificationHandle {
 
 		let handle: INotificationHandle;
-		if (options && options.neverShowOptions) {
-			const id = options.neverShowOptions.promptId;
+		if (notification.neverShowOptions) {
+			const id = notification.neverShowOptions.promptId;
 			if (this.isRejected(id)) {
 				return new NoOpNotification();
 			}
@@ -73,11 +73,11 @@ export class NotificationService extends Disposable implements INotificationServ
 			});
 
 			//default to secondary
-			if (typeof (options.neverShowOptions.isSecondary) !== 'boolean') {
-				options.neverShowOptions.isSecondary = true;
+			if (typeof (notification.neverShowOptions.isSecondary) !== 'boolean') {
+				notification.neverShowOptions.isSecondary = true;
 			}
 			notification.actions = notification.actions || {};
-			if (options.neverShowOptions.isSecondary) {
+			if (notification.neverShowOptions.isSecondary) {
 				notification.actions.secondary = notification.actions.secondary || [];
 				notification.actions.secondary = [...notification.actions.secondary, neverShowAction];
 			}

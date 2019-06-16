@@ -62,6 +62,12 @@ export interface INotification extends INotificationProperties {
 	 * this usecase and much easier to use!
 	 */
 	actions?: INotificationActions;
+
+	/**
+	 * options for showing "never show again" prompt.
+	 * by default shown as secondary action
+	 */
+	neverShowOptions?: INeverShowOptions;
 }
 
 export interface INotificationActions {
@@ -179,13 +185,6 @@ export interface IPromptOptions extends INotificationProperties {
 	neverShowOptions?: INeverShowOptions;
 }
 
-export interface INotifyOptions {
-	/**
-	 * options for showing "never show again" prompt.
-	 * by default shown as secondary action
-	 */
-	neverShowOptions?: INeverShowOptions;
-}
 
 export interface INeverShowOptions {
 	/**
@@ -231,7 +230,7 @@ export interface INotificationService {
 	 *
 	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
-	notify(notification: INotification, options?: INotifyOptions): INotificationHandle;
+	notify(notification: INotification): INotificationHandle;
 
 	/**
 	 * A convenient way of reporting infos. Use the `INotificationService.notify`
