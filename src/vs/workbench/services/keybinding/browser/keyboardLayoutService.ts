@@ -64,6 +64,10 @@ export class BrowserKeyboardMapperFactory {
 		}
 
 		this.getBrowserKeyMap().then(keyMap => {
+			// might be false positive
+			if (KeyboardLayoutProvider.INSTANCE.isActive(keyMap)) {
+				return;
+			}
 			KeyboardLayoutProvider.INSTANCE.setActive(keyMap);
 			let currentKeyboardLayout = KeyboardLayoutProvider.INSTANCE.activeKeyboardLayout;
 
@@ -152,6 +156,7 @@ export class BrowserKeyboardMapperFactory {
 			return false;
 		}
 
+		// TODO, this assumption is wrong as `browserEvent.key` doesn't necessarily equal expectedValue from real keymap
 		if (!isDead && standardKeyboardEvent.browserEvent.key !== expectedValue) {
 			return false;
 		}

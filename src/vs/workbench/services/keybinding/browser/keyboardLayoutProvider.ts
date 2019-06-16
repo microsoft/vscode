@@ -223,7 +223,7 @@ export class KeyboardLayoutProvider {
 	public static readonly INSTANCE: KeyboardLayoutProvider = new KeyboardLayoutProvider();
 
 	private _layoutInfos: KeyboardLayoutInfo[] = [];
-	// private _mru: KeyboardLayoutInfo[] = [];
+	private _mru: KeyboardLayoutInfo[] = [];
 	private _active: KeyboardLayoutInfo | null;
 
 	private constructor() {
@@ -232,6 +232,7 @@ export class KeyboardLayoutProvider {
 
 	registerKeyboardLayout(layout: KeyboardLayoutInfo) {
 		this._layoutInfos.push(layout);
+		this._mru = this._layoutInfos;
 	}
 
 	get activeKeyboardLayout() {
@@ -244,13 +245,25 @@ export class KeyboardLayoutProvider {
 
 	setActive(keymap: IKeyboardMapping) {
 		this._active = this.getMatchedKeyboardLayout(keymap);
+
+		if (!this._active) {
+			return;
+		}
+		const index = this._mru.indexOf(this._active);
+
+		if (index === 0) {
+			return;
+		}
+
+		this._mru.splice(index, 1);
+		this._mru.unshift(this._active);
 	}
 
 	getMatchedKeyboardLayout(keymap: IKeyboardMapping): KeyboardLayoutInfo | null {
 		// TODO go through mru list instead of _layoutInfos
-		for (let i = 0; i < this._layoutInfos.length; i++) {
-			if (this._layoutInfos[i].fuzzyEqual(keymap)) {
-				return this._layoutInfos[i];
+		for (let i = 0; i < this._mru.length; i++) {
+			if (this._mru[i].fuzzyEqual(keymap)) {
+				return this._mru[i];
 			}
 		}
 
