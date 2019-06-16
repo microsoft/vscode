@@ -16,122 +16,7 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { KeyCodeUtils, KeyCode } from 'vs/base/common/keyCodes';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-
 import { KeyboardLayoutProvider } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
-
-export class BrowserKeymap {
-	public static readonly INSTANCE: BrowserKeymap = new BrowserKeymap();
-
-	private readonly _onDidChangeKeyboardLayout = new Emitter<void>();
-	public readonly onDidChangeKeyboardLayout: Event<void> = this._onDidChangeKeyboardLayout.event;
-
-	private readonly _onDidInitialized = new Emitter<void>();
-	public readonly onDidInitialized: Event<void> = this._onDidInitialized.event;
-
-	private _initialized: boolean;
-
-	private constructor() {
-		this._initialized = false;
-		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
-
-		import('vs/workbench/services/keybinding/browser/keyboardlayouts/layout.contribution.' + platform).then(() => {
-			this._initialized = true;
-			this._onDidInitialized.fire();
-		});
-
-		if ((navigator as any).keyboard && (navigator as any).keyboard.addEventListener) {
-			(navigator as any).keyboard.addEventListener('layoutchange', () => {
-				// Update user keyboard map settings
-				this.getBrowserKeyMap().then((keymap: IKeyboardMapping) => {
-					if (KeyboardLayoutProvider.INSTANCE.isActive(keymap)) {
-						return;
-					}
-
-					this._onDidChangeKeyboardLayout.fire();
-				});
-			});
-		}
-
-
-	}
-
-	validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): boolean {
-		if (!this._initialized) {
-			return true;
-		}
-
-		const standardKeyboardEvent = keyboardEvent as StandardKeyboardEvent;
-		const currentKeymap = KeyboardLayoutProvider.INSTANCE.activeKeyboardLayout;
-		const mapping = currentKeymap.value[standardKeyboardEvent.code];
-
-		if (!mapping) {
-			return false;
-		}
-
-		if (mapping.value === '') {
-			// we don't undetstand
-			if (keyboardEvent.ctrlKey || keyboardEvent.metaKey) {
-				setTimeout(() => {
-					this.getBrowserKeyMap().then((keymap: IKeyboardMapping) => {
-						if (KeyboardLayoutProvider.INSTANCE.isActive(keymap)) {
-							return;
-						}
-
-						this._onDidChangeKeyboardLayout.fire();
-					});
-				}, 350);
-			}
-			return true;
-		}
-
-		const expectedValue = standardKeyboardEvent.altKey && standardKeyboardEvent.shiftKey ? mapping.withShiftAltGr :
-			standardKeyboardEvent.altKey ? mapping.withAltGr :
-				standardKeyboardEvent.shiftKey ? mapping.withShift : mapping.value;
-
-		const isDead = (standardKeyboardEvent.altKey && standardKeyboardEvent.shiftKey && mapping.withShiftAltGrIsDeadKey) ||
-			(standardKeyboardEvent.altKey && mapping.withAltGrIsDeadKey) ||
-			(standardKeyboardEvent.shiftKey && mapping.withShiftIsDeadKey) ||
-			mapping.valueIsDeadKey;
-
-		if (isDead && standardKeyboardEvent.browserEvent.key !== 'Dead') {
-			return false;
-		}
-
-		if (!isDead && standardKeyboardEvent.browserEvent.key !== expectedValue) {
-			return false;
-		}
-
-		return true;
-	}
-
-	getCurrentKeyboardLayout() {
-		if (!this._initialized) {
-			return null;
-		}
-
-		return KeyboardLayoutProvider.INSTANCE.activeKeyboardLayout.layout;
-	}
-
-	async getBrowserKeyMap() {
-		if ((navigator as any).keyboard) {
-			return (navigator as any).keyboard.getLayoutMap().then((e: any) => {
-				let ret: IKeyboardMapping = {};
-				for (let key of e) {
-					ret[key[0]] = {
-						'value': key[1],
-						'withShift': '',
-						'withAltGr': '',
-						'withShiftAltGr': ''
-					};
-				}
-
-				return KeyboardLayoutProvider.INSTANCE.getMatchedKeyboardLayout(ret).value;
-			});
-		}
-
-		return {};
-	}
-}
 
 export class BrowserKeyboardMapperFactory {
 	public static readonly INSTANCE = new BrowserKeyboardMapperFactory();
@@ -142,39 +27,46 @@ export class BrowserKeyboardMapperFactory {
 	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
-	private readonly _onDidInitialized = new Emitter<void>();
-	public readonly onDidInitialized: Event<void> = this._onDidInitialized.event;
-
 	private constructor() {
 		this._layoutInfo = null;
 		this._rawMapping = null;
 		this._keyboardMapper = null;
 		this._initialized = false;
 
-		BrowserKeymap.INSTANCE.onDidInitialized(() => {
+		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
+
+		import('vs/workbench/services/keybinding/browser/keyboardlayouts/layout.contribution.' + platform).then(() => {
 			this._initialized = true;
 			this._onKeyboardLayoutChanged();
 		});
 
-		BrowserKeymap.INSTANCE.onDidChangeKeyboardLayout(() => {
-			this._onKeyboardLayoutChanged();
-		});
-	}
+		if ((navigator as any).keyboard && (navigator as any).keyboard.addEventListener) {
+			(navigator as any).keyboard.addEventListener('layoutchange', () => {
+				// Update user keyboard map settings
+				this.getBrowserKeyMap().then((keymap: IKeyboardMapping) => {
+					if (KeyboardLayoutProvider.INSTANCE.isActive(keymap)) {
+						return;
+					}
 
-	private _onKeyboardLayoutChanged(): void {
-		if (this._initialized) {
-			this.updateKeyboardLayoutAsync(true);
+					this._onKeyboardLayoutChanged();
+				});
+			});
 		}
 	}
 
-	private updateKeyboardLayoutAsync(initialized: boolean) {
+	private _onKeyboardLayoutChanged(): void {
+		this._updateKeyboardLayoutAsync(this._initialized);
+	}
+
+	private _updateKeyboardLayoutAsync(initialized: boolean) {
 		if (!initialized) {
 			return;
 		}
 
-		BrowserKeymap.INSTANCE.getBrowserKeyMap().then(keyMap => {
+		this.getBrowserKeyMap().then(keyMap => {
 			KeyboardLayoutProvider.INSTANCE.setActive(keyMap);
-			this._setKeyboardData(BrowserKeymap.INSTANCE.getCurrentKeyboardLayout()!, keyMap);
+			let currentKeyboardLayout = KeyboardLayoutProvider.INSTANCE.activeKeyboardLayout.layout;
+			this._setKeyboardData(currentKeyboardLayout, keyMap);
 		});
 	}
 
@@ -202,13 +94,62 @@ export class BrowserKeyboardMapperFactory {
 			return;
 		}
 
-		let isCurrentKeyboard = BrowserKeymap.INSTANCE.validateCurrentKeyboardMapping(keyboardEvent);
+		let isCurrentKeyboard = this._validateCurrentKeyboardMapping(keyboardEvent);
 
 		if (isCurrentKeyboard) {
 			return;
 		}
 
-		this.updateKeyboardLayoutAsync(true);
+		this._updateKeyboardLayoutAsync(true);
+	}
+
+	private _validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): boolean {
+		if (!this._initialized) {
+			return true;
+		}
+
+		const standardKeyboardEvent = keyboardEvent as StandardKeyboardEvent;
+		const currentKeymap = KeyboardLayoutProvider.INSTANCE.activeKeyboardLayout;
+		const mapping = currentKeymap.value[standardKeyboardEvent.code];
+
+		if (!mapping) {
+			return false;
+		}
+
+		if (mapping.value === '') {
+			// we don't undetstand
+			if (keyboardEvent.ctrlKey || keyboardEvent.metaKey) {
+				setTimeout(() => {
+					this.getBrowserKeyMap().then((keymap: IKeyboardMapping) => {
+						if (KeyboardLayoutProvider.INSTANCE.isActive(keymap)) {
+							return;
+						}
+
+						this._onKeyboardLayoutChanged();
+					});
+				}, 350);
+			}
+			return true;
+		}
+
+		const expectedValue = standardKeyboardEvent.altKey && standardKeyboardEvent.shiftKey ? mapping.withShiftAltGr :
+			standardKeyboardEvent.altKey ? mapping.withAltGr :
+				standardKeyboardEvent.shiftKey ? mapping.withShift : mapping.value;
+
+		const isDead = (standardKeyboardEvent.altKey && standardKeyboardEvent.shiftKey && mapping.withShiftAltGrIsDeadKey) ||
+			(standardKeyboardEvent.altKey && mapping.withAltGrIsDeadKey) ||
+			(standardKeyboardEvent.shiftKey && mapping.withShiftIsDeadKey) ||
+			mapping.valueIsDeadKey;
+
+		if (isDead && standardKeyboardEvent.browserEvent.key !== 'Dead') {
+			return false;
+		}
+
+		if (!isDead && standardKeyboardEvent.browserEvent.key !== expectedValue) {
+			return false;
+		}
+
+		return true;
 	}
 
 	public getRawKeyboardMapping(): IKeyboardMapping | null {
@@ -251,6 +192,26 @@ export class BrowserKeyboardMapperFactory {
 		}
 
 		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
+	}
+
+	async getBrowserKeyMap() {
+		if ((navigator as any).keyboard) {
+			return (navigator as any).keyboard.getLayoutMap().then((e: any) => {
+				let ret: IKeyboardMapping = {};
+				for (let key of e) {
+					ret[key[0]] = {
+						'value': key[1],
+						'withShift': '',
+						'withAltGr': '',
+						'withShiftAltGr': ''
+					};
+				}
+
+				return KeyboardLayoutProvider.INSTANCE.getMatchedKeyboardLayout(ret).value;
+			});
+		}
+
+		return {};
 	}
 }
 
