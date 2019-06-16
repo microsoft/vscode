@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardLayoutInfo } from 'vs/workbench/services/keybinding/common/keymapService';
+import { isWindows } from 'vs/base/common/platform';
 
 function deserializeMapping(serializedMapping: ISerializedMapping) {
 	let mapping = serializedMapping;
@@ -73,6 +74,10 @@ export class KeyboardLayoutInfo {
 
 	fuzzyEqual(other: IKeyboardMapping): boolean {
 		for (let key in other) {
+			if (isWindows && (key === 'Backslash' || key === 'KeyQ')) {
+				// keymap from Chromium is probably wrong.
+				continue;
+			}
 			if (this.value[key] === undefined) {
 				return false;
 			}
