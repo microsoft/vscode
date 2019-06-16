@@ -224,10 +224,10 @@ export class KeyboardLayoutProvider {
 
 	private _layoutInfos: KeyboardLayoutInfo[] = [];
 	// private _mru: KeyboardLayoutInfo[] = [];
-	private _active: KeyboardLayoutInfo;
+	private _active: KeyboardLayoutInfo | null;
 
 	private constructor() {
-		this._active = EN_US;
+		this._active = null;
 	}
 
 	registerKeyboardLayout(layout: KeyboardLayoutInfo) {
@@ -246,7 +246,7 @@ export class KeyboardLayoutProvider {
 		this._active = this.getMatchedKeyboardLayout(keymap);
 	}
 
-	getMatchedKeyboardLayout(keymap: IKeyboardMapping): KeyboardLayoutInfo {
+	getMatchedKeyboardLayout(keymap: IKeyboardMapping): KeyboardLayoutInfo | null {
 		// TODO go through mru list instead of _layoutInfos
 		for (let i = 0; i < this._layoutInfos.length; i++) {
 			if (this._layoutInfos[i].fuzzyEqual(keymap)) {
@@ -254,7 +254,7 @@ export class KeyboardLayoutProvider {
 			}
 		}
 
-		return EN_US;
+		return null;
 	}
 
 	getKeyboardLayouts(): KeyboardLayoutInfo[] {

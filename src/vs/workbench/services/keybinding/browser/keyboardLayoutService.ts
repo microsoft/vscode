@@ -65,8 +65,11 @@ export class BrowserKeyboardMapperFactory {
 
 		this.getBrowserKeyMap().then(keyMap => {
 			KeyboardLayoutProvider.INSTANCE.setActive(keyMap);
-			let currentKeyboardLayout = KeyboardLayoutProvider.INSTANCE.activeKeyboardLayout.layout;
-			this._setKeyboardData(currentKeyboardLayout, keyMap);
+			let currentKeyboardLayout = KeyboardLayoutProvider.INSTANCE.activeKeyboardLayout;
+
+			if (currentKeyboardLayout) {
+				this._setKeyboardData(currentKeyboardLayout.layout, keyMap);
+			}
 		});
 	}
 
@@ -110,6 +113,10 @@ export class BrowserKeyboardMapperFactory {
 
 		const standardKeyboardEvent = keyboardEvent as StandardKeyboardEvent;
 		const currentKeymap = KeyboardLayoutProvider.INSTANCE.activeKeyboardLayout;
+		if (!currentKeymap) {
+			return true;
+		}
+
 		const mapping = currentKeymap.value[standardKeyboardEvent.code];
 
 		if (!mapping) {
@@ -207,7 +214,13 @@ export class BrowserKeyboardMapperFactory {
 					};
 				}
 
-				return KeyboardLayoutProvider.INSTANCE.getMatchedKeyboardLayout(ret).value;
+				const matchedKeyboardLayout = KeyboardLayoutProvider.INSTANCE.getMatchedKeyboardLayout(ret);
+
+				if (matchedKeyboardLayout) {
+					return matchedKeyboardLayout.value;
+				}
+
+				return {};
 			});
 		}
 
