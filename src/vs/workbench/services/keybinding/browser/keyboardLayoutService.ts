@@ -220,10 +220,6 @@ export class BrowserKeyboardMapperFactory {
 
 	private _setKeyboardData(layoutInfo: IKeyboardLayoutInfo, rawMapping: IKeyboardMapping): void {
 		this._layoutInfo = layoutInfo;
-		if (this._initialized && BrowserKeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
-			// nothing to do...
-			return;
-		}
 		this._initialized = true;
 		this._rawMapping = rawMapping;
 		this._keyboardMapper = new CachedKeyboardMapper(BrowserKeyboardMapperFactory._createKeyboardMapper(this._layoutInfo, this._rawMapping));
