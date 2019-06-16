@@ -10,11 +10,11 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { OS, OperatingSystem, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { WindowsKeyboardMapper, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { KeyCodeUtils, KeyCode } from 'vs/base/common/keyCodes';
-import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
+import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 import { KeyboardLayoutProvider } from 'vs/workbench/services/keybinding/browser/keyboardLayoutProvider';
@@ -251,13 +251,6 @@ export class BrowserKeyboardMapperFactory {
 		}
 
 		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
-	}
-
-	private static _equals(a: IKeyboardMapping | null, b: IKeyboardMapping | null): boolean {
-		if (OS === OperatingSystem.Windows) {
-			return windowsKeyboardMappingEquals(<IWindowsKeyboardMapping>a, <IWindowsKeyboardMapping>b);
-		}
-		return macLinuxKeyboardMappingEquals(<IMacLinuxKeyboardMapping>a, <IMacLinuxKeyboardMapping>b);
 	}
 }
 
