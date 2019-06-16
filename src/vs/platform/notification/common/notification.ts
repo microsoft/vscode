@@ -171,10 +171,19 @@ export interface IPromptOptions extends INotificationProperties {
 	 * any of the provided choices.
 	 */
 	onCancel?: () => void;
+
+	/**
+	 * options for showing "never show again" prompt.
+	 * by default shown as primary action
+	 */
 	neverShowOptions?: INeverShowOptions;
 }
 
 export interface INotifyOptions {
+	/**
+	 * options for showing "never show again" prompt.
+	 * by default shown as secondary action
+	 */
 	neverShowOptions?: INeverShowOptions;
 }
 
@@ -185,6 +194,7 @@ export interface INeverShowOptions {
 	* The id is used to persist the selection to storage
 	*/
 	promptId: string;
+	isSecondary?: boolean;
 }
 
 export interface IStatusMessageOptions {

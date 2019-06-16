@@ -66,15 +66,27 @@ export class NotificationService extends Disposable implements INotificationServ
 				return new NoOpNotification();
 			}
 
+			const neverShowAction = new Action('workbench.dialog.choice.neverShowAgain', this.neverShowLabel, undefined, true, () => {
+				handle.close();
+				this.neverShow(id);
+				return Promise.resolve();
+			});
+
+			//default to secondary
+			if (typeof (options.neverShowOptions.isSecondary) !== 'boolean') {
+				options.neverShowOptions.isSecondary = true;
+			}
 			notification.actions = notification.actions || {};
-			notification.actions.secondary = notification.actions.secondary || [];
-			notification.actions.secondary = [
-				...notification.actions.secondary,
-				new Action('workbench.dialog.choice.neverShowAgain', this.neverShowLabel, undefined, true, () => {
-					handle.close();
-					this.neverShow(id);
-					return Promise.resolve();
-				})];
+			if (options.neverShowOptions.isSecondary) {
+				notification.actions.secondary = notification.actions.secondary || [];
+				notification.actions.secondary = [...notification.actions.secondary, neverShowAction];
+			}
+			else {
+				notification.actions.primary = notification.actions.primary || [];
+				notification.actions.primary = [...notification.actions.primary, neverShowAction];
+			}
+
+
 
 
 		}
@@ -93,9 +105,14 @@ export class NotificationService extends Disposable implements INotificationServ
 				return new NoOpNotification();
 			}
 
+			if (typeof (options.neverShowOptions.isSecondary) !== 'boolean') {
+				options.neverShowOptions.isSecondary = false;
+			}
+
 			choices.push({
 				label: this.neverShowLabel,
-				run: () => this.neverShow(id)
+				run: () => this.neverShow(id),
+				isSecondary: options.neverShowOptions.isSecondary
 			});
 		}
 
