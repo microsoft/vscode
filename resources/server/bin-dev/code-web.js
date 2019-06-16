@@ -45,7 +45,6 @@ if (SELFHOST) {
 	executable = path.join(__dirname, process.platform === 'win32' ? 'server.bat' : 'server.sh');
 }
 
-
 // Start Server
 let serverArgs = process.argv.slice(2);
 const proc = path.extname(executable) === '.cmd' || path.extname(executable) === '.bat' ? cp.spawn(executable, serverArgs, { shell: true }) : cp.execFile(executable, serverArgs);
@@ -53,6 +52,7 @@ const proc = path.extname(executable) === '.cmd' || path.extname(executable) ===
 let launched = false;
 proc.stdout.on("data", data => {
 
+	// Log everything
 	console.log(data.toString());
 
 	// Bring up web URL when we detect the server is ready
@@ -67,4 +67,9 @@ proc.stdout.on("data", data => {
 			opn(url).catch(() => { console.error(`Failed to open ${url} in your browser. Please do so manually.`); });
 		}, 100);
 	}
+});
+
+// Log errors
+proc.stderr.on("data", data => {
+	console.error(data.toString());
 });
