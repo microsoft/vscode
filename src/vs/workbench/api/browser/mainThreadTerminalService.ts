@@ -247,8 +247,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalProcesses[terminalId].emitData(data);
 	}
 
-	public $sendProcessPid(terminalId: number, pid: number): void {
-		this._terminalProcesses[terminalId].emitPid(pid);
+	public $sendProcessReady(terminalId: number, pid: number, cwd: string): void {
+		this._terminalProcesses[terminalId].emitReady(pid, cwd);
 	}
 
 	public $sendProcessExit(terminalId: number, exitCode: number): void {

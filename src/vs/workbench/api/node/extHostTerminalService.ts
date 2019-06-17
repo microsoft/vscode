@@ -535,7 +535,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
 		const p = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, terminalConfig.get('windowsEnableConpty') as boolean, this._logService);
-		p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessPid(id, e.pid));
+		p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd));
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 		p.onProcessData(data => this._proxy.$sendProcessData(id, data));
 		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));

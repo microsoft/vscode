@@ -400,7 +400,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;
 	$sendProcessData(terminalId: number, data: string): void;
-	$sendProcessPid(terminalId: number, pid: number): void;
+	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
 	$sendProcessExit(terminalId: number, exitCode: number): void;
 	$sendProcessInitialCwd(terminalId: number, cwd: string): void;
 	$sendProcessCwd(terminalId: number, initialCwd: string): void;
