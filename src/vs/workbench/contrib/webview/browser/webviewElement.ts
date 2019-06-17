@@ -152,11 +152,15 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	public set html(value: string) {
 		this.content = {
-			html: value,
+			html: this.preprocessHtml(value),
 			options: this.content.options,
 			state: this.content.state,
 		};
 		this.doUpdateContent();
+	}
+
+	private preprocessHtml(value: string): string {
+		return value.replace(/(?:["'])vscode-resource:([^\s'"]+)(?:["'])/gi, '/vscode-resource$1');
 	}
 
 	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
@@ -164,7 +168,7 @@ export class IFrameWebview extends Disposable implements Webview {
 			return;
 		}
 		this.content = {
-			html: html,
+			html: this.preprocessHtml(html),
 			options: options,
 			state: this.content.state,
 		};
@@ -209,7 +213,6 @@ export class IFrameWebview extends Disposable implements Webview {
 		this._send('message', data);
 	}
 
-
 	layout(): void {
 		// noop
 	}
@@ -217,6 +220,7 @@ export class IFrameWebview extends Disposable implements Webview {
 	focus(): void {
 		this.element.focus();
 	}
+
 	dispose(): void {
 		if (this.element) {
 			if (this.element.parentElement) {

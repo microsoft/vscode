@@ -99,7 +99,6 @@
 	 *   postMessage: (channel: string, data?: any) => void,
 	 *   onMessage: (channel: string, handler: any) => void,
 	 *   injectHtml?: (document: HTMLDocument) => void,
-	 *   preProcessHtml?: (text: string) => void,
 	 *   focusIframeOnCreate?: boolean
 	 * }} HostCommunications
 	 */
@@ -263,7 +262,7 @@
 			host.onMessage('content', (_event, data) => {
 				const options = data.options;
 
-				const text = host.preProcessHtml ? host.preProcessHtml(data.contents) : data.contents;
+				const text = data.contents;
 				const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
 				newDocument.querySelectorAll('a').forEach(a => {

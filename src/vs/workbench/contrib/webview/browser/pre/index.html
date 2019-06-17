@@ -45,9 +45,6 @@
 				},
 				onMessage: (channel, handler) => {
 					handlers[channel] = handler;
-				},
-				preProcessHtml: (text) => {
-					return text.replace(/(?:["'])vscode-resource:([^\s'"]+)(?:["'])/gi, '/vscode-resource$1');
 				}
 			});
 		}());
