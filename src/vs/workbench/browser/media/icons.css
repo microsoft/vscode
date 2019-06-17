@@ -946,7 +946,7 @@ body[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.operato
 	background-color: var(--blue);
 }
 
-ody[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.type-parameter::before {
+body[data-exploration="icon-exploration"] .monaco-workbench .symbol-icon.type-parameter::before {
 	-webkit-mask-image: url("images/intellisense/parameter-alt1.svg");
 }
 
