@@ -235,7 +235,7 @@ import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 import 'vs/workbench/contrib/debug/browser/repl';
 import 'vs/workbench/contrib/debug/browser/debugViewlet';
-import 'vs/workbench/contrib/debug/node/debugUIService';
+import 'vs/workbench/contrib/debug/node/debugHelperService';
 
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';

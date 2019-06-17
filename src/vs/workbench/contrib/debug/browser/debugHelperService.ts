@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServiceIdentifier, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalLauncher } from 'vs/workbench/contrib/debug/common/debug';
+import { ITerminalLauncher, IDebugHelperService, ILaunchVSCodeArguments } from 'vs/workbench/contrib/debug/common/debug';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugUIService, ILaunchVSCodeArguments } from 'vs/workbench/contrib/debug/common/debugUI';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class BrowserDebugUIService implements IDebugUIService {
+export class BrowserDebugHelperService implements IDebugHelperService {
 
-	_serviceBrand: ServiceIdentifier<IDebugUIService>;
+	_serviceBrand: ServiceIdentifier<IDebugHelperService>;
 
 	createTerminalLauncher(instantiationService: IInstantiationService): ITerminalLauncher {
 		throw new Error('Method createTerminalLauncher not implemented.');
@@ -27,4 +26,4 @@ export class BrowserDebugUIService implements IDebugUIService {
 	}
 }
 
-registerSingleton(IDebugUIService, BrowserDebugUIService);
+registerSingleton(IDebugHelperService, BrowserDebugHelperService);

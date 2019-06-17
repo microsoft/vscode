@@ -10,11 +10,9 @@ import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger, IDebugHelperService, ILaunchVSCodeArguments } from 'vs/workbench/contrib/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { IDebugUIService, ILaunchVSCodeArguments } from 'vs/workbench/contrib/debug/common/debugUI';
-
 
 /**
  * Encapsulates the DebugAdapter lifecycle and some idiosyncrasies of the Debug Adapter Protocol.
@@ -58,7 +56,7 @@ export class RawDebugSession {
 		private readonly telemetryService: ITelemetryService,
 		public readonly customTelemetryService: ITelemetryService | undefined,
 		private readonly signService: ISignService,
-		private readonly debugUIService: IDebugUIService
+		private readonly debugUIService: IDebugHelperService
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
