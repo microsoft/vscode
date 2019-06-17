@@ -10,14 +10,17 @@
 	<body class="vs-dark" aria-label="">
 	</body>
 
-	<!-- Startup via workbench.js -->
+	<!-- Require our AMD loader -->
+	<script src="./out/vs/loader.js"></script>
+
+	<!-- Window Configuration from Server -->
 	<script>
-		self.CONNECTION_AUTH_TOKEN = '{{CONNECTION_AUTH_TOKEN}}';
 		self.WINDOW_CONFIGURATION = {
+			connectionAuthToken: '{{CONNECTION_AUTH_TOKEN}}',
 			folderUri: '{{FOLDER}}',
 			workspaceUri: '{{WORKSPACE}}',
 			userDataUri: '{{USER_DATA}}',
-			authority: '{{AUTHORITY}}',
+			remoteAuthority: '{{AUTHORITY}}',
 			webviewEndpoint: '{{WEBVIEW_ENDPOINT}}'
 		}
 	</script>

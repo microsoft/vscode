@@ -12,7 +12,7 @@ exports.base = [{
 }];
 
 exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.main']);
-exports.workbenchWeb = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.web.main']);
+exports.workbenchWeb = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.web.api']);
 
 exports.code = require('./vs/code/buildfile').collectModules();
 
