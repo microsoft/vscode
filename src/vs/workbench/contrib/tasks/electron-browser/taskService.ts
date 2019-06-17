@@ -134,7 +134,7 @@ export class TaskService extends AbstractTaskService {
 		let range = filter && filter.version ? filter.version : undefined;
 		let engine = this.executionEngine;
 
-		return (range === undefined) || ((semver.satisfies('0.1.0', range) && engine === ExecutionEngine.Terminal) || (semver.satisfies('2.0.0', range) && engine === ExecutionEngine.Process));
+		return (range === undefined) || ((semver.satisfies('0.1.0', range) && engine === ExecutionEngine.Process) || (semver.satisfies('2.0.0', range) && engine === ExecutionEngine.Terminal));
 	}
 
 	private printStderr(stderr: string[]): boolean {
