@@ -123,8 +123,6 @@
 			navigator.serviceWorker.register('service-worker.js');
 
 			navigator.serviceWorker.ready.then(registration => {
-				registration.active.postMessage('ping');
-
 				host.onMessage('loaded-resource', event => {
 					registration.active.postMessage({ channel: 'loaded-resource', data: event.data.args });
 				});
@@ -232,6 +230,8 @@
 		};
 
 		document.addEventListener('DOMContentLoaded', () => {
+			const ID = document.location.search.match(/\bid=([\w-]+)/)[1];
+
 			if (!document.body) {
 				return;
 			}
@@ -363,7 +363,7 @@
 					// seeing the service worker applying properly.
 					// Fake load an empty on the correct origin and then write real html
 					// into it to get around this.
-					newFrame.src = '/fake.html';
+					newFrame.src = `/fake.html?id=${ID}`;
 				}
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
